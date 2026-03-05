@@ -1,0 +1,7 @@
+---
+- name: Deploy Chef Automate with Infra Server
+  ansible.builtin.import_tasks: deploy_automate.yml
+  when: chef_automate_deploy_with_infra_server | default(true)
+- name: Deploy Chef Infra Server only
+  ansible.builtin.import_tasks: deploy_chef_server.yml
+  when: not chef_automate_deploy_with_infra_server | default(true)
