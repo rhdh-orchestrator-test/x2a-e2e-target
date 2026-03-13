@@ -89,6 +89,34 @@ ansible-playbook playbooks/run_chef_server_deployment.yml -i inventory/hosts.yml
 
 
 
+### ssh_profile
+
+
+Migrated from Chef to Ansible
+
+
+**Target platforms:** Ubuntu, EL
+
+
+Run this role:
+
+```bash
+ansible-playbook playbooks/run_ssh_profile.yml -i inventory/hosts.yml
+```
+
+
+**Default variables** (override in inventory or extra vars):
+
+| Variable | Default |
+|----------|---------|
+
+| `ssh_profile_fail_on_check` | `True` |
+
+| `ssh_profile_run_checks` | `True` |
+
+
+
+
 ## Prerequisites
 
 ### Collections
