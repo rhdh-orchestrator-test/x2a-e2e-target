@@ -1,0 +1,57 @@
+- name: Verify HTTPS website is properly configured
+  hosts: localhost
+  gather_facts: false
+  tasks:
+  - name: Check if port 443 is listening
+    ansible.builtin.wait_for:
+      port: 443
+      state: started
+      timeout: 5
+    register: port_check
+    ignore_errors: true
+  - name: Verify port 443 is listening
+    ansible.builtin.assert:
+      that: not port_check.failed
+      fail_msg: Port 443 is not listening
+      success_msg: Port 443 is listening
+  - name: Get HTTPS response
+    ansible.builtin.uri:
+      url: https://localhost/
+      validate_certs: false
+      return_content: true
+    register: https_response
+    ignore_errors: true
+  - name: Verify HTTPS status code is 200
+    ansible.builtin.assert:
+      that: https_response.status == 200
+      fail_msg: HTTPS status code is not 200
+      success_msg: HTTPS status code is 200
+  - name: Verify page content contains 'Hello, world!'
+    ansible.builtin.assert:
+      that: '''Hello, world!'' in https_response.content'
+      fail_msg: Page content does not contain 'Hello, world!'
+      success_msg: Page content contains 'Hello, world!'
+  - name: Check SSL protocols - SSLv3 should be disabled
+    ansible.builtin.shell: 'echo | openssl s_client -connect localhost:443 -ssl3 2>&1 | grep -q "wrong version number"
+
+      '
+    register: ssl3_check
+    ignore_errors: true
+    changed_when: false
+  - name: Verify SSLv3 is disabled
+    ansible.builtin.assert:
+      that: ssl3_check is succeeded
+      fail_msg: SSLv3 is enabled (should be disabled)
+      success_msg: SSLv3 is disabled as expected
+  - name: Check SSL protocols - TLSv1.2 should be enabled
+    ansible.builtin.shell: 'echo | openssl s_client -connect localhost:443 -tls1_2 2>&1 | grep -q "CONNECTED"
+
+      '
+    register: tls12_check
+    ignore_errors: true
+    changed_when: false
+  - name: Verify TLSv1.2 is enabled
+    ansible.builtin.assert:
+      that: tls12_check is succeeded
+      fail_msg: TLSv1.2 is not enabled
+      success_msg: TLSv1.2 is enabled as expected
