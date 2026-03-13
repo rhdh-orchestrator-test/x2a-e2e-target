@@ -1,0 +1,46 @@
+- name: SSH Security Tests
+  hosts: localhost
+  gather_facts: false
+  tasks:
+  - name: Check SSH root login configuration
+    ansible.builtin.command:
+      cmd: grep -i "PermitRootLogin" /etc/ssh/sshd_config
+    register: ssh_root_login
+    changed_when: false
+    failed_when: false
+    check_mode: false
+  - name: Check if openssh-server is installed
+    ansible.builtin.package_facts:
+      manager: auto
+    register: package_facts
+    check_mode: false
+  - name: Verify SSH root login is disabled
+    ansible.builtin.assert:
+      that:
+      - '(''openssh-server'' not in ansible_facts.packages) or (ssh_root_login.rc != 0) or (ssh_root_login.stdout is search(''PermitRootLogin no'')) or (not ssh_root_login.stdout
+        is search(''PermitRootLogin yes''))
+
+        '
+      fail_msg: 'SSH root login is enabled. This violates security policy:
+
+        - Security Group: SRG-OS-000112
+
+        - Vulnerability ID: V-38607
+
+        - Rule ID: SV-50408r1_rule
+
+        - Severity: CAT I
+
+        - STIG ID: RHEL-08-000227
+
+        - CCI: CCI-000774
+
+
+        Fix: PermitRootLogin should not be permitted. The default setting
+
+        in "/etc/ssh/sshd_config" is correct, and can be verified by ensuring
+
+        that the following line appears: PermitRootLogin no
+
+        '
+      success_msg: SSH root login is properly disabled or openssh-server is not installed.

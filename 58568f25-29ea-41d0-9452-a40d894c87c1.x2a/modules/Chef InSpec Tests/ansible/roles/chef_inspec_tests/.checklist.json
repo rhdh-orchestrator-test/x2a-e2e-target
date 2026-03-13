@@ -1,0 +1,93 @@
+{
+  "module_name": "chef_inspec_tests",
+  "items": [
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_inspec_tests/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata file",
+      "notes": "Created meta/main.yml with role metadata"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_inspec_tests/tasks/main.yml",
+      "status": "complete",
+      "description": "Main tasks file",
+      "notes": "Created main tasks file that imports the SSH and HTTPS test tasks"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_inspec_tests/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables file",
+      "notes": "Created defaults/main.yml with variables for the tests"
+    },
+    {
+      "category": "files",
+      "source_path": "chef-and-ansible/tests/ssh_profile.rb",
+      "target_path": "./ansible/roles/chef_inspec_tests/tests/ssh_security.yml",
+      "status": "complete",
+      "description": "SSH security test - convert to Ansible test",
+      "notes": "Created Ansible test playbook equivalent to the InSpec SSH security test"
+    },
+    {
+      "category": "files",
+      "source_path": "chef-and-ansible/tests/website_https_verify.rb",
+      "target_path": "./ansible/roles/chef_inspec_tests/tests/website_https_verify.yml",
+      "status": "complete",
+      "description": "HTTPS website test - convert to Ansible test",
+      "notes": "Created Ansible test playbook equivalent to the InSpec HTTPS website verification test"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.posix",
+      "target_path": "./ansible/roles/chef_inspec_tests/requirements.yml",
+      "status": "complete",
+      "description": "Ansible testing collection for system validation",
+      "notes": "Created requirements.yml with required collections"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:community.general",
+      "target_path": "./ansible/roles/chef_inspec_tests/requirements.yml",
+      "status": "complete",
+      "description": "Community general collection for web testing",
+      "notes": "Added community.general collection to requirements.yml"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:community.crypto",
+      "target_path": "./ansible/roles/chef_inspec_tests/requirements.yml",
+      "status": "complete",
+      "description": "Crypto collection for SSL/TLS testing",
+      "notes": "Added community.crypto collection to requirements.yml"
+    },
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/tests/ssh_profile.rb",
+      "target_path": "./ansible/roles/chef_inspec_tests/tasks/ssh_security_test.yml",
+      "status": "complete",
+      "description": "SSH security test implementation",
+      "notes": "Converted InSpec SSH security test to Ansible tasks that check SSH configuration and package status"
+    },
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/tests/website_https_verify.rb",
+      "target_path": "./ansible/roles/chef_inspec_tests/tasks/website_https_test.yml",
+      "status": "complete",
+      "description": "HTTPS website test implementation",
+      "notes": "Converted InSpec HTTPS website test to Ansible tasks that check port, website response, and SSL/TLS protocols"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_inspec_tests/meta/main.yml",
+      "status": "complete",
+      "description": "Created standard meta/main.yml",
+      "notes": ""
+    }
+  ]
+}
