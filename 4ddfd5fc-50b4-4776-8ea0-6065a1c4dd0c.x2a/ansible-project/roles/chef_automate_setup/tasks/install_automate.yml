@@ -1,0 +1,26 @@
+---
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: /tmp/chef-automate_linux_amd64.zip
+    mode: "0644"
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip < /tmp/chef-automate_linux_amd64.zip > {{ ansible_env.PWD }}/chef-automate
+  args:
+    creates: "{{ ansible_env.PWD }}/chef-automate"
+  changed_when: true
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ ansible_env.PWD }}/chef-automate"
+    mode: "0755"
+    state: file
+- name: Deploy Chef Automate with Infra Server
+  ansible.builtin.command:
+    cmd: ./chef-automate deploy --product automate --product infra-server --accept-terms-and-mlsa=true
+  args:
+    chdir: "{{ ansible_env.PWD }}"
+    creates: /hab
+  become: true
+  register: automate_deploy
+  changed_when: automate_deploy.rc == 0
