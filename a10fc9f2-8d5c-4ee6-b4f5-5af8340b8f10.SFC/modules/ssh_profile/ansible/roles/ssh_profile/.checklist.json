@@ -1,0 +1,69 @@
+{
+  "module_name": "ssh_profile",
+  "items": [
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/ssh_profile/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata file with dependencies and information",
+      "notes": "Meta file already exists"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/ssh_profile/tasks/main.yml",
+      "status": "complete",
+      "description": "Main tasks file for the role",
+      "notes": "Created main tasks file that imports the check_ssh_config.yml tasks"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/ssh_profile/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables for the role",
+      "notes": "Created defaults file with role configuration variables"
+    },
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/tests/ssh_profile.rb",
+      "target_path": "./ansible/roles/ssh_profile/tasks/check_ssh_config.yml",
+      "status": "complete",
+      "description": "Convert InSpec SSH security profile to Ansible security check",
+      "notes": "Converted InSpec control to Ansible assertion task"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.posix",
+      "target_path": "./ansible/roles/ssh_profile/requirements.yml",
+      "status": "complete",
+      "description": "Ansible Posix collection for SSH configuration tasks",
+      "notes": "Created requirements.yml with ansible.posix collection dependency"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/ssh_profile/README.md",
+      "status": "complete",
+      "description": "Role documentation with usage instructions",
+      "notes": "Created README with role documentation and security metadata"
+    },
+    {
+      "category": "attributes",
+      "source_path": "chef-and-ansible/tests/ssh_profile.rb",
+      "target_path": "./ansible/roles/ssh_profile/vars/main.yml",
+      "status": "complete",
+      "description": "Security metadata variables (SRG-OS-000112, V-38607, etc.)",
+      "notes": "Created vars file with security metadata from InSpec control"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ssh_profile/meta/main.yml",
+      "status": "complete",
+      "description": "Created standard meta/main.yml",
+      "notes": ""
+    }
+  ]
+}
