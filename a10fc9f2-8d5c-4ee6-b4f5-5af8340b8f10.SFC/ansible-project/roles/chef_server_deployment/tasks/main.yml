@@ -1,0 +1,47 @@
+---
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_server_hostname }}"
+- name: Configure kernel parameters for Chef Server
+  ansible.builtin.command:
+    cmd: sysctl -w {{ item.name }}={{ item.value }}
+  loop:
+    - name: vm.max_map_count
+      value: "262144"
+    - name: vm.dirty_expire_centisecs
+      value: "20000"
+  changed_when: true
+- name: Create download script for Chef Automate CLI
+  ansible.builtin.copy:
+    src: download_chef_automate.sh
+    dest: /tmp/download_chef_automate.sh
+    mode: "0755"
+- name: Download Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: /tmp/download_chef_automate.sh
+    creates: /tmp/chef-automate
+  register: download_result
+  changed_when: download_result.rc == 0
+- name: Deploy Chef Infra Server
+  ansible.builtin.command:
+    cmd: ./chef-automate deploy --product infra-server --accept-terms-and-mlsa=true
+    chdir: /tmp
+  args:
+    creates: /etc/chef-server
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
+- name: Create admin user
+  ansible.builtin.command:
+    cmd: "chef-server-ctl user-create  {{ chef_server_username }}  {{ chef_server_longusername | quote }}  {{ chef_server_useremail | quote }}  {{ chef_server_userpassword
+      | quote }}  --filename {{ chef_server_userfilename }}\n"
+    creates: /home/{{ ansible_user }}/{{ chef_server_userfilename }}
+  register: user_create_result
+  changed_when: user_create_result.rc == 0
+  no_log: true
+- name: Create organization
+  ansible.builtin.command:
+    cmd: "chef-server-ctl org-create  {{ chef_server_orgname }}  {{ chef_server_longorgname | quote }}  --association_user {{ chef_server_username }}  --filename
+      {{ chef_server_orgfilename }}\n"
+    creates: /home/{{ ansible_user }}/{{ chef_server_orgfilename }}
+  register: org_create_result
+  changed_when: org_create_result.rc == 0

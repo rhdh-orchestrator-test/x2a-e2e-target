@@ -47,6 +47,48 @@ ansible-playbook playbooks/run_chef_automate_deployment.yml -i inventory/hosts.y
 
 
 
+### chef_server_deployment
+
+
+Deploys Chef Infra Server on a VM
+
+
+**Target platforms:** Ubuntu
+
+
+Run this role:
+
+```bash
+ansible-playbook playbooks/run_chef_server_deployment.yml -i inventory/hosts.yml
+```
+
+
+**Default variables** (override in inventory or extra vars):
+
+| Variable | Default |
+|----------|---------|
+
+| `chef_server_hostname` | `automate.chef.lab` |
+
+| `chef_server_username` | `jtonello` |
+
+| `chef_server_longusername` | `John Tonello` |
+
+| `chef_server_useremail` | `jtonello@chef.lab` |
+
+| `chef_server_userpassword` | `password` |
+
+| `chef_server_orgname` | `lab` |
+
+| `chef_server_longorgname` | `Chef Lab` |
+
+| `chef_server_userfilename` | `{{ chef_server_username }}.pem` |
+
+| `chef_server_orgfilename` | `{{ chef_server_orgname }}-validator.pem` |
+
+
+
+
 ## Prerequisites
 
 ### Collections
