@@ -1,0 +1,23 @@
+---
+- name: Configure system for Chef Automate
+  ansible.builtin.import_tasks: system_config.yml
+  tags:
+    - system
+    - chef_automate
+- name: Install Chef Automate with Infra Server
+  ansible.builtin.import_tasks: install_automate.yml
+  tags:
+    - install
+    - chef_automate
+  when: chef_install_automate | default(true) | bool
+- name: Install Chef Infra Server only (without Automate)
+  ansible.builtin.import_tasks: install_chef_server.yml
+  tags:
+    - install
+    - chef_server
+  when: chef_install_server_only | default(false) | bool
+- name: Setup Chef user and organization
+  ansible.builtin.import_tasks: user_org_setup.yml
+  tags:
+    - config
+    - chef_automate
