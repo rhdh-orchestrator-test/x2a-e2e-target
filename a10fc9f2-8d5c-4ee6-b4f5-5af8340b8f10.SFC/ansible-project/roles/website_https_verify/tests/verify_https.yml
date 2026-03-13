@@ -1,0 +1,53 @@
+- name: Verify port 443 is listening
+  ansible.builtin.wait_for:
+    port: 443
+    state: started
+    timeout: 5
+  register: port_check
+  ignore_errors: true
+- name: Assert port 443 is listening
+  ansible.builtin.assert:
+    that: not port_check.failed
+    fail_msg: Port 443 is not listening
+    success_msg: Port 443 is listening
+- name: Check HTTPS content
+  ansible.builtin.uri:
+    url: https://localhost/
+    validate_certs: false
+    return_content: true
+  register: https_result
+  ignore_errors: true
+- name: Assert HTTPS status is 200
+  ansible.builtin.assert:
+    that: https_result.status == 200
+    fail_msg: HTTPS status is not 200
+    success_msg: HTTPS status is 200
+  when: not https_result.failed
+- name: Assert HTTPS content contains expected text
+  ansible.builtin.assert:
+    that: '''Hello, world!'' in https_result.content'
+    fail_msg: HTTPS content does not contain 'Hello, world!'
+    success_msg: HTTPS content contains 'Hello, world!'
+  when: not https_result.failed
+- name: Check SSL3 protocol is disabled
+  ansible.builtin.command:
+    cmd: openssl s_client -connect localhost:443 -ssl3
+  register: ssl3_check
+  failed_when: false
+  changed_when: false
+- name: Assert SSL3 is disabled
+  ansible.builtin.assert:
+    that: ssl3_check.rc != 0
+    fail_msg: SSL3 protocol is enabled (insecure)
+    success_msg: SSL3 protocol is disabled (secure)
+- name: Check TLS 1.2 protocol is enabled
+  ansible.builtin.command:
+    cmd: openssl s_client -connect localhost:443 -tls1_2
+  register: tls12_check
+  failed_when: false
+  changed_when: false
+- name: Assert TLS 1.2 is enabled
+  ansible.builtin.assert:
+    that: tls12_check.rc == 0
+    fail_msg: TLS 1.2 protocol is not enabled
+    success_msg: TLS 1.2 protocol is enabled

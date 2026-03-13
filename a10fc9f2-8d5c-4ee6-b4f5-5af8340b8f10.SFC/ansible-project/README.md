@@ -117,6 +117,42 @@ ansible-playbook playbooks/run_ssh_profile.yml -i inventory/hosts.yml
 
 
 
+### website_https_verify
+
+
+Role to verify HTTPS functionality on a web server
+
+
+**Target platforms:** Ubuntu
+
+
+Run this role:
+
+```bash
+ansible-playbook playbooks/run_website_https_verify.yml -i inventory/hosts.yml
+```
+
+
+**Default variables** (override in inventory or extra vars):
+
+| Variable | Default |
+|----------|---------|
+
+| `run_tests` | `False` |
+
+| `https_port` | `443` |
+
+| `https_host` | `localhost` |
+
+| `https_expected_content` | `Hello, world!` |
+
+| `ssl3_should_be_enabled` | `False` |
+
+| `tls1_2_should_be_enabled` | `True` |
+
+
+
+
 ## Prerequisites
 
 ### Collections
