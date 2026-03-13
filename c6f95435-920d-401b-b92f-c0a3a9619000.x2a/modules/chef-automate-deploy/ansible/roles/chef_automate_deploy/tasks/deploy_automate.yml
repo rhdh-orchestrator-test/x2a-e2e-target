@@ -1,0 +1,55 @@
+---
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+- name: Set kernel parameter vm.max_map_count
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "262144"
+    state: present
+    sysctl_set: true
+- name: Set kernel parameter vm.dirty_expire_centisecs
+  ansible.posix.sysctl:
+    name: vm.dirty_expire_centisecs
+    value: "20000"
+    state: present
+    sysctl_set: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: https://packages.chef.io/files/current/latest/chef-automate-cli/chef-automate_linux_amd64.zip
+    dest: /tmp/chef-automate_linux_amd64.zip
+    mode: "0644"
+- name: Unzip Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip -c /tmp/chef-automate_linux_amd64.zip > /tmp/chef-automate
+    creates: /tmp/chef-automate
+  args:
+    warn: false
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: /tmp/chef-automate
+    mode: "0755"
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: /tmp/chef-automate deploy --product automate --product infra-server --accept-terms-and-mlsa=true
+  args:
+    creates: /etc/chef-automate/config.toml
+  become: true
+- name: Create admin user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create {{ chef_automate_username }}  {{ chef_automate_longusername }} {{ chef_automate_useremail }}  "{{ chef_automate_userpassword
+      }}" --filename {{ chef_automate_userfilename }}
+
+      '
+  args:
+    creates: "{{ chef_automate_userfilename }}"
+  become: true
+- name: Create organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create {{ chef_automate_orgname }}  "{{ chef_automate_longorgname }}" --association_user {{ chef_automate_username }}  --filename {{
+      chef_automate_orgfilename }}
+
+      '
+  args:
+    creates: "{{ chef_automate_orgfilename }}"
+  become: true

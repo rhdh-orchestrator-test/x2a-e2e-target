@@ -1,0 +1,85 @@
+{
+  "module_name": "chef_automate_deploy",
+  "items": [
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_deploy/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata file",
+      "notes": "Created meta/main.yml with role metadata including description, license, platform support, and tags."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_deploy/tasks/main.yml",
+      "status": "complete",
+      "description": "Main tasks file",
+      "notes": "Created main.yml that conditionally includes either deploy_automate.yml or deploy_chef_server.yml based on the chef_automate_deploy_full variable."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_deploy/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables file",
+      "notes": "Created defaults/main.yml with all the necessary variables for Chef Automate and Chef Infra Server deployment, including hostname, user details, and organization settings."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_deploy/handlers/main.yml",
+      "status": "complete",
+      "description": "Handlers file",
+      "notes": "Created handlers/main.yml file (empty as no handlers are needed for this role)."
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-automate.sh",
+      "target_path": "./ansible/roles/chef_automate_deploy/tasks/deploy_automate.yml",
+      "status": "complete",
+      "description": "Chef Automate deployment script - convert to Ansible tasks",
+      "notes": "Created deploy_automate.yml with tasks to set hostname, configure kernel parameters, download and install Chef Automate CLI, deploy Chef Automate and Chef Infra Server, and create initial user and organization."
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-chef-server.sh",
+      "target_path": "./ansible/roles/chef_automate_deploy/tasks/deploy_chef_server.yml",
+      "status": "complete",
+      "description": "Chef Server deployment script - convert to Ansible tasks",
+      "notes": "Created deploy_chef_server.yml with tasks to set hostname, configure kernel parameters, download and install Chef Automate CLI, deploy Chef Infra Server only, and create initial user and organization."
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.builtin",
+      "target_path": "./ansible/roles/chef_automate_deploy/requirements.yml",
+      "status": "complete",
+      "description": "System module for hostname configuration",
+      "notes": "Added ansible.builtin collection to requirements.yml."
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.posix",
+      "target_path": "./ansible/roles/chef_automate_deploy/requirements.yml",
+      "status": "complete",
+      "description": "System module for kernel parameter configuration",
+      "notes": "Added ansible.posix collection to requirements.yml."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_deploy/README.md",
+      "status": "complete",
+      "description": "Role documentation",
+      "notes": "Created README.md with role documentation including requirements, variables, dependencies, example playbook, and license information."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deploy/meta/main.yml",
+      "status": "complete",
+      "description": "Created standard meta/main.yml",
+      "notes": ""
+    }
+  ]
+}
