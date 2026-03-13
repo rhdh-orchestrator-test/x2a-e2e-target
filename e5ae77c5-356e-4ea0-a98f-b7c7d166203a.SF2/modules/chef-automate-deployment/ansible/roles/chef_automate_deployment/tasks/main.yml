@@ -1,0 +1,34 @@
+---
+- name: Configure system settings
+  ansible.builtin.import_tasks: system_config.yml
+  tags:
+    - system
+    - chef_automate
+- name: Install Chef Automate CLI
+  ansible.builtin.import_tasks: install_cli.yml
+  tags:
+    - install
+    - chef_automate
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.import_tasks: deploy_automate.yml
+  tags:
+    - deploy
+    - chef_automate
+  when: chef_automate_deploy_both | default(true) | bool
+- name: Deploy Chef Infra Server only
+  ansible.builtin.import_tasks: deploy_chef_server.yml
+  tags:
+    - deploy
+    - chef_server
+  when: not chef_automate_deploy_both | default(true) | bool
+- name: Create users and organizations
+  ansible.builtin.import_tasks: create_users_orgs.yml
+  tags:
+    - config
+    - chef_automate
+- name: Verify deployment
+  ansible.builtin.import_tasks: verify.yml
+  tags:
+    - verify
+    - chef_automate
+  when: chef_automate_verify | default(true) | bool

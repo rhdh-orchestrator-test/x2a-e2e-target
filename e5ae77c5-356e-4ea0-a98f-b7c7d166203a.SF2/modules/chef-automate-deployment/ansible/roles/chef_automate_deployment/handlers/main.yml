@@ -1,0 +1,42 @@
+---
+- name: Reload sysctl
+  ansible.builtin.command:
+    cmd: sysctl -p
+  become: true
+  changed_when: false
+- name: Restart Chef Automate
+  ansible.builtin.command:
+    cmd: chef-automate restart
+  become: true
+  register: restart_result
+  changed_when: restart_result.rc == 0
+  failed_when: restart_result.rc != 0 and restart_result.rc != 127
+- name: Restart Chef Server
+  ansible.builtin.command:
+    cmd: chef-server-ctl restart
+  become: true
+  register: restart_result
+  changed_when: restart_result.rc == 0
+  failed_when: restart_result.rc != 0 and restart_result.rc != 127
+- name: Wait for Chef Automate initialization
+  ansible.builtin.pause:
+    seconds: 30
+    prompt: Waiting for Chef Automate and Chef Infra Server to initialize...
+- name: Wait for Chef Server initialization
+  ansible.builtin.pause:
+    seconds: 30
+    prompt: Waiting for Chef Infra Server to initialize...
+- name: Set permissions on user key file
+  ansible.builtin.file:
+    path: "{{ chef_automate_userfilename }}"
+    mode: "0600"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  become: true
+- name: Set permissions on org key file
+  ansible.builtin.file:
+    path: "{{ chef_automate_orgfilename }}"
+    mode: "0600"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  become: true

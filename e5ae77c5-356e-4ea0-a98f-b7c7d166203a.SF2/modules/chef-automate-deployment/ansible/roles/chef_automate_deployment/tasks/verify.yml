@@ -1,0 +1,62 @@
+---
+- name: Verify hostname is set correctly
+  ansible.builtin.command:
+    cmd: hostname
+  register: hostname_result
+  changed_when: false
+  failed_when: hostname_result.stdout != chef_automate_hostname
+- name: Verify kernel parameters are set correctly
+  ansible.builtin.command:
+    cmd: sysctl {{ item.key }}
+  loop:
+    - key: vm.max_map_count
+      value: "{{ chef_automate_vm_max_map_count }}"
+    - key: vm.dirty_expire_centisecs
+      value: "{{ chef_automate_vm_dirty_expire_centisecs }}"
+  register: sysctl_result
+  changed_when: false
+  failed_when: item.value | string not in sysctl_result.stdout
+- name: Verify Chef Automate CLI exists and is executable
+  ansible.builtin.stat:
+    path: "{{ chef_automate_cli_path }}"
+  register: cli_stat
+  failed_when: not cli_stat.stat.exists or not cli_stat.stat.executable
+- name: Check Chef Automate status
+  ansible.builtin.command:
+    cmd: sudo chef-automate status
+  register: automate_status
+  changed_when: false
+  failed_when: automate_status.rc != 0
+  ignore_errors: true
+- name: Check Chef Infra Server status
+  ansible.builtin.command:
+    cmd: sudo chef-server-ctl status
+  register: server_status
+  changed_when: false
+  failed_when: server_status.rc != 0
+  ignore_errors: true
+- name: Verify user key file exists
+  ansible.builtin.stat:
+    path: "{{ chef_automate_userfilename }}"
+  register: user_key_stat
+  failed_when: not user_key_stat.stat.exists
+- name: Verify organization validator key file exists
+  ansible.builtin.stat:
+    path: "{{ chef_automate_orgfilename }}"
+  register: org_key_stat
+  failed_when: not org_key_stat.stat.exists
+- name: Check if Chef Automate web UI is accessible
+  ansible.builtin.uri:
+    url: https://{{ chef_automate_hostname }}
+    validate_certs: false
+    status_code:
+      - 200
+      - 301
+      - 302
+      - 307
+      - 308
+      - 401
+      - 403
+  register: web_ui_result
+  failed_when: web_ui_result.status == -1
+  ignore_errors: true

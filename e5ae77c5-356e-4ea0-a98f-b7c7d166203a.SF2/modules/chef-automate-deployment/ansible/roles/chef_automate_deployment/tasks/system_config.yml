@@ -1,0 +1,27 @@
+---
+- name: Set hostname for Chef Automate server
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  become: true
+- name: Set vm.max_map_count kernel parameter using command
+  ansible.builtin.command:
+    cmd: sysctl -w vm.max_map_count={{ chef_automate_vm_max_map_count }}
+  become: true
+  changed_when: true
+- name: Set vm.dirty_expire_centisecs kernel parameter using command
+  ansible.builtin.command:
+    cmd: sysctl -w vm.dirty_expire_centisecs={{ chef_automate_vm_dirty_expire_centisecs }}
+  become: true
+  changed_when: true
+- name: Make sysctl settings persistent
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.conf
+    regexp: ^{{ item.key }}
+    line: "{{ item.key }} = {{ item.value }}"
+    state: present
+  become: true
+  loop:
+    - key: vm.max_map_count
+      value: "{{ chef_automate_vm_max_map_count }}"
+    - key: vm.dirty_expire_centisecs
+      value: "{{ chef_automate_vm_dirty_expire_centisecs }}"
