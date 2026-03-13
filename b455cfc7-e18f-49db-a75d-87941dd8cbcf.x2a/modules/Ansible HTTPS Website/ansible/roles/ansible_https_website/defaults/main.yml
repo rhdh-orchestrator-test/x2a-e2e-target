@@ -1,0 +1,10 @@
+---
+apache_version: 2.4.41-4ubuntu3.10
+apache_certs_dir: /etc/apache2/certs
+apache_key_file: "{{ apache_certs_dir }}/apache.key"
+apache_csr_file: "{{ apache_certs_dir }}/apache.csr"
+apache_cert_file: "{{ apache_certs_dir }}/apache.crt"
+apache_vhost_name: helloworld
+apache_vhost_dir: /var/www/{{ apache_vhost_name }}
+apache_ssl_enabled: true
+apache_common_name: myhost
