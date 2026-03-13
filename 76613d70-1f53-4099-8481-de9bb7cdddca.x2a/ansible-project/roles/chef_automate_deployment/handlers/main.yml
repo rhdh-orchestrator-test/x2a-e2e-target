@@ -1,0 +1,15 @@
+---
+- name: Copy user PEM file
+  ansible.builtin.copy:
+    src: /root/{{ chef_automate_username }}.pem
+    dest: "{{ ansible_env.HOME }}/{{ chef_automate_username }}.pem"
+    remote_src: true
+    mode: "0600"
+  become: true
+- name: Copy organization validator PEM file
+  ansible.builtin.copy:
+    src: /root/{{ chef_automate_orgname }}-validator.pem
+    dest: "{{ ansible_env.HOME }}/{{ chef_automate_orgname }}-validator.pem"
+    remote_src: true
+    mode: "0600"
+  become: true
