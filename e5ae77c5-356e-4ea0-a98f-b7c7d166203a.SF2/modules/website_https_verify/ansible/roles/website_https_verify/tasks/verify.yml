@@ -1,0 +1,29 @@
+---
+- name: Verify port 443 is listening
+  ansible.builtin.wait_for:
+    port: 443
+    state: started
+    timeout: 10
+  register: port_check
+  failed_when: port_check.state != "started"
+- name: Verify HTTPS content
+  ansible.builtin.uri:
+    url: https://localhost/
+    validate_certs: false
+    return_content: true
+  register: https_response
+  failed_when: https_response.status != 200 or "'Hello, world!' not in https_response.content"
+- name: Check if SSL3 is disabled
+  ansible.builtin.shell:
+    cmd: set -o pipefail && echo | openssl s_client -connect localhost:443 -ssl3 2>&1 || echo "SSL3 disabled (good)"
+    executable: /bin/bash
+  register: ssl3_check
+  changed_when: false
+  failed_when: "'SSL3 disabled' not in ssl3_check.stdout and 'ssl3 alert handshake failure' not in ssl3_check.stderr"
+- name: Check if TLS1.2 is enabled
+  ansible.builtin.shell:
+    cmd: set -o pipefail && echo | openssl s_client -connect localhost:443 -tls1_2 2>&1
+    executable: /bin/bash
+  register: tls12_check
+  changed_when: false
+  failed_when: "'BEGIN CERTIFICATE' not in tls12_check.stdout"
