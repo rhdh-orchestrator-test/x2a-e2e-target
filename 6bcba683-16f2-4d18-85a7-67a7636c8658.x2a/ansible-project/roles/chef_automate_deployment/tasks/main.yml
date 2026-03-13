@@ -1,0 +1,7 @@
+---
+- name: Include deploy_automate tasks
+  ansible.builtin.import_tasks: deploy_automate.yml
+  when: chef_automate_deploy_automate | bool
+- name: Include deploy_chef_server tasks
+  ansible.builtin.import_tasks: deploy_chef_server.yml
+  when: chef_automate_deploy_infra_server | bool and not chef_automate_deploy_automate | bool
