@@ -1,0 +1,85 @@
+{
+  "module_name": "chef_automate_deployment",
+  "items": [
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_deployment/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata file",
+      "notes": "Meta file already exists and is properly configured"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_deployment/tasks/main.yml",
+      "status": "complete",
+      "description": "Main tasks file",
+      "notes": "Created main tasks file to include deploy_automate.yml or deploy_chef_server.yml based on variables"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_deployment/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables",
+      "notes": "Created defaults file with configurable variables for Chef Automate deployment"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_deployment/handlers/main.yml",
+      "status": "complete",
+      "description": "Role handlers",
+      "notes": "Created handlers file with restart handlers for Chef Automate and Chef Server"
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-automate.sh",
+      "target_path": "./ansible/roles/chef_automate_deployment/tasks/deploy_automate.yml",
+      "status": "complete",
+      "description": "Chef Automate deployment script - convert to Ansible tasks",
+      "notes": "Converted bash script to Ansible tasks with proper variables and idempotence"
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-chef-server.sh",
+      "target_path": "./ansible/roles/chef_automate_deployment/tasks/deploy_chef_server.yml",
+      "status": "complete",
+      "description": "Chef Server deployment script - convert to Ansible tasks",
+      "notes": "Converted bash script to Ansible tasks with proper variables and idempotence"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.posix",
+      "target_path": "./ansible/roles/chef_automate_deployment/requirements.yml",
+      "status": "complete",
+      "description": "System configuration collection for hostname and sysctl operations",
+      "notes": "Created requirements.yml with ansible.posix and ansible.builtin collections"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.builtin",
+      "target_path": "./ansible/roles/chef_automate_deployment/requirements.yml",
+      "status": "complete",
+      "description": "Collection for downloading files and managing archives",
+      "notes": "Added ansible.builtin collection to requirements.yml"
+    },
+    {
+      "category": "attributes",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_deployment/vars/main.yml",
+      "status": "complete",
+      "description": "Variables for Chef Automate deployment configuration",
+      "notes": "Created variables file with dynamic variables for Chef Automate deployment"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/meta/main.yml",
+      "status": "complete",
+      "description": "Created standard meta/main.yml",
+      "notes": ""
+    }
+  ]
+}
