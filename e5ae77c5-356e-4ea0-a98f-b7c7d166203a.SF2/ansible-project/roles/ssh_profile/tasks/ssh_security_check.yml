@@ -1,0 +1,20 @@
+---
+- name: Check if openssh-server is installed
+  ansible.builtin.package_facts:
+    manager: auto
+- name: Check SSH configuration for PermitRootLogin
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^PermitRootLogin
+    line: PermitRootLogin no
+    state: present
+  check_mode: true
+  register: ssh_config_check
+  failed_when: false
+  when: "'openssh-server' in ansible_facts.packages"
+- name: Fail if SSH root login is enabled
+  ansible.builtin.fail:
+    msg: "SECURITY VIOLATION: SSH root login is enabled. STIG ID: RHEL-08-000227, Vulnerability ID: V-38607"
+  when:
+    - "'openssh-server' in ansible_facts.packages"
+    - ssh_config_check.changed or ssh_config_check.rc != 0

@@ -47,6 +47,44 @@ ansible-playbook playbooks/run_chef_server_deployment.yml -i inventory/hosts.yml
 
 
 
+### ssh_profile
+
+
+Security compliance checks for SSH configuration
+
+
+**Target platforms:** Ubuntu, EL
+
+
+Run this role:
+
+```bash
+ansible-playbook playbooks/run_ssh_profile.yml -i inventory/hosts.yml
+```
+
+
+**Default variables** (override in inventory or extra vars):
+
+| Variable | Default |
+|----------|---------|
+
+| `ssh_config_path` | `/etc/ssh/sshd_config` |
+
+| `ssh_permit_root_login` | `no` |
+
+| `security_stig_id` | `RHEL-08-000227` |
+
+| `security_vuln_id` | `V-38607` |
+
+| `security_rule_id` | `SV-50408r1_rule` |
+
+| `security_category` | `CAT I` |
+
+| `security_cci` | `CCI-000774` |
+
+
+
+
 ## Prerequisites
 
 ### Collections
