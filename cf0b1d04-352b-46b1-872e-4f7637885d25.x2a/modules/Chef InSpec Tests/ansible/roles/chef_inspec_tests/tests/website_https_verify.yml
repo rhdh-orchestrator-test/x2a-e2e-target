@@ -1,0 +1,56 @@
+---
+- name: Verify HTTPS website functionality and security
+  block:
+    - name: Check if port 443 is listening
+      ansible.builtin.wait_for:
+        port: 443
+        state: started
+        timeout: 5
+      register: port_check
+      failed_when: false
+    - name: Verify port 443 is listening
+      ansible.builtin.assert:
+        that: port_check is succeeded
+        success_msg: Port 443 is listening
+        fail_msg: "FAILED: Port 443 is not listening"
+    - name: Check HTTPS response status code
+      ansible.builtin.uri:
+        url: https://localhost/
+        validate_certs: false
+        return_content: true
+      register: https_response
+      failed_when: false
+    - name: Verify HTTPS response status code is 200
+      ansible.builtin.assert:
+        that: https_response.status == 200
+        success_msg: HTTPS response status code is 200
+        fail_msg: "FAILED: HTTPS response status code is not 200"
+      when: https_response is succeeded
+    - name: Verify HTTPS response contains expected content
+      ansible.builtin.assert:
+        that: "'Hello, world!' in https_response.content"
+        success_msg: HTTPS response contains expected content
+        fail_msg: "FAILED: HTTPS response does not contain expected content"
+      when: https_response is succeeded
+    - name: Check SSL/TLS protocols - SSL3 (should be disabled)
+      ansible.builtin.command:
+        cmd: openssl s_client -connect localhost:443 -ssl3
+      register: ssl3_check
+      failed_when: false
+      changed_when: false
+    - name: Verify SSL3 is disabled
+      ansible.builtin.assert:
+        that: ssl3_check.rc != 0
+        success_msg: SSL3 protocol is disabled (secure)
+        fail_msg: "FAILED: SSL3 protocol is enabled (insecure)"
+    - name: Check SSL/TLS protocols - TLS 1.2 (should be enabled)
+      ansible.builtin.command:
+        cmd: openssl s_client -connect localhost:443 -tls1_2
+      register: tls12_check
+      failed_when: false
+      changed_when: false
+    - name: Verify TLS 1.2 is enabled
+      ansible.builtin.assert:
+        that: tls12_check.rc == 0
+        success_msg: TLS 1.2 protocol is enabled (secure)
+        fail_msg: "FAILED: TLS 1.2 protocol is not enabled"

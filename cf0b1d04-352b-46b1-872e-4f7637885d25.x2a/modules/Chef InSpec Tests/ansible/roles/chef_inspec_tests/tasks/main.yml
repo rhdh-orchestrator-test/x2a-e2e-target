@@ -1,0 +1,13 @@
+---
+- name: Include SSH security tests
+  ansible.builtin.import_tasks: ../tests/ssh_security.yml
+  tags:
+    - tests
+    - ssh
+    - security
+- name: Include HTTPS website verification tests
+  ansible.builtin.import_tasks: ../tests/website_https_verify.yml
+  tags:
+    - tests
+    - https
+    - website

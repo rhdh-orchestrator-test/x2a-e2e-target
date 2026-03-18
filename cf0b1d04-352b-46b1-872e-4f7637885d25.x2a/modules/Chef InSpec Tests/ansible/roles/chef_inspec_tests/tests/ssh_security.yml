@@ -1,0 +1,44 @@
+---
+- name: Ensure SSH root login is disabled
+  block:
+    - name: Check if PermitRootLogin is not set to 'yes' in sshd_config
+      ansible.builtin.command:
+        cmd: grep -i "^PermitRootLogin" /etc/ssh/sshd_config
+      register: sshd_config_check
+      changed_when: false
+      failed_when: false
+    - name: Verify PermitRootLogin is not 'yes'
+      ansible.builtin.assert:
+        that:
+          - sshd_config_check.rc == 0
+          - "'yes' not in sshd_config_check.stdout.lower()"
+        success_msg: SSH root login is properly disabled
+        fail_msg: "FAILED: SSH root login is not properly disabled"
+      when: sshd_config_check.rc == 0
+      tags:
+        - SRG-OS-000112
+        - V-38607
+        - SV-50408r1_rule
+        - CAT_I
+        - RHEL-08-000227
+        - CCI-000774
+    - name: Check if openssh-server is installed
+      ansible.builtin.package:
+        name: openssh-server
+        state: present
+      check_mode: true
+      register: openssh_check
+      failed_when: false
+    - name: Verify openssh-server is not installed (alternative check)
+      ansible.builtin.assert:
+        that: not openssh_check.changed
+        success_msg: openssh-server is not installed
+        fail_msg: "FAILED: openssh-server is installed"
+      when: sshd_config_check.rc != 0
+      tags:
+        - SRG-OS-000112
+        - V-38607
+        - SV-50408r1_rule
+        - CAT_I
+        - RHEL-08-000227
+        - CCI-000774
