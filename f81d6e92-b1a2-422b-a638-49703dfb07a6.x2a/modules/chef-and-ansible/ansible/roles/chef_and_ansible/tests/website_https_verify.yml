@@ -1,0 +1,38 @@
+- name: Verify HTTPS website
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Check if port 443 is listening
+    ansible.builtin.wait_for:
+      port: 443
+      state: started
+      timeout: 5
+    register: port_check
+    failed_when: port_check.failed | default(false)
+  - name: Check HTTPS response status
+    ansible.builtin.uri:
+      url: https://localhost/
+      validate_certs: false
+      return_content: true
+    register: http_response
+    failed_when: http_response.status != 200
+  - name: Check page content contains "Hello, world!"
+    ansible.builtin.assert:
+      that:
+      - '''Hello, world!'' in http_response.content'
+      fail_msg: Page content does not contain 'Hello, world!'
+      success_msg: Page content contains 'Hello, world!'
+  - name: Check SSL3 protocol is disabled
+    ansible.builtin.shell: 'echo | openssl s_client -connect localhost:443 -ssl3 2>&1 | grep -q "ssl handshake failure"
+
+      '
+    register: ssl3_check
+    changed_when: false
+    failed_when: ssl3_check.rc != 0
+  - name: Check TLSv1.2 protocol is enabled
+    ansible.builtin.shell: 'echo | openssl s_client -connect localhost:443 -tls1_2 2>&1 | grep -q "BEGIN CERTIFICATE"
+
+      '
+    register: tls12_check
+    changed_when: false
+    failed_when: tls12_check.rc != 0

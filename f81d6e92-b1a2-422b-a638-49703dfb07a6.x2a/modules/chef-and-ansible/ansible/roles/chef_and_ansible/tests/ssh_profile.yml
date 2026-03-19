@@ -1,0 +1,28 @@
+- name: Verify SSH security configuration
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Ensure SSH root login is disabled
+    ansible.builtin.lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: ^PermitRootLogin\s+
+      line: PermitRootLogin no
+      state: present
+    check_mode: true
+    register: ssh_config_check
+    failed_when: ssh_config_check.changed or ('PermitRootLogin yes' in lookup('file', '/etc/ssh/sshd_config'))
+    vars:
+      ansible_check_mode: true
+    tags:
+    - SRG-OS-000112
+    - V-38607
+    - SV-50408r1_rule
+    - CAT_I
+    - RHEL-08-000227
+    - CCI-000774
+  - name: Display SSH security check results
+    ansible.builtin.debug:
+      msg: 'SSH root login is properly disabled. This meets security requirement SRG-OS-000112 (STIG ID: RHEL-08-000227). Rationale: Disallowing root logins over
+        SSH requires system admins to authenticate using their own individual account, then escalating to root via sudo or su. This in turn limits opportunity for
+        non-repudiation and provides a clear audit trail in the event of a security incident.'
+    when: not ssh_config_check.changed

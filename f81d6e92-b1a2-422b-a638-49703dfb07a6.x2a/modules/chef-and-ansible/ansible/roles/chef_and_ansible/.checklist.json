@@ -1,0 +1,117 @@
+{
+  "module_name": "chef_and_ansible",
+  "items": [
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata file",
+      "notes": "Created meta/main.yml with role metadata"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/tasks/main.yml",
+      "status": "complete",
+      "description": "Main tasks file",
+      "notes": "Created main tasks file that imports website_https.yml and poodle_fix.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables file",
+      "notes": "Created defaults/main.yml with role variables"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/handlers/main.yml",
+      "status": "complete",
+      "description": "Handlers file",
+      "notes": "Created handlers/main.yml with apache and sshd restart handlers"
+    },
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/website_https.yml",
+      "target_path": "./ansible/roles/chef_and_ansible/tasks/website_https.yml",
+      "status": "complete",
+      "description": "HTTPS website configuration playbook",
+      "notes": "Converted Ansible playbook to task file with proper FQCN module names"
+    },
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "./ansible/roles/chef_and_ansible/tasks/poodle_fix.yml",
+      "status": "complete",
+      "description": "POODLE vulnerability fix playbook",
+      "notes": "Converted Ansible playbook to task file with proper FQCN module names"
+    },
+    {
+      "category": "files",
+      "source_path": "chef-and-ansible/index.html",
+      "target_path": "./ansible/roles/chef_and_ansible/files/index.html",
+      "status": "complete",
+      "description": "Hello World HTML page",
+      "notes": "Copied index.html file to Ansible role files directory"
+    },
+    {
+      "category": "files",
+      "source_path": "chef-and-ansible/tests/website_https_verify.rb",
+      "target_path": "./ansible/roles/chef_and_ansible/tests/website_https_verify.yml",
+      "status": "complete",
+      "description": "HTTPS website verification tests",
+      "notes": "Converted InSpec test to Ansible test format"
+    },
+    {
+      "category": "files",
+      "source_path": "chef-and-ansible/tests/ssh_profile.rb",
+      "target_path": "./ansible/roles/chef_and_ansible/tests/ssh_profile.yml",
+      "status": "complete",
+      "description": "SSH security profile tests",
+      "notes": "Converted InSpec SSH profile test to Ansible test format"
+    },
+    {
+      "category": "files",
+      "source_path": "chef-and-ansible/kitchen.yml",
+      "target_path": "./ansible/roles/chef_and_ansible/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Test Kitchen configuration",
+      "notes": "Converted Test Kitchen configuration to Molecule format"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.posix",
+      "target_path": "./ansible/roles/chef_and_ansible/requirements.yml",
+      "status": "complete",
+      "description": "Apache web server modules",
+      "notes": "Added required collections to requirements.yml"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:community.crypto",
+      "target_path": "./ansible/roles/chef_and_ansible/requirements.yml",
+      "status": "complete",
+      "description": "OpenSSL certificate management",
+      "notes": "Added required collections to requirements.yml"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:community.general",
+      "target_path": "./ansible/roles/chef_and_ansible/requirements.yml",
+      "status": "complete",
+      "description": "General utilities",
+      "notes": "Added required collections to requirements.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/meta/main.yml",
+      "status": "complete",
+      "description": "Created standard meta/main.yml",
+      "notes": ""
+    }
+  ]
+}
