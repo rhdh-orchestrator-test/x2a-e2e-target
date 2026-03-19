@@ -1,0 +1,93 @@
+{
+  "module_name": "chef_deployment",
+  "items": [
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_deployment/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata file",
+      "notes": "Created meta/main.yml with role metadata including platforms, tags, and dependencies."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_deployment/tasks/main.yml",
+      "status": "complete",
+      "description": "Main tasks file",
+      "notes": "Created main.yml task file that conditionally includes either deploy_automate.yml or deploy_chef_server.yml based on variables."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_deployment/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables file",
+      "notes": "Created defaults/main.yml with variables for Chef deployment including hostname, user details, organization details, and deployment type flags."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_deployment/README.md",
+      "status": "complete",
+      "description": "README file",
+      "notes": "Created README.md with comprehensive documentation including role variables, examples, and deployment options."
+    },
+    {
+      "category": "files",
+      "source_path": "setup-automate/deploy-automate.sh",
+      "target_path": "./ansible/roles/chef_deployment/tasks/deploy_automate.yml",
+      "status": "complete",
+      "description": "Script for deploying Chef Automate and Chef Infra Server",
+      "notes": "Created deploy_automate.yml with tasks to set hostname, configure sysctl parameters, download and deploy Chef Automate with Infra Server, and create Chef user and organization."
+    },
+    {
+      "category": "files",
+      "source_path": "setup-automate/deploy-chef-server.sh",
+      "target_path": "./ansible/roles/chef_deployment/tasks/deploy_chef_server.yml",
+      "status": "complete",
+      "description": "Script for deploying only Chef Infra Server",
+      "notes": "Created deploy_chef_server.yml with tasks to set hostname, configure sysctl parameters, download and deploy Chef Infra Server only, and create Chef user and organization."
+    },
+    {
+      "category": "attributes",
+      "source_path": "setup-automate/deploy-automate.sh",
+      "target_path": "./ansible/roles/chef_deployment/defaults/main.yml",
+      "status": "complete",
+      "description": "Chef deployment configuration variables",
+      "notes": "Created defaults/main.yml with variables for Chef deployment including hostname, user details, organization details, and deployment type flags."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_deployment/handlers/main.yml",
+      "status": "complete",
+      "description": "Handlers file for service management",
+      "notes": "Created empty handlers/main.yml file as no handlers are needed for this role."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_deployment/vars/main.yml",
+      "status": "complete",
+      "description": "Additional variables file",
+      "notes": "Created empty vars/main.yml file as no additional variables are needed for this role."
+    },
+    {
+      "category": "dependencies",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_deployment/requirements.yml",
+      "status": "complete",
+      "description": "Requirements file for role dependencies",
+      "notes": "Created requirements.yml with ansible.posix collection dependency for sysctl module."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_deployment/meta/main.yml",
+      "status": "complete",
+      "description": "Created standard meta/main.yml",
+      "notes": ""
+    }
+  ]
+}
