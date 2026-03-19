@@ -1,0 +1,109 @@
+{
+  "module_name": "chef_and_ansible",
+  "items": [
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata file",
+      "notes": "Created meta/main.yml with role metadata"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/tasks/main.yml",
+      "status": "complete",
+      "description": "Main tasks file",
+      "notes": "Created main tasks file that imports website_https.yml and poodle_fix.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables",
+      "notes": "Created defaults/main.yml with variables from the original playbooks"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/handlers/main.yml",
+      "status": "complete",
+      "description": "Handlers file",
+      "notes": "Created handlers/main.yml with service restart handlers"
+    },
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/website_https.yml",
+      "target_path": "./ansible/roles/chef_and_ansible/tasks/website_https.yml",
+      "status": "complete",
+      "description": "Apache HTTPS setup playbook",
+      "notes": "Converted website_https.yml to Ansible task format with FQCN module names"
+    },
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "./ansible/roles/chef_and_ansible/tasks/poodle_fix.yml",
+      "status": "complete",
+      "description": "POODLE vulnerability fix playbook",
+      "notes": "Converted poodle_fix.yml to Ansible task format with FQCN module names"
+    },
+    {
+      "category": "files",
+      "source_path": "chef-and-ansible/tests/website_https_verify.rb",
+      "target_path": "./ansible/roles/chef_and_ansible/tests/website_https_verify.yml",
+      "status": "complete",
+      "description": "InSpec test for HTTPS verification",
+      "notes": "Converted InSpec test to Ansible test format"
+    },
+    {
+      "category": "files",
+      "source_path": "chef-and-ansible/tests/ssh_profile.rb",
+      "target_path": "./ansible/roles/chef_and_ansible/tests/ssh_profile.yml",
+      "status": "complete",
+      "description": "InSpec test for SSH security profile",
+      "notes": "Converted InSpec SSH profile test to Ansible test format"
+    },
+    {
+      "category": "files",
+      "source_path": "chef-and-ansible/index.html",
+      "target_path": "./ansible/roles/chef_and_ansible/files/index.html",
+      "status": "complete",
+      "description": "HTML content for the web server",
+      "notes": "Copied index.html to files directory"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.posix",
+      "target_path": "./ansible/roles/chef_and_ansible/requirements.yml",
+      "status": "complete",
+      "description": "Apache web server collection",
+      "notes": "Created requirements.yml with ansible.posix collection"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:community.crypto",
+      "target_path": "./ansible/roles/chef_and_ansible/requirements.yml",
+      "status": "complete",
+      "description": "SSL certificate management",
+      "notes": "Added community.crypto collection to requirements.yml"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.utils",
+      "target_path": "./ansible/roles/chef_and_ansible/requirements.yml",
+      "status": "complete",
+      "description": "General utilities",
+      "notes": "Added ansible.utils collection to requirements.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/meta/main.yml",
+      "status": "complete",
+      "description": "Created standard meta/main.yml",
+      "notes": ""
+    }
+  ]
+}
