@@ -1,0 +1,85 @@
+{
+  "module_name": "chef_automate_setup",
+  "items": [
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_setup/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata file",
+      "notes": "Created meta/main.yml with role metadata"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_setup/tasks/main.yml",
+      "status": "complete",
+      "description": "Main tasks file",
+      "notes": "Created main tasks file that imports deploy_automate.yml and deploy_chef_server.yml with conditional execution"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_setup/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables",
+      "notes": "Created defaults/main.yml with all variables from the bash scripts"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_setup/handlers/main.yml",
+      "status": "complete",
+      "description": "Role handlers",
+      "notes": "Created empty handlers file"
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-automate.sh",
+      "target_path": "./ansible/roles/chef_automate_setup/tasks/deploy_automate.yml",
+      "status": "complete",
+      "description": "Chef Automate deployment script to be converted to Ansible tasks",
+      "notes": "Converted bash script to Ansible tasks with proper variables and idempotency"
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-chef-server.sh",
+      "target_path": "./ansible/roles/chef_automate_setup/tasks/deploy_chef_server.yml",
+      "status": "complete",
+      "description": "Chef Server deployment script to be converted to Ansible tasks",
+      "notes": "Converted bash script to Ansible tasks with proper variables and idempotency"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.posix",
+      "target_path": "./ansible/roles/chef_automate_setup/requirements.yml",
+      "status": "complete",
+      "description": "Collection for system configuration (hostname, sysctl)",
+      "notes": "Added ansible.posix collection to requirements.yml"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.builtin",
+      "target_path": "./ansible/roles/chef_automate_setup/requirements.yml",
+      "status": "complete",
+      "description": "Collection for general utilities",
+      "notes": "Added ansible.builtin collection to requirements.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_setup/README.md",
+      "status": "complete",
+      "description": "Role documentation",
+      "notes": "Created comprehensive README.md with role documentation"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_setup/meta/main.yml",
+      "status": "complete",
+      "description": "Created standard meta/main.yml",
+      "notes": ""
+    }
+  ]
+}
