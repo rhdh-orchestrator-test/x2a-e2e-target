@@ -1,0 +1,12 @@
+---
+- name: Apply sysctl settings
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-chef-automate.conf
+    reload: true
+  with_items:
+    - key: vm.max_map_count
+      value: "{{ chef_automate_vm_max_map_count }}"
+    - key: vm.dirty_expire_centisecs
+      value: "{{ chef_automate_vm_dirty_expire_centisecs }}"
