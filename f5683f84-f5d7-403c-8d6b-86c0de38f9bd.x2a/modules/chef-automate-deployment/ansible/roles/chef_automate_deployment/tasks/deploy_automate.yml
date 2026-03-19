@@ -1,0 +1,58 @@
+---
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  become: true
+- name: Set vm.max_map_count kernel parameter
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "262144"
+    state: present
+    sysctl_set: true
+    reload: true
+  become: true
+- name: Set vm.dirty_expire_centisecs kernel parameter
+  ansible.posix.sysctl:
+    name: vm.dirty_expire_centisecs
+    value: "20000"
+    state: present
+    sysctl_set: true
+    reload: true
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: https://packages.chef.io/files/current/latest/chef-automate-cli/chef-automate_linux_amd64.zip
+    dest: /tmp/chef-automate_linux_amd64.zip
+    mode: "0644"
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip -c /tmp/chef-automate_linux_amd64.zip > chef-automate
+    chdir: "{{ chef_automate_install_dir | default('/root') }}"
+    creates: "{{ chef_automate_install_dir | default('/root') }}/chef-automate"
+  become: true
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_install_dir | default('/root') }}/chef-automate"
+    mode: "0755"
+  become: true
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: ./chef-automate deploy --product automate --product infra-server --accept-terms-and-mlsa=true
+    chdir: "{{ chef_automate_install_dir | default('/root') }}"
+    creates: /etc/chef-automate/config.toml
+  become: true
+  register: chef_automate_deploy
+  changed_when: chef_automate_deploy.rc == 0
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: "chef-server-ctl user-create  {{ chef_automate_username }}  {{ chef_automate_longusername | quote }}  {{ chef_automate_useremail }}  {{ chef_automate_userpassword
+      | quote }}  --filename {{ chef_automate_userfilename }}\n"
+    creates: "{{ chef_automate_userfilename }}"
+  become: true
+  no_log: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: "chef-server-ctl org-create  {{ chef_automate_orgname }}  {{ chef_automate_longorgname | quote }}  --association_user {{ chef_automate_username }}  --filename
+      {{ chef_automate_orgfilename }}\n"
+    creates: "{{ chef_automate_orgfilename }}"
+  become: true
