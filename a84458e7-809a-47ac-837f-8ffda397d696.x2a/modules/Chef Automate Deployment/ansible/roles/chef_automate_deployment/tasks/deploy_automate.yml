@@ -1,0 +1,63 @@
+---
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+- name: Set vm.max_map_count sysctl parameter
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "262144"
+    state: present
+    sysctl_set: true
+    reload: true
+- name: Set vm.dirty_expire_centisecs sysctl parameter
+  ansible.posix.sysctl:
+    name: vm.dirty_expire_centisecs
+    value: "20000"
+    state: present
+    sysctl_set: true
+    reload: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: https://packages.chef.io/files/current/latest/chef-automate-cli/chef-automate_linux_amd64.zip
+    dest: /tmp/chef-automate.zip
+    mode: "0644"
+- name: Unzip Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip - > chef-automate
+    stdin: "{{ lookup('file', '/tmp/chef-automate.zip') }}"
+    chdir: /tmp
+    creates: /tmp/chef-automate
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: /tmp/chef-automate
+    mode: "0755"
+    state: file
+- name: Deploy Chef Automate with Infra Server
+  ansible.builtin.command:
+    cmd: sudo ./chef-automate deploy --product automate --product infra-server --accept-terms-and-mlsa=true
+    chdir: /tmp
+  register: deploy_result
+  changed_when: "'Success' in deploy_result.stdout"
+  failed_when: deploy_result.rc != 0
+  args:
+    creates: /etc/chef/automate-credentials.toml
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: 'sudo chef-server-ctl user-create  {{ chef_automate_username }}  {{ chef_automate_longusername }}  {{ chef_automate_useremail }}  "{{ chef_automate_userpassword
+      }}"  --filename {{ chef_automate_userfilename }}
+
+      '
+  args:
+    creates: "{{ chef_automate_userfilename }}"
+  register: user_create_result
+  changed_when: user_create_result.rc == 0
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'sudo chef-server-ctl org-create  {{ chef_automate_orgname }}  "{{ chef_automate_longorgname }}"  --association_user {{ chef_automate_username }}  --filename
+      {{ chef_automate_orgfilename }}
+
+      '
+  args:
+    creates: "{{ chef_automate_orgfilename }}"
+  register: org_create_result
+  changed_when: org_create_result.rc == 0
