@@ -1,0 +1,24 @@
+---
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  become: true
+- name: Configure kernel parameters for Chef Automate
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_file: /etc/sysctl.d/99-chef-automate.conf
+    reload: true
+  become: true
+  with_items:
+    - key: vm.max_map_count
+      value: "{{ chef_automate_vm_max_map_count }}"
+    - key: vm.dirty_expire_centisecs
+      value: "{{ chef_automate_vm_dirty_expire_centisecs }}"
+- name: Include deploy_automate tasks
+  ansible.builtin.include_tasks: deploy_automate.yml
+  when: chef_automate_deploy_automate | bool
+- name: Include deploy_chef_server tasks
+  ansible.builtin.include_tasks: deploy_chef_server.yml
+  when: not chef_automate_deploy_automate | bool and chef_automate_deploy_infra_server | bool
