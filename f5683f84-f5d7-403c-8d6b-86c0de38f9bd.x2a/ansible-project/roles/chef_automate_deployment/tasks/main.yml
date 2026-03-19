@@ -1,0 +1,12 @@
+---
+- name: Include deploy_automate tasks
+  ansible.builtin.import_tasks: deploy_automate.yml
+  when: chef_automate_deploy_with_automate | default(true)
+  tags:
+    - chef_automate
+    - chef_server
+- name: Include deploy_chef_server tasks
+  ansible.builtin.import_tasks: deploy_chef_server.yml
+  when: not chef_automate_deploy_with_automate | default(true)
+  tags:
+    - chef_server
