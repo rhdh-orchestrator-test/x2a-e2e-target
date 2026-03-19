@@ -1,0 +1,55 @@
+- name: Verify HTTPS configuration
+  hosts: localhost
+  gather_facts: false
+  tasks:
+  - name: Check if port 443 is listening
+    ansible.builtin.wait_for:
+      port: 443
+      state: started
+      timeout: 5
+    register: port_check
+    ignore_errors: true
+  - name: Verify port 443 is listening
+    ansible.builtin.assert:
+      that: port_check is success
+      fail_msg: Port 443 is not listening
+      success_msg: Port 443 is listening
+  - name: Check HTTPS response
+    ansible.builtin.uri:
+      url: https://localhost/
+      validate_certs: false
+      return_content: true
+    register: https_response
+    ignore_errors: true
+  - name: Verify HTTPS status code is 200
+    ansible.builtin.assert:
+      that: https_response.status == 200
+      fail_msg: HTTPS response status is not 200
+      success_msg: HTTPS response status is 200
+  - name: Verify page content contains 'Hello, world!'
+    ansible.builtin.assert:
+      that: '''Hello, world!'' in https_response.content'
+      fail_msg: Page content does not contain 'Hello, world!'
+      success_msg: Page content contains 'Hello, world!'
+  - name: Check if SSL3 is disabled
+    ansible.builtin.shell:
+      cmd: echo | openssl s_client -connect localhost:443 -ssl3 2>&1 | grep 'Protocol'
+    register: ssl3_check
+    ignore_errors: true
+    changed_when: false
+  - name: Verify SSL3 is disabled
+    ansible.builtin.assert:
+      that: '''Protocol  : SSLv3'' not in ssl3_check.stdout'
+      fail_msg: SSL3 is enabled
+      success_msg: SSL3 is disabled
+  - name: Check if TLSv1.2 is enabled
+    ansible.builtin.shell:
+      cmd: echo | openssl s_client -connect localhost:443 -tls1_2 2>&1 | grep 'Protocol'
+    register: tls12_check
+    ignore_errors: true
+    changed_when: false
+  - name: Verify TLSv1.2 is enabled
+    ansible.builtin.assert:
+      that: '''Protocol  : TLSv1.2'' in tls12_check.stdout'
+      fail_msg: TLSv1.2 is not enabled
+      success_msg: TLSv1.2 is enabled
