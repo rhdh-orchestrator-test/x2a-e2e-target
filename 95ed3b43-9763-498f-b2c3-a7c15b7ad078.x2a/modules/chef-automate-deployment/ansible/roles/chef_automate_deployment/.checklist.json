@@ -1,0 +1,93 @@
+{
+  "module_name": "chef_automate_deployment",
+  "items": [
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_deployment/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata file",
+      "notes": "Created meta/main.yml with role metadata."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_deployment/tasks/main.yml",
+      "status": "complete",
+      "description": "Main tasks file",
+      "notes": "Created main tasks file that includes either deploy_automate.yml or deploy_chef_server.yml based on variables."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_deployment/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables file",
+      "notes": "Created defaults file with configurable options for Chef Automate and Chef Infra Server deployment."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_automate_deployment/README.md",
+      "status": "complete",
+      "description": "Role README file",
+      "notes": "Created README.md with role documentation, variables, and usage examples."
+    },
+    {
+      "category": "files",
+      "source_path": "setup-automate/deploy-automate.sh",
+      "target_path": "./ansible/roles/chef_automate_deployment/tasks/deploy_automate.yml",
+      "status": "complete",
+      "description": "Chef Automate deployment script - to be converted to Ansible tasks",
+      "notes": "Converted bash script to Ansible tasks. Warning about ansible.posix.sysctl module name is expected."
+    },
+    {
+      "category": "files",
+      "source_path": "setup-automate/deploy-chef-server.sh",
+      "target_path": "./ansible/roles/chef_automate_deployment/tasks/deploy_chef_server.yml",
+      "status": "complete",
+      "description": "Chef Server deployment script - to be converted to Ansible tasks",
+      "notes": "Converted bash script to Ansible tasks. Warning about ansible.posix.sysctl module name is expected."
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.posix",
+      "target_path": "./ansible/roles/chef_automate_deployment/requirements.yml",
+      "status": "complete",
+      "description": "Collection for system configuration (hostname, sysctl)",
+      "notes": "Created requirements.yml with ansible.posix collection dependency."
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.builtin",
+      "target_path": "./ansible/roles/chef_automate_deployment/requirements.yml",
+      "status": "complete",
+      "description": "Collection for downloading files (curl replacement)",
+      "notes": "Added ansible.builtin collection to requirements.yml."
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.utils",
+      "target_path": "./ansible/roles/chef_automate_deployment/requirements.yml",
+      "status": "complete",
+      "description": "Collection for service management",
+      "notes": "Added ansible.utils collection to requirements.yml."
+    },
+    {
+      "category": "attributes",
+      "source_path": "setup-automate/deploy-automate.sh",
+      "target_path": "./ansible/roles/chef_automate_deployment/vars/main.yml",
+      "status": "complete",
+      "description": "Variables for Chef Automate and Chef Server configuration",
+      "notes": "Created vars/main.yml with variables extracted from the deploy-automate.sh script."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/meta/main.yml",
+      "status": "complete",
+      "description": "Created standard meta/main.yml",
+      "notes": ""
+    }
+  ]
+}
