@@ -1,0 +1,7 @@
+---
+- name: Include deploy_automate tasks (Chef Automate + Chef Infra Server)
+  ansible.builtin.include_tasks: deploy_automate.yml
+  when: deploy_chef_automate | default(true) | bool
+- name: Include deploy_chef_server tasks (Chef Infra Server only)
+  ansible.builtin.include_tasks: deploy_chef_server.yml
+  when: deploy_chef_server_only | default(false) | bool
