@@ -1,0 +1,17 @@
+[Unit]
+Description=Redis persistent key-value database
+After=network.target
+
+[Service]
+ExecStart={{ redis_install_dir }}/bin/redis-server /etc/redis/%i.conf
+ExecStop={{ redis_install_dir }}/bin/redis-cli -p %i {% if redis_requirepass is defined and redis_requirepass %}-a {{ redis_requirepass }} {% endif %}shutdown
+User={{ redis_user }}
+Group={{ redis_group }}
+RuntimeDirectory=redis
+RuntimeDirectoryMode=0755
+Type=simple
+Restart=on-failure
+LimitNOFILE={{ redis_nofile_limit | default('65536') }}
+
+[Install]
+WantedBy=multi-user.target

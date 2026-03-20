@@ -1,0 +1,12 @@
+description "Redis Server {{ redis_port }}"
+
+start on runlevel [2345]
+stop on runlevel [016]
+
+respawn
+respawn limit 10 5
+
+setuid {{ redis_user }}
+setgid {{ redis_group }}
+
+exec {{ redis_install_dir }}/bin/redis-server /etc/redis/{{ redis_port }}.conf

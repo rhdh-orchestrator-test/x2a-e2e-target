@@ -1,0 +1,46 @@
+---
+- name: Configure PAM limits for Redis
+  ansible.builtin.template:
+    src: limits.conf.j2
+    dest: /etc/security/limits.d/redis.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: redis_set_limits | default(true)
+- name: Configure PAM to use limits on Debian systems
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-session
+    line: session required pam_limits.so
+    state: present
+  when:
+    - ansible_os_family == 'Debian'
+    - redis_set_limits | default(true)
+- name: Configure PAM to use limits on RedHat systems
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/system-auth
+    line: session required pam_limits.so
+    state: present
+  when:
+    - ansible_os_family == 'RedHat'
+    - redis_set_limits | default(true)
+- name: Configure su to use limits on Debian systems
+  ansible.builtin.template:
+    src: su.j2
+    dest: /etc/pam.d/su
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - ansible_os_family == 'Debian'
+    - redis_set_limits | default(true)
+- name: Configure sudo to use limits on Debian systems
+  ansible.builtin.copy:
+    content: "#%PAM-1.0\nauth       required     pam_env.so\nauth       required     pam_env.so envfile=/etc/default/locale\n@include common-auth\n@include common-account\n\
+      @include common-session-noninteractive\nsession required pam_limits.so\n"
+    dest: /etc/pam.d/sudo
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - ansible_os_family == 'Debian'
+    - redis_set_limits | default(true)

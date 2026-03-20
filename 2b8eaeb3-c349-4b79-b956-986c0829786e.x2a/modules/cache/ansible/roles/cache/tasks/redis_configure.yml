@@ -1,0 +1,60 @@
+---
+- name: Create Redis configuration directories
+  ansible.builtin.file:
+    path: /etc/redis/{{ item.name | default(item.port) }}
+    state: directory
+    owner: "{{ redis_user | default('redis') }}"
+    group: "{{ redis_group | default('redis') }}"
+    mode: "0755"
+  loop: "{{ redis_instances | default([{'port': 6379}]) }}"
+- name: Create Redis data directories
+  ansible.builtin.file:
+    path: "{{ item.datadir | default('/var/lib/redis/' + (item.name | default(item.port | string))) }}"
+    state: directory
+    owner: "{{ redis_user | default('redis') }}"
+    group: "{{ redis_group | default('redis') }}"
+    mode: "0755"
+  loop: "{{ redis_instances | default([{'port': 6379}]) }}"
+- name: Create Redis log directories
+  ansible.builtin.file:
+    path: "{{ item.logdir | default('/var/log/redis') }}"
+    state: directory
+    owner: "{{ redis_user | default('redis') }}"
+    group: "{{ redis_group | default('redis') }}"
+    mode: "0755"
+  loop: "{{ redis_instances | default([{'port': 6379}]) }}"
+- name: Configure Redis instances
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: /etc/redis/{{ item.name | default(item.port) }}/redis.conf
+    owner: "{{ redis_user | default('redis') }}"
+    group: "{{ redis_group | default('redis') }}"
+    mode: "0644"
+  loop: "{{ redis_instances | default([{'port': 6379}]) }}"
+  notify: restart redis
+- name: Create Redis systemd service files
+  ansible.builtin.template:
+    src: redis.service.j2
+    dest: /etc/systemd/system/redis-{{ item.name | default(item.port) }}.service
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ redis_instances | default([{'port': 6379}]) }}"
+  notify: restart redis
+  when: ansible_service_mgr == 'systemd'
+- name: Create Redis init.d service files
+  ansible.builtin.template:
+    src: redis.init.j2
+    dest: /etc/init.d/redis-{{ item.name | default(item.port) }}
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ redis_instances | default([{'port': 6379}]) }}"
+  notify: restart redis
+  when: ansible_service_mgr != 'systemd'
+- name: Enable and start Redis services
+  ansible.builtin.service:
+    name: redis-{{ item.name | default(item.port) }}
+    enabled: true
+    state: started
+  loop: "{{ redis_instances | default([{'port': 6379}]) }}"

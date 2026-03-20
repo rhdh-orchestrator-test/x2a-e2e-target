@@ -1,0 +1,28 @@
+---
+- name: Install memcached package
+  ansible.builtin.package:
+    name: memcached
+    state: present
+- name: Configure memcached
+  ansible.builtin.template:
+    src: memcached.conf.j2
+    dest: "{{ memcached_config_file | default('/etc/memcached.conf') }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart memcached
+  when: ansible_os_family == 'Debian'
+- name: Configure memcached (RHEL)
+  ansible.builtin.template:
+    src: memcached.sysconfig.j2
+    dest: /etc/sysconfig/memcached
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart memcached
+  when: ansible_os_family == 'RedHat'
+- name: Ensure memcached service is enabled and running
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true

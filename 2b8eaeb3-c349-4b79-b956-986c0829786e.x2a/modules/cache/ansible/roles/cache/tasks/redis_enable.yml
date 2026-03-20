@@ -1,0 +1,7 @@
+---
+- name: Enable and start Redis services
+  ansible.builtin.service:
+    name: redis-{{ item.name | default(item.port) }}
+    enabled: true
+    state: started
+  loop: "{{ redis_instances | default([{'port': 6379}]) }}"

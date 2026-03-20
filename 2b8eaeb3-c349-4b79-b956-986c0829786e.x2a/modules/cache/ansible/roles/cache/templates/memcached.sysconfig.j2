@@ -1,0 +1,5 @@
+PORT="{{ memcached_port | default('11211') }}"
+USER="{{ memcached_user | default('memcached') }}"
+MAXCONN="{{ memcached_maxconn | default('1024') }}"
+CACHESIZE="{{ memcached_memory | default('64') }}"
+OPTIONS="-l {{ memcached_listen | default('0.0.0.0') }} -U {{ memcached_udp_port | default('11211') }} -I {{ memcached_max_object_size | default('1m') }}"

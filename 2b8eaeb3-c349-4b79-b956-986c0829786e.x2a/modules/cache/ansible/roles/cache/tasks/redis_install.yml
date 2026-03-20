@@ -1,0 +1,51 @@
+---
+- name: Install Redis from package
+  ansible.builtin.package:
+    name: redis-server
+    state: present
+  when: redis_package_install | default(true)
+- name: Create Redis directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ redis_user | default('redis') }}"
+    group: "{{ redis_group | default('redis') }}"
+    mode: "0755"
+  loop:
+    - "{{ redis_install_dir | default('/usr/local/bin') }}"
+    - /etc/redis
+    - /var/lib/redis
+    - /var/log/redis
+  when: not redis_package_install | default(true)
+- name: Download Redis source
+  ansible.builtin.get_url:
+    url: "{{ redis_source_url | default('http://download.redis.io/releases/redis-' + redis_version | default('6.2.6') + '.tar.gz') }}"
+    dest: /tmp/redis-{{ redis_version | default('6.2.6') }}.tar.gz
+    mode: "0644"
+  when: not redis_package_install | default(true)
+- name: Extract Redis source
+  ansible.builtin.unarchive:
+    src: /tmp/redis-{{ redis_version | default('6.2.6') }}.tar.gz
+    dest: /tmp
+    remote_src: true
+  when: not redis_package_install | default(true)
+- name: Compile and install Redis
+  ansible.builtin.shell:
+    cmd: "cd /tmp/redis-{{ redis_version | default('6.2.6') }}\nmake\nmake install PREFIX={{ redis_install_dir | default('/usr/local') }}\n"
+    creates: "{{ redis_install_dir | default('/usr/local') }}/bin/redis-server"
+  when: not redis_package_install | default(true)
+- name: Create Redis group
+  ansible.builtin.group:
+    name: "{{ redis_group | default('redis') }}"
+    state: present
+    system: true
+  when: not redis_package_install | default(true)
+- name: Create Redis user
+  ansible.builtin.user:
+    name: "{{ redis_user | default('redis') }}"
+    group: "{{ redis_group | default('redis') }}"
+    home: /var/lib/redis
+    shell: /bin/false
+    system: true
+    createhome: false
+  when: not redis_package_install | default(true)
