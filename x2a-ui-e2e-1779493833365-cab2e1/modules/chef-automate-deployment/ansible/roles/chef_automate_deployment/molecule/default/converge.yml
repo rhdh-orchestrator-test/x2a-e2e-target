@@ -1,0 +1,110 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    user_password: password123
+  tasks:
+  - name: Create required directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/proc/sys/vm
+    - /tmp/molecule_test/hab
+    - /tmp/molecule_test/tmp
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: automate.chef.lab
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create max_map_count file
+    ansible.builtin.copy:
+      content: '262144'
+      dest: /tmp/molecule_test/proc/sys/vm/max_map_count
+      mode: '0644'
+  - name: Create dirty_expire_centisecs file
+    ansible.builtin.copy:
+      content: '20000'
+      dest: /tmp/molecule_test/proc/sys/vm/dirty_expire_centisecs
+      mode: '0644'
+  - name: Create chef-automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/bash echo ''Chef Automate CLI'''
+      dest: /tmp/molecule_test/tmp/chef-automate
+      mode: '0755'
+  - name: Create user key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- MIIEpAIBAAKCAQEA... -----END RSA PRIVATE KEY-----'
+      dest: /tmp/molecule_test/jtonello.pem
+      mode: '0600'
+  - name: Create organization validator key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- MIIEpAIBAAKCAQEA... -----END RSA PRIVATE KEY-----'
+      dest: /tmp/molecule_test/lab-validator.pem
+      mode: '0600'
+  - name: Create Chef Automate status file
+    ansible.builtin.copy:
+      content: 'Service: chef-automate-postgresql.service - active
+
+        Service: chef-automate-elasticsearch.service - active
+
+        Service: chef-automate-nginx.service - active
+
+        '
+      dest: /tmp/molecule_test/chef-automate-status
+      mode: '0644'
+  - name: Create Chef Infra Server status file
+    ansible.builtin.copy:
+      content: 'run: postgresql: (pid 12345) 300s; run: log: (pid 12346) 300s
+
+        run: nginx: (pid 12347) 300s; run: log: (pid 12348) 300s
+
+        run: bookshelf: (pid 12349) 300s; run: log: (pid 12350) 300s
+
+        '
+      dest: /tmp/molecule_test/chef-server-status
+      mode: '0644'
+  - name: Create user list file
+    ansible.builtin.copy:
+      content: jtonello
+      dest: /tmp/molecule_test/chef-server-user-list
+      mode: '0644'
+  - name: Create user show file
+    ansible.builtin.copy:
+      content: 'username: jtonello
+
+        display_name: John Tonello
+
+        email: jtonello@chef.lab
+
+        '
+      dest: /tmp/molecule_test/chef-server-user-show
+      mode: '0644'
+  - name: Create organization list file
+    ansible.builtin.copy:
+      content: lab
+      dest: /tmp/molecule_test/chef-server-org-list
+      mode: '0644'
+  - name: Create organization show file
+    ansible.builtin.copy:
+      content: 'name: lab
+
+        full_name: Chef Lab
+
+        guid: 12345678-1234-1234-1234-123456789012
+
+        '
+      dest: /tmp/molecule_test/chef-server-org-show
+      mode: '0644'
+  - name: Create netstat output file
+    ansible.builtin.copy:
+      content: tcp6       0      0 :::443                  :::*                    LISTEN      1234/nginx
+      dest: /tmp/molecule_test/netstat-output
+      mode: '0644'
+  - name: Create API status response file
+    ansible.builtin.copy:
+      content: '{"status":"ok"}'
+      dest: /tmp/molecule_test/api-status
+      mode: '0644'

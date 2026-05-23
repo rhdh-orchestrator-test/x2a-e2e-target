@@ -1,0 +1,17 @@
+---
+- name: Restart Chef Automate
+  ansible.builtin.command:
+    cmd: sudo chef-automate restart
+  register: restart_result
+  changed_when: restart_result.rc == 0
+  failed_when: restart_result.rc != 0
+  args:
+    removes: /tmp/chef_automate_needs_restart
+- name: Restart Chef Infra Server
+  ansible.builtin.command:
+    cmd: sudo chef-server-ctl restart
+  register: restart_result
+  changed_when: restart_result.rc == 0
+  failed_when: restart_result.rc != 0
+  args:
+    removes: /tmp/chef_server_needs_restart
