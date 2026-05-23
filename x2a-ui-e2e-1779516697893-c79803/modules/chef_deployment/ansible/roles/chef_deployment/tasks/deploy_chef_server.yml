@@ -1,0 +1,41 @@
+---
+- name: Ensure gunzip is available
+  ansible.builtin.package:
+    name: gzip
+    state: present
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: /tmp/chef-automate.zip
+    mode: "0644"
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip < /tmp/chef-automate.zip > {{ ansible_env.PWD }}/chef-automate && chmod +x {{ ansible_env.PWD }}/chef-automate
+  args:
+    creates: "{{ ansible_env.PWD }}/chef-automate"
+  register: extract_result
+  changed_when: extract_result.rc == 0
+- name: Ensure /hab directory exists
+  ansible.builtin.file:
+    path: /hab
+    state: directory
+    mode: "0755"
+  become: true
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command:
+    cmd: ./chef-automate deploy --product infra-server --accept-terms-and-mlsa={{ chef_accept_terms_and_mlsa | lower }}
+  args:
+    chdir: "{{ ansible_env.PWD }}"
+    creates: /hab/sup/default/data/services.dat
+  become: true
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
+- name: Wait for Chef Server to be ready
+  ansible.builtin.wait_for:
+    path: /hab/sup/default/data/services.dat
+    timeout: 600
+    sleep: 10
+  become: true
+- name: Include user and organization management tasks
+  ansible.builtin.include_tasks: manage_users_orgs.yml
