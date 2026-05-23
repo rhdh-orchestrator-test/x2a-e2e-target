@@ -1,0 +1,33 @@
+---
+- name: Check if openssh-server is installed
+  ansible.builtin.command:
+    cmd: which sshd
+  register: openssh_installed
+  changed_when: false
+  failed_when: false
+  check_mode: false
+- name: Get SSH PermitRootLogin setting
+  ansible.builtin.shell:
+    cmd: set -o pipefail && grep -i '^PermitRootLogin' {{ ssh_config_path }} | awk '{print $2}'
+    executable: /bin/bash
+  register: ssh_root_login_result
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: openssh_installed.rc == 0
+- name: Ensure SSH root login is disabled
+  ansible.builtin.assert:
+    that:
+      - ssh_root_login_result.stdout != 'yes'
+    fail_msg: "SSH root login is enabled. This is a security risk. Security group: SRG-OS-000112 Vulnerability ID: V-38607 Rule ID: SV-50408r1_rule Severity: CAT
+      I STIG ID: RHEL-08-000227 CCI: CCI-000774 "
+    success_msg: SSH root login is properly disabled
+  register: ssh_security_test_result
+  when: openssh_installed.rc == 0
+  tags:
+    - ssh
+    - security
+    - compliance
+- name: Display SSH security test results
+  ansible.builtin.debug:
+    msg: "SSH Security Test Result: {{ 'PASSED' if (openssh_installed.rc != 0 or ssh_root_login_result.stdout != 'yes') else 'FAILED' }}"
