@@ -1,0 +1,21 @@
+---
+- name: Set hostname for Chef Automate server
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  become: true
+- name: Configure kernel parameter vm.max_map_count
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "262144"
+    state: present
+    sysctl_set: true
+    reload: true
+  become: true
+- name: Configure kernel parameter vm.dirty_expire_centisecs
+  ansible.posix.sysctl:
+    name: vm.dirty_expire_centisecs
+    value: "20000"
+    state: present
+    sysctl_set: true
+    reload: true
+  become: true

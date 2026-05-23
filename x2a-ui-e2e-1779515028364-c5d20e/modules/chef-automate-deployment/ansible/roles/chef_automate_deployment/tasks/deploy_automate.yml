@@ -1,0 +1,41 @@
+---
+- name: Ensure directory for Chef Automate CLI exists
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path | dirname }}"
+    state: directory
+    mode: "0755"
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: "{{ chef_automate_cli_path }}.zip"
+    mode: "0644"
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip -c {{ chef_automate_cli_path }}.zip > {{ chef_automate_cli_path }}
+  args:
+    creates: "{{ chef_automate_cli_path }}"
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+    state: file
+- name: Ensure Chef Automate installation directory exists
+  ansible.builtin.file:
+    path: "{{ chef_automate_install_dir }}"
+    state: directory
+    mode: "0755"
+  become: true
+- name: Deploy Chef Automate with Infra Server
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy {% if chef_automate_deploy_automate %}--product automate{% endif %} {% if chef_automate_deploy_infra_server %}--product
+      infra-server{% endif %} --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }} "
+  become: true
+  args:
+    creates: /etc/chef-automate/config.toml
+  register: chef_automate_deploy
+  changed_when: chef_automate_deploy.rc == 0
+- name: Display Chef Automate deployment output
+  ansible.builtin.debug:
+    var: chef_automate_deploy.stdout_lines
+  when: chef_automate_deploy.changed

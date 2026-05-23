@@ -1,0 +1,42 @@
+---
+- name: Ensure Chef key directory exists
+  ansible.builtin.file:
+    path: "{{ chef_server_user_key_path | dirname }}"
+    state: directory
+    mode: "0755"
+  become: true
+- name: Create Chef Server user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create {{ chef_server_admin_user }} "{{ chef_server_admin_first_name }} {{ chef_server_admin_last_name }}" {{ chef_server_admin_email
+      }} "{{ chef_server_admin_password }}" --filename {{ chef_server_user_key_path }}
+
+      '
+  become: true
+  args:
+    creates: "{{ chef_server_user_key_path }}"
+  register: chef_user_create
+  changed_when: chef_user_create.rc == 0
+  no_log: true
+- name: Create Chef Server organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create {{ chef_server_org_name }} "{{ chef_server_org_full_name }}" --association_user {{ chef_server_admin_user }} --filename {{ chef_server_org_key_path
+      }}
+
+      '
+  become: true
+  args:
+    creates: "{{ chef_server_org_key_path }}"
+  register: chef_org_create
+  changed_when: chef_org_create.rc == 0
+- name: Set permissions on user key file
+  ansible.builtin.file:
+    path: "{{ chef_server_user_key_path }}"
+    mode: "0600"
+    state: file
+  when: chef_user_create.changed
+- name: Set permissions on organization key file
+  ansible.builtin.file:
+    path: "{{ chef_server_org_key_path }}"
+    mode: "0600"
+    state: file
+  when: chef_org_create.changed
