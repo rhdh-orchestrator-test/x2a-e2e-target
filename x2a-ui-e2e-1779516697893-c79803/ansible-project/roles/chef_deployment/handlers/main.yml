@@ -1,0 +1,13 @@
+---
+- name: Restart chef-automate
+  ansible.builtin.systemd:
+    name: chef-automate
+    state: restarted
+    daemon_reload: true
+  become: true
+- name: Restart chef-server
+  ansible.builtin.systemd:
+    name: chef-server
+    state: restarted
+    daemon_reload: true
+  become: true
