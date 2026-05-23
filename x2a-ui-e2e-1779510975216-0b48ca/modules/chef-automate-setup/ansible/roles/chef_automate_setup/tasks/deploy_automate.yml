@@ -1,0 +1,27 @@
+---
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: "./chef-automate deploy  --product automate  --product infra-server  --accept-terms-and-mlsa={{ chef_automate_accept_terms_and_mlsa | lower }}\n"
+  args:
+    chdir: "{{ chef_automate_cli_path | dirname | expanduser }}"
+    creates: /etc/chef-automate/config.toml
+  become: true
+  register: chef_automate_deploy
+  changed_when: chef_automate_deploy.rc == 0
+- name: Wait for Chef Automate services to be fully operational
+  ansible.builtin.pause:
+    seconds: 30
+  when: chef_automate_deploy.changed
+- name: Check Chef Automate status
+  ansible.builtin.command:
+    cmd: ./chef-automate status
+  args:
+    chdir: "{{ chef_automate_cli_path | dirname | expanduser }}"
+  become: true
+  register: chef_automate_status
+  changed_when: false
+  failed_when: chef_automate_status.rc != 0
+- name: Display Chef Automate status
+  ansible.builtin.debug:
+    var: chef_automate_status.stdout_lines
+  when: chef_automate_status is defined

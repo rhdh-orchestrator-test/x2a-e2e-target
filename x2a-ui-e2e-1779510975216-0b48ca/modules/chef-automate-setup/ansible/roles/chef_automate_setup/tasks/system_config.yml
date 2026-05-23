@@ -1,0 +1,46 @@
+---
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  become: true
+- name: Set vm.max_map_count kernel parameter
+  ansible.builtin.sysctl:
+    name: vm.max_map_count
+    value: "{{ chef_automate_vm_max_map_count }}"
+    state: present
+    sysctl_set: true
+    reload: true
+  become: true
+- name: Set vm.dirty_expire_centisecs kernel parameter
+  ansible.builtin.sysctl:
+    name: vm.dirty_expire_centisecs
+    value: "{{ chef_automate_vm_dirty_expire_centisecs }}"
+    state: present
+    sysctl_set: true
+    reload: true
+  become: true
+- name: Install required packages
+  ansible.builtin.package:
+    name:
+      - curl
+      - sudo
+      - unzip
+    state: present
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: /tmp/chef-automate.zip
+    mode: "0644"
+- name: Extract Chef Automate CLI
+  ansible.builtin.unarchive:
+    src: /tmp/chef-automate.zip
+    dest: "{{ chef_automate_cli_path | dirname | expanduser }}"
+    remote_src: true
+    creates: "{{ chef_automate_cli_path | expanduser }}"
+    mode: "0755"
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path | expanduser }}"
+    mode: "0755"
+    state: file
