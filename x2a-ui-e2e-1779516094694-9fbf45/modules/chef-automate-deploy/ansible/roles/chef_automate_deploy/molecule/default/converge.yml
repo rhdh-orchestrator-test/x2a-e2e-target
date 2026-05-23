@@ -1,0 +1,83 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create directories for system configuration
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/proc/sys/vm
+    - /tmp/molecule_test/etc/chef-automate
+    - /tmp/molecule_test{{ ansible_env.HOME }}/.chef
+    - /tmp/molecule_test/var/log
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: '{{ chef_automate_hostname | default(''automate.chef.lab'') }}'
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create sysctl files for Chef Automate
+    ansible.builtin.copy:
+      content: '{{ item.value }}'
+      dest: /tmp/molecule_test/proc/sys/vm/{{ item.key | regex_replace('^vm\.', '') }}
+      mode: '0644'
+    loop:
+    - key: vm.max_map_count
+      value: '262144'
+    - key: vm.dirty_expire_centisecs
+      value: '20000'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.file:
+      path: /tmp/molecule_test{{ ansible_env.HOME }}/chef-automate
+      state: touch
+      mode: '0755'
+  - name: Create Chef Automate config file
+    ansible.builtin.copy:
+      content: "[global]\n  v1 = true\n[deployment]\n  automate = true\n  infra_server = true\n"
+      dest: /tmp/molecule_test/etc/chef-automate/config.toml
+      mode: '0644'
+  - name: Create Chef user key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
+
+        (simulated PEM key content)
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test{{ ansible_env.HOME }}/jtonello.pem
+      mode: '0600'
+  - name: Create Chef organization validator key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA0987654321zyxwvutsrqponmlkjihgfedcba
+
+        (simulated PEM key content)
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test{{ ansible_env.HOME }}/lab-validator.pem
+      mode: '0600'
+  - name: Create Chef Automate status file
+    ansible.builtin.copy:
+      content: 'chef-automate status output:
+
+        Service: automate-gateway      OK
+
+        Service: automate-postgresql   OK
+
+        Service: chef-server-nginx     OK
+
+        Service: chef-server-oc-erchef OK
+
+        Service: elasticsearch         OK
+
+        '
+      dest: /tmp/molecule_test/var/log/chef-automate-status.log
+      mode: '0644'
