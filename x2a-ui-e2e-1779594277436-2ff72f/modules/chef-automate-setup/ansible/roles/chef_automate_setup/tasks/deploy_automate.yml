@@ -1,0 +1,11 @@
+---
+- name: Set system hostname
+  ansible.builtin.include_tasks: set_hostname.yml
+- name: Configure system parameters
+  ansible.builtin.include_tasks: configure_system.yml
+- name: Install Chef Automate CLI
+  ansible.builtin.include_tasks: install_cli.yml
+- name: Deploy Chef Automate and Infra Server
+  ansible.builtin.include_tasks: deploy_services.yml
+- name: Create Chef user and organization
+  ansible.builtin.include_tasks: create_user_org.yml
