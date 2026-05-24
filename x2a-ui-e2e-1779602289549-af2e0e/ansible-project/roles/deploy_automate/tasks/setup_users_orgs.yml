@@ -1,0 +1,33 @@
+---
+- name: Check if Chef Infra Server user already exists
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-list
+  become: true
+  register: user_list
+  changed_when: false
+  failed_when: false
+- name: Create Chef Infra Server user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ username }} {{ full_name }} {{ email }} {{ password }} --filename {{ user_pem_path }}
+  become: true
+  register: user_create
+  changed_when: user_create.rc == 0
+  failed_when: user_create.rc != 0
+  no_log: true
+  when: username not in user_list.stdout
+- name: Check if Chef Infra Server organization already exists
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-list
+  become: true
+  register: org_list
+  changed_when: false
+  failed_when: false
+- name: Create Chef Infra Server organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ organization_short_name }} "{{ organization_full_name }}" --association_user {{ username }} --filename {{
+      org_validator_pem_path }}
+  become: true
+  register: org_create
+  changed_when: org_create.rc == 0
+  failed_when: org_create.rc != 0
+  when: organization_short_name not in org_list.stdout
