@@ -1,0 +1,80 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create directory structure for Chef Automate
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/etc/hostname
+        - /tmp/molecule_test/etc/sysctl.d
+        - /tmp/molecule_test/tmp
+        - /tmp/molecule_test/hab
+        - /tmp/molecule_test/hab/sup
+        - /tmp/molecule_test/hab/pkgs
+
+    # Simulate hostname configuration
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: "/tmp/molecule_test/etc/hostname"
+        mode: "0644"
+
+    # Simulate sysctl configuration
+    - name: Create sysctl configuration files
+      ansible.builtin.copy:
+        content: "{{ item.content }}"
+        dest: "/tmp/molecule_test/etc/sysctl.d/{{ item.filename }}"
+        mode: "0644"
+      loop:
+        - filename: "99-chef-automate-vm-max-map-count.conf"
+          content: "vm.max_map_count = 262144"
+        - filename: "99-chef-automate-vm-dirty-expire-centisecs.conf"
+          content: "vm.dirty_expire_centisecs = 20000"
+
+    # Simulate Chef Automate CLI download
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: "#!/bin/bash\necho 'Chef Automate CLI'"
+        dest: "/tmp/molecule_test/tmp/chef-automate"
+        mode: "0755"
+
+    # Simulate Chef Automate deployment
+    - name: Create Chef Automate deployment marker files
+      ansible.builtin.copy:
+        content: "{{ item.content }}"
+        dest: "/tmp/molecule_test{{ item.path }}"
+        mode: "0644"
+      loop:
+        - path: "/hab/sup/default/config/automate-deployment-command.txt"
+          content: "chef-automate deploy --product automate --product infra-server --accept-terms-and-mlsa=true"
+        - path: "/hab/sup/default/config/chef-server-running.txt"
+          content: "chef-server-ctl status: all services running"
+
+    # Simulate user and organization creation
+    - name: Create user and organization PEM files
+      ansible.builtin.copy:
+        content: "{{ item.content }}"
+        dest: "/tmp/molecule_test/tmp/{{ item.filename }}"
+        mode: "0600"
+      loop:
+        - filename: "jtonello.pem"
+          content: "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...\n-----END RSA PRIVATE KEY-----"
+        - filename: "lab-validator.pem"
+          content: "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...\n-----END RSA PRIVATE KEY-----"
+
+    # Simulate Chef server command outputs
+    - name: Create Chef server command output files
+      ansible.builtin.copy:
+        content: "{{ item.content }}"
+        dest: "/tmp/molecule_test/tmp/{{ item.filename }}"
+        mode: "0644"
+      loop:
+        - filename: "chef-server-user-list.txt"
+          content: "jtonello"
+        - filename: "chef-server-org-list.txt"
+          content: "lab"
