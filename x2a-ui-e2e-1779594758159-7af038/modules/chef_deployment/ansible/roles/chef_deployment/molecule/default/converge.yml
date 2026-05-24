@@ -1,0 +1,75 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: jtonello
+    full_name: John Tonello
+    email: jtonello@chef.lab
+    password: password
+    chef_hostname: automate.chef.lab
+    chef_org_name: lab
+    chef_org_long_name: Chef Lab
+    chef_user_pem_filename: "jtonello.pem"
+    chef_org_validator_pem_filename: "lab-validator.pem"
+    chef_deployment_type: automate_and_server
+  tasks:
+    # Create directory structure to simulate the filesystem state
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/hab
+        - /tmp/molecule_test/home/ansible
+
+    # Simulate hostname file
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "{{ chef_hostname }}"
+        dest: /tmp/molecule_test/etc/hostname
+        mode: "0644"
+
+    # Simulate sysctl settings
+    - name: Create sysctl settings file
+      ansible.builtin.copy:
+        content: |
+          vm.max_map_count = 262144
+          vm.dirty_expire_centisecs = 20000
+        dest: /tmp/molecule_test/etc/sysctl.d/99-chef-deployment.conf
+        mode: "0644"
+
+    # Simulate Chef Automate CLI download
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: "#!/bin/bash\necho 'Chef Automate CLI mock'\n"
+        dest: /tmp/molecule_test/home/ansible/chef-automate
+        mode: "0755"
+
+    # Simulate PEM files
+    - name: Create user PEM file
+      ansible.builtin.copy:
+        content: "-----BEGIN RSA PRIVATE KEY-----\nMOCK USER PEM CONTENT\n-----END RSA PRIVATE KEY-----\n"
+        dest: "/tmp/molecule_test/home/ansible/{{ chef_user_pem_filename }}"
+        mode: "0600"
+
+    - name: Create organization validator PEM file
+      ansible.builtin.copy:
+        content: "-----BEGIN RSA PRIVATE KEY-----\nMOCK ORG VALIDATOR PEM CONTENT\n-----END RSA PRIVATE KEY-----\n"
+        dest: "/tmp/molecule_test/home/ansible/{{ chef_org_validator_pem_filename }}"
+        mode: "0600"
+
+    # Simulate Chef user and organization list outputs
+    - name: Create chef-server-ctl user-list output file
+      ansible.builtin.copy:
+        content: "{{ username }}\npivotal\n"
+        dest: /tmp/molecule_test/home/ansible/chef-server-user-list
+        mode: "0644"
+
+    - name: Create chef-server-ctl org-list output file
+      ansible.builtin.copy:
+        content: "{{ chef_org_name }}\n"
+        dest: /tmp/molecule_test/home/ansible/chef-server-org-list
+        mode: "0644"
