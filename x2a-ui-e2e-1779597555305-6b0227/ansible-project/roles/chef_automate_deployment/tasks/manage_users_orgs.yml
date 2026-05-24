@@ -1,0 +1,19 @@
+---
+- name: Ensure /tmp directory exists with proper permissions
+  ansible.builtin.file:
+    path: /tmp
+    state: directory
+    mode: "1777"
+  become: true
+- name: Create Chef admin user
+  ansible.builtin.command:
+    cmd: '{{ chef_server_ctl }} user-create {{ chef_automate_username }} {{ chef_automate_longusername }} {{ chef_automate_useremail }} "{{ password }}" --filename
+      /tmp/{{ chef_automate_userfilename }}'
+    creates: /tmp/{{ chef_automate_userfilename }}
+  become: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: '{{ chef_server_ctl }} org-create {{ chef_automate_orgname }} "{{ chef_automate_longorgname }}" --association_user {{ chef_automate_username }} --filename
+      /tmp/{{ chef_automate_orgfilename }}'
+    creates: /tmp/{{ chef_automate_orgfilename }}
+  become: true

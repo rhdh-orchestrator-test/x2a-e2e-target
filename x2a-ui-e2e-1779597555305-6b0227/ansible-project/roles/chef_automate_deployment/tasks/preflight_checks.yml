@@ -1,0 +1,40 @@
+---
+- name: Check if required packages are installed
+  ansible.builtin.package_facts:
+    manager: auto
+- name: Ensure curl is installed
+  ansible.builtin.package:
+    name: curl
+    state: present
+  become: true
+  when: "'curl' not in ansible_facts.packages"
+- name: Check system memory
+  ansible.builtin.debug:
+    msg: "WARNING: System has less than 8GB RAM. Chef Automate recommends at least 8GB RAM."
+  when: ansible_memtotal_mb < 8192
+- name: Check disk space
+  ansible.builtin.shell:
+    cmd: set -o pipefail && df -h / | awk 'NR==2 {print $4}'
+    executable: /bin/bash
+  register: available_disk
+  changed_when: false
+- name: Warn if disk space is low
+  ansible.builtin.debug:
+    msg: "WARNING: Available disk space may be insufficient. Chef Automate recommends at least 40GB free space."
+  when: available_disk.stdout | regex_replace('G', '') | float < 40
+- name: Check if Chef Automate is already installed
+  ansible.builtin.stat:
+    path: /hab
+  register: hab_dir
+- name: Check if Chef Server is already installed
+  ansible.builtin.command:
+    cmd: which chef-server-ctl
+  register: chef_server_installed
+  changed_when: false
+  failed_when: false
+- name: Summarize preflight checks
+  ansible.builtin.debug:
+    msg:
+      - Preflight checks completed
+      - "Chef Automate already installed: {{ hab_dir.stat.exists }}"
+      - "Chef Server already installed: {{ chef_server_installed.rc == 0 }}"
