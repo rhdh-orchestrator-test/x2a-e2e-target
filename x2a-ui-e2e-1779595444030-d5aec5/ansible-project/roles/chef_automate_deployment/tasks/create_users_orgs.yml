@@ -1,0 +1,33 @@
+---
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: "{{ chef_server_user_create_cmd }}"
+    creates: "{{ ansible_env.PWD }}/{{ chef_user_key_file }}"
+  become: true
+  register: chef_user_create
+  changed_when: chef_user_create.rc == 0
+  failed_when: chef_user_create.rc != 0 and 'already exists' not in chef_user_create.stderr
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: "{{ chef_server_org_create_cmd }}"
+    creates: "{{ ansible_env.PWD }}/{{ chef_org_validator_key_file }}"
+  become: true
+  register: chef_org_create
+  changed_when: chef_org_create.rc == 0
+  failed_when: chef_org_create.rc != 0 and 'already exists' not in chef_org_create.stderr
+- name: Set permissions on user key file
+  ansible.builtin.file:
+    path: "{{ chef_user_key_file }}"
+    mode: "0600"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  become: true
+  when: chef_user_create.changed
+- name: Set permissions on organization validator key file
+  ansible.builtin.file:
+    path: "{{ chef_org_validator_key_file }}"
+    mode: "0600"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  become: true
+  when: chef_org_create.changed

@@ -1,0 +1,185 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Verify system configuration
+    - name: Check sysctl configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      register: sysctl_conf
+
+    - name: Assert sysctl configuration file exists
+      ansible.builtin.assert:
+        that:
+          - sysctl_conf.stat.exists
+          - sysctl_conf.stat.isreg
+        fail_msg: "Sysctl configuration file not found"
+        success_msg: "Sysctl configuration file exists"
+
+    - name: Get sysctl configuration content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      register: sysctl_content
+      when: sysctl_conf.stat.exists
+
+    - name: Verify sysctl configuration content
+      ansible.builtin.assert:
+        that:
+          - sysctl_content.content | b64decode is search('vm.max_map_count = 262144')
+          - sysctl_content.content | b64decode is search('vm.dirty_expire_centisecs = 20000')
+        fail_msg: "Sysctl configuration does not contain expected values"
+        success_msg: "Sysctl configuration contains expected values"
+      when: sysctl_conf.stat.exists
+
+    # Verify Chef Automate CLI
+    - name: Check Chef Automate CLI exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/tmp/chef-automate
+      register: chef_automate_cli
+
+    - name: Assert Chef Automate CLI exists and is executable
+      ansible.builtin.assert:
+        that:
+          - chef_automate_cli.stat.exists
+          - chef_automate_cli.stat.isreg
+          - chef_automate_cli.stat.executable
+        fail_msg: "Chef Automate CLI not found or not executable"
+        success_msg: "Chef Automate CLI exists and is executable"
+
+    # Verify Chef Automate deployment
+    - name: Check Chef Automate deployment marker
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/hab/sup
+      register: chef_automate_marker
+
+    - name: Assert Chef Automate deployment marker exists
+      ansible.builtin.assert:
+        that:
+          - chef_automate_marker.stat.exists
+          - chef_automate_marker.stat.isdir
+        fail_msg: "Chef Automate deployment marker not found"
+        success_msg: "Chef Automate deployment marker exists"
+
+    # Verify Chef Server deployment
+    - name: Check Chef Server deployment marker
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/hab/pkgs/chef
+      register: chef_server_marker
+
+    - name: Assert Chef Server deployment marker exists
+      ansible.builtin.assert:
+        that:
+          - chef_server_marker.stat.exists
+          - chef_server_marker.stat.isdir
+        fail_msg: "Chef Server deployment marker not found"
+        success_msg: "Chef Server deployment marker exists"
+
+    # Verify user key file
+    - name: Check user key file
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/admin.pem
+      register: user_key
+
+    - name: Assert user key file exists with correct permissions
+      ansible.builtin.assert:
+        that:
+          - user_key.stat.exists
+          - user_key.stat.isreg
+          - user_key.stat.mode == '0600'
+        fail_msg: "User key file not found or has incorrect permissions"
+        success_msg: "User key file exists with correct permissions"
+
+    # Verify organization validator key file
+    - name: Check organization validator key file
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/default-validator.pem
+      register: org_validator_key
+
+    - name: Assert organization validator key file exists with correct permissions
+      ansible.builtin.assert:
+        that:
+          - org_validator_key.stat.exists
+          - org_validator_key.stat.isreg
+          - org_validator_key.stat.mode == '0600'
+        fail_msg: "Organization validator key file not found or has incorrect permissions"
+        success_msg: "Organization validator key file exists with correct permissions"
+
+    # The following checks would normally be performed but can't run in a container
+    # They are tagged with molecule-notest to be skipped during molecule testing
+
+    - name: Check Chef Automate status
+      ansible.builtin.command:
+        cmd: chef-automate status
+      register: chef_automate_status
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert Chef Automate is running
+      ansible.builtin.assert:
+        that:
+          - chef_automate_status.rc == 0
+        fail_msg: "Chef Automate is not running"
+        success_msg: "Chef Automate is running"
+      tags: molecule-notest
+
+    - name: Check Chef Infra Server status
+      ansible.builtin.command:
+        cmd: chef-server-ctl status
+      register: chef_server_status
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert Chef Infra Server is running
+      ansible.builtin.assert:
+        that:
+          - chef_server_status.rc == 0
+        fail_msg: "Chef Infra Server is not running"
+        success_msg: "Chef Infra Server is running"
+      tags: molecule-notest
+
+    - name: Check Chef user list
+      ansible.builtin.command:
+        cmd: chef-server-ctl user-list
+      register: chef_user_list
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert Chef user exists
+      ansible.builtin.assert:
+        that:
+          - "'admin' in chef_user_list.stdout"
+        fail_msg: "Chef user not found"
+        success_msg: "Chef user exists"
+      tags: molecule-notest
+
+    - name: Check Chef organization list
+      ansible.builtin.command:
+        cmd: chef-server-ctl org-list
+      register: chef_org_list
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert Chef organization exists
+      ansible.builtin.assert:
+        that:
+          - "'default' in chef_org_list.stdout"
+        fail_msg: "Chef organization not found"
+        success_msg: "Chef organization exists"
+      tags: molecule-notest
+
+    - name: Check web UI access
+      ansible.builtin.uri:
+        url: https://localhost
+        validate_certs: false
+        status_code: 200
+      register: chef_web_ui
+      tags: molecule-notest
+
+    - name: Assert web UI is accessible
+      ansible.builtin.assert:
+        that:
+          - chef_web_ui.status == 200
+        fail_msg: "Chef web UI is not accessible"
+        success_msg: "Chef web UI is accessible"
+      tags: molecule-notest
