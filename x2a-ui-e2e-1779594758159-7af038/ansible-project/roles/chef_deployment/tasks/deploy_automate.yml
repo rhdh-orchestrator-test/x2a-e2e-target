@@ -1,0 +1,63 @@
+---
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_hostname }}"
+  become: true
+- name: Configure vm.max_map_count
+  community.general.sysctl:
+    name: vm.max_map_count
+    value: "{{ chef_vm_max_map_count }}"
+    state: present
+    reload: true
+  become: true
+- name: Configure vm.dirty_expire_centisecs
+  community.general.sysctl:
+    name: vm.dirty_expire_centisecs
+    value: "{{ chef_vm_dirty_expire_centisecs }}"
+    state: present
+    reload: true
+  become: true
+- name: Install required dependencies for Chef Automate
+  ansible.builtin.package:
+    name:
+      - curl
+      - unzip
+      - tar
+      - jq
+    state: present
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+  register: chef_automate_cli_download
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: "./chef-automate deploy --product automate --product infra-server --accept-terms-and-mlsa={{ chef_accept_terms_and_mlsa | lower }} "
+  become: true
+  args:
+    creates: /hab
+  register: chef_automate_deploy
+  changed_when: chef_automate_deploy.rc == 0
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create {{ username }} {{ full_name }} {{ email }} "{{ password }}" --filename {{ chef_user_pem_filename }}
+
+      '
+  become: true
+  args:
+    creates: "{{ chef_user_pem_filename }}"
+  register: chef_user_create
+  changed_when: chef_user_create.rc == 0
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create {{ chef_org_name }} "{{ chef_org_long_name }}" --association_user {{ username }} --filename {{ chef_org_validator_pem_filename
+      }}
+
+      '
+  become: true
+  args:
+    creates: "{{ chef_org_validator_pem_filename }}"
+  register: chef_org_create
+  changed_when: chef_org_create.rc == 0
