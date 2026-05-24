@@ -1,0 +1,20 @@
+---
+- name: Set deployment products variable
+  ansible.builtin.set_fact:
+    deploy_products: "{{ ['--product', 'automate'] if chef_automate_deploy_automate else [] }} {{ ['--product', 'infra-server'] if chef_automate_deploy_infra_server
+      else [] }}"
+- name: Check if Chef Automate is already deployed
+  ansible.builtin.stat:
+    path: /etc/chef-automate/config.toml
+  register: automate_config
+  become: true
+- name: Deploy Chef Automate and/or Chef Infra Server
+  ansible.builtin.command:
+    cmd: sudo {{ chef_automate_cli_path }} deploy {{ deploy_products | join(' ') }} --accept-terms-and-mlsa={{ chef_automate_accept_terms_and_mlsa | lower }}
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
+  when: not automate_config.stat.exists
+- name: Display deployment output
+  ansible.builtin.debug:
+    var: deploy_result.stdout_lines
+  when: deploy_result.stdout_lines is defined

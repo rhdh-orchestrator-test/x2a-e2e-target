@@ -1,0 +1,6 @@
+---
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip -c /tmp/chef-automate_linux_amd64.zip > {{ chef_automate_cli_path }}
+  args:
+    creates: "{{ chef_automate_cli_path }}"

@@ -1,0 +1,16 @@
+---
+- name: Download and extract Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: /tmp/chef-automate_linux_amd64.zip
+    mode: "0644"
+  register: download_result
+  notify: Extract Chef Automate CLI
+- name: Flush handlers to ensure CLI is extracted
+  ansible.builtin.meta: flush_handlers
+  when: download_result is changed
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path }}"
+    mode: "{{ chef_automate_cli_file_mode }}"
+    state: file
