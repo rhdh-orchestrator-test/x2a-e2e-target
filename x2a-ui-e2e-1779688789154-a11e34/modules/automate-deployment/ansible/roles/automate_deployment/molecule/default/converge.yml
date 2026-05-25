@@ -1,0 +1,81 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/etc/chef-automate
+        - /tmp/molecule_test/tmp
+        - /tmp/molecule_test/home
+
+    # Simulate hostname file
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: "/tmp/molecule_test/etc/hostname"
+        mode: "0644"
+
+    # Simulate Chef Automate config file
+    - name: Create Chef Automate config file
+      ansible.builtin.copy:
+        content: |
+          # Chef Automate configuration file
+          [global]
+            v1 = true
+          [deployment]
+            automate = true
+            infra_server = true
+        dest: "/tmp/molecule_test/etc/chef-automate/config.toml"
+        mode: "0644"
+
+    # Simulate user certificate file
+    - name: Create user certificate file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEowIBAAKCAQEAvmOkuifmMg6HL2YPIOjon6iWfbp7c3jx34YkYWqUH57SUdyJ
+          imZzeyGC0gtZPGujUSxiJSWI/oTqexh+cAMTSMlOJf7+BrJObArnxd9Y7YT2bRPQ
+          -----END RSA PRIVATE KEY-----
+          -----BEGIN CERTIFICATE-----
+          MIIEowIBAAKCAQEAvmOkuifmMg6HL2YPIOjon6iWfbp7c3jx34YkYWqUH57SUdyJ
+          imZzeyGC0gtZPGujUSxiJSWI/oTqexh+cAMTSMlOJf7+BrJObArnxd9Y7YT2bRPQ
+          -----END CERTIFICATE-----
+        dest: "/tmp/molecule_test/home/jtonello.pem"
+        mode: "0600"
+
+    # Simulate organization validator certificate file
+    - name: Create organization validator certificate file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEowIBAAKCAQEAvmOkuifmMg6HL2YPIOjon6iWfbp7c3jx34YkYWqUH57SUdyJ
+          imZzeyGC0gtZPGujUSxiJSWI/oTqexh+cAMTSMlOJf7+BrJObArnxd9Y7YT2bRPQ
+          -----END RSA PRIVATE KEY-----
+          -----BEGIN CERTIFICATE-----
+          MIIEowIBAAKCAQEAvmOkuifmMg6HL2YPIOjon6iWfbp7c3jx34YkYWqUH57SUdyJ
+          imZzeyGC0gtZPGujUSxiJSWI/oTqexh+cAMTSMlOJf7+BrJObArnxd9Y7YT2bRPQ
+          -----END CERTIFICATE-----
+        dest: "/tmp/molecule_test/home/lab-validator.pem"
+        mode: "0600"
+
+    # Simulate Chef Automate CLI binary
+    - name: Create Chef Automate CLI binary
+      ansible.builtin.copy:
+        content: "#!/bin/bash\necho 'Chef Automate CLI mock'\n"
+        dest: "/tmp/molecule_test/tmp/chef-automate"
+        mode: "0755"
+
+    # Simulate sysctl settings
+    - name: Create sysctl settings file
+      ansible.builtin.copy:
+        content: |
+          vm.max_map_count = 262144
+          vm.dirty_expire_centisecs = 20000
+        dest: "/tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf"
+        mode: "0644"
