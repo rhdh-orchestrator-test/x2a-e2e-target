@@ -1,0 +1,34 @@
+---
+- name: Ensure Chef Infra Server is installed
+  ansible.builtin.package:
+    name: chef-server-core
+    state: present
+  become: true
+- name: Ensure directory exists for key files
+  ansible.builtin.file:
+    path: "{{ item | dirname }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ user_key_file | default(chef_automate_user_key_file) }}"
+    - "{{ organization_key_file | default(chef_automate_org_key_file) }}"
+  become: true
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create  {{ username | default(chef_automate_username) }}  {{ username | default(chef_automate_user_fullname) }}  {{ username | default(chef_automate_user_email)
+      }}  "{{ password }}"  --filename {{ user_key_file | default(chef_automate_user_key_file) }}
+
+      '
+  args:
+    creates: "{{ user_key_file | default(chef_automate_user_key_file) }}"
+  become: true
+  no_log: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create  {{ organization_name | default(chef_automate_org_name) }}  "{{ organization_name | default(chef_automate_org_long_name) }}"  --association_user
+      {{ username | default(chef_automate_username) }}  --filename {{ organization_key_file | default(chef_automate_org_key_file) }}
+
+      '
+  args:
+    creates: "{{ organization_key_file | default(chef_automate_org_key_file) }}"
+  become: true
