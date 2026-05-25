@@ -1,0 +1,68 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    # Create directory structure that would be created by the role
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/chef-automate
+        - /tmp/molecule_test/etc/hostname
+        - /tmp/molecule_test/etc/sysctl.d
+        - /tmp/molecule_test/home/ansible
+
+    # Simulate hostname file
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: "/tmp/molecule_test/etc/hostname"
+        mode: "0644"
+
+    # Simulate sysctl settings
+    - name: Create sysctl settings file
+      ansible.builtin.copy:
+        content: |
+          vm.max_map_count = 262144
+          vm.dirty_expire_centisecs = 20000
+        dest: "/tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf"
+        mode: "0644"
+
+    # Simulate Chef Automate CLI download
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: "#!/bin/bash\necho 'Chef Automate CLI'"
+        dest: "/tmp/molecule_test/home/ansible/chef-automate"
+        mode: "0755"
+
+    # Simulate Chef Automate config
+    - name: Create Chef Automate config file
+      ansible.builtin.copy:
+        content: |
+          [global]
+          # Chef Automate configuration
+        dest: "/tmp/molecule_test/etc/chef-automate/config.toml"
+        mode: "0644"
+
+    # Simulate user PEM file
+    - name: Create user PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA...
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/home/ansible/admin.pem"
+        mode: "0600"
+
+    # Simulate organization validator PEM file
+    - name: Create organization validator PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA...
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/home/ansible/chef-org-validator.pem"
+        mode: "0600"
