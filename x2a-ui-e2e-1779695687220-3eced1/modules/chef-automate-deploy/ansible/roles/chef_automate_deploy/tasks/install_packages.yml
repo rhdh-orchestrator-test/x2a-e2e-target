@@ -1,0 +1,11 @@
+---
+- name: Install required packages for Chef Automate
+  ansible.builtin.package:
+    name:
+      - curl
+      - gzip
+      - tar
+      - unzip
+      - jq
+    state: present
+  become: true
