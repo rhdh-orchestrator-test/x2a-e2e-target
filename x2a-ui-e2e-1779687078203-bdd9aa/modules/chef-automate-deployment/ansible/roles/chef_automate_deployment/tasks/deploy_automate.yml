@@ -1,0 +1,23 @@
+---
+- name: Check if Chef Automate is already deployed
+  ansible.builtin.stat:
+    path: /hab
+  register: hab_dir
+  become: true
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy {% if chef_automate_deploy_automate %}--product automate{% endif %} {% if chef_automate_deploy_infra_server %}--product
+      infra-server{% endif %} --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }} "
+  args:
+    creates: /hab
+  become: true
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
+  when: not hab_dir.stat.exists
+- name: Create deployment marker file
+  ansible.builtin.file:
+    path: /var/chef/automate_deployed
+    state: touch
+    mode: "0644"
+  become: true
+  when: deploy_result is changed
