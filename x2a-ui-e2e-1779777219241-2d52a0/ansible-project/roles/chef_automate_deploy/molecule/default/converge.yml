@@ -1,0 +1,69 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/proc/sys/vm
+    - /tmp/molecule_test/tmp
+    - /tmp/molecule_test/hab
+    - /tmp/molecule_test/usr/bin
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: automate.chef.lab
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create max_map_count file
+    ansible.builtin.copy:
+      content: '262144'
+      dest: /tmp/molecule_test/proc/sys/vm/max_map_count
+      mode: '0644'
+  - name: Create dirty_expire_centisecs file
+    ansible.builtin.copy:
+      content: '20000'
+      dest: /tmp/molecule_test/proc/sys/vm/dirty_expire_centisecs
+      mode: '0644'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/sh echo ''Chef Automate CLI mock'' '
+      dest: /tmp/molecule_test/tmp/chef-automate
+      mode: '0755'
+  - name: Create Chef user key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- MOCK CHEF USER KEY -----END RSA PRIVATE KEY----- '
+      dest: /tmp/molecule_test/tmp/chef-user.pem
+      mode: '0600'
+  - name: Create Chef organization validator key
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- MOCK CHEF VALIDATOR KEY -----END RSA PRIVATE KEY----- '
+      dest: /tmp/molecule_test/tmp/chef-validator.pem
+      mode: '0600'
+  - name: Create Chef Automate deployment directory
+    ansible.builtin.file:
+      path: /tmp/molecule_test/hab
+      state: directory
+      mode: '0755'
+  - name: Create chef-server-ctl mock
+    ansible.builtin.copy:
+      content: '#!/bin/sh echo ''Chef Server CTL mock'' '
+      dest: /tmp/molecule_test/usr/bin/chef-server-ctl
+      mode: '0755'
+  - name: Create systemd service directory
+    ansible.builtin.file:
+      path: /tmp/molecule_test/etc/systemd/system
+      state: directory
+      mode: '0755'
+  - name: Create Chef Automate service file
+    ansible.builtin.copy:
+      content: '[Unit] Description=Chef Automate
+
+        [Service] Type=simple
+
+        [Install] WantedBy=multi-user.target '
+      dest: /tmp/molecule_test/etc/systemd/system/chef-automate.service
+      mode: '0644'

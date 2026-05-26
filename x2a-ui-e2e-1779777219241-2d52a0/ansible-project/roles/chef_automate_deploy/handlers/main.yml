@@ -1,0 +1,33 @@
+---
+- name: Check if Chef Automate command exists
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /usr/bin/chef-automate
+    - /usr/local/bin/chef-automate
+  register: chef_automate_cmd
+  listen: restart chef automate
+- name: Restart Chef Automate
+  ansible.builtin.command:
+    cmd: chef-automate restart
+  become: true
+  listen: restart chef automate
+  register: restart_automate
+  changed_when: restart_automate.rc == 0
+  when: chef_automate_cmd.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | list | length > 0
+- name: Check if Chef Server CTL command exists
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /usr/bin/chef-server-ctl
+    - /usr/local/bin/chef-server-ctl
+  register: chef_server_ctl_cmd
+  listen: restart chef server
+- name: Restart Chef Infra Server
+  ansible.builtin.command:
+    cmd: chef-server-ctl restart
+  become: true
+  listen: restart chef server
+  register: restart_server
+  changed_when: restart_server.rc == 0
+  when: chef_server_ctl_cmd.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | list | length > 0
