@@ -1,0 +1,85 @@
+{
+  "module_name": "ansible_ssl_fix",
+  "items": [
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "./ansible/roles/ansible_ssl_fix/tasks/main.yml",
+      "status": "complete",
+      "description": "Convert playbook to role tasks with FQCN modules and improved idempotency",
+      "notes": "Converted to use FQCN (ansible.builtin.replace) and added variable parameters"
+    },
+    {
+      "category": "structure",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "./ansible/roles/ansible_ssl_fix/handlers/main.yml",
+      "status": "complete",
+      "description": "Extract handlers from playbook with consistent handler naming",
+      "notes": "Created handlers file with consistent handler names"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/ansible_ssl_fix/defaults/main.yml",
+      "status": "complete",
+      "description": "Create defaults file with apache_ssl_config_path and ssl_protocol_string variables",
+      "notes": "Created defaults file with configuration variables"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/ansible_ssl_fix/meta/main.yml",
+      "status": "complete",
+      "description": "Create role metadata file",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/ansible_ssl_fix/meta/argument_specs.yml",
+      "status": "complete",
+      "description": "Create argument specification with apache_ssl_config_path and ssl_protocol_string parameters",
+      "notes": "Created argument specs with parameter definitions"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/ansible_ssl_fix/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Create molecule scenario configuration with delegated driver",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/ansible_ssl_fix/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Create molecule converge playbook to test role",
+      "notes": "Created converge.yml that sets up a test environment with mock Apache SSL config file under /tmp/molecule_test/"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/ansible_ssl_fix/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Create molecule verification tasks",
+      "notes": "Created verify.yml that checks the SSL configuration was properly updated to disable vulnerable protocols"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/ansible_ssl_fix/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Create no-op molecule create playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/ansible_ssl_fix/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Create no-op molecule destroy playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    }
+  ]
+}
