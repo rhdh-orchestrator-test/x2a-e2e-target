@@ -1,0 +1,96 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    chef_hostname: automate.chef.lab
+    username: admin
+    organization: chef
+    password: password123
+    name: Admin User
+    email: admin@example.com
+    chef_automate_cli_path: /tmp/molecule_test/chef-automate
+    chef_user_pem_path: /tmp/molecule_test/{{ username }}.pem
+    chef_org_validator_pem_path: /tmp/molecule_test/{{ organization }}-validator.pem
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/proc/sys/vm
+    - /tmp/molecule_test/hab
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: '{{ chef_hostname }}'
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create sysctl files
+    ansible.builtin.copy:
+      content: '{{ item.value }}'
+      dest: /tmp/molecule_test/proc/sys/vm/{{ item.key }}
+      mode: '0644'
+    loop:
+    - key: max_map_count
+      value: '262144'
+    - key: dirty_expire_centisecs
+      value: '20000'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.file:
+      path: '{{ chef_automate_cli_path }}'
+      state: touch
+      mode: '0755'
+  - name: Create user PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
+
+        EXAMPLE_PEM_CONTENT_FOR_USER
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: '{{ chef_user_pem_path }}'
+      mode: '0600'
+  - name: Create organization validator PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA0987654321zyxwvutsrqponmlkjihgfedcba
+
+        EXAMPLE_PEM_CONTENT_FOR_ORG_VALIDATOR
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: '{{ chef_org_validator_pem_path }}'
+      mode: '0600'
+  - name: Create Chef Automate status file
+    ansible.builtin.copy:
+      content: 'Service: automate-load-balancer
+
+        Status: running
+
+        Service: automate-cs-nginx
+
+        Status: running
+
+        Service: automate-cs-oc-erchef
+
+        Status: running
+
+        '
+      dest: /tmp/molecule_test/chef-automate-status.txt
+      mode: '0644'
+  - name: Create Chef Server user list file
+    ansible.builtin.copy:
+      content: '{{ username }}'
+      dest: /tmp/molecule_test/chef-server-user-list.txt
+      mode: '0644'
+  - name: Create Chef Server org list file
+    ansible.builtin.copy:
+      content: '{{ organization }}'
+      dest: /tmp/molecule_test/chef-server-org-list.txt
+      mode: '0644'
