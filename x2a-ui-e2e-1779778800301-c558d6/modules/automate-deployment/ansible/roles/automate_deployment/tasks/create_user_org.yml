@@ -1,0 +1,31 @@
+---
+- name: Ensure Chef Infra Server is installed
+  ansible.builtin.command:
+    cmd: chef-server-ctl status
+  become: true
+  changed_when: false
+  failed_when: false
+  register: chef_server_status
+  tags:
+    - molecule-notest
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create {{ automate_user.name }} "{{ automate_user.fullname }}" {{ automate_user.email }} "{{ automate_user.password }}" --filename
+      {{ automate_user.key_file }}
+
+      '
+  become: true
+  args:
+    creates: "{{ automate_user.key_file }}"
+  no_log: true
+  when: chef_server_status.rc == 0
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create {{ automate_org.name }} "{{ automate_org.fullname }}" --association_user {{ automate_user.name }} --filename {{ automate_org.key_file
+      }}
+
+      '
+  become: true
+  args:
+    creates: "{{ automate_org.key_file }}"
+  when: chef_server_status.rc == 0

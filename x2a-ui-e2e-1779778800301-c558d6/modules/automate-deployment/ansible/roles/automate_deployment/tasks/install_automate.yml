@@ -1,0 +1,13 @@
+---
+- name: Ensure required packages are installed
+  ansible.builtin.package:
+    name: unzip
+    state: present
+  become: true
+- name: Download and extract Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ automate_cli_url }}"
+    dest: "{{ automate_cli_path }}"
+    mode: "0755"
+  register: automate_cli_download
+  notify: Ensure Chef Automate CLI is executable

@@ -1,0 +1,12 @@
+---
+- name: Apply sysctl settings
+  ansible.builtin.command:
+    cmd: sysctl --system
+  become: true
+  changed_when: false
+- name: Ensure Chef Automate CLI is executable
+  ansible.builtin.file:
+    path: "{{ automate_cli_path }}"
+    mode: "0755"
+    state: file
+  become: false
