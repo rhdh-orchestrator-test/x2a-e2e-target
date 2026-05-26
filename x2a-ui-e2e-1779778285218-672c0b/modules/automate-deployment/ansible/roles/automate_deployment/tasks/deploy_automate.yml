@@ -1,0 +1,10 @@
+---
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: "./chef-automate deploy  {% for product in chef_automate_products.automate_and_infra %} --product {{ product }}  {% endfor %} --accept-terms-and-mlsa={{
+      chef_accept_terms_and_mlsa | lower }} "
+  args:
+    creates: /hab
+  become: true
+  register: automate_deploy
+  changed_when: automate_deploy.rc == 0

@@ -1,0 +1,28 @@
+---
+- name: Ensure directory exists for PEM files
+  ansible.builtin.file:
+    path: "{{ item | dirname }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ chef_user_pem_path }}"
+    - "{{ chef_org_validator_pem_path }}"
+  become: true
+  when: chef_user_pem_path | dirname != '.' or chef_org_validator_pem_path | dirname != '.'
+- name: Create Chef admin user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create {{ username }} {{ name }} {{ email }} "{{ password }}"  --filename {{ chef_user_pem_path }}
+
+      '
+  args:
+    creates: "{{ chef_user_pem_path }}"
+  become: true
+  no_log: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create {{ organization }} "{{ organization }}"  --association_user {{ username }}  --filename {{ chef_org_validator_pem_path }}
+
+      '
+  args:
+    creates: "{{ chef_org_validator_pem_path }}"
+  become: true
