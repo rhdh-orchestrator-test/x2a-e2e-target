@@ -1,0 +1,17 @@
+---
+- name: Ensure required packages are installed
+  ansible.builtin.package:
+    name:
+      - curl
+      - tar
+      - jq
+    state: present
+  become: true
+- name: Deploy Chef Automate with Infra Server
+  ansible.builtin.command:
+    cmd: ./chef-automate deploy --product automate --product infra-server --accept-terms-and-mlsa={{ 'true' if chef_automate_accept_terms else 'false' }}
+  args:
+    creates: /etc/chef-automate/config.toml
+  become: true
+  register: deploy_result
+  notify: Display Chef Automate deployment result

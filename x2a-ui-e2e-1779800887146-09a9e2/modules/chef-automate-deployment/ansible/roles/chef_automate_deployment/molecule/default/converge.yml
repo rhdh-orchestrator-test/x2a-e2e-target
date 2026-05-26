@@ -1,0 +1,73 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: jtonello
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc/chef-automate
+    - /tmp/molecule_test/etc/chef-server
+    - /tmp/molecule_test/etc/chef
+  - name: Create Chef Automate config file
+    ansible.builtin.copy:
+      content: "# Chef Automate configuration file\n[global]\n  v1 = true\n[deployment]\n  automate = true\n  infra_server = true\n"
+      dest: /tmp/molecule_test/etc/chef-automate/config.toml
+      mode: '0644'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/bash
+
+        echo "Chef Automate CLI v1.0.0"
+
+        echo "This is a mock CLI for testing purposes"
+
+        '
+      dest: /tmp/molecule_test/chef-automate
+      mode: '0755'
+  - name: Create user PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
+
+        ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopq
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/jtonello.pem
+      mode: '0600'
+  - name: Create organization validator PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA0987654321zyxwvutsrqponmlkjihgfedcba
+
+        ZYXWVUTSRQPONMLKJIHGFEDCBA0987654321zyxwvutsrqponmlk
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/lab-validator.pem
+      mode: '0600'
+  - name: Create sysctl configuration
+    ansible.builtin.copy:
+      content: '# Kernel parameters for Chef Automate
+
+        vm.max_map_count = 262144
+
+        vm.dirty_expire_centisecs = 20000
+
+        '
+      dest: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      mode: '0644'
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: automate.chef.lab
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
