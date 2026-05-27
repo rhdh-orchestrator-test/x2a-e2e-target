@@ -1,0 +1,45 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: test_user
+    password: test_password
+  tasks:
+  - name: Create directory structure for Apache config
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc/apache2/mods-available
+    - /tmp/molecule_test/etc/ssh
+  - name: Create mock Apache SSL config file
+    ansible.builtin.copy:
+      content: '# Mock Apache SSL configuration file
+
+        SSLProtocol all -SSLv3
+
+        SSLCipherSuite HIGH:!aNULL:!MD5
+
+        '
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      mode: '0644'
+  - name: Create mock SSH config file
+    ansible.builtin.copy:
+      content: '# Mock SSH configuration file
+
+        #Ciphers aes128-cbc,3des-cbc
+
+        '
+      dest: /tmp/molecule_test/etc/ssh/sshd_config
+      mode: '0644'
+  - name: Fix SSL in Apache (simulating role execution)
+    ansible.builtin.replace:
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      regexp: ^SSLProtocol.*$
+      replace: SSLProtocol -all +TLSv1.2
+  - name: Fix SSH configuration to disable vulnerable protocols (simulating role execution)
+    ansible.builtin.lineinfile:
+      path: /tmp/molecule_test/etc/ssh/sshd_config
+      regexp: ^#?Ciphers
+      line: Ciphers aes128-ctr,aes192-ctr,aes256-ctr

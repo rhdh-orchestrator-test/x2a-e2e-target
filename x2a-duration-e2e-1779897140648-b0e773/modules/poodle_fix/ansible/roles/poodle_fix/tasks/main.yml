@@ -1,0 +1,25 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Ensure Apache is installed
+  ansible.builtin.package:
+    name: apache2
+    state: present
+- name: Ensure SSH server is installed
+  ansible.builtin.package:
+    name: openssh-server
+    state: present
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    dest: /etc/apache2/mods-available/ssl.conf
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol -all +TLSv1.2
+  notify:
+    - Restart apache2
+- name: Fix SSH configuration to disable vulnerable protocols
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?Ciphers
+    line: Ciphers aes128-ctr,aes192-ctr,aes256-ctr
+  notify:
+    - Restart sshd
