@@ -1,0 +1,15 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Ensure Apache is installed
+  ansible.builtin.package:
+    name: apache2
+    state: present
+  become: true
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    dest: "{{ apache_conf_path }}"
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol {{ ssl_protocol }}
+  notify:
+    - Restart apache
