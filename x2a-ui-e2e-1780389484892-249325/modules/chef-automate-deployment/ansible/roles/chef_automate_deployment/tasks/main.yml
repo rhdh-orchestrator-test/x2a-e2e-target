@@ -1,0 +1,40 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Configure system for Chef Automate
+  ansible.builtin.include_tasks: configure_system.yml
+  tags:
+    - configure
+- name: Deploy Redis for Chef Automate
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  vars:
+    redis_version: "7.2"
+    redis_port: 6379
+    redis_requirepass: "{{ password | default('password') }}"
+    redis_maxmemory: 2gb
+    redis_maxmemory_policy: allkeys-lru
+    redis_aof_enabled: true
+    redis_rdb_enabled: true
+  tags:
+    - redis
+    - deploy
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.include_tasks: deploy_automate.yml
+  when: chef_automate_deploy_automate | bool
+  tags:
+    - deploy
+    - automate
+- name: Deploy Chef Infra Server only
+  ansible.builtin.include_tasks: deploy_chef_server.yml
+  when:
+    - chef_automate_deploy_infra_server | bool
+    - not chef_automate_deploy_automate | bool
+  tags:
+    - deploy
+    - infra-server
+- name: Create Chef users and organizations
+  ansible.builtin.include_tasks: create_users_orgs.yml
+  tags:
+    - users
+    - organizations
