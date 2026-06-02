@@ -1,0 +1,98 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    chef_automate_cli_path: /tmp/molecule_test/tmp/chef-automate
+    chef_automate_user_key_file: /tmp/molecule_test/jtonello.pem
+    chef_automate_org_key_file: /tmp/molecule_test/lab-validator.pem
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc/chef-automate
+    - /tmp/molecule_test/etc/opscode
+    - /tmp/molecule_test/var/opt/chef-automate
+    - /tmp/molecule_test/var/opt/opscode
+    - /tmp/molecule_test/tmp
+  - name: Create Chef Automate config file
+    ansible.builtin.copy:
+      content: "[global]\n  v1 = true\n[deployment]\n  automate = \"enabled\"\n  infra-server = \"enabled\"\n[mlsa]\n  accept = true\n"
+      dest: /tmp/molecule_test/etc/chef-automate/config.toml
+      mode: '0644'
+  - name: Create Chef Server config files
+    ansible.builtin.copy:
+      content: '# Mock Chef Server configuration
+
+        nginx[''enable''] = true
+
+        nginx[''ssl_port''] = 443
+
+        bookshelf[''vip''] = ''automate.chef.lab''
+
+        '
+      dest: /tmp/molecule_test/etc/opscode/chef-server.rb
+      mode: '0644'
+  - name: Create user key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
+
+        ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopq
+
+        rstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefg
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/jtonello.pem
+      mode: '0600'
+  - name: Create organization validator key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA0987654321zyxwvutsrqponmlkjihgfedcba
+
+        ZYXWVUTSRQPONMLKJIHGFEDCBA0987654321zyxwvutsrqponmlk
+
+        jihgfedcbaZYXWVUTSRQPONMLKJIHGFEDCBA0987654321zyxwvu
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/lab-validator.pem
+      mode: '0600'
+  - name: Create mock Chef Automate CLI
+    ansible.builtin.copy:
+      content: '#!/bin/bash
+
+        echo "Chef Automate CLI mock"
+
+        echo "Deployment successful"
+
+        exit 0
+
+        '
+      dest: /tmp/molecule_test/tmp/chef-automate
+      mode: '0755'
+  - name: Create mock chef-server-ctl
+    ansible.builtin.copy:
+      content: "#!/bin/bash\nif [[ \"$1\" == \"user-list\" ]]; then\n  echo \"jtonello\"\nelif [[ \"$1\" == \"org-list\" ]]; then\n  echo \"lab\"\nelif [[ \"$1\"
+        == \"status\" ]]; then\n  echo \"All services running\"\nelif [[ \"$1\" == \"user-create\" ]]; then\n  echo \"User created successfully\"\nelif [[ \"$1\"
+        == \"org-create\" ]]; then\n  echo \"Organization created successfully\"\nelse\n  echo \"Unknown command\"\nfi\nexit 0\n"
+      dest: /tmp/molecule_test/tmp/chef-server-ctl
+      mode: '0755'
+  - name: Create mock chef-automate status
+    ansible.builtin.copy:
+      content: '#!/bin/bash
+
+        echo "Chef Automate services running"
+
+        exit 0
+
+        '
+      dest: /tmp/molecule_test/tmp/chef-automate-status
+      mode: '0755'
