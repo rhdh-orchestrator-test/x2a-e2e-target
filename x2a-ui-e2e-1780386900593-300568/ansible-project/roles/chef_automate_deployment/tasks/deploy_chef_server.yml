@@ -1,0 +1,31 @@
+- name: Include system configuration tasks
+  ansible.builtin.include_tasks: system_configuration.yml
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: '{{ automate_cli_url }}'
+    dest: '{{ automate_cli_path }}.zip'
+    mode: '0644'
+  become: false
+  args:
+    creates: '{{ automate_cli_path }}.zip'
+- name: Extract Chef Automate CLI
+  ansible.builtin.unarchive:
+    src: '{{ automate_cli_path }}.zip'
+    dest: '{{ automate_cli_path | dirname }}'
+    remote_src: true
+  args:
+    creates: '{{ automate_cli_path }}'
+  become: false
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: '{{ automate_cli_path }}'
+    mode: '0755'
+  become: false
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command:
+    cmd: '{{ automate_cli_path }} deploy --product infra-server --accept-terms-and-mlsa={% if automate_accept_terms %}true{% else %}false{% endif %} '
+  args:
+    creates: /hab
+  become: true
+- name: Include user and organization setup tasks
+  ansible.builtin.include_tasks: setup_users_orgs.yml

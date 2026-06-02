@@ -1,0 +1,14 @@
+---
+automate_hostname: automate.chef.lab
+automate_kernel_params:
+  - name: vm.max_map_count
+    value: "262144"
+  - name: vm.dirty_expire_centisecs
+    value: "20000"
+automate_cli_url: https://packages.chef.io/files/current/latest/chef-automate-cli/chef-automate_linux_amd64.zip
+automate_cli_path: /tmp/chef-automate
+automate_accept_terms: true
+deploy_automate: true
+deploy_infra_server: true
+user_key_path: ~/{{ username }}.pem
+org_key_path: ~/{{ org_name }}-validator.pem
