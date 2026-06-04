@@ -1,0 +1,15 @@
+---
+- name: Create Chef Infra Server user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ chef_automate_username }} "{{ chef_automate_longusername }}" {{ chef_automate_useremail }} "{{
+      chef_automate_userpassword }}" --filename {{ chef_automate_user_key_path }}
+  become: true
+  args:
+    creates: "{{ chef_automate_user_key_path | expanduser }}"
+- name: Create Chef Infra Server organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ chef_automate_orgname }} "{{ chef_automate_longorgname }}" --association_user {{ chef_automate_username }} --filename {{
+      chef_automate_org_validator_path }}
+  become: true
+  args:
+    creates: "{{ chef_automate_org_validator_path | expanduser }}"
