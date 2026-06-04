@@ -1,0 +1,30 @@
+---
+- name: Ensure Chef Server CLI tools are available
+  ansible.builtin.command:
+    cmd: which chef-server-ctl
+  register: chef_server_ctl_check
+  changed_when: false
+  failed_when: false
+- name: Wait for Chef Server CLI tools to be available
+  ansible.builtin.pause:
+    seconds: 10
+  when: chef_server_ctl_check.rc != 0
+- name: Create initial admin user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ chef_automate_username }} {{ chef_automate_full_name }} {{ chef_automate_email }} "{{ chef_automate_password }}"
+      --filename {{ chef_automate_user_key_file }}
+  args:
+    creates: "{{ chef_automate_user_key_file }}"
+  become: true
+  register: create_user
+  changed_when: create_user.rc == 0
+  no_log: true
+- name: Create initial organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ chef_automate_org_name }} "{{ chef_automate_org_full_name }}" --association_user {{ chef_automate_username }} --filename
+      {{ chef_automate_org_key_file }}
+  args:
+    creates: "{{ chef_automate_org_key_file }}"
+  become: true
+  register: create_org
+  changed_when: create_org.rc == 0
