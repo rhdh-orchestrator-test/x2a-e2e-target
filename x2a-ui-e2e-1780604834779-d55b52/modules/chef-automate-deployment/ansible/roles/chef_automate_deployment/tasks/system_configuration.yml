@@ -1,0 +1,31 @@
+---
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  become: true
+- name: Ensure sysctl package is installed
+  ansible.builtin.package:
+    name: procps
+    state: present
+  become: true
+- name: Configure vm.max_map_count kernel parameter in sysctl.conf
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.conf
+    regexp: ^vm\.max_map_count=
+    line: vm.max_map_count={{ chef_automate_vm_max_map_count }}
+    state: present
+  become: true
+  notify: reload sysctl
+- name: Configure vm.dirty_expire_centisecs kernel parameter in sysctl.conf
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.conf
+    regexp: ^vm\.dirty_expire_centisecs=
+    line: vm.dirty_expire_centisecs={{ chef_automate_vm_dirty_expire_centisecs }}
+    state: present
+  become: true
+  notify: reload sysctl
+- name: Apply sysctl settings immediately
+  ansible.builtin.command:
+    cmd: sysctl -w vm.max_map_count={{ chef_automate_vm_max_map_count }} vm.dirty_expire_centisecs={{ chef_automate_vm_dirty_expire_centisecs }}
+  become: true
+  changed_when: false
