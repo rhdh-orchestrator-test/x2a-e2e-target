@@ -1,0 +1,17 @@
+---
+chef_automate_hostname: chef-automate.example.com
+chef_automate_cli_url: https://packages.chef.io/files/current/latest/chef-automate-cli/chef-automate_linux_amd64.zip
+chef_automate_products:
+  - automate
+  - infra-server
+chef_automate_vm_max_map_count: "262144"
+chef_automate_vm_dirty_expire_centisecs: "20000"
+chef_infra_org_name: example-org
+chef_infra_org_full_name: Example Organization
+chef_infra_admin_username: admin
+chef_infra_admin_first_name: Admin
+chef_infra_admin_last_name: User
+chef_infra_admin_email: admin@example.com
+chef_infra_admin_password: "{{ chef_infra_admin_password_vault | default('ChefAdminPassword123!') }}"
+chef_automate_config_dir: /etc/chef-automate
+chef_infra_server_config_dir: /etc/opscode

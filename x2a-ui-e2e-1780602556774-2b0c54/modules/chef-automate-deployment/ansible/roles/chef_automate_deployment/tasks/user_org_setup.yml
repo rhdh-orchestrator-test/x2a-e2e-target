@@ -1,0 +1,28 @@
+---
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ chef_infra_admin_username }} {{ chef_infra_admin_first_name }} {{ chef_infra_admin_last_name }} {{
+      chef_infra_admin_email }} "{{ chef_infra_admin_password }}" --filename {{ chef_infra_admin_username }}.pem
+    creates: "{{ chef_infra_admin_username }}.pem"
+  become: true
+  no_log: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ chef_infra_org_name }} "{{ chef_infra_org_full_name }}" --association_user {{ chef_infra_admin_username }} --filename {{
+      chef_infra_org_name }}-validator.pem
+    creates: "{{ chef_infra_org_name }}-validator.pem"
+  become: true
+- name: Set proper permissions on user key file
+  ansible.builtin.file:
+    path: "{{ chef_infra_admin_username }}.pem"
+    mode: "0600"
+    owner: "{{ ansible_user }}"
+  become: true
+  when: ansible_user is defined
+- name: Set proper permissions on organization validator key file
+  ansible.builtin.file:
+    path: "{{ chef_infra_org_name }}-validator.pem"
+    mode: "0600"
+    owner: "{{ ansible_user }}"
+  become: true
+  when: ansible_user is defined
