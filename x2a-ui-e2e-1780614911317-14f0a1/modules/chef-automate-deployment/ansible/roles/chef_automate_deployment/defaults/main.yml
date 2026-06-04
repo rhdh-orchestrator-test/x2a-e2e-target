@@ -1,0 +1,16 @@
+---
+chef_automate_hostname: automate.chef.lab
+chef_automate_vm_max_map_count: 262144
+chef_automate_vm_dirty_expire_centisecs: 20000
+chef_automate_cli_url: https://packages.chef.io/files/current/latest/chef-automate-cli/chef-automate_linux_amd64.zip
+chef_automate_cli_path: ./chef-automate
+chef_automate_accept_terms_and_mlsa: true
+chef_automate_username: "{{ username | default('jtonello') }}"
+chef_automate_full_name: "{{ full_name | default('John Tonello') }}"
+chef_automate_email: "{{ email | default('jtonello@chef.lab') }}"
+chef_automate_password: "{{ password | default('password') }}"
+chef_automate_org_name: lab
+chef_automate_org_full_name: Chef Lab
+chef_automate_user_key_file: "{{ chef_automate_username }}.pem"
+chef_automate_org_key_file: "{{ chef_automate_org_name }}-validator.pem"
+chef_automate_deployment_type: automate_and_server
