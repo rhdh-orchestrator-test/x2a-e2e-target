@@ -1,0 +1,11 @@
+---
+- name: Download and prepare Chef Automate CLI
+  ansible.builtin.include_tasks: download_cli.yml
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy --product infra-server --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }} "
+  become: true
+  args:
+    creates: /hab
+  register: chef_server_deploy
+  changed_when: chef_server_deploy.rc == 0
