@@ -1,0 +1,80 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: molecule_test_user
+    password: molecule_test_password
+    chef_username: jtonello
+    chef_orgname: lab
+    chef_userfilename: jtonello.pem
+    chef_orgfilename: lab-validator.pem
+    chef_config_dir: /tmp/molecule_test/etc/chef-automate
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - '{{ chef_config_dir }}'
+    - /tmp/molecule_test/home/molecule
+    - /tmp/molecule_test/var/log/chef-automate
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: automate.chef.lab
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create Chef Automate config file
+    ansible.builtin.copy:
+      content: "[global]\n  # Configuration for Chef Automate\n  v1 = true\n[deployment]\n  automate = true\n  infra_server = true\n"
+      dest: '{{ chef_config_dir }}/config.toml'
+      mode: '0644'
+  - name: Create user key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEowIBAAKCAQEAzMolecKK+o1vEIm/FwVQLlbFEg0XuIhLHSU3QJvyPGjpzWLU
+
+        YMfRjIyA/GcHEExnSY2nUMGRqMGBGuAJEOtXXkRp5J1y4Rr3g+K2fK7xBOL9Qdwq
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/home/molecule/{{ chef_userfilename }}
+      mode: '0600'
+  - name: Create organization validator key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA0QMEJgX7SgIGGQHLZEW6TuNHc0fC4y2SnJh1YAKGAVkgQHVJ
+
+        pCyYgPNH3Bmhe0n4Q0yPrL+LiNMPClemS+Nj2MwKjPmUB5Ncnwbm3GqGVRuIcUYZ
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/home/molecule/{{ chef_orgfilename }}
+      mode: '0600'
+  - name: Create Chef Automate deployment log
+    ansible.builtin.copy:
+      content: '[2023-07-15T12:34:56Z] Starting Chef Automate deployment
+
+        [2023-07-15T12:35:30Z] Deploying Chef Automate components
+
+        [2023-07-15T12:36:45Z] Deploying Chef Infra Server
+
+        [2023-07-15T12:38:20Z] Deployment complete
+
+        '
+      dest: /tmp/molecule_test/var/log/chef-automate/automate-deployment.log
+      mode: '0644'
+  - name: Create sysctl settings file
+    ansible.builtin.copy:
+      content: 'vm.max_map_count = 262144
+
+        vm.dirty_expire_centisecs = 20000
+
+        '
+      dest: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      mode: '0644'

@@ -1,0 +1,181 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  vars:
+    chef_config_dir: /tmp/molecule_test/etc/chef-automate
+  tasks:
+  - name: Check hostname file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/hostname
+    register: hostname_file
+  - name: Assert hostname file was created
+    ansible.builtin.assert:
+      that:
+      - hostname_file.stat.exists
+      - hostname_file.stat.isreg
+      fail_msg: Hostname file not found
+      success_msg: Hostname file exists
+  - name: Get hostname content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/hostname
+    register: hostname_content
+    when: hostname_file.stat.exists
+  - name: Assert hostname is set correctly
+    ansible.builtin.assert:
+      that:
+      - (hostname_content.content | b64decode | trim) == "automate.chef.lab"
+      fail_msg: Hostname not set correctly
+      success_msg: Hostname set correctly
+    when: hostname_file.stat.exists
+  - name: Check sysctl config file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+    register: sysctl_file
+  - name: Assert sysctl file was created
+    ansible.builtin.assert:
+      that:
+      - sysctl_file.stat.exists
+      - sysctl_file.stat.isreg
+      fail_msg: Sysctl config file not found
+      success_msg: Sysctl config file exists
+  - name: Get sysctl content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+    register: sysctl_content
+    when: sysctl_file.stat.exists
+  - name: Assert sysctl settings are correct
+    ansible.builtin.assert:
+      that:
+      - (sysctl_content.content | b64decode) is search('vm.max_map_count = 262144')
+      - (sysctl_content.content | b64decode) is search('vm.dirty_expire_centisecs = 20000')
+      fail_msg: Sysctl settings not configured correctly
+      success_msg: Sysctl settings configured correctly
+    when: sysctl_file.stat.exists
+  - name: Check Chef Automate config file exists
+    ansible.builtin.stat:
+      path: '{{ chef_config_dir }}/config.toml'
+    register: chef_config_file
+  - name: Assert Chef Automate config file was created
+    ansible.builtin.assert:
+      that:
+      - chef_config_file.stat.exists
+      - chef_config_file.stat.isreg
+      fail_msg: Chef Automate config file not found
+      success_msg: Chef Automate config file exists
+  - name: Check user key file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/home/molecule/jtonello.pem
+    register: user_key_file
+  - name: Assert user key file was created
+    ansible.builtin.assert:
+      that:
+      - user_key_file.stat.exists
+      - user_key_file.stat.isreg
+      fail_msg: User key file not found
+      success_msg: User key file exists
+  - name: Check organization validator key file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/home/molecule/lab-validator.pem
+    register: org_key_file
+  - name: Assert organization validator key file was created
+    ansible.builtin.assert:
+      that:
+      - org_key_file.stat.exists
+      - org_key_file.stat.isreg
+      fail_msg: Organization validator key file not found
+      success_msg: Organization validator key file exists
+  - name: Check deployment log exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/var/log/chef-automate/automate-deployment.log
+    register: deployment_log
+  - name: Assert deployment log was created
+    ansible.builtin.assert:
+      that:
+      - deployment_log.stat.exists
+      - deployment_log.stat.isreg
+      fail_msg: Deployment log not found
+      success_msg: Deployment log exists
+  - name: Check Chef Automate status
+    ansible.builtin.command:
+      cmd: sudo chef-automate status
+    register: chef_automate_status
+    changed_when: false
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert Chef Automate is running
+    ansible.builtin.assert:
+      that:
+      - chef_automate_status.rc == 0
+      fail_msg: Chef Automate is not running
+      success_msg: Chef Automate is running
+    tags: molecule-notest
+  - name: Check Chef Infra Server status
+    ansible.builtin.command:
+      cmd: sudo chef-server-ctl status
+    register: chef_server_status
+    changed_when: false
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert Chef Infra Server is running
+    ansible.builtin.assert:
+      that:
+      - chef_server_status.rc == 0
+      fail_msg: Chef Infra Server is not running
+      success_msg: Chef Infra Server is running
+    tags: molecule-notest
+  - name: Check user exists
+    ansible.builtin.command:
+      cmd: sudo chef-server-ctl user-list
+    register: chef_user_list
+    changed_when: false
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert user exists
+    ansible.builtin.assert:
+      that:
+      - '''jtonello'' in chef_user_list.stdout'
+      fail_msg: User jtonello not found
+      success_msg: User jtonello exists
+    tags: molecule-notest
+  - name: Check organization exists
+    ansible.builtin.command:
+      cmd: sudo chef-server-ctl org-list
+    register: chef_org_list
+    changed_when: false
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert organization exists
+    ansible.builtin.assert:
+      that:
+      - '''lab'' in chef_org_list.stdout'
+      fail_msg: Organization lab not found
+      success_msg: Organization lab exists
+    tags: molecule-notest
+  - name: Check HTTPS port is listening
+    ansible.builtin.wait_for:
+      port: 443
+      timeout: 5
+    register: port_check
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert HTTPS port is listening
+    ansible.builtin.assert:
+      that:
+      - port_check is succeeded
+      fail_msg: HTTPS port 443 is not listening
+      success_msg: HTTPS port 443 is listening
+    tags: molecule-notest
+  - name: Check Chef Automate health
+    ansible.builtin.uri:
+      url: https://localhost/api/v0/health
+      validate_certs: false
+    register: health_check
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert Chef Automate health check passed
+    ansible.builtin.assert:
+      that:
+      - health_check is succeeded
+      fail_msg: Chef Automate health check failed
+      success_msg: Chef Automate health check passed
+    tags: molecule-notest
