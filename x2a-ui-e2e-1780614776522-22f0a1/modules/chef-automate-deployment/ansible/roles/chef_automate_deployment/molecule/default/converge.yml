@@ -1,0 +1,95 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/proc/sys/vm
+    - /tmp/molecule_test/hab
+    - /tmp/molecule_test/home/molecule
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: automate.chef.lab
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create kernel parameter files
+    ansible.builtin.copy:
+      content: '{{ item.value }}'
+      dest: /tmp/molecule_test/proc/sys/vm/{{ item.name }}
+      mode: '0644'
+    loop:
+    - name: max_map_count
+      value: '262144'
+    - name: dirty_expire_centisecs
+      value: '20000'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/sh echo ''Chef Automate CLI Mock'' '
+      dest: /tmp/molecule_test/tmp/chef-automate
+      mode: '0755'
+  - name: Create user PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEAu1SU1LfVLPHCozMxH2Mo4lgOEePzNm0tRgeLezV6ffAt0Gkw
+
+        E1sdyc6tjpUKDmETn66s6i7CWHPjFpbpzK+Hqn3a+HQ9XJsE2tzrw7IZp8xWy2Kv
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/home/molecule/jtonello.pem
+      mode: '0600'
+  - name: Create organization validator PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEAu1SU1LfVLPHCozMxH2Mo4lgOEePzNm0tRgeLezV6ffAt0Gkw
+
+        E1sdyc6tjpUKDmETn66s6i7CWHPjFpbpzK+Hqn3a+HQ9XJsE2tzrw7IZp8xWy2Kv
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/home/molecule/lab-validator.pem
+      mode: '0600'
+  - name: Create mock Chef Automate status file
+    ansible.builtin.copy:
+      content: 'Service: automate-cs-bookshelf                    running (PID: 12345)
+
+        Service: automate-cs-oc-bifrost                   running (PID: 12346)
+
+        Service: automate-cs-oc-erchef                    running (PID: 12347)
+
+        Service: automate-cs-nginx                        running (PID: 12348)
+
+        Service: automate-gateway                         running (PID: 12349)
+
+        Service: automate-postgresql                      running (PID: 12350)
+
+        Service: automate-elasticsearch                   running (PID: 12351)
+
+        '
+      dest: /tmp/molecule_test/hab/chef-automate-status.txt
+      mode: '0644'
+  - name: Create mock Chef Server user list
+    ansible.builtin.copy:
+      content: 'jtonello
+
+        pivotal
+
+        '
+      dest: /tmp/molecule_test/hab/chef-server-user-list.txt
+      mode: '0644'
+  - name: Create mock Chef Server org list
+    ansible.builtin.copy:
+      content: 'lab
+
+        '
+      dest: /tmp/molecule_test/hab/chef-server-org-list.txt
+      mode: '0644'

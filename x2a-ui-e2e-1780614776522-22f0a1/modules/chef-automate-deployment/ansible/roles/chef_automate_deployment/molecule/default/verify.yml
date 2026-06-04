@@ -1,0 +1,219 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Check hostname file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/hostname
+    register: hostname_file
+  - name: Assert hostname file was created
+    ansible.builtin.assert:
+      that:
+      - hostname_file.stat.exists
+      - hostname_file.stat.size > 0
+      fail_msg: Hostname file not found
+      success_msg: Hostname file exists
+  - name: Get hostname content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/hostname
+    register: hostname_content
+    when: hostname_file.stat.exists
+  - name: Assert hostname is set correctly
+    ansible.builtin.assert:
+      that:
+      - (hostname_content.content | b64decode | trim) == "automate.chef.lab"
+      fail_msg: Hostname not set correctly
+      success_msg: Hostname set correctly
+    when: hostname_file.stat.exists
+  - name: Check kernel parameter files exist
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/proc/sys/vm/{{ item }}
+    register: kernel_param_files
+    loop:
+    - max_map_count
+    - dirty_expire_centisecs
+  - name: Assert kernel parameter files exist
+    ansible.builtin.assert:
+      that:
+      - item.stat.exists
+      fail_msg: Kernel parameter file {{ item.item }} not found
+      success_msg: Kernel parameter file {{ item.item }} exists
+    loop: '{{ kernel_param_files.results }}'
+  - name: Get kernel parameter values
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/proc/sys/vm/{{ item }}
+    register: kernel_param_values
+    loop:
+    - max_map_count
+    - dirty_expire_centisecs
+    when: kernel_param_files.results | selectattr('stat.exists', 'equalto', true) | list | length == 2
+  - name: Assert kernel parameters are set correctly
+    ansible.builtin.assert:
+      that:
+      - (kernel_param_values.results[0].content | b64decode | trim) == "262144"
+      - (kernel_param_values.results[1].content | b64decode | trim) == "20000"
+      fail_msg: Kernel parameters not set correctly
+      success_msg: Kernel parameters set correctly
+    when: kernel_param_values.results | length == 2
+  - name: Check Chef Automate CLI exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/tmp/chef-automate
+    register: chef_automate_cli
+  - name: Assert Chef Automate CLI exists and is executable
+    ansible.builtin.assert:
+      that:
+      - chef_automate_cli.stat.exists
+      - chef_automate_cli.stat.executable
+      fail_msg: Chef Automate CLI not found or not executable
+      success_msg: Chef Automate CLI exists and is executable
+  - name: Check user PEM file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/home/molecule/jtonello.pem
+    register: user_pem
+  - name: Assert user PEM file exists
+    ansible.builtin.assert:
+      that:
+      - user_pem.stat.exists
+      - user_pem.stat.size > 0
+      fail_msg: User PEM file not found
+      success_msg: User PEM file exists
+  - name: Check organization validator PEM file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/home/molecule/lab-validator.pem
+    register: org_validator_pem
+  - name: Assert organization validator PEM file exists
+    ansible.builtin.assert:
+      that:
+      - org_validator_pem.stat.exists
+      - org_validator_pem.stat.size > 0
+      fail_msg: Organization validator PEM file not found
+      success_msg: Organization validator PEM file exists
+  - name: Check Chef Automate status file
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/hab/chef-automate-status.txt
+    register: chef_automate_status_file
+  - name: Assert Chef Automate status file exists
+    ansible.builtin.assert:
+      that:
+      - chef_automate_status_file.stat.exists
+      - chef_automate_status_file.stat.size > 0
+      fail_msg: Chef Automate status file not found
+      success_msg: Chef Automate status file exists
+  - name: Check Chef Server user list file
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/hab/chef-server-user-list.txt
+    register: chef_server_user_list_file
+  - name: Assert Chef Server user list file exists
+    ansible.builtin.assert:
+      that:
+      - chef_server_user_list_file.stat.exists
+      - chef_server_user_list_file.stat.size > 0
+      fail_msg: Chef Server user list file not found
+      success_msg: Chef Server user list file exists
+  - name: Get Chef Server user list content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/hab/chef-server-user-list.txt
+    register: chef_server_user_list_content
+    when: chef_server_user_list_file.stat.exists
+  - name: Assert jtonello user exists in Chef Server
+    ansible.builtin.assert:
+      that:
+      - '''jtonello'' in (chef_server_user_list_content.content | b64decode)'
+      fail_msg: User jtonello not found in Chef Server user list
+      success_msg: User jtonello found in Chef Server user list
+    when: chef_server_user_list_file.stat.exists
+  - name: Check Chef Server organization list file
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/hab/chef-server-org-list.txt
+    register: chef_server_org_list_file
+  - name: Assert Chef Server organization list file exists
+    ansible.builtin.assert:
+      that:
+      - chef_server_org_list_file.stat.exists
+      - chef_server_org_list_file.stat.size > 0
+      fail_msg: Chef Server organization list file not found
+      success_msg: Chef Server organization list file exists
+  - name: Get Chef Server organization list content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/hab/chef-server-org-list.txt
+    register: chef_server_org_list_content
+    when: chef_server_org_list_file.stat.exists
+  - name: Assert lab organization exists in Chef Server
+    ansible.builtin.assert:
+      that:
+      - '''lab'' in (chef_server_org_list_content.content | b64decode)'
+      fail_msg: Organization lab not found in Chef Server organization list
+      success_msg: Organization lab found in Chef Server organization list
+    when: chef_server_org_list_file.stat.exists
+  - name: Check Chef Automate service status
+    ansible.builtin.command:
+      cmd: sudo chef-automate status
+    register: chef_automate_status
+    changed_when: false
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert Chef Automate services are running
+    ansible.builtin.assert:
+      that:
+      - chef_automate_status.rc == 0
+      - '''running'' in chef_automate_status.stdout'
+      fail_msg: Chef Automate services not running
+      success_msg: Chef Automate services running
+    tags: molecule-notest
+  - name: Check Chef Infra Server service status
+    ansible.builtin.command:
+      cmd: sudo chef-server-ctl status
+    register: chef_server_status
+    changed_when: false
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert Chef Infra Server services are running
+    ansible.builtin.assert:
+      that:
+      - chef_server_status.rc == 0
+      - '''run'' in chef_server_status.stdout'
+      fail_msg: Chef Infra Server services not running
+      success_msg: Chef Infra Server services running
+    tags: molecule-notest
+  - name: Check service connectivity
+    ansible.builtin.uri:
+      url: https://localhost/api/_status
+      validate_certs: false
+    register: api_status
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert API is accessible
+    ansible.builtin.assert:
+      that:
+      - api_status.status == 200
+      fail_msg: Chef Automate API not accessible
+      success_msg: Chef Automate API accessible
+    tags: molecule-notest
+  - name: Check organization API
+    ansible.builtin.uri:
+      url: https://localhost/organizations/lab
+      validate_certs: false
+    register: org_api
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert organization API is accessible
+    ansible.builtin.assert:
+      that:
+      - org_api.status == 200
+      fail_msg: Chef organization API not accessible
+      success_msg: Chef organization API accessible
+    tags: molecule-notest
+  - name: Check port 443 is listening
+    ansible.builtin.wait_for:
+      port: 443
+      timeout: 5
+    register: port_check
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert port 443 is listening
+    ansible.builtin.assert:
+      that:
+      - port_check is succeeded
+      fail_msg: Port 443 not listening
+      success_msg: Port 443 is listening
+    tags: molecule-notest
