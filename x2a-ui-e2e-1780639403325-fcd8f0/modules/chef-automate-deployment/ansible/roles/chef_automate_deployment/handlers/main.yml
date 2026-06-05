@@ -1,0 +1,12 @@
+---
+- name: Apply sysctl settings
+  ansible.builtin.command:
+    cmd: sysctl -p
+  listen: reload sysctl
+  changed_when: false
+- name: Display Chef Automate deployment result
+  ansible.builtin.debug:
+    var: deploy_result.stdout_lines
+- name: Display Chef Infra Server deployment result
+  ansible.builtin.debug:
+    var: deploy_result.stdout_lines
