@@ -1,0 +1,20 @@
+---
+chef_automate_hostname: automate.chef.lab
+chef_automate_sysctl:
+  vm.max_map_count: 262144
+  vm.dirty_expire_centisecs: 20000
+chef_automate_cli_url: https://packages.chef.io/files/current/latest/chef-automate-cli/chef-automate_linux_amd64.zip
+chef_automate_cli_path: /tmp/chef-automate
+chef_automate_accept_terms: true
+chef_infra_username: "{{ username | default('admin') }}"
+chef_infra_fullname: "{{ full_name | default('Administrator') }}"
+chef_infra_email: "{{ email | default('admin@example.com') }}"
+chef_infra_password: "{{ password | default('changeme') }}"
+chef_infra_key_file: "{{ key_file | default('/tmp/admin.pem') }}"
+chef_infra_org_name: lab
+chef_infra_org_fullname: Chef Lab
+chef_infra_org_validator_file: /tmp/lab-validator.pem
+chef_automate_products:
+  - automate
+  - infra-server
+chef_server_only: false
