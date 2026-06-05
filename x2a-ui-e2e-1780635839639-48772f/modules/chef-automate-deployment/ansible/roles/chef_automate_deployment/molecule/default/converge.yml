@@ -1,0 +1,60 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: molecule_test_user
+    password: molecule_test_password
+    full_name: Molecule Test User
+    email: molecule@example.com
+    chef_automate_hostname: molecule-test.local
+    chef_automate_cli_path: /tmp/molecule_test/chef-automate
+    chef_user_pem_path: /tmp/molecule_test/molecule_test_user.pem
+    chef_org_name: molecule
+    chef_org_validator_pem_path: /tmp/molecule_test/molecule-validator.pem
+  tasks:
+  - name: Create test directories
+    ansible.builtin.file:
+      path: /tmp/molecule_test
+      state: directory
+      mode: '0755'
+  - name: Validate required credential variables
+    ansible.builtin.assert:
+      that:
+      - username is defined
+      - password is defined
+      - full_name is defined
+      - email is defined
+      fail_msg: One or more required credential variables are not defined.
+      quiet: true
+  - name: Simulate setting system hostname
+    ansible.builtin.debug:
+      msg: Would set hostname to {{ chef_automate_hostname }}
+    tags: molecule-notest
+  - name: Simulate downloading Chef Automate CLI
+    ansible.builtin.file:
+      path: '{{ chef_automate_cli_path }}.zip'
+      state: touch
+      mode: '0644'
+  - name: Simulate extracting Chef Automate CLI
+    ansible.builtin.file:
+      path: '{{ chef_automate_cli_path }}'
+      state: touch
+      mode: '0755'
+  - name: Simulate Chef Automate deployment
+    ansible.builtin.file:
+      path: /tmp/molecule_test/config.toml
+      state: touch
+      mode: '0644'
+    tags: molecule-notest
+  - name: Simulate creating Chef user
+    ansible.builtin.file:
+      path: '{{ chef_user_pem_path }}'
+      state: touch
+      mode: '0644'
+    tags: molecule-notest
+  - name: Simulate creating Chef organization
+    ansible.builtin.file:
+      path: '{{ chef_org_validator_pem_path }}'
+      state: touch
+      mode: '0644'
+    tags: molecule-notest
