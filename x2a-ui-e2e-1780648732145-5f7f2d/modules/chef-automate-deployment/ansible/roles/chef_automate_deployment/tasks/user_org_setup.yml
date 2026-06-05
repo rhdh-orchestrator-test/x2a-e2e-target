@@ -1,0 +1,25 @@
+---
+- name: Check if Chef Server is installed and available
+  ansible.builtin.command:
+    cmd: which chef-server-ctl
+  register: chef_server_check
+  changed_when: false
+  failed_when: false
+  become: true
+- name: Fail if Chef Server is not installed
+  ansible.builtin.fail:
+    msg: Chef Server is not installed or chef-server-ctl is not available
+  when: chef_server_check.rc != 0
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ chef_user_name }} {{ chef_user_full_name | quote }} {{ chef_user_email | quote }} {{ chef_user_password | quote }}
+      --filename {{ chef_user_key_file }}
+    creates: "{{ chef_user_key_file }}"
+  become: true
+  no_log: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ chef_org_name }} {{ chef_org_full_name | quote }} --association_user {{ chef_user_name }} --filename {{
+      chef_org_validator_key_file }}
+    creates: "{{ chef_org_validator_key_file }}"
+  become: true

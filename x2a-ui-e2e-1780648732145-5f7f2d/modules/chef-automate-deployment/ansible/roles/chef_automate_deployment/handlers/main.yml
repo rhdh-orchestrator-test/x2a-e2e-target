@@ -1,0 +1,13 @@
+---
+- name: Restart Chef Automate
+  ansible.builtin.service:
+    name: chef-automate
+    state: restarted
+  become: true
+  listen: restart chef-automate
+- name: Restart Chef Infra Server
+  ansible.builtin.service:
+    name: chef-server
+    state: restarted
+  become: true
+  listen: restart chef-server
