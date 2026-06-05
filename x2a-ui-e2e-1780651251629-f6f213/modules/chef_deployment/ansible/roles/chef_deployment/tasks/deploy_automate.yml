@@ -1,0 +1,50 @@
+---
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_hostname }}"
+  become: true
+- name: Configure system parameters for Chef Automate
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_set: true
+    reload: true
+  loop: "{{ chef_sysctl_settings | dict2items }}"
+  become: true
+- name: Ensure required packages are installed
+  ansible.builtin.package:
+    name:
+      - unzip
+      - curl
+    state: present
+  become: true
+- name: Download Chef Automate CLI tool
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: /tmp/chef-automate.zip
+    mode: "0644"
+- name: Extract Chef Automate CLI tool
+  ansible.builtin.unarchive:
+    src: /tmp/chef-automate.zip
+    dest: /tmp
+    remote_src: true
+    mode: "0755"
+    creates: /tmp/chef-automate
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: ./chef-automate deploy --product automate --product infra-server --accept-terms-and-mlsa={{ chef_accept_terms_and_mlsa | lower }}
+    chdir: /tmp
+    creates: /etc/chef-automate/config.toml
+  become: true
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ username }} {{ full_name }} {{ email }} {{ password | quote }} --filename {{ chef_user_pem_path }}
+    creates: "{{ chef_user_pem_path }}"
+  become: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ organization }} {{ organization_full_name | quote }} --association_user {{ username }} --filename {{
+      chef_org_validator_pem_path }}
+    creates: "{{ chef_org_validator_pem_path }}"
+  become: true
