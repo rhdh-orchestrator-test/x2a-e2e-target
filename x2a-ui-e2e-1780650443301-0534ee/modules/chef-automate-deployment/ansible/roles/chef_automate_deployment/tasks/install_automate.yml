@@ -1,0 +1,25 @@
+---
+- name: Ensure curl is installed
+  ansible.builtin.package:
+    name: curl
+    state: present
+  become: true
+- name: Download and extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: curl {{ chef_automate_cli_url }} | gunzip - > {{ chef_automate_cli_path }}
+    creates: "{{ chef_automate_cli_path }}"
+  args:
+    warn: false
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+    state: file
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy {% if 'automate' in chef_automate_products and chef_automate_products[0] != '' %}--product automate {% endif %} --product
+      infra-server --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }} "
+  become: true
+  register: chef_automate_deploy
+  changed_when: chef_automate_deploy.rc == 0
+  failed_when: chef_automate_deploy.rc != 0

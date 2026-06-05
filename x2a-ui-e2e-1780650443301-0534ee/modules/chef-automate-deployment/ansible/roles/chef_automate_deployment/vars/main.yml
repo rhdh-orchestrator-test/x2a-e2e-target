@@ -1,0 +1,6 @@
+---
+chef_user_pem_filename: "{{ username }}.pem"
+chef_org_validator_filename: "{{ chef_org_name }}-validator.pem"
+chef_automate_products:
+  - "{{ 'automate' if chef_deploy_automate else '' }}"
+  - infra-server
