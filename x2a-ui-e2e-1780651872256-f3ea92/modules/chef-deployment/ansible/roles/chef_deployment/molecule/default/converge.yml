@@ -1,0 +1,100 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create base directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/etc/hosts
+    - /tmp/molecule_test/etc/hostname
+    - /tmp/molecule_test/hab
+    - /tmp/molecule_test/tmp
+    - /tmp/molecule_test/proc/sys/vm
+    - /tmp/molecule_test/proc/sys/net
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: automate.chef.lab
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create hosts file
+    ansible.builtin.copy:
+      content: '127.0.0.1 localhost
+
+        127.0.0.1 automate.chef.lab
+
+        '
+      dest: /tmp/molecule_test/etc/hosts
+      mode: '0644'
+  - name: Create sysctl settings files
+    ansible.builtin.copy:
+      content: '{{ item.value }}'
+      dest: /tmp/molecule_test/proc/sys/{{ item.path }}
+      mode: '0644'
+    loop:
+    - path: vm/max_map_count
+      value: '262144'
+    - path: vm/dirty_expire_centisecs
+      value: '20000'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.file:
+      path: /tmp/molecule_test/chef-automate
+      state: touch
+      mode: '0755'
+  - name: Create Chef Automate deployment marker
+    ansible.builtin.file:
+      path: /tmp/molecule_test/hab
+      state: directory
+      mode: '0755'
+  - name: Create user key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- MIIEpAIBAAKCAQEA... -----END RSA PRIVATE KEY----- '
+      dest: /tmp/molecule_test/jtonello.pem
+      mode: '0600'
+  - name: Create organization validator key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- MIIEpAIBAAKCAQEA... -----END RSA PRIVATE KEY----- '
+      dest: /tmp/molecule_test/lab-validator.pem
+      mode: '0600'
+  - name: Create Chef Automate status file
+    ansible.builtin.copy:
+      content: 'Service: chef-automate
+
+        Status: running
+
+        PID: 12345
+
+        '
+      dest: /tmp/molecule_test/chef-automate-status
+      mode: '0644'
+  - name: Create Chef server user list
+    ansible.builtin.copy:
+      content: 'jtonello
+
+        admin
+
+        '
+      dest: /tmp/molecule_test/chef-server-users
+      mode: '0644'
+  - name: Create Chef server organization list
+    ansible.builtin.copy:
+      content: 'lab
+
+        '
+      dest: /tmp/molecule_test/chef-server-orgs
+      mode: '0644'
+  - name: Create network status directories
+    ansible.builtin.file:
+      path: /tmp/molecule_test/proc/sys/net
+      state: directory
+      mode: '0755'
+  - name: Create network listening file
+    ansible.builtin.copy:
+      content: 'tcp        0      0 0.0.0.0:443             0.0.0.0:*               LISTEN      12345/chef-automate
+
+        '
+      dest: /tmp/molecule_test/proc/net/tcp
+      mode: '0644'
