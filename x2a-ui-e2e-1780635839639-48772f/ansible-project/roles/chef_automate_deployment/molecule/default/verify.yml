@@ -1,0 +1,40 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  vars:
+    chef_automate_cli_path: /tmp/molecule_test/chef-automate
+    chef_user_pem_path: /tmp/molecule_test/molecule_test_user.pem
+    chef_org_validator_pem_path: /tmp/molecule_test/molecule-validator.pem
+  tasks:
+  - name: Verify test directory exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test
+    register: test_dir
+  - name: Assert test directory exists
+    ansible.builtin.assert:
+      that: test_dir.stat.exists and test_dir.stat.isdir
+      fail_msg: Test directory /tmp/molecule_test does not exist
+  - name: Verify Chef Automate CLI file exists
+    ansible.builtin.stat:
+      path: '{{ chef_automate_cli_path }}'
+    register: cli_file
+  - name: Assert Chef Automate CLI file exists
+    ansible.builtin.assert:
+      that: cli_file.stat.exists
+      fail_msg: Chef Automate CLI file does not exist
+  - name: Verify user PEM file exists
+    ansible.builtin.stat:
+      path: '{{ chef_user_pem_path }}'
+    register: user_pem
+  - name: Assert user PEM file exists
+    ansible.builtin.assert:
+      that: user_pem.stat.exists
+      fail_msg: User PEM file does not exist
+  - name: Verify organization validator PEM file exists
+    ansible.builtin.stat:
+      path: '{{ chef_org_validator_pem_path }}'
+    register: org_pem
+  - name: Assert organization validator PEM file exists
+    ansible.builtin.assert:
+      that: org_pem.stat.exists
+      fail_msg: Organization validator PEM file does not exist
