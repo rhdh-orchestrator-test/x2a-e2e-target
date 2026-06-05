@@ -1,0 +1,17 @@
+---
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+    force: "{{ chef_automate_force_cli_download | default(false) }}"
+  become: true
+  register: download_result
+- name: Set CLI permissions
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+    owner: root
+    group: root
+  become: true
+  when: download_result.changed

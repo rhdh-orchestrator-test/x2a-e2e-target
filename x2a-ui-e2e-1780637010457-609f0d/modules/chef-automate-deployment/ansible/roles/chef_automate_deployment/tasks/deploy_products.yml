@@ -1,0 +1,19 @@
+---
+- name: Check if Chef Automate is already deployed
+  ansible.builtin.stat:
+    path: /etc/chef-automate/config.toml
+  register: automate_config
+  become: true
+- name: Build Chef Automate deploy command
+  ansible.builtin.set_fact:
+    chef_automate_deploy_cmd: sudo ./{{ chef_automate_cli_path | basename }} deploy {% for product in chef_automate_products %} --product {{ product }} {%
+      endfor %} --accept-terms-and-mlsa={{ chef_automate_accept_terms_and_mlsa | lower }}
+- name: Deploy Chef Automate products
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_deploy_cmd }}"
+  args:
+    creates: /etc/chef-automate/config.toml
+  become: true
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
+  when: not automate_config.stat.exists
