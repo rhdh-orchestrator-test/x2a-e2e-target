@@ -1,0 +1,28 @@
+---
+- name: Ensure required packages are installed
+  ansible.builtin.package:
+    name:
+      - gzip
+      - unzip
+    state: present
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: "{{ chef_automate_cli_path }}.zip"
+    mode: "0644"
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip - > {{ chef_automate_cli_path }} < {{ chef_automate_cli_path }}.zip
+  args:
+    creates: "{{ chef_automate_cli_path }}"
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+- name: Deploy Chef Automate with Chef Infra Server
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy --product automate --product infra-server --accept-terms-and-mlsa=true"
+  args:
+    creates: /etc/chef-automate/config.toml
+  become: true
