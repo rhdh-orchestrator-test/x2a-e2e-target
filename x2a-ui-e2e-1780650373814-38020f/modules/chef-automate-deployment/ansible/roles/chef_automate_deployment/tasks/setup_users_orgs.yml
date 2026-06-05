@@ -1,0 +1,33 @@
+---
+- name: Set user and organization filenames
+  ansible.builtin.set_fact:
+    user_key_file: "{{ chef_automate_username }}.pem"
+    org_key_file: "{{ chef_automate_orgname }}-validator.pem"
+- name: Ensure key directory exists
+  ansible.builtin.file:
+    path: "{{ user_key_file | dirname }}"
+    state: directory
+    mode: "0755"
+  when: user_key_file | dirname != '.'
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create  {{ chef_automate_username }}  {{ chef_automate_longusername }}  {{ chef_automate_useremail }}  "{{ chef_automate_userpassword
+      }}"  --filename {{ user_key_file }}
+
+      '
+  become: true
+  args:
+    creates: "{{ user_key_file }}"
+  register: user_create_result
+  changed_when: user_create_result.rc == 0
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create  {{ chef_automate_orgname }}  "{{ chef_automate_longorgname }}"  --association_user {{ chef_automate_username }}  --filename
+      {{ org_key_file }}
+
+      '
+  become: true
+  args:
+    creates: "{{ org_key_file }}"
+  register: org_create_result
+  changed_when: org_create_result.rc == 0
