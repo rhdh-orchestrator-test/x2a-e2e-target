@@ -1,0 +1,22 @@
+---
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  become: true
+- name: Create sysctl configuration file for Chef Automate
+  ansible.builtin.template:
+    src: chef-automate-sysctl.conf.j2
+    dest: /etc/sysctl.d/99-chef-automate.conf
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: reload sysctl
+- name: Apply sysctl settings immediately
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop: "{{ chef_automate_sysctl_settings | dict2items }}"
+  become: true
