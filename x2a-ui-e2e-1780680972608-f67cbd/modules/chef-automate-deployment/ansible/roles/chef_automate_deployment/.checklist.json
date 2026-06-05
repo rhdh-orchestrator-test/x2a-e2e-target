@@ -1,0 +1,149 @@
+{
+  "module_name": "chef_automate_deployment",
+  "items": [
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/aap-configuration/controller_credential_types.yml",
+      "status": "complete",
+      "description": "AAP credential types configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/aap-configuration/controller_credentials.yml",
+      "status": "complete",
+      "description": "AAP credentials configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/tasks/validate_credentials.yml",
+      "status": "complete",
+      "description": "Credential validation tasks",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables",
+      "notes": "Created defaults/main.yml with variables extracted from deploy-automate.sh"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/handlers/main.yml",
+      "status": "complete",
+      "description": "Role handlers",
+      "notes": "Created handlers/main.yml with sysctl reload handler"
+    },
+    {
+      "category": "recipes",
+      "source_path": "/workspace/source/setup-automate/deploy-automate.sh",
+      "target_path": "ansible/roles/chef_automate_deployment/tasks/main.yml",
+      "status": "complete",
+      "description": "Main tasks file",
+      "notes": "Created main.yml with task includes for all components"
+    },
+    {
+      "category": "recipes",
+      "source_path": "/workspace/source/setup-automate/deploy-automate.sh",
+      "target_path": "ansible/roles/chef_automate_deployment/tasks/system_config.yml",
+      "status": "complete",
+      "description": "System configuration tasks",
+      "notes": "Created system_config.yml with hostname and sysctl configuration tasks"
+    },
+    {
+      "category": "recipes",
+      "source_path": "/workspace/source/setup-automate/deploy-automate.sh",
+      "target_path": "ansible/roles/chef_automate_deployment/tasks/install_automate.yml",
+      "status": "complete",
+      "description": "Chef Automate installation tasks",
+      "notes": "Created install_automate.yml with tasks to download and deploy Chef Automate"
+    },
+    {
+      "category": "recipes",
+      "source_path": "/workspace/source/setup-automate/deploy-automate.sh",
+      "target_path": "ansible/roles/chef_automate_deployment/tasks/setup_users_orgs.yml",
+      "status": "complete",
+      "description": "User and organization setup tasks",
+      "notes": "Created setup_users_orgs.yml with tasks to create Chef users and organizations"
+    },
+    {
+      "category": "recipes",
+      "source_path": "/workspace/source/setup-automate/deploy-chef-server.sh",
+      "target_path": "ansible/roles/chef_automate_deployment/tasks/deploy_chef_server.yml",
+      "status": "complete",
+      "description": "Chef Server deployment tasks",
+      "notes": "Created deploy_chef_server.yml with tasks to deploy standalone Chef Infra Server"
+    },
+    {
+      "category": "attributes",
+      "source_path": "/workspace/source/setup-automate/deploy-automate.sh",
+      "target_path": "ansible/roles/chef_automate_deployment/defaults/main.yml",
+      "status": "complete",
+      "description": "Chef Automate deployment variables",
+      "notes": "Created defaults/main.yml with variables extracted from deploy-automate.sh"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule scenario configuration",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook",
+      "notes": "Created converge.yml that simulates the filesystem state under /tmp/molecule_test/ including hostname, kernel parameters, Chef Automate CLI, and PEM files"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification tasks",
+      "notes": "Created verify.yml that checks the filesystem state under /tmp/molecule_test/ and includes container-safe tests with molecule-notest tags for service checks"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Molecule create playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Molecule destroy playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:eloy.redis",
+      "target_path": "ansible/roles/chef_automate_deployment/requirements.yml",
+      "status": "complete",
+      "description": "Redis collection dependency",
+      "notes": "Created requirements.yml with eloy.redis collection"
+    }
+  ]
+}

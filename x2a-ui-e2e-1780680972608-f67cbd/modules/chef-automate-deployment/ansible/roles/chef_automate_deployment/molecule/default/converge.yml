@@ -1,0 +1,59 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: jtonello
+    password: password123
+    full_name: John Tonello
+    email: jtonello@example.com
+    org_name: lab
+    org_full_name: Chef Lab Organization
+    user_pem: '-----BEGIN RSA PRIVATE KEY----- MOCK USER PEM CONTENT -----END RSA PRIVATE KEY----- '
+    org_validator_pem: '-----BEGIN RSA PRIVATE KEY----- MOCK ORG VALIDATOR PEM CONTENT -----END RSA PRIVATE KEY----- '
+    chef_automate_hostname: automate.chef.lab
+    chef_automate_vm_max_map_count: 262144
+    chef_automate_vm_dirty_expire_centisecs: 20000
+    chef_automate_products:
+    - automate
+    - infra-server
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/proc/sys/vm
+    - /tmp/molecule_test/hab
+    - /tmp/molecule_test/home/ansible
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: '{{ chef_automate_hostname | default(''automate.chef.lab'') }}'
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create max_map_count file
+    ansible.builtin.copy:
+      content: '{{ chef_automate_vm_max_map_count | default(''262144'') }}'
+      dest: /tmp/molecule_test/proc/sys/vm/max_map_count
+      mode: '0644'
+  - name: Create dirty_expire_centisecs file
+    ansible.builtin.copy:
+      content: '{{ chef_automate_vm_dirty_expire_centisecs | default(''20000'') }}'
+      dest: /tmp/molecule_test/proc/sys/vm/dirty_expire_centisecs
+      mode: '0644'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/bash echo ''Chef Automate CLI mock'' '
+      dest: /tmp/molecule_test/chef-automate
+      mode: '0755'
+  - name: Create user PEM file
+    ansible.builtin.copy:
+      content: '{{ user_pem }}'
+      dest: /tmp/molecule_test/home/ansible/jtonello.pem
+      mode: '0600'
+  - name: Create organization validator PEM file
+    ansible.builtin.copy:
+      content: '{{ org_validator_pem }}'
+      dest: /tmp/molecule_test/home/ansible/lab-validator.pem
+      mode: '0600'
