@@ -1,0 +1,28 @@
+---
+- name: Ensure directory exists for PEM files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ ansible_env.HOME }}/.chef"
+  become: false
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: '{{ chef_server_ctl_path }} user-create {{ chef_automate_user_name }} {{ chef_automate_user_full_name }} {{ chef_automate_user_email }} "{{ chef_automate_user_password
+      }}" --filename {{ ansible_env.HOME }}/.chef/{{ chef_automate_user_pem_file }}'
+  become: true
+  args:
+    creates: "{{ ansible_env.HOME }}/.chef/{{ chef_automate_user_pem_file }}"
+  register: chef_user_create
+  changed_when: chef_user_create.rc == 0
+  no_log: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: '{{ chef_server_ctl_path }} org-create {{ chef_automate_org_name }} "{{ chef_automate_org_full_name }}" --association_user {{ chef_automate_user_name }}
+      --filename {{ ansible_env.HOME }}/.chef/{{ chef_automate_org_pem_file }}'
+  become: true
+  args:
+    creates: "{{ ansible_env.HOME }}/.chef/{{ chef_automate_org_pem_file }}"
+  register: chef_org_create
+  changed_when: chef_org_create.rc == 0
