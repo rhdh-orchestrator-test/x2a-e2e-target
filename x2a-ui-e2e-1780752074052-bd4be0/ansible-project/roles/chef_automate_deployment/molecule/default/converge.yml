@@ -1,0 +1,131 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: jtonello
+    full_name: John Tonello
+    email: jtonello@chef.lab
+    password: password
+    chef_automate_hostname: automate.chef.lab
+    chef_automate_cli_path: /tmp/molecule_test/chef-automate
+    chef_user_key_filename: /tmp/molecule_test/jtonello.pem
+    chef_org_name: lab
+    chef_org_validator_filename: /tmp/molecule_test/lab-validator.pem
+  tasks:
+    # Create directory structure
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/etc/sysctl.d
+        - /tmp/molecule_test/hab
+        - /tmp/molecule_test/var/opt/chef-automate
+        - /tmp/molecule_test/var/opt/chef-server
+
+    # Simulate hostname configuration
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "{{ chef_automate_hostname }}"
+        dest: /tmp/molecule_test/etc/hostname
+        mode: "0644"
+
+    # Simulate kernel parameters
+    - name: Create sysctl configuration file
+      ansible.builtin.copy:
+        content: |
+          vm.max_map_count=262144
+          vm.dirty_expire_centisecs=20000
+        dest: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+        mode: "0644"
+
+    # Simulate Chef Automate CLI
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: "#!/bin/bash\necho 'Chef Automate CLI Mock'\n"
+        dest: "{{ chef_automate_cli_path }}"
+        mode: "0755"
+
+    # Simulate Chef Automate deployment
+    - name: Create Chef Automate deployment marker
+      ansible.builtin.copy:
+        content: |
+          Chef Automate deployed with products:
+          - automate
+          - infra-server
+          Terms and MLSA accepted: true
+        dest: /tmp/molecule_test/hab/chef-automate-deployment.txt
+        mode: "0644"
+
+    # Simulate user creation
+    - name: Create user key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAu5NhYMoj56/sFYh9Lm37JEa3A8JQkNRUQQI8oHZuZZ7J6aNf
+          -----END RSA PRIVATE KEY-----
+        dest: "{{ chef_user_key_filename }}"
+        mode: "0600"
+
+    # Simulate organization creation
+    - name: Create organization validator key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAu5NhYMoj56/sFYh9Lm37JEa3A8JQkNRUQQI8oHZuZZ7J6aNf
+          -----END RSA PRIVATE KEY-----
+        dest: "{{ chef_org_validator_filename }}"
+        mode: "0600"
+
+    # Simulate Chef server user list output
+    - name: Create Chef server user list file
+      ansible.builtin.copy:
+        content: |
+          jtonello
+        dest: /tmp/molecule_test/chef-server-user-list.txt
+        mode: "0644"
+
+    # Simulate Chef server organization list output
+    - name: Create Chef server organization list file
+      ansible.builtin.copy:
+        content: |
+          lab
+        dest: /tmp/molecule_test/chef-server-org-list.txt
+        mode: "0644"
+
+    # Simulate Chef Automate status output
+    - name: Create Chef Automate status file
+      ansible.builtin.copy:
+        content: |
+          Service: automate-load-balancer
+          Status: running
+          Service: automate-cs-bookshelf
+          Status: running
+          Service: automate-cs-oc-bifrost
+          Status: running
+          Service: automate-cs-oc-erchef
+          Status: running
+          Service: automate-cs-nginx
+          Status: running
+        dest: /tmp/molecule_test/chef-automate-status.txt
+        mode: "0644"
+
+    # Simulate Chef server status output
+    - name: Create Chef server status file
+      ansible.builtin.copy:
+        content: |
+          run: chef-server-ctl status
+          ok: run: bookshelf: (pid 12345) 1234s
+          ok: run: nginx: (pid 12346) 1234s
+          ok: run: oc_bifrost: (pid 12347) 1234s
+          ok: run: oc_id: (pid 12348) 1234s
+          ok: run: opscode-erchef: (pid 12349) 1234s
+          ok: run: opscode-expander: (pid 12350) 1234s
+          ok: run: opscode-solr4: (pid 12351) 1234s
+          ok: run: postgresql: (pid 12352) 1234s
+          ok: run: redis_lb: (pid 12353) 1234s
+        dest: /tmp/molecule_test/chef-server-status.txt
+        mode: "0644"
