@@ -1,0 +1,153 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    # Create directory structure for testing
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/proc/sys/vm
+        - /tmp/molecule_test/tmp
+
+    # Simulate hostname file
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: "/tmp/molecule_test/etc/hostname"
+        mode: "0644"
+
+    # Simulate kernel parameters
+    - name: Create vm.max_map_count file
+      ansible.builtin.copy:
+        content: "262144"
+        dest: "/tmp/molecule_test/proc/sys/vm/max_map_count"
+        mode: "0644"
+
+    - name: Create vm.dirty_expire_centisecs file
+      ansible.builtin.copy:
+        content: "20000"
+        dest: "/tmp/molecule_test/proc/sys/vm/dirty_expire_centisecs"
+        mode: "0644"
+
+    # Simulate Chef Automate CLI
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: "#!/bin/bash\necho 'Chef Automate CLI mock'\n"
+        dest: "/tmp/molecule_test/tmp/chef-automate"
+        mode: "0755"
+
+    # Simulate Chef Automate CLI zip file
+    - name: Create Chef Automate CLI zip file
+      ansible.builtin.copy:
+        content: "Mock Chef Automate CLI zip content"
+        dest: "/tmp/molecule_test/tmp/chef-automate.zip"
+        mode: "0644"
+
+    # Simulate user key file
+    - name: Create user key file
+      ansible.builtin.copy:
+        content: "-----BEGIN RSA PRIVATE KEY-----\nMock Chef user key content\n-----END RSA PRIVATE KEY-----\n"
+        dest: "/tmp/molecule_test/tmp/jtonello.pem"
+        mode: "0600"
+
+    # Simulate organization validator key file
+    - name: Create organization validator key file
+      ansible.builtin.copy:
+        content: "-----BEGIN RSA PRIVATE KEY-----\nMock Chef organization validator key content\n-----END RSA PRIVATE KEY-----\n"
+        dest: "/tmp/molecule_test/tmp/lab-validator.pem"
+        mode: "0600"
+
+    # Simulate Chef Automate status output
+    - name: Create Chef Automate status file
+      ansible.builtin.copy:
+        content: |
+          Service: automate-postgresql
+            Status: running (pid 12345)
+          Service: automate-elasticsearch
+            Status: running (pid 12346)
+          Service: automate-nginx
+            Status: running (pid 12347)
+        dest: "/tmp/molecule_test/tmp/chef-automate-status.txt"
+        mode: "0644"
+
+    # Simulate Chef Server status output
+    - name: Create Chef Server status file
+      ansible.builtin.copy:
+        content: |
+          run: postgresql: (pid 12348) 120s; run: log: (pid 12349) 119s
+          run: nginx: (pid 12350) 118s; run: log: (pid 12351) 117s
+          run: bookshelf: (pid 12352) 116s; run: log: (pid 12353) 115s
+          run: oc_bifrost: (pid 12354) 114s; run: log: (pid 12355) 113s
+          run: oc_id: (pid 12356) 112s; run: log: (pid 12357) 111s
+          run: opscode-erchef: (pid 12358) 110s; run: log: (pid 12359) 109s
+        dest: "/tmp/molecule_test/tmp/chef-server-status.txt"
+        mode: "0644"
+
+    # Simulate user list output
+    - name: Create user list file
+      ansible.builtin.copy:
+        content: "jtonello\n"
+        dest: "/tmp/molecule_test/tmp/chef-user-list.txt"
+        mode: "0644"
+
+    # Simulate user show output
+    - name: Create user show file
+      ansible.builtin.copy:
+        content: |
+          username: jtonello
+          display_name: John Tonello
+          email: jtonello@chef.lab
+        dest: "/tmp/molecule_test/tmp/chef-user-show.txt"
+        mode: "0644"
+
+    # Simulate organization list output
+    - name: Create organization list file
+      ansible.builtin.copy:
+        content: "lab\n"
+        dest: "/tmp/molecule_test/tmp/chef-org-list.txt"
+        mode: "0644"
+
+    # Simulate organization show output
+    - name: Create organization show file
+      ansible.builtin.copy:
+        content: |
+          name: lab
+          full_name: Chef Lab
+          guid: 12345678-1234-1234-1234-1234567890ab
+        dest: "/tmp/molecule_test/tmp/chef-org-show.txt"
+        mode: "0644"
+
+    # Simulate network listening output
+    - name: Create network listening file
+      ansible.builtin.copy:
+        content: |
+          tcp6       0      0 :::443                  :::*                    LISTEN      12345/nginx
+        dest: "/tmp/molecule_test/tmp/netstat-output.txt"
+        mode: "0644"
+
+    # Simulate API version response
+    - name: Create API version response file
+      ansible.builtin.copy:
+        content: |
+          {
+            "api": "v0",
+            "version": "1.0.0"
+          }
+        dest: "/tmp/molecule_test/tmp/api-version-response.json"
+        mode: "0644"
+
+    # Simulate API status response
+    - name: Create API status response file
+      ansible.builtin.copy:
+        content: |
+          {
+            "status": "ok",
+            "uptime": "1h 23m 45s"
+          }
+        dest: "/tmp/molecule_test/tmp/api-status-response.json"
+        mode: "0644"
