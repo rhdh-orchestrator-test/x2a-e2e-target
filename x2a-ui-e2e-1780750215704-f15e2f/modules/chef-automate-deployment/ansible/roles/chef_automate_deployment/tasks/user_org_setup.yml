@@ -1,0 +1,34 @@
+---
+- name: Check if Chef user already exists
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-list
+  become: true
+  register: user_list
+  changed_when: false
+  failed_when: false
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ chef_automate_username }} {{ chef_automate_longusername }} {{ chef_automate_useremail }} "{{ chef_automate_userpassword
+      }}" --filename {{ chef_automate_userfilename }}
+  become: true
+  register: user_create
+  changed_when: user_create.rc == 0
+  failed_when: user_create.rc != 0
+  no_log: true
+  when: chef_automate_username not in user_list.stdout
+- name: Check if Chef organization already exists
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-list
+  become: true
+  register: org_list
+  changed_when: false
+  failed_when: false
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ chef_automate_orgname }} "{{ chef_automate_longorgname }}" --association_user {{ chef_automate_username }} --filename {{
+      chef_automate_orgfilename }}
+  become: true
+  register: org_create
+  changed_when: org_create.rc == 0
+  failed_when: org_create.rc != 0
+  when: chef_automate_orgname not in org_list.stdout
