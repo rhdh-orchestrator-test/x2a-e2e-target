@@ -1,0 +1,17 @@
+---
+- name: Restart Chef Automate
+  ansible.builtin.command:
+    cmd: chef-automate restart
+  become: true
+  listen: restart chef-automate
+  changed_when: true
+  register: automate_restart
+  failed_when: automate_restart.rc != 0
+- name: Restart Chef Infra Server
+  ansible.builtin.command:
+    cmd: chef-server-ctl restart
+  become: true
+  listen: restart chef-server
+  changed_when: true
+  register: server_restart
+  failed_when: server_restart.rc != 0
