@@ -1,0 +1,222 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Verify system configuration
+    - name: Check sysctl configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      register: sysctl_file
+
+    - name: Assert sysctl configuration file exists
+      ansible.builtin.assert:
+        that:
+          - sysctl_file.stat.exists
+          - sysctl_file.stat.isreg
+        fail_msg: "Sysctl configuration file not found"
+        success_msg: "Sysctl configuration file exists"
+
+    - name: Get sysctl configuration content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      register: sysctl_content
+      when: sysctl_file.stat.exists
+
+    - name: Verify sysctl configuration values
+      ansible.builtin.assert:
+        that:
+          - "'vm.max_map_count = 262144' in (sysctl_content['content'] | b64decode)"
+          - "'vm.dirty_expire_centisecs = 20000' in (sysctl_content['content'] | b64decode)"
+        fail_msg: "Sysctl configuration values are incorrect"
+        success_msg: "Sysctl configuration values are correct"
+      when: sysctl_file.stat.exists
+
+    # Verify Chef Automate CLI
+    - name: Check Chef Automate CLI exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/chef-automate
+      register: chef_automate_cli
+
+    - name: Assert Chef Automate CLI exists
+      ansible.builtin.assert:
+        that:
+          - chef_automate_cli.stat.exists
+          - chef_automate_cli.stat.executable
+        fail_msg: "Chef Automate CLI not found or not executable"
+        success_msg: "Chef Automate CLI exists and is executable"
+
+    # Verify Chef Automate status
+    - name: Check Chef Automate status file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/log/chef-automate/status.log
+      register: chef_automate_status
+
+    - name: Assert Chef Automate status file exists
+      ansible.builtin.assert:
+        that:
+          - chef_automate_status.stat.exists
+        fail_msg: "Chef Automate status file not found"
+        success_msg: "Chef Automate status file exists"
+
+    - name: Get Chef Automate status content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/var/log/chef-automate/status.log
+      register: automate_status_content
+      when: chef_automate_status.stat.exists
+
+    - name: Verify Chef Automate status content
+      ansible.builtin.assert:
+        that:
+          - "'Status: running' in (automate_status_content['content'] | b64decode)"
+        fail_msg: "Chef Automate services not running"
+        success_msg: "Chef Automate services are running"
+      when: chef_automate_status.stat.exists
+
+    # Verify Chef Server status
+    - name: Check Chef Server status file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/log/chef-server/status.log
+      register: chef_server_status
+
+    - name: Assert Chef Server status file exists
+      ansible.builtin.assert:
+        that:
+          - chef_server_status.stat.exists
+        fail_msg: "Chef Server status file not found"
+        success_msg: "Chef Server status file exists"
+
+    - name: Get Chef Server status content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/var/log/chef-server/status.log
+      register: server_status_content
+      when: chef_server_status.stat.exists
+
+    - name: Verify Chef Server status content
+      ansible.builtin.assert:
+        that:
+          - "'Status: running' in (server_status_content['content'] | b64decode)"
+        fail_msg: "Chef Server services not running"
+        success_msg: "Chef Server services are running"
+      when: chef_server_status.stat.exists
+
+    # Verify user PEM file
+    - name: Check user PEM file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/jtonello.pem
+      register: user_pem
+
+    - name: Assert user PEM file exists
+      ansible.builtin.assert:
+        that:
+          - user_pem.stat.exists
+          - user_pem.stat.mode == "0600"
+        fail_msg: "User PEM file not found or has incorrect permissions"
+        success_msg: "User PEM file exists with correct permissions"
+
+    # Verify organization validator PEM file
+    - name: Check organization validator PEM file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/lab-validator.pem
+      register: org_pem
+
+    - name: Assert organization validator PEM file exists
+      ansible.builtin.assert:
+        that:
+          - org_pem.stat.exists
+          - org_pem.stat.mode == "0600"
+        fail_msg: "Organization validator PEM file not found or has incorrect permissions"
+        success_msg: "Organization validator PEM file exists with correct permissions"
+
+    # Verify systemd service files
+    - name: Check Chef Automate service file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/systemd/system/chef-automate.service
+      register: automate_service
+
+    - name: Assert Chef Automate service file exists
+      ansible.builtin.assert:
+        that:
+          - automate_service.stat.exists
+        fail_msg: "Chef Automate service file not found"
+        success_msg: "Chef Automate service file exists"
+
+    - name: Check Chef Server service file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/systemd/system/chef-server.service
+      register: server_service
+
+    - name: Assert Chef Server service file exists
+      ansible.builtin.assert:
+        that:
+          - server_service.stat.exists
+        fail_msg: "Chef Server service file not found"
+        success_msg: "Chef Server service file exists"
+
+    # The following checks would normally be performed but can't run in a container
+    # They are tagged with molecule-notest so they'll be skipped during molecule testing
+
+    - name: Check Chef Automate service is running
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Chef Automate service is active
+      ansible.builtin.assert:
+        that:
+          - "'chef-automate.service' in ansible_facts.services"
+          - "ansible_facts.services['chef-automate.service'].state == 'running'"
+        fail_msg: "Chef Automate service not running"
+        success_msg: "Chef Automate service is running"
+      tags: molecule-notest
+
+    - name: Check Chef Server service is running
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Chef Server service is active
+      ansible.builtin.assert:
+        that:
+          - "'chef-server.service' in ansible_facts.services"
+          - "ansible_facts.services['chef-server.service'].state == 'running'"
+        fail_msg: "Chef Server service not running"
+        success_msg: "Chef Server service is running"
+      tags: molecule-notest
+
+    - name: Check Chef Automate UI is accessible
+      ansible.builtin.uri:
+        url: https://localhost/api/v0/auth/version
+        validate_certs: false
+        status_code: 200
+      register: automate_ui_result
+      tags: molecule-notest
+
+    - name: Assert Chef Automate UI is accessible
+      ansible.builtin.assert:
+        that:
+          - automate_ui_result.status == 200
+        fail_msg: "Chef Automate UI is not accessible"
+        success_msg: "Chef Automate UI is accessible"
+      tags: molecule-notest
+
+    - name: Check Chef Infra Server API is accessible
+      ansible.builtin.uri:
+        url: https://localhost/organizations
+        validate_certs: false
+        status_code: 200
+      register: infra_api_result
+      tags: molecule-notest
+
+    - name: Assert Chef Infra Server API is accessible
+      ansible.builtin.assert:
+        that:
+          - infra_api_result.status == 200
+        fail_msg: "Chef Infra Server API is not accessible"
+        success_msg: "Chef Infra Server API is accessible"
+      tags: molecule-notest
+
+    - name: Check port 443 is listening
+      ansible.builtin.wait_for:
+        port: 443
+        state: started
+        timeout: 5
+      tags: molecule-notest

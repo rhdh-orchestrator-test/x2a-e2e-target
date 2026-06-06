@@ -1,0 +1,17 @@
+---
+- name: Restart Chef Automate
+  ansible.builtin.shell:
+    cmd: "chef-automate status | grep -q 'Status: running' || chef-automate restart"
+  become: true
+  listen: restart chef-automate
+  changed_when: true
+  register: restart_automate
+  failed_when: restart_automate.rc > 1
+- name: Restart Chef Infra Server
+  ansible.builtin.shell:
+    cmd: "chef-server-ctl status | grep -q 'Status: running' || chef-server-ctl restart"
+  become: true
+  listen: restart chef-server
+  changed_when: true
+  register: restart_server
+  failed_when: restart_server.rc > 1
