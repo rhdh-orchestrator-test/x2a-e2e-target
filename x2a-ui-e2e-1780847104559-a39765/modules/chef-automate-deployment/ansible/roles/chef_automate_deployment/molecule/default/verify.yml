@@ -1,0 +1,146 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # System configuration checks
+    - name: Check hostname configuration file
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/hostname
+      register: hostname_file
+      
+    - name: Check kernel parameters
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/sysctl.d
+      register: sysctl_dir
+      
+    # Chef Automate installation checks
+    - name: Check Chef Automate config file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/chef-automate/config.toml
+      register: automate_config
+      
+    - name: Assert Chef Automate config file was created
+      ansible.builtin.assert:
+        that:
+          - automate_config.stat.exists
+          - automate_config.stat.size > 0
+        fail_msg: "Chef Automate config file not found or empty"
+        success_msg: "Chef Automate config file exists and has content"
+        
+    # Chef Server installation checks
+    - name: Check Chef Server config file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/chef-server/chef-server.rb
+      register: server_config
+      
+    - name: Assert Chef Server config file was created
+      ansible.builtin.assert:
+        that:
+          - server_config.stat.exists
+          - server_config.stat.size > 0
+        fail_msg: "Chef Server config file not found or empty"
+        success_msg: "Chef Server config file exists and has content"
+        
+    # User and organization checks
+    - name: Check user PEM file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/jtonello.pem
+      register: user_pem
+      
+    - name: Assert user PEM file was created
+      ansible.builtin.assert:
+        that:
+          - user_pem.stat.exists
+          - user_pem.stat.size > 0
+          - user_pem.stat.mode == "0600"
+        fail_msg: "User PEM file not found, empty, or has incorrect permissions"
+        success_msg: "User PEM file exists with correct permissions"
+        
+    - name: Check organization validator PEM file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/lab-validator.pem
+      register: org_pem
+      
+    - name: Assert organization validator PEM file was created
+      ansible.builtin.assert:
+        that:
+          - org_pem.stat.exists
+          - org_pem.stat.size > 0
+          - org_pem.stat.mode == "0600"
+        fail_msg: "Organization validator PEM file not found, empty, or has incorrect permissions"
+        success_msg: "Organization validator PEM file exists with correct permissions"
+        
+    # Service checks (tagged for skipping in container)
+    - name: Check Chef Automate service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+      
+    - name: Assert Chef Automate service is active
+      ansible.builtin.assert:
+        that:
+          - "'chef-automate.service' in ansible_facts.services"
+          - "ansible_facts.services['chef-automate.service'].state == 'running'"
+        fail_msg: "Chef Automate service not running"
+        success_msg: "Chef Automate service is running"
+      tags: molecule-notest
+      
+    - name: Assert Chef Server service is active
+      ansible.builtin.assert:
+        that:
+          - "'chef-server.service' in ansible_facts.services"
+          - "ansible_facts.services['chef-server.service'].state == 'running'"
+        fail_msg: "Chef Server service not running"
+        success_msg: "Chef Server service is running"
+      tags: molecule-notest
+      
+    # Network checks (tagged for skipping in container)
+    - name: Check Chef Automate UI is accessible
+      ansible.builtin.uri:
+        url: https://localhost/api/v0/auth/version
+        validate_certs: false
+        status_code: 200
+      register: automate_ui
+      tags: molecule-notest
+      
+    - name: Assert Chef Automate UI is accessible
+      ansible.builtin.assert:
+        that:
+          - automate_ui.status == 200
+        fail_msg: "Chef Automate UI is not accessible"
+        success_msg: "Chef Automate UI is accessible"
+      tags: molecule-notest
+      
+    - name: Check Chef Server API is accessible
+      ansible.builtin.uri:
+        url: https://localhost/organizations
+        validate_certs: false
+        status_code: 200
+      register: server_api
+      tags: molecule-notest
+      
+    - name: Assert Chef Server API is accessible
+      ansible.builtin.assert:
+        that:
+          - server_api.status == 200
+        fail_msg: "Chef Server API is not accessible"
+        success_msg: "Chef Server API is accessible"
+      tags: molecule-notest
+      
+    # Port checks (tagged for skipping in container)
+    - name: Check port 443 is listening
+      ansible.builtin.wait_for:
+        port: 443
+        state: started
+        timeout: 5
+      register: port_check
+      ignore_errors: true
+      tags: molecule-notest
+      
+    - name: Assert port 443 is listening
+      ansible.builtin.assert:
+        that:
+          - port_check is success
+        fail_msg: "Port 443 is not listening"
+        success_msg: "Port 443 is listening"
+      tags: molecule-notest
