@@ -1,0 +1,73 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+- name: Install necessary packages
+  ansible.builtin.apt:
+    name: apache2=2.4.41-4ubuntu3.10
+    state: present
+- name: Install curl, openssl, PyOpenSSL
+  ansible.builtin.apt:
+    name:
+      - curl
+      - openssl
+      - python3-openssl
+    state: present
+- name: Install SSH server
+  ansible.builtin.apt:
+    name: openssh-server
+    state: present
+- name: Create a directory for certs
+  ansible.builtin.file:
+    path: /etc/apache2/certs
+    state: directory
+    mode: "0640"
+- name: Generate an openssl key
+  community.crypto.openssl_privatekey:
+    path: /etc/apache2/certs/apache.key
+- name: Generate an openssl csr
+  community.crypto.openssl_csr:
+    path: /etc/apache2/certs/apache.csr
+    privatekey_path: /etc/apache2/certs/apache.key
+    common_name: "{{ ansible_hostname }}"
+- name: Generate a self-signed openssl certificate
+  community.crypto.openssl_certificate:
+    path: /etc/apache2/certs/apache.crt
+    privatekey_path: /etc/apache2/certs/apache.key
+    csr_path: /etc/apache2/certs/apache.csr
+    provider: selfsigned
+- name: Activate SSL on Apache
+  ansible.builtin.command: a2enmod ssl
+  register: ssl_mod
+  changed_when: ssl_mod.rc == 0 and "already enabled" not in ssl_mod.stdout
+  notify:
+    - Restart apache
+- name: Configure Hello World virtual host
+  ansible.builtin.template:
+    src: helloworld.conf.j2
+    dest: /etc/apache2/sites-available/helloworld.conf
+    mode: "0640"
+    force: true
+- name: Create the helloworld directory
+  ansible.builtin.file:
+    path: /var/www/helloworld
+    state: directory
+    mode: "0755"
+- name: Deploy the Hello World website
+  ansible.builtin.copy:
+    src: index.html
+    dest: /var/www/helloworld/index.html
+    owner: root
+    group: root
+    mode: "0644"
+    force: true
+- name: Deactivate the default virtualhost
+  ansible.builtin.command: a2dissite 000-default
+  register: disable_default
+  changed_when: disable_default.rc == 0 and "already disabled" not in disable_default.stdout
+- name: Activate the virtualhost
+  ansible.builtin.command: a2ensite helloworld
+  register: enable_site
+  changed_when: enable_site.rc == 0 and "already enabled" not in enable_site.stdout
+  notify:
+    - Restart apache
