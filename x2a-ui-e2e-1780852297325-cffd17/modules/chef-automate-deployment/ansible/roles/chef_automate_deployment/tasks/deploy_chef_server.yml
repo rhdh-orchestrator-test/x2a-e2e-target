@@ -1,0 +1,69 @@
+---
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  become: true
+- name: Configure vm.max_map_count
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "{{ chef_automate_vm_max_map_count }}"
+    state: present
+    reload: true
+  become: true
+- name: Configure vm.dirty_expire_centisecs
+  ansible.posix.sysctl:
+    name: vm.dirty_expire_centisecs
+    value: "{{ chef_automate_vm_dirty_expire_centisecs }}"
+    state: present
+    reload: true
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: /tmp/chef-automate.zip
+    mode: "0644"
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip - > chef-automate
+    stdin: "{{ lookup('ansible.builtin.file', '/tmp/chef-automate.zip') }}"
+    chdir: /tmp
+    creates: /tmp/chef-automate
+  args:
+    executable: /bin/bash
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: /tmp/chef-automate
+    mode: "0755"
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command:
+    cmd: /tmp/chef-automate deploy --product infra-server --accept-terms-and-mlsa=true
+  become: true
+  args:
+    creates: /hab
+- name: Ensure directory exists for PEM files
+  ansible.builtin.file:
+    path: "{{ item | dirname }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ chef_automate_userfilename }}"
+    - "{{ chef_automate_orgfilename }}"
+  when: chef_automate_userfilename is defined and chef_automate_orgfilename is defined
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create  {{ chef_automate_username }}  {{ chef_automate_longusername }}  {{ chef_automate_useremail }}  "{{ user_password }}"  --filename
+      {{ chef_automate_userfilename }}
+
+      '
+  become: true
+  args:
+    creates: "{{ chef_automate_userfilename }}"
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create  {{ chef_automate_orgname }}  "{{ chef_automate_longorgname }}"  --association_user {{ chef_automate_username }}  --filename
+      {{ chef_automate_orgfilename }}
+
+      '
+  become: true
+  args:
+    creates: "{{ chef_automate_orgfilename }}"
