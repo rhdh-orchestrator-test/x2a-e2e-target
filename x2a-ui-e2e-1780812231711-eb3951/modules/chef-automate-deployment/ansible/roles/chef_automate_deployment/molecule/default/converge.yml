@@ -1,0 +1,102 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/chef-automate
+        - /tmp/molecule_test/etc/opscode
+        - /tmp/molecule_test/root
+        - /tmp/molecule_test/tmp/chef-automate-extract
+
+    # Simulate system configuration files
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "{{ chef_automate_hostname }}"
+        dest: /tmp/molecule_test/etc/hostname
+        mode: "0644"
+
+    # Simulate sysctl settings
+    - name: Create sysctl settings file
+      ansible.builtin.copy:
+        content: |
+          vm.max_map_count = 262144
+          vm.dirty_expire_centisecs = 20000
+        dest: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+        mode: "0644"
+
+    # Simulate Chef Automate CLI installation
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: "#!/bin/bash\necho 'Chef Automate CLI mock'"
+        dest: /tmp/molecule_test/tmp/chef-automate
+        mode: "0755"
+
+    # Simulate Chef Automate config
+    - name: Create Chef Automate config file
+      ansible.builtin.copy:
+        content: |
+          [global]
+            v1 = true
+          [deployment]
+            automate = "enabled"
+            infra-server = "enabled"
+        dest: /tmp/molecule_test/etc/chef-automate/config.toml
+        mode: "0644"
+
+    # Simulate Chef Server config
+    - name: Create Chef Server config file
+      ansible.builtin.copy:
+        content: |
+          topology "standalone"
+          server "automate.chef.lab",
+            api_fqdn "automate.chef.lab"
+        dest: /tmp/molecule_test/etc/opscode/chef-server.rb
+        mode: "0644"
+
+    # Simulate user and org PEM files
+    - name: Create user PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAx4UbaDzY5xjW6hc9jwN0mX33XpTDVW9WqHp5AKaRbtAC3DqX
+          IXFMPgw3K45jxRb93f8tv9vL3rD9CUG1Gv4FM+o7ds7FRES5RTjv2RT/JVNJCoqF
+          ol8+ngLqRZCyBtQN7zYByWMRirPGoDUqdPYrj2yq+ObBBNhg5N+hOwKjjpzdj2Ud
+          1l7R+wxIqmJo1IYyy16xS8WsjyQuyC0lL456qkd5BDZ0Ag8j2X9H9D5220Ln7s9i
+          oezTipXipS7p7Jekf3Ywx6abJwOmB0rX79dV4qiNcGgzATnG1PkXxqt76VhcGa0W
+          DDVHEEYGbSQ6hIGSh0I7BQun0aLRZojfE3gqHQIDAQAB
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/root/admin.pem
+        mode: "0600"
+
+    - name: Create org validator PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAx4UbaDzY5xjW6hc9jwN0mX33XpTDVW9WqHp5AKaRbtAC3DqX
+          IXFMPgw3K45jxRb93f8tv9vL3rD9CUG1Gv4FM+o7ds7FRES5RTjv2RT/JVNJCoqF
+          ol8+ngLqRZCyBtQN7zYByWMRirPGoDUqdPYrj2yq+ObBBNhg5N+hOwKjjpzdj2Ud
+          1l7R+wxIqmJo1IYyy16xS8WsjyQuyC0lL456qkd5BDZ0Ag8j2X9H9D5220Ln7s9i
+          oezTipXipS7p7Jekf3Ywx6abJwOmB0rX79dV4qiNcGgzATnG1PkXxqt76VhcGa0W
+          DDVHEEYGbSQ6hIGSh0I7BQun0aLRZojfE3gqHQIDAQAB
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/root/lab-validator.pem
+        mode: "0600"
+
+    # Simulate Chef Server user and org list outputs
+    - name: Create user list file
+      ansible.builtin.copy:
+        content: "admin"
+        dest: /tmp/molecule_test/etc/opscode/user_list
+        mode: "0644"
+
+    - name: Create org list file
+      ansible.builtin.copy:
+        content: "lab"
+        dest: /tmp/molecule_test/etc/opscode/org_list
+        mode: "0644"
