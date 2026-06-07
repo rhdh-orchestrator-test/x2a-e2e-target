@@ -1,0 +1,37 @@
+---
+- name: Ensure required packages are installed
+  ansible.builtin.package:
+    name:
+      - curl
+      - gzip
+      - unzip
+    state: present
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: /tmp/chef-automate_linux_amd64.zip
+    mode: "0644"
+  become: true
+- name: Extract Chef Automate CLI
+  ansible.builtin.unarchive:
+    src: /tmp/chef-automate_linux_amd64.zip
+    dest: /usr/local/bin/
+    remote_src: true
+    creates: /usr/local/bin/chef-automate
+  become: true
+- name: Create symlink to Chef Automate CLI
+  ansible.builtin.file:
+    src: /usr/local/bin/chef-automate
+    dest: "{{ chef_automate_cli_path }}"
+    state: link
+  become: true
+  when: chef_automate_cli_path != "/usr/local/bin/chef-automate"
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy --product infra-server --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }} "
+  args:
+    creates: /hab
+  become: true
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
