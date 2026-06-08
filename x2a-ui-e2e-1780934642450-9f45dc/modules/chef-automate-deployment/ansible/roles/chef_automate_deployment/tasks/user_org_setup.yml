@@ -1,0 +1,24 @@
+---
+- name: Create initial admin user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create {{ username | default(chef_automate_default_username) }} "{{ full_name | default(chef_automate_default_full_name) }}" {{ email
+      | default(chef_automate_default_email) }} "{{ password | default(chef_automate_default_password) }}" --filename {{ chef_automate_user_key_file }}
+
+      '
+  become: true
+  args:
+    creates: "{{ chef_automate_user_key_file }}"
+  register: user_create_result
+  changed_when: user_create_result.rc == 0
+  no_log: true
+- name: Create initial organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create {{ chef_automate_org_name }} "{{ chef_automate_org_full_name }}" --association_user {{ username | default(chef_automate_default_username)
+      }} --filename {{ chef_automate_org_validator_key }}
+
+      '
+  become: true
+  args:
+    creates: "{{ chef_automate_org_validator_key }}"
+  register: org_create_result
+  changed_when: org_create_result.rc == 0
