@@ -1,0 +1,56 @@
+---
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: "{{ chef_automate_cli_path }}.zip"
+    mode: "0644"
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip - > {{ chef_automate_cli_path }} < {{ chef_automate_cli_path }}.zip
+  args:
+    creates: "{{ chef_automate_cli_path }}"
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+    state: file
+- name: Ensure directory exists for key files
+  ansible.builtin.file:
+    path: "{{ item | dirname }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ chef_automate_user_key_file }}"
+    - "{{ chef_automate_org_validator_key_file }}"
+  when: item | dirname != '.'
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy --product automate --product infra-server --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }} "
+  args:
+    creates: /hab
+  become: true
+  register: chef_automate_deploy
+  changed_when: chef_automate_deploy.rc == 0
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create {{ chef_automate_user_name }} "{{ chef_automate_user_full_name }}" {{ chef_automate_user_email }} "{{ chef_automate_user_password
+      }}" --filename {{ chef_automate_user_key_file }}
+
+      '
+  args:
+    creates: "{{ chef_automate_user_key_file }}"
+  become: true
+  register: chef_user_create
+  changed_when: chef_user_create.rc == 0
+  no_log: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create {{ chef_automate_org_name }} "{{ chef_automate_org_full_name }}" --association_user {{ chef_automate_user_name }} --filename
+      {{ chef_automate_org_validator_key_file }}
+
+      '
+  args:
+    creates: "{{ chef_automate_org_validator_key_file }}"
+  become: true
+  register: chef_org_create
+  changed_when: chef_org_create.rc == 0
