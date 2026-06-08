@@ -1,0 +1,106 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: jtonello
+    full_name: Chef Admin User
+    email: admin@chef.lab
+    password: ChefPassword123
+    org_short_name: lab
+    org_full_name: Chef Lab Organization
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/hab
+    - /tmp/molecule_test/home/ansible
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: automate.chef.lab
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create sysctl settings file
+    ansible.builtin.copy:
+      content: 'vm.max_map_count = 262144
+
+        vm.dirty_expire_centisecs = 20000
+
+        '
+      dest: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      mode: '0644'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/bash echo ''Chef Automate CLI Mock'' '
+      dest: /tmp/molecule_test/chef-automate
+      mode: '0755'
+  - name: Create user key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEAx4UbaDzY5xjW6hc9jwN0mX33XpTDVW9WqHp5AKaRbtAC3DqX
+
+        IXFMPgw3K45jxRb93f8tv9vL3rD9CUG1Gv4FM+o7ds7FRES5RTjv2RT/JVNJCoqF
+
+        ol8+ngLqRZCyBtQN7zYByWMRirPGoDUqdPYrj2yq+ObBBNhg5N+hOwKjjpzdj2Ud
+
+        1l7R+wxIqmJo1IYyy16xS8WsjyQuyC0lL456qkd5BDZ0Ag8j2X9H9D5220Ln7s9i
+
+        oezTipXipS7p7Jekf3Ywx6abJwOmB0rX79dV4qiNcGgzATnG1PkXxqt76VhcGa0W
+
+        DDVHEEYGbSQ6hIGSh0I7BQun0aLRZojfE3gqHQIDAQAB
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/home/ansible/jtonello.pem
+      mode: '0600'
+  - name: Create organization validator key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEAx4UbaDzY5xjW6hc9jwN0mX33XpTDVW9WqHp5AKaRbtAC3DqX
+
+        IXFMPgw3K45jxRb93f8tv9vL3rD9CUG1Gv4FM+o7ds7FRES5RTjv2RT/JVNJCoqF
+
+        ol8+ngLqRZCyBtQN7zYByWMRirPGoDUqdPYrj2yq+ObBBNhg5N+hOwKjjpzdj2Ud
+
+        1l7R+wxIqmJo1IYyy16xS8WsjyQuyC0lL456qkd5BDZ0Ag8j2X9H9D5220Ln7s9i
+
+        oezTipXipS7p7Jekf3Ywx6abJwOmB0rX79dV4qiNcGgzATnG1PkXxqt76VhcGa0W
+
+        DDVHEEYGbSQ6hIGSh0I7BQun0aLRZojfE3gqHQIDAQAB
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/home/ansible/lab-validator.pem
+      mode: '0600'
+  - name: Create Chef Automate status file
+    ansible.builtin.copy:
+      content: 'Service: chef-automate
+
+        Status: running
+
+        Chef Infra Server: running
+
+        '
+      dest: /tmp/molecule_test/hab/chef-automate-status.txt
+      mode: '0644'
+  - name: Create Chef Server user list file
+    ansible.builtin.copy:
+      content: 'jtonello
+
+        '
+      dest: /tmp/molecule_test/hab/chef-server-users.txt
+      mode: '0644'
+  - name: Create Chef Server org list file
+    ansible.builtin.copy:
+      content: 'lab
+
+        '
+      dest: /tmp/molecule_test/hab/chef-server-orgs.txt
+      mode: '0644'
