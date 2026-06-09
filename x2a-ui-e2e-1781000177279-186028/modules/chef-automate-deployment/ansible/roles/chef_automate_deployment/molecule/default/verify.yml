@@ -1,0 +1,213 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Check directory structure
+    - name: Check if required directories exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: dir_check
+      loop:
+        - /tmp/molecule_test/etc/chef
+        - /tmp/molecule_test/var/opt/chef-automate
+        - /tmp/molecule_test/var/opt/chef-server
+
+    - name: Assert directories exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isdir
+        fail_msg: "Directory {{ item.invocation.module_args.path }} does not exist"
+        success_msg: "Directory {{ item.invocation.module_args.path }} exists"
+      loop: "{{ dir_check.results }}"
+
+    # Check Chef Automate CLI
+    - name: Check if Chef Automate CLI exists
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/chef-automate"
+      register: cli_check
+
+    - name: Assert Chef Automate CLI exists and is executable
+      ansible.builtin.assert:
+        that:
+          - cli_check.stat.exists
+          - cli_check.stat.executable
+        fail_msg: "Chef Automate CLI does not exist or is not executable"
+        success_msg: "Chef Automate CLI exists and is executable"
+
+    # Check user key file
+    - name: Check if user key file exists
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/jtonello.pem"
+      register: user_key_check
+
+    - name: Assert user key file exists
+      ansible.builtin.assert:
+        that:
+          - user_key_check.stat.exists
+          - user_key_check.stat.size > 0
+        fail_msg: "User key file does not exist or is empty"
+        success_msg: "User key file exists"
+
+    # Check organization validator key file
+    - name: Check if organization validator key file exists
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/lab-validator.pem"
+      register: org_key_check
+
+    - name: Assert organization validator key file exists
+      ansible.builtin.assert:
+        that:
+          - org_key_check.stat.exists
+          - org_key_check.stat.size > 0
+        fail_msg: "Organization validator key file does not exist or is empty"
+        success_msg: "Organization validator key file exists"
+
+    # Check Chef Automate configuration
+    - name: Check if Chef Automate configuration file exists
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/var/opt/chef-automate/config.toml"
+      register: automate_config_check
+
+    - name: Get Chef Automate configuration content
+      ansible.builtin.slurp:
+        path: "/tmp/molecule_test/var/opt/chef-automate/config.toml"
+      register: automate_config_content
+      when: automate_config_check.stat.exists
+
+    - name: Assert Chef Automate configuration contains expected values
+      ansible.builtin.assert:
+        that:
+          - automate_config_check.stat.exists
+          - automate_config_content.content | b64decode is search('hostname = "automate.chef.lab"')
+          - automate_config_content.content | b64decode is search('accept_terms_and_mlsa = true')
+        fail_msg: "Chef Automate configuration file does not exist or does not contain expected values"
+        success_msg: "Chef Automate configuration file exists and contains expected values"
+      when: automate_config_check.stat.exists
+
+    # Check Chef Server configuration
+    - name: Check if Chef Server configuration file exists
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/etc/chef/chef-server.rb"
+      register: server_config_check
+
+    - name: Get Chef Server configuration content
+      ansible.builtin.slurp:
+        path: "/tmp/molecule_test/etc/chef/chef-server.rb"
+      register: server_config_content
+      when: server_config_check.stat.exists
+
+    - name: Assert Chef Server configuration contains expected values
+      ansible.builtin.assert:
+        that:
+          - server_config_check.stat.exists
+          - server_config_content.content | b64decode is search('api_fqdn "automate.chef.lab"')
+        fail_msg: "Chef Server configuration file does not exist or does not contain expected values"
+        success_msg: "Chef Server configuration file exists and contains expected values"
+      when: server_config_check.stat.exists
+
+    # Check user and organization creation
+    - name: Check if user list file exists
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/var/opt/chef-server/user-list.txt"
+      register: user_list_check
+
+    - name: Get user list content
+      ansible.builtin.slurp:
+        path: "/tmp/molecule_test/var/opt/chef-server/user-list.txt"
+      register: user_list_content
+      when: user_list_check.stat.exists
+
+    - name: Assert user list contains expected user
+      ansible.builtin.assert:
+        that:
+          - user_list_check.stat.exists
+          - user_list_content.content | b64decode is search('username: jtonello')
+        fail_msg: "User list file does not exist or does not contain expected user"
+        success_msg: "User list file exists and contains expected user"
+      when: user_list_check.stat.exists
+
+    - name: Check if organization list file exists
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/var/opt/chef-server/org-list.txt"
+      register: org_list_check
+
+    - name: Get organization list content
+      ansible.builtin.slurp:
+        path: "/tmp/molecule_test/var/opt/chef-server/org-list.txt"
+      register: org_list_content
+      when: org_list_check.stat.exists
+
+    - name: Assert organization list contains expected organization
+      ansible.builtin.assert:
+        that:
+          - org_list_check.stat.exists
+          - org_list_content.content | b64decode is search('name: lab')
+        fail_msg: "Organization list file does not exist or does not contain expected organization"
+        success_msg: "Organization list file exists and contains expected organization"
+      when: org_list_check.stat.exists
+
+    # The following checks would normally be performed but can't run in a container
+    # They are tagged with molecule-notest so they will be skipped during molecule testing
+
+    - name: Check Chef Automate service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Chef Automate service is running
+      ansible.builtin.assert:
+        that:
+          - "'chef-automate.service' in ansible_facts.services"
+          - "ansible_facts.services['chef-automate.service'].state == 'running'"
+        fail_msg: "Chef Automate service is not running"
+        success_msg: "Chef Automate service is running"
+      tags: molecule-notest
+
+    - name: Check Chef Infra Server service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Chef Infra Server service is running
+      ansible.builtin.assert:
+        that:
+          - "'chef-server.service' in ansible_facts.services"
+          - "ansible_facts.services['chef-server.service'].state == 'running'"
+        fail_msg: "Chef Infra Server service is not running"
+        success_msg: "Chef Infra Server service is running"
+      tags: molecule-notest
+
+    - name: Check if port 443 is listening
+      ansible.builtin.wait_for:
+        port: 443
+        state: started
+        timeout: 5
+      register: port_check
+      ignore_errors: true
+      tags: molecule-notest
+
+    - name: Assert port 443 is listening
+      ansible.builtin.assert:
+        that:
+          - port_check is succeeded
+        fail_msg: "Port 443 is not listening"
+        success_msg: "Port 443 is listening"
+      tags: molecule-notest
+
+    - name: Check Chef Automate web UI
+      ansible.builtin.uri:
+        url: https://localhost
+        validate_certs: false
+        return_content: true
+      register: web_check
+      ignore_errors: true
+      tags: molecule-notest
+
+    - name: Assert Chef Automate web UI is accessible
+      ansible.builtin.assert:
+        that:
+          - web_check is succeeded
+          - web_check.content is search('Chef Automate')
+        fail_msg: "Chef Automate web UI is not accessible"
+        success_msg: "Chef Automate web UI is accessible"
+      tags: molecule-notest
