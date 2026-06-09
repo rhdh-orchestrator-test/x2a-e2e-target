@@ -1,0 +1,40 @@
+---
+- name: Check if chef-server-ctl is available
+  ansible.builtin.command:
+    cmd: which chef-server-ctl
+  register: chef_server_ctl_check
+  changed_when: false
+  failed_when: false
+  tags: molecule-notest
+- name: Ensure Chef Infra Server is installed
+  ansible.builtin.fail:
+    msg: chef-server-ctl command not found. Ensure Chef Infra Server is installed.
+  when: chef_server_ctl_check.rc != 0
+  tags: molecule-notest
+- name: Ensure directories exist for key files
+  ansible.builtin.file:
+    path: "{{ item | dirname }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ chef_automate_user.key_file }}"
+    - "{{ chef_automate_org.key_file }}"
+  when: item | dirname != '.'
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create {{ chef_automate_user.name }} "{{ chef_automate_user.full_name }}" {{ chef_automate_user.email }} "{{ chef_automate_user.password
+      }}" --filename {{ chef_automate_user.key_file }}
+
+      '
+  become: true
+  args:
+    creates: "{{ chef_automate_user.key_file }}"
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create {{ chef_automate_org.name }} "{{ chef_automate_org.full_name }}" --association_user {{ chef_automate_user.name }} --filename
+      {{ chef_automate_org.key_file }}
+
+      '
+  become: true
+  args:
+    creates: "{{ chef_automate_org.key_file }}"
