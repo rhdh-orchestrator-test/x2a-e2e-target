@@ -1,0 +1,76 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    # Create directory structure for testing
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/hab
+        - /tmp/molecule_test/tmp
+
+    # Simulate hostname configuration
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: "/tmp/molecule_test/etc/hostname"
+        mode: "0644"
+
+    # Simulate sysctl configuration
+    - name: Create sysctl files for kernel parameters
+      ansible.builtin.copy:
+        content: "{{ item.value }}"
+        dest: "/tmp/molecule_test/etc/{{ item.name }}"
+        mode: "0644"
+      loop:
+        - name: sysctl_vm_max_map_count
+          value: "vm.max_map_count = 262144"
+        - name: sysctl_vm_dirty_expire_centisecs
+          value: "vm.dirty_expire_centisecs = 20000"
+
+    # Simulate Chef Automate CLI download and extraction
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: "#!/bin/bash\necho 'Chef Automate CLI Mock'\n"
+        dest: "/tmp/molecule_test/tmp/chef-automate"
+        mode: "0755"
+
+    # Simulate Chef Automate deployment
+    - name: Create Chef Automate deployment marker
+      ansible.builtin.file:
+        path: "/tmp/molecule_test/hab/sup"
+        state: directory
+        mode: "0755"
+
+    # Simulate Chef user key file
+    - name: Create user key file
+      ansible.builtin.copy:
+        content: "-----BEGIN RSA PRIVATE KEY-----\nMOCK USER KEY\n-----END RSA PRIVATE KEY-----\n"
+        dest: "/tmp/molecule_test/tmp/jtonello.pem"
+        mode: "0600"
+
+    # Simulate Chef organization validator key file
+    - name: Create organization validator key file
+      ansible.builtin.copy:
+        content: "-----BEGIN RSA PRIVATE KEY-----\nMOCK VALIDATOR KEY\n-----END RSA PRIVATE KEY-----\n"
+        dest: "/tmp/molecule_test/tmp/lab-validator.pem"
+        mode: "0600"
+
+    # Simulate Chef server user list output
+    - name: Create Chef server user list output
+      ansible.builtin.copy:
+        content: "jtonello"
+        dest: "/tmp/molecule_test/tmp/chef-server-user-list"
+        mode: "0644"
+
+    # Simulate Chef server org list output
+    - name: Create Chef server org list output
+      ansible.builtin.copy:
+        content: "lab"
+        dest: "/tmp/molecule_test/tmp/chef-server-org-list"
+        mode: "0644"
