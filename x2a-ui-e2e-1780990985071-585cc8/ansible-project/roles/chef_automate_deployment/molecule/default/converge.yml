@@ -1,0 +1,158 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    # Create directory structure for testing
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/chef-automate
+        - /tmp/molecule_test/etc/opscode
+        - /tmp/molecule_test/tmp
+
+    # Simulate system configuration
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "{{ chef_automate_hostname }}"
+        dest: /tmp/molecule_test/etc/hostname
+        mode: "0644"
+
+    - name: Create sysctl settings file
+      ansible.builtin.copy:
+        content: |
+          vm.max_map_count = {{ chef_automate_vm_max_map_count }}
+          vm.dirty_expire_centisecs = {{ chef_automate_vm_dirty_expire_centisecs }}
+        dest: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+        mode: "0644"
+
+    # Simulate Chef Automate installation
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: "#!/bin/sh\necho 'Chef Automate CLI'"
+        dest: /tmp/molecule_test/tmp/chef-automate
+        mode: "0755"
+
+    - name: Create Chef Automate config file
+      ansible.builtin.copy:
+        content: |
+          # Chef Automate configuration
+          [global]
+            fqdn = "{{ chef_automate_hostname }}"
+          
+          [deployment]
+            products = {{ chef_automate_products | to_json }}
+        dest: /tmp/molecule_test/etc/chef-automate/config.toml
+        mode: "0644"
+
+    # Simulate Chef Server configuration
+    - name: Create Chef Server config directory
+      ansible.builtin.file:
+        path: /tmp/molecule_test/etc/opscode/pivotal
+        state: directory
+        mode: "0755"
+
+    - name: Create Chef Server config file
+      ansible.builtin.copy:
+        content: |
+          # Chef Server configuration
+          nginx['server_name'] = "{{ chef_automate_hostname }}"
+          nginx['ssl_protocols'] = "TLSv1.2"
+        dest: /tmp/molecule_test/etc/opscode/chef-server.rb
+        mode: "0644"
+
+    # Simulate user and organization setup
+    - name: Create user key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAx4UbaDzY5xjW6hc9jwN0mX33XpTDVW9WqHp5AKaRbtAC3DqX
+          IXFMPgw3K45jxRb93f8tv9vL3rD9CUG1Gv4FM+o7ds7FRES5RTjv2RT/JVNJCoqF
+          ol8+ngLqRZCyBtQN7zYByWMRirPGoDUqdPYrj2yq+ObBBNhg5N+hOwKjjpzdj2Ud
+          1l7R+wxIqmJo1IYyy16xS8WsjyQuyC0lL456qkd5BDZ0Ag8j2X9H9D5220Ln7s9i
+          oezTipXipS7p7Jekf3Ywx6abJwOmB0rX79dV4qiNcGgzATnG1PkXxqt76VhcGa0W
+          DDVHEEYGbSQ6hIGSh0I7BQun0aLRZojfE3gqHQIDAQABAoIBAQCW3I4sKN5B9jOe
+          ZG+C6L0TgSjWiBU5wPoe2k9Nk9cplRnYzJxbMNJ5hRCbozAh1J8b7lByqBQQfuaF
+          EXAMPLE_KEY_CONTENT_PLACEHOLDER
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/tmp/{{ chef_automate_username }}.pem
+        mode: "0600"
+
+    - name: Create organization key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAx4UbaDzY5xjW6hc9jwN0mX33XpTDVW9WqHp5AKaRbtAC3DqX
+          IXFMPgw3K45jxRb93f8tv9vL3rD9CUG1Gv4FM+o7ds7FRES5RTjv2RT/JVNJCoqF
+          ol8+ngLqRZCyBtQN7zYByWMRirPGoDUqdPYrj2yq+ObBBNhg5N+hOwKjjpzdj2Ud
+          1l7R+wxIqmJo1IYyy16xS8WsjyQuyC0lL456qkd5BDZ0Ag8j2X9H9D5220Ln7s9i
+          EXAMPLE_ORG_KEY_CONTENT_PLACEHOLDER
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/tmp/{{ chef_automate_org_name }}-validator.pem
+        mode: "0600"
+
+    # Simulate Chef Server user and org lists
+    - name: Create user list file
+      ansible.builtin.copy:
+        content: |
+          {{ chef_automate_username }}
+        dest: /tmp/molecule_test/etc/opscode/user_list
+        mode: "0644"
+
+    - name: Create organization list file
+      ansible.builtin.copy:
+        content: |
+          {{ chef_automate_org_name }}
+        dest: /tmp/molecule_test/etc/opscode/org_list
+        mode: "0644"
+
+    # Simulate systemd service files
+    - name: Create Chef Automate service file
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Chef Automate
+          After=network.target
+
+          [Service]
+          Type=simple
+          ExecStart=/usr/bin/chef-automate start
+          ExecStop=/usr/bin/chef-automate stop
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /tmp/molecule_test/etc/systemd/system/chef-automate.service
+        mode: "0644"
+
+    - name: Create Chef Server service file
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Chef Infra Server
+          After=network.target
+
+          [Service]
+          Type=simple
+          ExecStart=/usr/bin/chef-server-ctl start
+          ExecStop=/usr/bin/chef-server-ctl stop
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /tmp/molecule_test/etc/systemd/system/chef-server.service
+        mode: "0644"
+
+  vars:
+    chef_automate_hostname: automate.chef.lab
+    chef_automate_vm_max_map_count: 262144
+    chef_automate_vm_dirty_expire_centisecs: 20000
+    chef_automate_cli_path: /tmp/chef-automate
+    chef_automate_products:
+      - automate
+      - infra-server
+    chef_automate_username: admin
+    chef_automate_org_name: lab
