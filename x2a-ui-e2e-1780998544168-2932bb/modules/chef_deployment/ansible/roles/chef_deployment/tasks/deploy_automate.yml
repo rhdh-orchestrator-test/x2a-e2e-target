@@ -1,0 +1,60 @@
+---
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_hostname }}"
+  become: true
+- name: Configure system parameters for Chef Automate
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop: "{{ chef_sysctl_settings | dict2items }}"
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: /tmp/chef-automate.zip
+    mode: "0644"
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip - > chef-automate
+    stdin: "{{ lookup('ansible.builtin.file', '/tmp/chef-automate.zip') }}"
+    chdir: /tmp
+    creates: /tmp/chef-automate
+  args:
+    executable: /bin/bash
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: /tmp/chef-automate
+    mode: "0755"
+    state: file
+- name: Deploy Chef Automate with Chef Infra Server
+  ansible.builtin.command:
+    cmd: "./chef-automate deploy --product automate --product infra-server --accept-terms-and-mlsa={{ chef_accept_terms_and_mlsa | lower }} "
+    chdir: /tmp
+    creates: /etc/chef-automate/config.toml
+  become: true
+- name: Ensure directory exists for PEM files
+  ansible.builtin.file:
+    path: "{{ item | dirname }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ chef_user_pem_file }}"
+    - "{{ chef_org_validator_pem_file }}"
+  when: chef_user_pem_file is defined and chef_org_validator_pem_file is defined
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create {{ username }} "{{ long_username }}" {{ user_email }} "{{ user_password }}" --filename {{ chef_user_pem_file }}
+
+      '
+    creates: "{{ chef_user_pem_file | realpath }}"
+  become: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create {{ org_name }} "{{ long_org_name }}" --association_user {{ username }} --filename {{ chef_org_validator_pem_file }}
+
+      '
+    creates: "{{ chef_org_validator_pem_file | realpath }}"
+  become: true

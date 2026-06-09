@@ -1,0 +1,78 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: jtonello
+    long_username: John Tonello
+    user_email: jtonello@example.com
+    user_password: molecule_test_password
+    org_name: lab
+    long_org_name: Chef Lab Organization
+    chef_hostname: automate.chef.lab
+    chef_user_pem_file: /tmp/molecule_test/jtonello.pem
+    chef_org_validator_pem_file: /tmp/molecule_test/lab-validator.pem
+    chef_deployment_type: automate_and_infra
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc/chef-automate
+    - /tmp/molecule_test/etc/hostname
+    - /tmp/molecule_test/etc/hosts
+    - /tmp/molecule_test/tmp
+  - name: Create mock Chef Automate config file
+    ansible.builtin.copy:
+      content: "# Mock Chef Automate config file\n[global]\n  v1 = true\n[deployment]\n  hostname = \"{{ chef_hostname }}\"\n[products]\n  automate = true\n  infra-server
+        = true\n"
+      dest: /tmp/molecule_test/etc/chef-automate/config.toml
+      mode: '0644'
+  - name: Create mock hostname file
+    ansible.builtin.copy:
+      content: '{{ chef_hostname }}'
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create mock hosts file
+    ansible.builtin.copy:
+      content: '127.0.0.1 localhost
+
+        127.0.1.1 {{ chef_hostname }}
+
+        '
+      dest: /tmp/molecule_test/etc/hosts
+      mode: '0644'
+  - name: Create mock Chef Automate CLI
+    ansible.builtin.copy:
+      content: '#!/bin/bash
+
+        echo "Chef Automate CLI mock"
+
+        exit 0
+
+        '
+      dest: /tmp/molecule_test/tmp/chef-automate
+      mode: '0755'
+  - name: Create mock user PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: '{{ chef_user_pem_file }}'
+      mode: '0600'
+  - name: Create mock organization validator PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA0987654321zyxwvutsrqponmlkjihgfedcba
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: '{{ chef_org_validator_pem_file }}'
+      mode: '0600'
