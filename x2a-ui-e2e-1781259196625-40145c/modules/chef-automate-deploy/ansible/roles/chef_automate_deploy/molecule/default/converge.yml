@@ -1,0 +1,104 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: molecule_test_user
+    password: molecule_test_password
+    full_name: Molecule Test User
+    email: molecule@example.com
+    chef_automate_hostname: automate.chef.lab
+    chef_org_name: lab
+    chef_org_long_name: Chef Lab
+    chef_user_pem_filename: molecule_test_user.pem
+    chef_org_validator_pem_filename: lab-validator.pem
+  tasks:
+    # Create directory structure that would be created by Chef Automate
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/chef-automate
+        - /tmp/molecule_test/etc/chef
+        - /tmp/molecule_test/var/opt/chef-automate
+        - /tmp/molecule_test/var/opt/chef
+
+    # Create mock config files
+    - name: Create Chef Automate config file
+      ansible.builtin.copy:
+        content: |
+          # Mock Chef Automate config.toml
+          [global]
+            v1 = true
+          [deployment]
+            hostname = "automate.chef.lab"
+          [load_balancer]
+            v1 = true
+        dest: /tmp/molecule_test/etc/chef-automate/config.toml
+        mode: "0644"
+
+    # Create mock PEM files
+    - name: Create user PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAu5NhYMoj7/QWX5V5u04AdqKEjQIDAQAB
+          -----END RSA PRIVATE KEY-----
+          -----BEGIN CERTIFICATE-----
+          MIIDUDCCAjigAwIBAgIBADANBgkqhkiG9w0BAQsFADBHMQswCQYDVQQGEwJVUzEQ
+          MA4GA1UEChMHRXhhbXBsZTEcMBoGA1UECxMTQ2VydGlmaWNhdGUgQXV0aG9yaXR5
+          -----END CERTIFICATE-----
+        dest: /tmp/molecule_test/molecule_test_user.pem
+        mode: "0600"
+
+    - name: Create organization validator PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAu5NhYMoj7/QWX5V5u04AdqKEjQIDAQAB
+          -----END RSA PRIVATE KEY-----
+          -----BEGIN CERTIFICATE-----
+          MIIDUDCCAjigAwIBAgIBADANBgkqhkiG9w0BAQsFADBHMQswCQYDVQQGEwJVUzEQ
+          MA4GA1UEChMHRXhhbXBsZTEcMBoGA1UECxMTQ2VydGlmaWNhdGUgQXV0aG9yaXR5
+          -----END CERTIFICATE-----
+        dest: /tmp/molecule_test/lab-validator.pem
+        mode: "0600"
+
+    # Create mock Chef Automate CLI
+    - name: Create mock Chef Automate CLI
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          echo "Chef Automate CLI mock"
+          echo "Version: 20230101"
+        dest: /tmp/molecule_test/chef-automate
+        mode: "0755"
+
+    # Create mock system configuration files
+    - name: Create mock sysctl configuration
+      ansible.builtin.copy:
+        content: |
+          # Mock sysctl configuration
+          vm.max_map_count = 262144
+          vm.dirty_expire_centisecs = 20000
+        dest: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+        mode: "0644"
+
+    # Create mock hostname file
+    - name: Create mock hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: /tmp/molecule_test/etc/hostname
+        mode: "0644"
+
+    # Create mock service status files
+    - name: Create mock service status files
+      ansible.builtin.copy:
+        content: |
+          ● chef-automate.service - Chef Automate
+             Loaded: loaded (/etc/systemd/system/chef-automate.service; enabled; vendor preset: enabled)
+             Active: active (running) since Mon 2023-01-01 00:00:00 UTC; 1h ago
+        dest: /tmp/molecule_test/var/opt/chef-automate/service-status
+        mode: "0644"
