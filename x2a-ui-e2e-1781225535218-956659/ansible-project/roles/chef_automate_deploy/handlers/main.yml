@@ -1,0 +1,7 @@
+---
+- name: Apply sysctl settings
+  ansible.builtin.service:
+    name: systemd-sysctl
+    state: restarted
+  listen: reload sysctl
+  become: true

@@ -1,0 +1,10 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Configure system settings
+  ansible.builtin.include_tasks: system_config.yml
+- name: Install Chef Automate
+  ansible.builtin.include_tasks: install_automate.yml
+  when: "'automate' in chef_automate_products"
+- name: Set up Chef user and organization
+  ansible.builtin.include_tasks: setup_user_org.yml
