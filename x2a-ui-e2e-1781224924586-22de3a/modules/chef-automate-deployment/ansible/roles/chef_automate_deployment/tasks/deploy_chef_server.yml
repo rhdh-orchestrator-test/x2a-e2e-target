@@ -1,0 +1,11 @@
+---
+- name: Set chef_deploy_automate to false
+  ansible.builtin.set_fact:
+    chef_deploy_automate: false
+    chef_deploy_infra_server: true
+- name: Configure system parameters
+  ansible.builtin.include_tasks: system_config.yml
+- name: Install Chef Infra Server
+  ansible.builtin.include_tasks: install_automate.yml
+- name: Setup users and organizations
+  ansible.builtin.include_tasks: setup_users_orgs.yml
