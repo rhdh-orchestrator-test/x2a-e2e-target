@@ -1,0 +1,105 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: jtonello
+    password: testpassword
+    email: jtonello@example.com
+    organization: lab
+    chef_hostname: automate.chef.lab
+    chef_vm_max_map_count: 262144
+    chef_vm_dirty_expire_centisecs: 20000
+    chef_automate_cli_binary: chef-automate
+    chef_org_name: lab
+    chef_org_long_name: Chef Lab
+    chef_user_pem_filename: "jtonello.pem"
+    chef_org_validator_pem_filename: "lab-validator.pem"
+    chef_accept_terms_and_mlsa: true
+    chef_deploy_automate: true
+  tasks:
+    # Create directories that would be modified by the role
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/tmp
+
+    # Create hostname file
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "{{ chef_hostname }}"
+        dest: "/tmp/molecule_test/etc/hostname"
+        mode: "0644"
+
+    # Create mock sysctl files
+    - name: Create mock sysctl files
+      ansible.builtin.copy:
+        content: "{{ item.value }}"
+        dest: "/tmp/molecule_test/etc/{{ item.name }}"
+        mode: "0644"
+      loop:
+        - name: vm.max_map_count
+          value: "{{ chef_vm_max_map_count }}"
+        - name: vm.dirty_expire_centisecs
+          value: "{{ chef_vm_dirty_expire_centisecs }}"
+
+    # Create mock Chef Automate CLI binary
+    - name: Create mock Chef Automate CLI binary
+      ansible.builtin.copy:
+        content: "#!/bin/bash\necho 'Mock Chef Automate CLI'"
+        dest: "/tmp/molecule_test/tmp/{{ chef_automate_cli_binary }}"
+        mode: "0755"
+
+    # Create mock PEM files
+    - name: Create mock PEM files
+      ansible.builtin.copy:
+        content: "-----BEGIN RSA PRIVATE KEY-----\nMock PEM file content\n-----END RSA PRIVATE KEY-----"
+        dest: "/tmp/molecule_test/{{ item }}"
+        mode: "0600"
+      loop:
+        - "{{ chef_user_pem_filename }}"
+        - "{{ chef_org_validator_pem_filename }}"
+
+    # Create mock Chef Automate status output
+    - name: Create mock Chef Automate status output
+      ansible.builtin.copy:
+        content: |
+          Service: automate-postgresql
+            Status: running (PID 12345)
+          Service: automate-elasticsearch
+            Status: running (PID 12346)
+          Service: chef-server
+            Status: running (PID 12347)
+        dest: "/tmp/molecule_test/chef-automate-status.txt"
+        mode: "0644"
+
+    # Create mock Chef Server status output
+    - name: Create mock Chef Server status output
+      ansible.builtin.copy:
+        content: |
+          run: postgresql: (pid 12345) 300s; run: log: (pid 12346) 300s
+          run: bookshelf: (pid 12347) 300s; run: log: (pid 12348) 300s
+          run: oc_bifrost: (pid 12349) 300s; run: log: (pid 12350) 300s
+          run: oc_id: (pid 12351) 300s; run: log: (pid 12352) 300s
+          run: opscode-erchef: (pid 12353) 300s; run: log: (pid 12354) 300s
+          run: nginx: (pid 12355) 300s; run: log: (pid 12356) 300s
+        dest: "/tmp/molecule_test/chef-server-status.txt"
+        mode: "0644"
+
+    # Create mock user list output
+    - name: Create mock user list output
+      ansible.builtin.copy:
+        content: "jtonello"
+        dest: "/tmp/molecule_test/chef-server-user-list.txt"
+        mode: "0644"
+
+    # Create mock organization list output
+    - name: Create mock organization list output
+      ansible.builtin.copy:
+        content: "lab"
+        dest: "/tmp/molecule_test/chef-server-org-list.txt"
+        mode: "0644"

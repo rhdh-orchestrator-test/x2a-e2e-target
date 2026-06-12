@@ -1,0 +1,17 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks:
+    file: validate_credentials.yml
+- name: Include requirements.yml
+  ansible.builtin.include_vars:
+    file: "{{ role_path }}/requirements.yml"
+  register: requirements_result
+  failed_when: false
+- name: Deploy Chef Automate with Chef Infra Server
+  ansible.builtin.include_tasks:
+    file: deploy_automate.yml
+  when: chef_deploy_automate | default(true) | bool
+- name: Deploy Chef Infra Server only
+  ansible.builtin.include_tasks:
+    file: deploy_chef_server.yml
+  when: not (chef_deploy_automate | default(true) | bool)
