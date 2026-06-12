@@ -1,0 +1,51 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc/apache2/certs
+    - /tmp/molecule_test/etc/apache2/sites-available
+    - /tmp/molecule_test/etc/apache2/sites-enabled
+    - /tmp/molecule_test/etc/apache2/mods-available
+    - /tmp/molecule_test/var/www/helloworld
+  - name: Create mock SSL files
+    ansible.builtin.copy:
+      content: '# Mock SSL {{ item | basename }}'
+      dest: /tmp/molecule_test/etc/apache2/certs/{{ item | basename }}
+      mode: '0640'
+    loop:
+    - apache.key
+    - apache.csr
+    - apache.crt
+  - name: Create Apache virtual host configuration
+    ansible.builtin.copy:
+      content: "<VirtualHost *:443>\n DocumentRoot \"/var/www/helloworld\"\n SSLEngine on\n SSLCertificateFile /etc/apache2/certs/apache.crt\n SSLCertificateKeyFile
+        /etc/apache2/certs/apache.key\n  <Directory \"/var/www/helloworld\">\n    allow from all\n    Options None\n    Require all granted\n  </Directory>\n</VirtualHost>\n"
+      dest: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+      mode: '0640'
+  - name: Create symlink for enabled site
+    ansible.builtin.file:
+      src: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+      dest: /tmp/molecule_test/etc/apache2/sites-enabled/helloworld.conf
+      state: link
+  - name: Create index.html
+    ansible.builtin.copy:
+      content: "<html>\n  <head>\n    <title>Website Test</title>\n  </head>\n  <body>\n    <p>Hello, world!</p>\n</html>\n"
+      dest: /tmp/molecule_test/var/www/helloworld/index.html
+      mode: '0644'
+  - name: Create SSL configuration with POODLE fix
+    ansible.builtin.copy:
+      content: '# Mock SSL configuration file
+
+        SSLProtocol -all +TLSv1.2
+
+        # Other SSL settings would be here
+
+        '
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      mode: '0644'

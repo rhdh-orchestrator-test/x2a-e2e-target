@@ -1,0 +1,62 @@
+- name: Verify HTTPS configuration
+  hosts: localhost
+  gather_facts: false
+  tasks:
+  - name: Check if port 443 is listening
+    ansible.builtin.wait_for:
+      port: 443
+      state: started
+      timeout: 5
+    register: port_check
+    ignore_errors: true
+  - name: Verify port 443 is listening
+    ansible.builtin.assert:
+      that:
+      - port_check is success
+      fail_msg: Port 443 is not listening
+      success_msg: Port 443 is listening
+  - name: Get HTTPS response
+    ansible.builtin.uri:
+      url: https://localhost/
+      validate_certs: false
+      return_content: true
+    register: https_response
+    ignore_errors: true
+  - name: Verify HTTPS response status is 200
+    ansible.builtin.assert:
+      that:
+      - https_response.status == 200
+      fail_msg: HTTPS response status is not 200
+      success_msg: HTTPS response status is 200
+  - name: Verify HTTPS response contains 'Hello, world!'
+    ansible.builtin.assert:
+      that:
+      - '''Hello, world!'' in https_response.content'
+      fail_msg: HTTPS response does not contain 'Hello, world!'
+      success_msg: HTTPS response contains 'Hello, world!'
+  - name: Check if SSL3 protocol is disabled
+    ansible.builtin.shell: 'echo | openssl s_client -connect localhost:443 -ssl3 2>&1 | grep -q "ssl handshake failure"
+
+      '
+    register: ssl3_check
+    ignore_errors: true
+    changed_when: false
+  - name: Verify SSL3 protocol is disabled
+    ansible.builtin.assert:
+      that:
+      - ssl3_check is success
+      fail_msg: SSL3 protocol is enabled
+      success_msg: SSL3 protocol is disabled
+  - name: Check if TLS1.2 protocol is enabled
+    ansible.builtin.shell: 'echo | openssl s_client -connect localhost:443 -tls1_2 2>&1 | grep -q "CONNECTED"
+
+      '
+    register: tls12_check
+    ignore_errors: true
+    changed_when: false
+  - name: Verify TLS1.2 protocol is enabled
+    ansible.builtin.assert:
+      that:
+      - tls12_check is success
+      fail_msg: TLS1.2 protocol is not enabled
+      success_msg: TLS1.2 protocol is enabled
