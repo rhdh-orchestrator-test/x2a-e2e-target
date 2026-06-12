@@ -1,0 +1,37 @@
+---
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_download_url }}"
+    dest: /tmp/chef-automate.zip
+    mode: "0644"
+  register: download_result
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip - > {{ chef_automate_binary }}
+    stdin: "{{ download_result.dest }}"
+    creates: "{{ chef_automate_binary }}"
+  args:
+    chdir: "{{ ansible_env.PWD }}"
+  when: download_result.changed
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ ansible_env.PWD }}/{{ chef_automate_binary }}"
+    mode: "0755"
+  when: download_result.changed
+- name: Ensure required directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /etc/opscode
+    - /var/opt/opscode
+  become: true
+- name: Deploy Chef Infra Server only (without Automate)
+  ansible.builtin.command:
+    cmd: ./{{ chef_automate_binary }} deploy --product infra-server --accept-terms-and-mlsa=true
+  args:
+    chdir: "{{ ansible_env.PWD }}"
+    creates: /etc/opscode/chef-server.rb
+  become: true
+  when: deploy_infra_server | bool and not deploy_automate | bool
