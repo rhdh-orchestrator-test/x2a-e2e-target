@@ -1,0 +1,31 @@
+---
+- name: Ensure directory exists for key files
+  ansible.builtin.file:
+    path: "{{ item | dirname }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ userfilename }}"
+    - "{{ orgfilename }}"
+  when: userfilename | dirname != '.' or orgfilename | dirname != '.'
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create {{ username }} {{ full_name }} {{ email }} "{{ password }}"  --filename {{ userfilename }}
+
+      '
+  become: true
+  args:
+    creates: "{{ userfilename }}"
+  register: user_create_result
+  changed_when: user_create_result.rc == 0
+  no_log: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create {{ orgname }} "{{ longorgname }}"  --association_user {{ username }} --filename {{ orgfilename }}
+
+      '
+  become: true
+  args:
+    creates: "{{ orgfilename }}"
+  register: org_create_result
+  changed_when: org_create_result.rc == 0

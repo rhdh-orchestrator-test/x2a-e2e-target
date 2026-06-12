@@ -1,0 +1,53 @@
+---
+- name: Ensure directory exists for Chef Automate CLI
+  ansible.builtin.file:
+    path: "{{ chef_automate_binary_path | dirname }}"
+    state: directory
+    mode: "0755"
+  when: chef_automate_binary_path != './chef-automate'
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: /tmp/chef-automate_linux_amd64.zip
+    mode: "0644"
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip - > {{ chef_automate_binary_path }}
+    stdin: "{{ lookup('ansible.builtin.file', '/tmp/chef-automate_linux_amd64.zip') }}"
+    creates: "{{ chef_automate_binary_path }}"
+  args:
+    executable: /bin/bash
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_binary_path }}"
+    mode: "0755"
+    state: file
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command:
+    cmd: ./chef-automate deploy --product infra-server --accept-terms-and-mlsa=true
+  become: true
+  args:
+    creates: /hab
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create {{ username }} {{ full_name }} {{ email }} "{{ password }}"  --filename {{ userfilename }}
+
+      '
+  become: true
+  args:
+    creates: "{{ userfilename }}"
+  register: user_create_result
+  changed_when: user_create_result.rc == 0
+  no_log: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create {{ orgname }} "{{ longorgname }}"  --association_user {{ username }} --filename {{ orgfilename }}
+
+      '
+  become: true
+  args:
+    creates: "{{ orgfilename }}"
+  register: org_create_result
+  changed_when: org_create_result.rc == 0
