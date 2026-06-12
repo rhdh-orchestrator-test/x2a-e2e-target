@@ -1,0 +1,14 @@
+---
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  become: true
+- name: Configure kernel parameters for Chef Automate
+  ansible.builtin.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_set: true
+    reload: true
+  loop: "{{ chef_automate_sysctl_params | dict2items }}"
+  become: true

@@ -1,0 +1,16 @@
+---
+- name: Ensure sudo is installed
+  ansible.builtin.package:
+    name: sudo
+    state: present
+  become: true
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: sudo ./chef-automate deploy --product {{ chef_automate_products | join(' --product ') }} --accept-terms-and-mlsa=true
+    creates: /etc/chef-automate/config.toml
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
+- name: Display deployment result
+  ansible.builtin.debug:
+    msg: "{{ deploy_result.stdout_lines }}"
+  when: deploy_result.changed
