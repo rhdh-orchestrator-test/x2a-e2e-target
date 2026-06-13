@@ -1,0 +1,40 @@
+---
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: /tmp/chef-automate_linux_amd64.zip
+    mode: "0644"
+- name: Create directory for Chef Automate CLI
+  ansible.builtin.file:
+    path: /tmp/chef-automate-cli
+    state: directory
+    mode: "0755"
+- name: Extract Chef Automate CLI
+  ansible.builtin.unarchive:
+    src: /tmp/chef-automate_linux_amd64.zip
+    dest: /tmp/chef-automate-cli
+    remote_src: true
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: /tmp/chef-automate-cli/chef-automate
+    mode: "0755"
+- name: Check if Chef Infra Server is already deployed
+  ansible.builtin.stat:
+    path: /etc/opscode/chef-server.rb
+  register: chef_server_config
+  become: true
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command:
+    cmd: "./chef-automate deploy --product infra-server --accept-terms-and-mlsa={{ 'true' if chef_automate_accept_terms else 'false' }} "
+    chdir: /tmp/chef-automate-cli
+  become: true
+  when:
+    - chef_automate_deployment_mode == 'server_only'
+    - not chef_server_config.stat.exists
+  register: chef_server_deploy_result
+  changed_when: chef_server_deploy_result.rc == 0
+  failed_when: chef_server_deploy_result.rc != 0
+- name: Wait for Chef Infra Server services to be ready
+  ansible.builtin.pause:
+    seconds: 30
+  when: chef_server_deploy_result is changed
