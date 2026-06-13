@@ -1,0 +1,122 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    # Create directory structure for testing
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/var/opt/chef-automate
+        - /tmp/molecule_test/var/opt/opscode
+        - /tmp/molecule_test/home/user
+        - /tmp/molecule_test/hab
+
+    # Simulate hostname configuration
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "{{ chef_automate_hostname }}"
+        dest: /tmp/molecule_test/etc/hostname
+        mode: "0644"
+
+    # Simulate sysctl configuration
+    - name: Create sysctl configuration files
+      ansible.builtin.copy:
+        content: |
+          # Simulated sysctl configuration for molecule testing
+          vm.max_map_count = {{ chef_automate_vm_max_map_count }}
+          vm.dirty_expire_centisecs = {{ chef_automate_vm_dirty_expire_centisecs }}
+        dest: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+        mode: "0644"
+
+    # Simulate Chef Automate CLI download
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          # Simulated Chef Automate CLI for molecule testing
+          echo "Chef Automate CLI"
+        dest: /tmp/molecule_test/chef-automate
+        mode: "0755"
+
+    # Simulate Chef Automate deployment
+    - name: Create Chef Automate deployment marker
+      ansible.builtin.copy:
+        content: |
+          # Simulated Chef Automate deployment
+          # Deployed with: chef-automate deploy --product automate --product infra-server
+        dest: /tmp/molecule_test/var/opt/chef-automate/deployment-info.txt
+        mode: "0644"
+
+    # Simulate Chef user key file
+    - name: Create Chef user key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
+          ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopq
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/home/user/jtonello.pem
+        mode: "0600"
+
+    # Simulate Chef organization validator key file
+    - name: Create Chef organization validator key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA0987654321zyxwvutsrqponmlkjihgfedcba
+          ZYXWVUTSRQPONMLKJIHGFEDCBA0987654321zyxwvutsrqponmlk
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/home/user/lab-validator.pem
+        mode: "0600"
+
+    # Simulate Chef server user list output
+    - name: Create Chef server user list output
+      ansible.builtin.copy:
+        content: |
+          jtonello
+          admin
+        dest: /tmp/molecule_test/var/opt/opscode/user-list.txt
+        mode: "0644"
+
+    # Simulate Chef server user details
+    - name: Create Chef server user details
+      ansible.builtin.copy:
+        content: |
+          {
+            "username": "jtonello",
+            "email": "jtonello@chef.lab",
+            "display_name": "John Tonello"
+          }
+        dest: /tmp/molecule_test/var/opt/opscode/user-jtonello.json
+        mode: "0644"
+
+    # Simulate Chef server organization list
+    - name: Create Chef server organization list
+      ansible.builtin.copy:
+        content: |
+          lab
+        dest: /tmp/molecule_test/var/opt/opscode/org-list.txt
+        mode: "0644"
+
+    # Simulate Chef server organization details
+    - name: Create Chef server organization details
+      ansible.builtin.copy:
+        content: |
+          {
+            "name": "lab",
+            "full_name": "Chef Lab"
+          }
+        dest: /tmp/molecule_test/var/opt/opscode/org-lab.json
+        mode: "0644"
+
+  vars:
+    chef_automate_hostname: automate.chef.lab
+    chef_automate_vm_max_map_count: 262144
+    chef_automate_vm_dirty_expire_centisecs: 20000
+    username: jtonello
+    chef_org_name: lab
