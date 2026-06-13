@@ -1,0 +1,7 @@
+---
+- name: Apply sysctl settings permanently
+  ansible.builtin.command:
+    cmd: sysctl -p
+  listen: reload sysctl
+  changed_when: false
+  failed_when: false
