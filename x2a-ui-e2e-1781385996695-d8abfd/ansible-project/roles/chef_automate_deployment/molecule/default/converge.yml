@@ -1,0 +1,75 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    # Create directory structure
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/etc/chef-automate
+        - /tmp/molecule_test/home/ansible
+        - /tmp/molecule_test/var/opt/chef-automate
+        - /tmp/molecule_test/proc/sys/vm
+
+    # Simulate hostname file
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: "/tmp/molecule_test/etc/hostname"
+        mode: "0644"
+
+    # Simulate sysctl settings
+    - name: Create sysctl vm.max_map_count file
+      ansible.builtin.copy:
+        content: "262144"
+        dest: "/tmp/molecule_test/proc/sys/vm/max_map_count"
+        mode: "0644"
+
+    - name: Create sysctl vm.dirty_expire_centisecs file
+      ansible.builtin.copy:
+        content: "20000"
+        dest: "/tmp/molecule_test/proc/sys/vm/dirty_expire_centisecs"
+        mode: "0644"
+
+    # Simulate Chef Automate CLI download
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: "#!/bin/bash\necho 'Chef Automate CLI'"
+        dest: "/tmp/molecule_test/chef-automate"
+        mode: "0755"
+
+    # Simulate Chef Automate config
+    - name: Create Chef Automate config file
+      ansible.builtin.copy:
+        content: |
+          [global]
+            v1 = true
+          [deployment]
+            automate = true
+            infra_server = true
+        dest: "/tmp/molecule_test/etc/chef-automate/config.toml"
+        mode: "0644"
+
+    # Simulate user and organization PEM files
+    - name: Create user PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/home/ansible/admin.pem"
+        mode: "0600"
+
+    - name: Create organization validator PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA0987654321zyxwvutsrqponmlkjihgfedcba
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/home/ansible/lab-validator.pem"
+        mode: "0600"

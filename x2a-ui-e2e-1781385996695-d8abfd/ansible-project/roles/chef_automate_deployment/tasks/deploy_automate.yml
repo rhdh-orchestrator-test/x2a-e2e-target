@@ -1,0 +1,40 @@
+---
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+  register: chef_automate_cli_download
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy  --product automate  --product infra-server  --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }} "
+  become: true
+  args:
+    creates: /etc/chef-automate/config.toml
+  register: chef_automate_deploy
+  when: chef_automate_deploy_automate | bool and chef_automate_deploy_infra_server | bool
+- name: Deploy Chef Automate only
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy  --product automate  --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }} "
+  become: true
+  args:
+    creates: /etc/chef-automate/config.toml
+  register: chef_automate_only_deploy
+  when: chef_automate_deploy_automate | bool and not chef_automate_deploy_infra_server | bool
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy  --product infra-server  --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }} "
+  become: true
+  args:
+    creates: /etc/chef-automate/config.toml
+  register: chef_infra_deploy
+  when: not chef_automate_deploy_automate | bool and chef_automate_deploy_infra_server | bool
+- name: Wait for Chef Automate services to be ready
+  ansible.builtin.command:
+    cmd: chef-automate status
+  become: true
+  register: chef_automate_status
+  until: chef_automate_status.rc == 0
+  retries: 12
+  delay: 10
+  when: chef_automate_deploy.changed or chef_infra_deploy.changed or chef_automate_only_deploy.changed
