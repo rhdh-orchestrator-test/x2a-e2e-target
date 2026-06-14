@@ -1,0 +1,9 @@
+---
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy --product infra-server --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }}"
+  args:
+    creates: /etc/chef-automate/config.toml
+  become: true
+  register: chef_server_deploy
+  changed_when: chef_server_deploy.rc == 0
