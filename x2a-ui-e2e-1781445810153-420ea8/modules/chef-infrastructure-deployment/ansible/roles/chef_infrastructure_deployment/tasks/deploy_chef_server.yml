@@ -1,0 +1,32 @@
+---
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+  register: chef_automate_cli_download
+- name: Extract Chef Automate CLI if downloaded as zip
+  ansible.builtin.shell:
+    cmd: gunzip - > {{ chef_automate_cli_path }} && chmod +x {{ chef_automate_cli_path }}
+  args:
+    stdin: "{{ chef_automate_cli_download.content }}"
+    creates: "{{ chef_automate_cli_path }}"
+  when: chef_automate_cli_download.changed and chef_automate_cli_url is search('.zip$')
+  changed_when: true
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command:
+    cmd: sudo {{ chef_automate_cli_path }} deploy --product infra-server --accept-terms-and-mlsa={{ chef_accept_terms_and_mlsa | lower }}
+  args:
+    creates: /hab
+  become: true
+  register: chef_server_deploy
+  changed_when: chef_server_deploy.rc == 0
+- name: Wait for Chef Infra Server to be ready
+  ansible.builtin.command:
+    cmd: sudo chef-server-ctl status
+  register: chef_server_status
+  until: chef_server_status.rc == 0
+  retries: 10
+  delay: 30
+  changed_when: false
+  become: true
