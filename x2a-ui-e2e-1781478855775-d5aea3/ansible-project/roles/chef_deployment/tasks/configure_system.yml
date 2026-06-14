@@ -1,0 +1,31 @@
+---
+- name: Install required packages for system configuration
+  ansible.builtin.package:
+    name:
+      - procps
+      - hostname
+    state: present
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_hostname }}"
+  register: hostname_changed
+- name: Update /etc/hosts with new hostname
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: ^127.0.1.1
+    line: 127.0.1.1 {{ chef_hostname }}
+  when: hostname_changed.changed
+- name: Set vm.max_map_count kernel parameter
+  community.general.sysctl:
+    name: vm.max_map_count
+    value: "{{ chef_vm_max_map_count }}"
+    state: present
+    sysctl_set: true
+    reload: true
+- name: Set vm.dirty_expire_centisecs kernel parameter
+  community.general.sysctl:
+    name: vm.dirty_expire_centisecs
+    value: "{{ chef_vm_dirty_expire_centisecs }}"
+    state: present
+    sysctl_set: true
+    reload: true
