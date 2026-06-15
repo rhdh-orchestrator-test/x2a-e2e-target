@@ -1,0 +1,11 @@
+---
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command:
+    cmd: "/tmp/chef-automate deploy --product infra-server --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }}\n"
+    creates: /hab
+  become: true
+  register: deploy_result
+- name: Display Chef Infra Server deployment result
+  ansible.builtin.debug:
+    var: deploy_result.stdout_lines
+  when: deploy_result.changed
