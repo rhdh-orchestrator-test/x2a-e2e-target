@@ -1,0 +1,13 @@
+---
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_hostname }}"
+  become: true
+- name: Configure sysctl parameters
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop: "{{ chef_sysctl_settings | dict2items }}"
+  become: true
