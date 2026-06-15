@@ -1,0 +1,110 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: admin
+    org_name: chef
+    org_description: "Chef Organization"
+    password: "chef123"
+    user_pem: |
+      -----BEGIN RSA PRIVATE KEY-----
+      MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
+      EXAMPLE_PRIVATE_KEY_CONTENT_PLACEHOLDER
+      -----END RSA PRIVATE KEY-----
+    org_validator_pem: |
+      -----BEGIN RSA PRIVATE KEY-----
+      MIIEpAIBAAKCAQEA0987654321zyxwvutsrqponmlkjihgfedcba
+      EXAMPLE_VALIDATOR_KEY_CONTENT_PLACEHOLDER
+      -----END RSA PRIVATE KEY-----
+  tasks:
+    # Create directory structure for testing
+    - name: Create base directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/etc/chef-automate
+        - /tmp/molecule_test/etc/opscode
+        - /tmp/molecule_test/proc/sys/vm
+        - /tmp/molecule_test/home/molecule
+
+    # Simulate hostname configuration
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: "/tmp/molecule_test/etc/hostname"
+        mode: "0644"
+
+    # Simulate sysctl parameters
+    - name: Create sysctl parameter files
+      ansible.builtin.copy:
+        content: "{{ item.value }}"
+        dest: "/tmp/molecule_test/proc/sys/vm/{{ item.key | regex_replace('^vm\\.', '') }}"
+        mode: "0644"
+      loop:
+        - key: vm.max_map_count
+          value: "262144"
+        - key: vm.dirty_expire_centisecs
+          value: "20000"
+
+    # Simulate Chef Automate CLI installation
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: "#!/bin/bash\necho 'Chef Automate CLI mock'\n"
+        dest: "/tmp/molecule_test/chef-automate"
+        mode: "0755"
+
+    # Simulate Chef Automate deployment
+    - name: Create Chef Automate config file
+      ansible.builtin.copy:
+        content: |
+          # Mock Chef Automate config.toml
+          [global]
+            v1 = "config-version"
+          [deployment]
+            automate = true
+            infra_server = true
+        dest: "/tmp/molecule_test/etc/chef-automate/config.toml"
+        mode: "0644"
+
+    # Simulate Chef Infra Server deployment
+    - name: Create Chef Infra Server config file
+      ansible.builtin.copy:
+        content: |
+          # Mock Chef Server config
+          nginx['ssl_certificate'] = '/var/opt/opscode/nginx/ca/automate.chef.lab.crt'
+          nginx['ssl_certificate_key'] = '/var/opt/opscode/nginx/ca/automate.chef.lab.key'
+        dest: "/tmp/molecule_test/etc/opscode/chef-server.rb"
+        mode: "0644"
+
+    # Simulate user and organization PEM files
+    - name: Create user PEM file
+      ansible.builtin.copy:
+        content: "{{ user_pem }}"
+        dest: "/tmp/molecule_test/home/molecule/admin.pem"
+        mode: "0600"
+
+    - name: Create organization validator PEM file
+      ansible.builtin.copy:
+        content: "{{ org_validator_pem }}"
+        dest: "/tmp/molecule_test/home/molecule/chef-validator.pem"
+        mode: "0600"
+
+    # Simulate Chef server command outputs
+    - name: Create mock user-list output
+      ansible.builtin.copy:
+        content: |
+          admin
+          pivotal
+        dest: "/tmp/molecule_test/etc/opscode/user-list.txt"
+        mode: "0644"
+
+    - name: Create mock org-list output
+      ansible.builtin.copy:
+        content: |
+          chef
+        dest: "/tmp/molecule_test/etc/opscode/org-list.txt"
+        mode: "0644"
