@@ -1,0 +1,94 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: jtonello
+    organization_name: lab
+    password: chef_password
+  tasks:
+    # Create directory structure for testing
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/etc/chef-server
+        - /tmp/molecule_test/var/log/chef-server/nginx
+        - /tmp/molecule_test/var/log/chef-server/bookshelf
+        - /tmp/molecule_test/home/jtonello
+
+    # Simulate hostname configuration
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: "/tmp/molecule_test/etc/hostname"
+        mode: "0644"
+
+    # Simulate sysctl configuration
+    - name: Create sysctl.conf file
+      ansible.builtin.copy:
+        content: |
+          vm.max_map_count=262144
+          vm.dirty_expire_centisecs=20000
+        dest: "/tmp/molecule_test/etc/sysctl.conf"
+        mode: "0644"
+
+    # Simulate Chef Automate CLI download
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: "#!/bin/bash\necho 'Chef Automate CLI mock'\n"
+        dest: "/tmp/molecule_test/chef-automate"
+        mode: "0755"
+
+    # Simulate Chef Server configuration
+    - name: Create Chef Server config file
+      ansible.builtin.copy:
+        content: |
+          # Chef Server configuration
+          nginx['ssl_protocols'] = 'TLSv1.2'
+          nginx['ssl_ciphers'] = 'HIGH:!aNULL:!MD5:!RC4'
+        dest: "/tmp/molecule_test/etc/chef-server/chef-server.rb"
+        mode: "0644"
+
+    # Simulate user key file
+    - name: Create user key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/home/jtonello/jtonello.pem"
+        mode: "0600"
+
+    # Simulate organization validator key file
+    - name: Create organization validator key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA0987654321zyxwvutsrqponmlkjihgfedcba
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/home/jtonello/lab-validator.pem"
+        mode: "0600"
+
+    # Simulate log files
+    - name: Create access log file
+      ansible.builtin.copy:
+        content: |
+          127.0.0.1 - - [01/Jan/2023:12:00:00 +0000] "GET /organizations/lab HTTP/1.1" 200 1234
+        dest: "/tmp/molecule_test/var/log/chef-server/nginx/access.log"
+        mode: "0644"
+
+    - name: Create error log file
+      ansible.builtin.copy:
+        content: ""
+        dest: "/tmp/molecule_test/var/log/chef-server/nginx/error.log"
+        mode: "0644"
+
+    - name: Create bookshelf log file
+      ansible.builtin.copy:
+        content: "Chef Bookshelf service started"
+        dest: "/tmp/molecule_test/var/log/chef-server/bookshelf/current"
+        mode: "0644"
