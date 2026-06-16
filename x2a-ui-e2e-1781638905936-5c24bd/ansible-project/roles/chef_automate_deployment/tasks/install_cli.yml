@@ -1,0 +1,12 @@
+---
+- name: Download and extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: curl {{ chef_automate_cli_url }} | gunzip - > {{ chef_automate_cli_path }}
+    creates: "{{ chef_automate_cli_path }}"
+  args:
+    warn: false
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+    state: file
