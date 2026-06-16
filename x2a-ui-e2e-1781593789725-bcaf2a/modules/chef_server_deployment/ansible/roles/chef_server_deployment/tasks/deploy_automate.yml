@@ -1,0 +1,32 @@
+---
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: ./chef-automate deploy --product automate --product infra-server --accept-terms-and-mlsa=true
+  args:
+    creates: /hab
+  become: true
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
+- name: Wait for Chef Automate services to start
+  ansible.builtin.pause:
+    seconds: 30
+  when: deploy_result is changed
+- name: Check if chef-automate command is available
+  ansible.builtin.command:
+    cmd: which chef-automate
+  register: chef_automate_check
+  changed_when: false
+  ignore_errors: true
+  become: true
+- name: Check Chef Automate status
+  ansible.builtin.command:
+    cmd: ./chef-automate status
+  register: automate_status
+  changed_when: false
+  ignore_errors: true
+  become: true
+  when: chef_automate_check.rc == 0
+- name: Display Chef Automate status
+  ansible.builtin.debug:
+    var: automate_status.stdout_lines
+  when: automate_status is defined and automate_status.stdout is defined
