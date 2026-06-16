@@ -1,0 +1,10 @@
+---
+- name: Set deployment type to server only
+  ansible.builtin.set_fact:
+    chef_deployment_type: server_only
+- name: Configure system parameters
+  ansible.builtin.include_tasks: system_config.yml
+- name: Install Chef Infra Server
+  ansible.builtin.include_tasks: install_automate.yml
+- name: Setup Chef users and organizations
+  ansible.builtin.include_tasks: setup_users.yml
