@@ -1,0 +1,33 @@
+---
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  become: true
+- name: Configure kernel parameters for Chef Automate
+  ansible.builtin.command:
+    cmd: sysctl -w {{ item.key }}={{ item.value }}
+  loop: "{{ chef_automate_kernel_params | dict2items }}"
+  become: true
+  changed_when: false
+- name: Check if Chef Automate CLI already exists
+  ansible.builtin.stat:
+    path: "{{ chef_automate_cli_path }}"
+  register: cli_stat
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: "{{ chef_automate_cli_path }}.zip"
+    mode: "0644"
+  register: download_result
+  when: not cli_stat.stat.exists
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip -c {{ chef_automate_cli_path }}.zip > {{ chef_automate_cli_path }}
+    creates: "{{ chef_automate_cli_path }}"
+  when: download_result is changed
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+    state: file
+  when: download_result is changed

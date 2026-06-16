@@ -1,0 +1,59 @@
+---
+- name: Create Chef admin user
+  ansible.builtin.command:
+    cmd: '{{ chef_server_ctl_path }} user-create {{ chef_automate_username }} {{ chef_automate_longusername }} {{ chef_automate_useremail }} "{{ chef_automate_userpassword
+      }}" --filename {{ chef_automate_userfilename }}
+
+      '
+  become: true
+  args:
+    creates: "{{ chef_automate_userfilename }}"
+  register: user_create_result
+  changed_when: user_create_result.rc == 0
+  failed_when: user_create_result.rc != 0
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: '{{ chef_server_ctl_path }} org-create {{ chef_automate_orgname }} "{{ chef_automate_longorgname }}" --association_user {{ chef_automate_username }} --filename
+      {{ chef_automate_orgfilename }}
+
+      '
+  become: true
+  args:
+    creates: "{{ chef_automate_orgfilename }}"
+  register: org_create_result
+  changed_when: org_create_result.rc == 0
+  failed_when: org_create_result.rc != 0
+- name: Set permissions on user key file
+  ansible.builtin.file:
+    path: "{{ chef_automate_userfilename }}"
+    mode: "0600"
+    owner: "{{ ansible_user_id }}"
+  become: true
+  when: user_create_result is changed
+- name: Set permissions on organization validator key file
+  ansible.builtin.file:
+    path: "{{ chef_automate_orgfilename }}"
+    mode: "0600"
+    owner: "{{ ansible_user_id }}"
+  become: true
+  when: org_create_result is changed
+- name: Store user key content
+  ansible.builtin.slurp:
+    src: "{{ chef_automate_userfilename }}"
+  register: user_key_content
+  when: user_create_result is changed
+  become: true
+- name: Store organization validator key content
+  ansible.builtin.slurp:
+    src: "{{ chef_automate_orgfilename }}"
+  register: org_key_content
+  when: org_create_result is changed
+  become: true
+- name: Set fact for user key
+  ansible.builtin.set_fact:
+    user_key: "{{ user_key_content['content'] | b64decode }}"
+  when: user_key_content is defined and user_key_content['content'] is defined
+- name: Set fact for validator key
+  ansible.builtin.set_fact:
+    validator_key: "{{ org_key_content['content'] | b64decode }}"
+  when: org_key_content is defined and org_key_content['content'] is defined
