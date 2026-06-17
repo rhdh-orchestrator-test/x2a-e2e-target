@@ -1,0 +1,18 @@
+---
+- name: Ensure /hab directory exists with proper permissions
+  ansible.builtin.file:
+    path: /hab
+    state: directory
+    mode: "0755"
+  become: true
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command:
+    cmd: "./chef-automate deploy --product infra-server --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }} "
+  args:
+    creates: /hab
+  become: true
+  register: deploy_result
+- name: Display Chef Infra Server deployment result
+  ansible.builtin.debug:
+    var: deploy_result.stdout_lines
+  when: deploy_result.stdout is defined
