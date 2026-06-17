@@ -1,0 +1,126 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create directory structure for molecule tests
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/proc/sys/vm
+        - /tmp/molecule_test/hab
+        - /tmp/molecule_test/usr/bin
+
+    # Simulate system configuration
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: "/tmp/molecule_test/etc/hostname"
+        mode: "0644"
+
+    - name: Create sysctl files
+      ansible.builtin.copy:
+        content: "{{ item.value }}"
+        dest: "/tmp/molecule_test/proc/sys/vm/{{ item.key | regex_replace('^vm\\.', '') }}"
+        mode: "0644"
+      loop:
+        - key: vm.max_map_count
+          value: "262144"
+        - key: vm.dirty_expire_centisecs
+          value: "20000"
+
+    # Simulate Chef Automate CLI installation
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: |
+          #!/bin/sh
+          echo "Chef Automate CLI v1.0.0"
+          echo "Usage: chef-automate COMMAND [options]"
+        dest: "/tmp/molecule_test/usr/bin/chef-automate"
+        mode: "0755"
+
+    # Simulate Chef Automate deployment
+    - name: Create hab directory to simulate deployment
+      ansible.builtin.file:
+        path: "/tmp/molecule_test/hab"
+        state: directory
+        mode: "0755"
+
+    # Simulate Chef Server CLI
+    - name: Create Chef Server CLI file
+      ansible.builtin.copy:
+        content: |
+          #!/bin/sh
+          echo "Chef Server CLI v1.0.0"
+          echo "Usage: chef-server-ctl COMMAND [options]"
+        dest: "/tmp/molecule_test/usr/bin/chef-server-ctl"
+        mode: "0755"
+
+    # Simulate user and organization PEM files
+    - name: Create user PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA...
+          (simulated PEM content)
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/jtonello.pem"
+        mode: "0600"
+
+    - name: Create organization validator PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA...
+          (simulated PEM content)
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/lab-validator.pem"
+        mode: "0600"
+
+    # Simulate network services
+    - name: Create netstat output file to simulate listening services
+      ansible.builtin.copy:
+        content: |
+          tcp        0      0 0.0.0.0:443             0.0.0.0:*               LISTEN      1234/nginx
+        dest: "/tmp/molecule_test/netstat_output.txt"
+        mode: "0644"
+
+    # Simulate Chef Automate status output
+    - name: Create Chef Automate status file
+      ansible.builtin.copy:
+        content: |
+          Service: automate-postgresql       Status: running
+          Service: automate-elasticsearch    Status: running
+          Service: automate-nginx            Status: running
+          Service: automate-ui               Status: running
+          Service: chef-server               Status: running
+        dest: "/tmp/molecule_test/chef_automate_status.txt"
+        mode: "0644"
+
+    # Simulate Chef Server status output
+    - name: Create Chef Server status file
+      ansible.builtin.copy:
+        content: |
+          run: chef-server: (pid 12345) 123s; run: log: (pid 12346) 123s
+          run: nginx: (pid 12347) 123s; run: log: (pid 12348) 123s
+          run: postgresql: (pid 12349) 123s; run: log: (pid 12350) 123s
+        dest: "/tmp/molecule_test/chef_server_status.txt"
+        mode: "0644"
+
+    # Simulate API responses
+    - name: Create Chef Automate API response file
+      ansible.builtin.copy:
+        content: |
+          {"status":"ok","services":[{"name":"automate-postgresql","status":"running"},{"name":"automate-elasticsearch","status":"running"}]}
+        dest: "/tmp/molecule_test/automate_api_response.json"
+        mode: "0644"
+
+    - name: Create Chef Server API response file
+      ansible.builtin.copy:
+        content: |
+          {"lab":{"url":"https://automate.chef.lab/organizations/lab"}}
+        dest: "/tmp/molecule_test/chef_server_api_response.json"
+        mode: "0644"
