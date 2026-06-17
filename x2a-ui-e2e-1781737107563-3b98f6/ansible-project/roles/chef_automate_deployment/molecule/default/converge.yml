@@ -1,0 +1,103 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/proc/sys/vm
+        - /tmp/molecule_test/hab
+        - /tmp/molecule_test/tmp
+
+    # Simulate hostname file
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "{{ chef_automate_hostname }}"
+        dest: "/tmp/molecule_test/etc/hostname"
+        mode: "0644"
+
+    # Simulate kernel parameters
+    - name: Create vm.max_map_count file
+      ansible.builtin.copy:
+        content: "{{ chef_automate_vm_max_map_count }}"
+        dest: "/tmp/molecule_test/proc/sys/vm/max_map_count"
+        mode: "0644"
+
+    - name: Create vm.dirty_expire_centisecs file
+      ansible.builtin.copy:
+        content: "{{ chef_automate_vm_dirty_expire_centisecs }}"
+        dest: "/tmp/molecule_test/proc/sys/vm/dirty_expire_centisecs"
+        mode: "0644"
+
+    # Simulate Chef Automate CLI
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: "#!/bin/sh\necho 'Chef Automate CLI mock'\n"
+        dest: "/tmp/molecule_test{{ chef_automate_cli_path }}"
+        mode: "0755"
+
+    # Simulate Chef Automate deployment
+    - name: Create Chef Automate deployment marker
+      ansible.builtin.file:
+        path: "/tmp/molecule_test/hab"
+        state: directory
+        mode: "0755"
+
+    # Simulate user and organization PEM files
+    - name: Create user PEM file
+      ansible.builtin.copy:
+        content: "-----BEGIN RSA PRIVATE KEY-----\nMOCK USER KEY\n-----END RSA PRIVATE KEY-----\n"
+        dest: "/tmp/molecule_test{{ chef_automate_user_pem_path }}"
+        mode: "0600"
+
+    - name: Create organization validator PEM file
+      ansible.builtin.copy:
+        content: "-----BEGIN RSA PRIVATE KEY-----\nMOCK ORG VALIDATOR KEY\n-----END RSA PRIVATE KEY-----\n"
+        dest: "/tmp/molecule_test{{ chef_automate_org_pem_path }}"
+        mode: "0600"
+
+    # Simulate Chef Server user and org lists
+    - name: Create Chef Server user list file
+      ansible.builtin.copy:
+        content: "{{ chef_automate_username }}\n"
+        dest: "/tmp/molecule_test/tmp/chef-server-user-list"
+        mode: "0644"
+
+    - name: Create Chef Server org list file
+      ansible.builtin.copy:
+        content: "{{ chef_automate_orgname }}\n"
+        dest: "/tmp/molecule_test/tmp/chef-server-org-list"
+        mode: "0644"
+
+    # Simulate Chef Automate status output
+    - name: Create Chef Automate status file
+      ansible.builtin.copy:
+        content: "Service: chef-automate-service\nStatus: running\n"
+        dest: "/tmp/molecule_test/tmp/chef-automate-status"
+        mode: "0644"
+
+    # Simulate Chef Infra Server status output
+    - name: Create Chef Infra Server status file
+      ansible.builtin.copy:
+        content: "Service: chef-server-service\nStatus: running\n"
+        dest: "/tmp/molecule_test/tmp/chef-server-status"
+        mode: "0644"
+
+    # Simulate web UI health endpoint
+    - name: Create health API response
+      ansible.builtin.copy:
+        content: '{"status":"ok"}'
+        dest: "/tmp/molecule_test/tmp/health-api-response"
+        mode: "0644"
+
+    # Simulate network listening ports
+    - name: Create netstat output
+      ansible.builtin.copy:
+        content: "tcp        0      0 0.0.0.0:443             0.0.0.0:*               LISTEN      1234/chef-automate\n"
+        dest: "/tmp/molecule_test/tmp/netstat-output"
+        mode: "0644"
