@@ -1,0 +1,140 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc/chef-server
+    - /tmp/molecule_test/etc/chef-automate
+    - /tmp/molecule_test/var/log/chef-automate
+    - /tmp/molecule_test/var/opt/chef-automate
+    - /tmp/molecule_test/var/opt/chef-server
+    - /tmp/molecule_test/usr/bin
+  - name: Create mock Chef Automate CLI
+    ansible.builtin.copy:
+      content: '#!/bin/bash
+
+        echo "Chef Automate CLI mock"
+
+        echo "Deployment successful"
+
+        exit 0
+
+        '
+      dest: /tmp/molecule_test/chef-automate
+      mode: '0755'
+  - name: Create mock Chef Server control binary
+    ansible.builtin.copy:
+      content: '#!/bin/bash
+
+        echo "Chef Server control mock"
+
+        echo "Command executed successfully"
+
+        exit 0
+
+        '
+      dest: /tmp/molecule_test/usr/bin/chef-server-ctl
+      mode: '0755'
+  - name: Create mock user PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEAu1SU1LfVLPHCozMxH2Mo4lgOEePzNm0tRgeLezV6ffAt0Gkw
+
+        E1d0JZkUWfj+jYrpxZ1Q7NDjVMNtEfoJHDkiHGbNB2BvsQ5tZzfE9bAYMNXvmYIe
+
+        MOCK_KEY_CONTENT_FOR_TESTING_ONLY
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/chefadmin.pem
+      mode: '0600'
+  - name: Create mock organization validator PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEAu1SU1LfVLPHCozMxH2Mo4lgOEePzNm0tRgeLezV6ffAt0Gkw
+
+        E1d0JZkUWfj+jYrpxZ1Q7NDjVMNtEfoJHDkiHGbNB2BvsQ5tZzfE9bAYMNXvmYIe
+
+        MOCK_ORG_VALIDATOR_KEY_CONTENT_FOR_TESTING_ONLY
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/lab-validator.pem
+      mode: '0600'
+  - name: Create mock Chef Automate status file
+    ansible.builtin.copy:
+      content: 'Service: automate-postgresql       Status: running
+
+        Service: automate-elasticsearch    Status: running
+
+        Service: automate-es-gateway       Status: running
+
+        Service: automate-ui               Status: running
+
+        Service: automate-load-balancer    Status: running
+
+        Service: automate-cs-nginx         Status: running
+
+        Service: automate-cs-bookshelf     Status: running
+
+        Service: automate-cs-oc-erchef     Status: running
+
+        '
+      dest: /tmp/molecule_test/var/log/chef-automate/status.log
+      mode: '0644'
+  - name: Create mock Chef Server status file
+    ansible.builtin.copy:
+      content: 'run: bookshelf: (pid 12345) 1234s; run: log: (pid 12346) 1234s
+
+        run: nginx: (pid 12347) 1234s; run: log: (pid 12348) 1234s
+
+        run: oc_bifrost: (pid 12349) 1234s; run: log: (pid 12350) 1234s
+
+        run: oc_id: (pid 12351) 1234s; run: log: (pid 12352) 1234s
+
+        run: opscode-erchef: (pid 12353) 1234s; run: log: (pid 12354) 1234s
+
+        run: postgresql: (pid 12355) 1234s; run: log: (pid 12356) 1234s
+
+        run: redis_lb: (pid 12357) 1234s; run: log: (pid 12358) 1234s
+
+        '
+      dest: /tmp/molecule_test/var/log/chef-server/status.log
+      mode: '0644'
+  - name: Create mock user list file
+    ansible.builtin.copy:
+      content: 'chefadmin
+
+        '
+      dest: /tmp/molecule_test/var/opt/chef-server/users.txt
+      mode: '0644'
+  - name: Create mock organization list file
+    ansible.builtin.copy:
+      content: 'lab
+
+        '
+      dest: /tmp/molecule_test/var/opt/chef-server/orgs.txt
+      mode: '0644'
+  - name: Create mock sysctl configuration
+    ansible.builtin.copy:
+      content: 'vm.max_map_count = 262144
+
+        vm.dirty_expire_centisecs = 20000
+
+        '
+      dest: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      mode: '0644'
+  - name: Create mock hostname file
+    ansible.builtin.copy:
+      content: automate.chef.lab
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
