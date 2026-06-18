@@ -1,0 +1,13 @@
+---
+- name: Include system configuration tasks
+  ansible.builtin.include_tasks:
+    file: system_config.yml
+- name: Set deployment type to server_only
+  ansible.builtin.set_fact:
+    chef_automate_deployment_type: server_only
+- name: Include Chef Automate CLI installation tasks
+  ansible.builtin.include_tasks:
+    file: install_automate.yml
+- name: Include user and organization setup tasks
+  ansible.builtin.include_tasks:
+    file: setup_users_orgs.yml

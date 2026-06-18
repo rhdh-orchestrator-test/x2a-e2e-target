@@ -1,0 +1,35 @@
+---
+- name: Ensure directory exists for Chef Automate CLI
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path | dirname }}"
+    state: directory
+    mode: "0755"
+  when: chef_automate_cli_path | dirname != '.'
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: "{{ chef_automate_cli_path }}.zip"
+    mode: "0644"
+- name: Extract Chef Automate CLI
+  ansible.builtin.unarchive:
+    src: "{{ chef_automate_cli_path }}.zip"
+    dest: "{{ chef_automate_cli_path | dirname }}"
+    remote_src: true
+    creates: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+  register: chef_automate_cli_extract
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+    state: file
+  when: chef_automate_cli_extract.changed
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy {% if chef_automate_deployment_type == 'full' %}--product automate --product infra-server{% else %}--product infra-server{%
+      endif %} --accept-terms-and-mlsa={{ chef_automate_accept_terms_and_mlsa | lower }} "
+  become: true
+  args:
+    creates: /etc/chef-server/chef-server.rb
+  register: chef_automate_deploy
+  changed_when: chef_automate_deploy.rc == 0
