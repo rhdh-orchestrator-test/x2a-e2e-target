@@ -1,0 +1,31 @@
+---
+- name: Check if chef-server-ctl is available
+  ansible.builtin.stat:
+    path: /usr/bin/chef-server-ctl
+  register: chef_server_ctl
+  become: true
+- name: Fail if chef-server-ctl is not available
+  ansible.builtin.fail:
+    msg: chef-server-ctl not found. Ensure Chef Infra Server is installed.
+  when: not chef_server_ctl.stat.exists
+- name: Ensure key directory exists
+  ansible.builtin.file:
+    path: "{{ chef_keys_dir }}"
+    state: directory
+    mode: "0755"
+  when: chef_keys_dir is defined
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ username }}  "{{ chef_user_long_name }}"  "{{ user_email }}"  "{{ user_password }}"  --filename {{ chef_user_key_path }}
+    creates: "{{ chef_user_key_path }}"
+  become: true
+  register: chef_user_create
+  changed_when: chef_user_create.rc == 0
+  no_log: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ organization_name }}  "{{ chef_org_long_name }}"  --association_user {{ username }}  --filename {{ chef_org_key_path }}
+    creates: "{{ chef_org_key_path }}"
+  become: true
+  register: chef_org_create
+  changed_when: chef_org_create.rc == 0
