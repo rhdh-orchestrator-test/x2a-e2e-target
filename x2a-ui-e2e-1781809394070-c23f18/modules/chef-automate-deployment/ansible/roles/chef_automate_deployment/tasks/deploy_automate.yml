@@ -1,0 +1,25 @@
+---
+- name: Ensure directory for Chef Automate CLI exists
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path | dirname }}"
+    state: directory
+    mode: "0755"
+  when: chef_automate_cli_path | dirname != '.'
+- name: Deploy Chef Automate with Infra Server
+  ansible.builtin.command:
+    cmd: "sudo {{ chef_automate_cli_path }} deploy  {% for product in chef_automate_products %} --product {{ product }}  {% endfor %} --accept-terms-and-mlsa={{ chef_automate_accept_terms
+      | lower }} "
+  args:
+    creates: /hab
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
+- name: Wait for Chef Automate services to be fully available
+  ansible.builtin.pause:
+    seconds: 30
+  when: deploy_result.changed
+- name: Check Chef Automate status
+  ansible.builtin.command:
+    cmd: sudo {{ chef_automate_cli_path }} status
+  register: automate_status
+  changed_when: false
+  failed_when: automate_status.rc != 0
