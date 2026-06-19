@@ -1,0 +1,13 @@
+---
+- name: Deploy Chef Automate and Infra Server
+  ansible.builtin.command:
+    cmd: "sudo ./chef-automate deploy {% for product in chef_automate_products %} --product {{ product }} {% endfor %} --accept-terms-and-mlsa={{ chef_automate_accept_terms
+      | lower }} "
+  args:
+    creates: /etc/chef-automate/config.toml
+  register: deploy_result
+  changed_when: deploy_result.rc is defined and deploy_result.rc == 0
+- name: Display Chef Automate deployment result
+  ansible.builtin.debug:
+    msg: "{{ deploy_result.stdout_lines }}"
+  when: deploy_result.changed
