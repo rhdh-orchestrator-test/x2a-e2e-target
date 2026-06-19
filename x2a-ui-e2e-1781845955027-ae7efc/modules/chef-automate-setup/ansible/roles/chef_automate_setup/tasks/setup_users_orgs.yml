@@ -1,0 +1,22 @@
+---
+- name: Ensure directory for PEM files exists
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}"
+    state: directory
+    mode: "0755"
+- name: Create Chef admin user
+  ansible.builtin.command:
+    cmd: 'sudo {{ chef_server_ctl }} user-create {{ username }} "{{ full_name }}" {{ email }} "{{ password }}" --filename {{ chef_user_key_path }}
+
+      '
+  args:
+    creates: "{{ chef_user_key_path }}"
+  become: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'sudo {{ chef_server_ctl }} org-create {{ chef_org_name }} "{{ chef_org_full_name }}" --association_user {{ username }} --filename {{ chef_org_key_path }}
+
+      '
+  args:
+    creates: "{{ chef_org_key_path }}"
+  become: true
