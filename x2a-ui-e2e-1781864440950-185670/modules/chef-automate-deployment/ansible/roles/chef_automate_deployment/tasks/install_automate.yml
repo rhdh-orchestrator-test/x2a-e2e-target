@@ -1,0 +1,28 @@
+---
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: "{{ ansible_env.HOME }}/chef-automate.zip"
+    mode: "0644"
+  register: download_result
+  changed_when: download_result.changed
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: "set -o pipefail\ngunzip < chef-automate.zip > chef-automate && chmod +x chef-automate\n"
+    executable: /bin/bash
+  args:
+    chdir: "{{ ansible_env.HOME }}"
+    creates: "{{ ansible_env.HOME }}/chef-automate"
+  register: extract_result
+  changed_when: extract_result.rc == 0
+- name: Deploy Chef Automate with selected products
+  ansible.builtin.command:
+    cmd: "./chef-automate deploy {% for product in chef_automate_products %} --product {{ product }} {% endfor %} --accept-terms-and-mlsa={{ chef_automate_accept_terms
+      | lower }}\n"
+  args:
+    chdir: "{{ ansible_env.HOME }}"
+    creates: /etc/chef-automate/config.toml
+  become: true
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
+  timeout: 3600
