@@ -1,0 +1,10 @@
+---
+- name: Restart Chef Automate
+  ansible.builtin.command:
+    cmd: sudo ./{{ chef_automate_cli_binary }} restart
+  args:
+    chdir: "{{ ansible_env.HOME }}"
+  register: restart_result
+  changed_when: restart_result.rc == 0
+  failed_when: restart_result.rc != 0
+  listen: restart chef automate
