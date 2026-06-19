@@ -1,0 +1,138 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    # Create directory structure for testing
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/chef-automate
+        - /tmp/molecule_test/usr/bin
+        - /tmp/molecule_test/etc/sysctl.d
+
+    # Simulate system configuration
+    - name: Create mock hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: "/tmp/molecule_test/etc/hostname"
+        mode: "0644"
+
+    # Simulate sysctl configuration
+    - name: Create mock sysctl configuration
+      ansible.builtin.copy:
+        content: |
+          vm.max_map_count = 262144
+          vm.dirty_expire_centisecs = 20000
+        dest: "/tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf"
+        mode: "0644"
+
+    # Simulate Chef Automate CLI installation
+    - name: Create mock Chef Automate CLI
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          echo "Chef Automate CLI mock"
+          echo "Version: 20230101"
+        dest: "/tmp/molecule_test/usr/bin/chef-automate"
+        mode: "0755"
+
+    # Simulate Chef Automate deployment
+    - name: Create mock Chef Automate config
+      ansible.builtin.copy:
+        content: |
+          # Chef Automate configuration
+          [global]
+            v1 = true
+          [deployment]
+            products = ["automate", "infra-server"]
+        dest: "/tmp/molecule_test/etc/chef-automate/config.toml"
+        mode: "0644"
+
+    # Simulate Chef Server CLI
+    - name: Create mock Chef Server CLI
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          echo "Chef Server CLI mock"
+        dest: "/tmp/molecule_test/usr/bin/chef-server-ctl"
+        mode: "0755"
+
+    # Simulate user and organization creation
+    - name: Create mock user PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAu7YvQeKSIhAVKfi3zKQJskAO2eV+dhjNVdsdGYZ6PmXKMAqO
+          [MOCK PEM CONTENT]
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/admin.pem"
+        mode: "0600"
+
+    - name: Create mock organization validator PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAu7YvQeKSIhAVKfi3zKQJskAO2eV+dhjNVdsdGYZ6PmXKMAqO
+          [MOCK VALIDATOR PEM CONTENT]
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/myorg-validator.pem"
+        mode: "0600"
+
+    # Simulate service status files
+    - name: Create mock Chef Automate service status
+      ansible.builtin.copy:
+        content: |
+          ● chef-automate.service - Chef Automate
+             Loaded: loaded (/etc/systemd/system/chef-automate.service; enabled; vendor preset: enabled)
+             Active: active (running) since Mon 2023-01-01 00:00:00 UTC; 1h ago
+        dest: "/tmp/molecule_test/chef-automate-status"
+        mode: "0644"
+
+    - name: Create mock Chef Server service status
+      ansible.builtin.copy:
+        content: |
+          ● chef-server.service - Chef Infra Server
+             Loaded: loaded (/etc/systemd/system/chef-server.service; enabled; vendor preset: enabled)
+             Active: active (running) since Mon 2023-01-01 00:00:00 UTC; 1h ago
+        dest: "/tmp/molecule_test/chef-server-status"
+        mode: "0644"
+
+    # Simulate user and org list outputs
+    - name: Create mock user list output
+      ansible.builtin.copy:
+        content: "admin\npivotal"
+        dest: "/tmp/molecule_test/user-list"
+        mode: "0644"
+
+    - name: Create mock org list output
+      ansible.builtin.copy:
+        content: "myorg"
+        dest: "/tmp/molecule_test/org-list"
+        mode: "0644"
+
+    # Simulate network status
+    - name: Create mock network status
+      ansible.builtin.copy:
+        content: |
+          tcp        0      0 0.0.0.0:443             0.0.0.0:*               LISTEN      1234/haproxy
+        dest: "/tmp/molecule_test/network-status"
+        mode: "0644"
+
+    # Simulate API responses
+    - name: Create mock Automate API response
+      ansible.builtin.copy:
+        content: |
+          {"status":"ok","service_status":[{"service":"automate","status":"running"}]}
+        dest: "/tmp/molecule_test/automate-api-response"
+        mode: "0644"
+
+    - name: Create mock Infra Server API response
+      ansible.builtin.copy:
+        content: |
+          {"status":"pong"}
+        dest: "/tmp/molecule_test/infra-api-response"
+        mode: "0644"
