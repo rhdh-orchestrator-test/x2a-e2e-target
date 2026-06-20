@@ -1,0 +1,19 @@
+---
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_hostname }}"
+  become: true
+- name: Set vm.max_map_count kernel parameter
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "{{ chef_vm_max_map_count }}"
+    state: present
+    reload: true
+  become: true
+- name: Set vm.dirty_expire_centisecs kernel parameter
+  ansible.posix.sysctl:
+    name: vm.dirty_expire_centisecs
+    value: "{{ chef_vm_dirty_expire_centisecs }}"
+    state: present
+    reload: true
+  become: true
