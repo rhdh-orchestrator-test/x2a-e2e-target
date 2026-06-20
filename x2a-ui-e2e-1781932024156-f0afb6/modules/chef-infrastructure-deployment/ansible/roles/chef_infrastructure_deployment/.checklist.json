@@ -1,0 +1,109 @@
+{
+  "module_name": "chef_infrastructure_deployment",
+  "items": [
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_infrastructure_deployment/aap-configuration/controller_credential_types.yml",
+      "status": "complete",
+      "description": "AAP credential types configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_infrastructure_deployment/aap-configuration/controller_credentials.yml",
+      "status": "complete",
+      "description": "AAP credentials configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_infrastructure_deployment/tasks/validate_credentials.yml",
+      "status": "complete",
+      "description": "Credential validation tasks",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_infrastructure_deployment/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_infrastructure_deployment/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables",
+      "notes": "Created defaults/main.yml with variables for hostname, user configuration, organization configuration, kernel parameters, and deployment options."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_infrastructure_deployment/tasks/main.yml",
+      "status": "complete",
+      "description": "Main task file",
+      "notes": "Created main.yml with tasks to validate credentials and conditionally include deploy_automate.yml or deploy_chef_server.yml based on variables."
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-automate.sh",
+      "target_path": "ansible/roles/chef_infrastructure_deployment/tasks/deploy_automate.yml",
+      "status": "complete",
+      "description": "Chef Automate with Chef Infra Server deployment tasks",
+      "notes": "Created deploy_automate.yml with tasks to set hostname, configure kernel parameters, download and deploy Chef Automate with Chef Infra Server, and create user and organization."
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-chef-server.sh",
+      "target_path": "ansible/roles/chef_infrastructure_deployment/tasks/deploy_chef_server.yml",
+      "status": "complete",
+      "description": "Chef Infra Server standalone deployment tasks",
+      "notes": "Created deploy_chef_server.yml with tasks to set hostname, configure kernel parameters, download and deploy Chef Infra Server (without Automate), and create user and organization."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_infrastructure_deployment/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule scenario configuration",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_infrastructure_deployment/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook",
+      "notes": "Created converge.yml that simulates the filesystem state under /tmp/molecule_test/ including hostname file, Chef Automate config, PEM files, deployment logs, and sysctl settings."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_infrastructure_deployment/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification tasks",
+      "notes": "Created verify.yml that checks for hostname configuration, sysctl settings, Chef Automate config, PEM files, and deployment logs. Added service checks with molecule-notest tags for container compatibility."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_infrastructure_deployment/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Molecule create playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_infrastructure_deployment/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Molecule destroy playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    }
+  ]
+}
