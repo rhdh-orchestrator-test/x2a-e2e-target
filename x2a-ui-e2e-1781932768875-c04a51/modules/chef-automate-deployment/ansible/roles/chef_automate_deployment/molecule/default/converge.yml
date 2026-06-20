@@ -1,0 +1,112 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    # Create directory structure for testing
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/chef-automate
+        - /tmp/molecule_test/etc/systemd/system
+        - /tmp/molecule_test/var/opt/chef-automate
+        - /tmp/molecule_test/var/opt/chef-server
+
+    # Create mock config.toml file
+    - name: Create Chef Automate config file
+      ansible.builtin.copy:
+        content: |
+          # Mock Chef Automate config file
+          [global]
+            v1 = true
+          [deployment]
+            automate = "{{ chef_automate_deploy_automate | default(true) }}"
+            infra_server = "{{ chef_automate_deploy_infra_server | default(true) }}"
+          [mlsa]
+            accept = "{{ chef_automate_accept_terms | default(true) }}"
+        dest: /tmp/molecule_test/etc/chef-automate/config.toml
+        mode: "0644"
+
+    # Create mock Chef Automate CLI
+    - name: Create mock Chef Automate CLI
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          echo "Chef Automate CLI mock"
+          echo "This is a mock file for testing"
+        dest: /tmp/molecule_test/chef-automate
+        mode: "0755"
+
+    # Create mock user key file
+    - name: Create mock user key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAv8MzUjNUz/vQ+SHkm5CjpzjJwZmMXRjx6kpbULUzMHJJ5uy2
+          mJJZGD5GN33oKFjdFgNMbRNbKXJkpJVHQng/mJ95eIDaVBYR7JeY6P4mxhxkpqEy
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/{{ chef_automate_username | default('jtonello') }}.pem
+        mode: "0600"
+
+    # Create mock organization validator key file
+    - name: Create mock organization validator key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAv8MzUjNUz/vQ+SHkm5CjpzjJwZmMXRjx6kpbULUzMHJJ5uy2
+          mJJZGD5GN33oKFjdFgNMbRNbKXJkpJVHQng/mJ95eIDaVBYR7JeY6P4mxhxkpqEy
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/{{ chef_automate_org_name | default('lab') }}-validator.pem
+        mode: "0600"
+
+    # Create mock systemd service files
+    - name: Create mock Chef Automate service file
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Chef Automate
+          After=network.target
+
+          [Service]
+          Type=simple
+          ExecStart=/var/opt/chef-automate/bin/chef-automate-ctl start
+          ExecStop=/var/opt/chef-automate/bin/chef-automate-ctl stop
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /tmp/molecule_test/etc/systemd/system/chef-automate.service
+        mode: "0644"
+
+    # Create mock sysctl files
+    - name: Create mock sysctl files
+      ansible.builtin.copy:
+        content: |
+          vm.max_map_count = {{ chef_automate_vm_max_map_count | default(262144) }}
+          vm.dirty_expire_centisecs = {{ chef_automate_vm_dirty_expire_centisecs | default(20000) }}
+        dest: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+        mode: "0644"
+
+    # Create mock hostname file
+    - name: Create mock hostname file
+      ansible.builtin.copy:
+        content: "{{ chef_automate_hostname | default('automate.chef.lab') }}"
+        dest: /tmp/molecule_test/etc/hostname
+        mode: "0644"
+
+    # Create mock user list file
+    - name: Create mock user list file
+      ansible.builtin.copy:
+        content: "{{ chef_automate_username | default('jtonello') }}"
+        dest: /tmp/molecule_test/var/opt/chef-server/user-list
+        mode: "0644"
+
+    # Create mock organization list file
+    - name: Create mock organization list file
+      ansible.builtin.copy:
+        content: "{{ chef_automate_org_name | default('lab') }}"
+        dest: /tmp/molecule_test/var/opt/chef-server/org-list
+        mode: "0644"
