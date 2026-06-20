@@ -1,0 +1,196 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Hostname configuration checks
+    - name: Check hostname file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/hostname
+      register: hostname_file
+
+    - name: Assert hostname file was created
+      ansible.builtin.assert:
+        that:
+          - hostname_file.stat.exists
+          - hostname_file.stat.size > 0
+        fail_msg: "Hostname file not found"
+        success_msg: "Hostname file exists"
+
+    - name: Get hostname content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/hostname
+      register: hostname_content
+      when: hostname_file.stat.exists
+
+    - name: Assert hostname is set correctly
+      ansible.builtin.assert:
+        that:
+          - (hostname_content.content | b64decode | trim) == "automate.chef.lab"
+        fail_msg: "Hostname not set correctly"
+        success_msg: "Hostname set correctly"
+      when: hostname_file.stat.exists
+
+    # Hosts file checks
+    - name: Check hosts file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/hosts
+      register: hosts_file
+
+    - name: Assert hosts file was created
+      ansible.builtin.assert:
+        that:
+          - hosts_file.stat.exists
+          - hosts_file.stat.size > 0
+        fail_msg: "Hosts file not found"
+        success_msg: "Hosts file exists"
+
+    - name: Get hosts file content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/hosts
+      register: hosts_content
+      when: hosts_file.stat.exists
+
+    - name: Assert hosts file contains hostname entry
+      ansible.builtin.assert:
+        that:
+          - (hosts_content.content | b64decode) is search("automate.chef.lab")
+        fail_msg: "Hosts file does not contain hostname entry"
+        success_msg: "Hosts file contains hostname entry"
+      when: hosts_file.stat.exists
+
+    # System parameters checks
+    - name: Check sysctl.conf file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/sysctl.conf
+      register: sysctl_file
+
+    - name: Assert sysctl.conf file was created
+      ansible.builtin.assert:
+        that:
+          - sysctl_file.stat.exists
+          - sysctl_file.stat.size > 0
+        fail_msg: "sysctl.conf file not found"
+        success_msg: "sysctl.conf file exists"
+
+    - name: Get sysctl.conf content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/sysctl.conf
+      register: sysctl_content
+      when: sysctl_file.stat.exists
+
+    - name: Assert sysctl parameters are set correctly
+      ansible.builtin.assert:
+        that:
+          - (sysctl_content.content | b64decode) is search("vm.max_map_count=262144")
+          - (sysctl_content.content | b64decode) is search("vm.dirty_expire_centisecs=20000")
+        fail_msg: "sysctl parameters not set correctly"
+        success_msg: "sysctl parameters set correctly"
+      when: sysctl_file.stat.exists
+
+    # Chef Automate CLI checks
+    - name: Check Chef Automate CLI exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/tmp/chef-automate
+      register: chef_automate_cli
+
+    - name: Assert Chef Automate CLI was downloaded
+      ansible.builtin.assert:
+        that:
+          - chef_automate_cli.stat.exists
+          - chef_automate_cli.stat.executable
+        fail_msg: "Chef Automate CLI not found or not executable"
+        success_msg: "Chef Automate CLI exists and is executable"
+
+    # PEM files checks
+    - name: Check user PEM file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/tmp/admin.pem
+      register: user_pem
+
+    - name: Assert user PEM file was created
+      ansible.builtin.assert:
+        that:
+          - user_pem.stat.exists
+          - user_pem.stat.size > 0
+        fail_msg: "User PEM file not found"
+        success_msg: "User PEM file exists"
+
+    - name: Check organization validator PEM file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/tmp/lab-validator.pem
+      register: org_validator_pem
+
+    - name: Assert organization validator PEM file was created
+      ansible.builtin.assert:
+        that:
+          - org_validator_pem.stat.exists
+          - org_validator_pem.stat.size > 0
+        fail_msg: "Organization validator PEM file not found"
+        success_msg: "Organization validator PEM file exists"
+
+    # Chef binaries checks
+    - name: Check chef-server-ctl binary exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/hab/bin/chef-server-ctl
+      register: chef_server_ctl
+
+    - name: Assert chef-server-ctl binary was created
+      ansible.builtin.assert:
+        that:
+          - chef_server_ctl.stat.exists
+          - chef_server_ctl.stat.executable
+        fail_msg: "chef-server-ctl binary not found or not executable"
+        success_msg: "chef-server-ctl binary exists and is executable"
+
+    - name: Check chef-automate binary exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/hab/bin/chef-automate
+      register: chef_automate_bin
+
+    - name: Assert chef-automate binary was created
+      ansible.builtin.assert:
+        that:
+          - chef_automate_bin.stat.exists
+          - chef_automate_bin.stat.executable
+        fail_msg: "chef-automate binary not found or not executable"
+        success_msg: "chef-automate binary exists and is executable"
+
+    # Service checks (tagged for skipping in container)
+    - name: Check Chef Automate service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Chef Automate service is running
+      ansible.builtin.assert:
+        that:
+          - "'chef-automate.service' in ansible_facts.services"
+          - "ansible_facts.services['chef-automate.service'].state == 'running'"
+        fail_msg: "Chef Automate service not running"
+        success_msg: "Chef Automate service is running"
+      tags: molecule-notest
+
+    - name: Assert Chef Server service is running
+      ansible.builtin.assert:
+        that:
+          - "'chef-server.service' in ansible_facts.services"
+          - "ansible_facts.services['chef-server.service'].state == 'running'"
+        fail_msg: "Chef Server service not running"
+        success_msg: "Chef Server service is running"
+      tags: molecule-notest
+
+    # Network checks (tagged for skipping in container)
+    - name: Check port 443 is listening
+      ansible.builtin.wait_for:
+        port: 443
+        state: started
+        timeout: 5
+      tags: molecule-notest
+
+    # API connectivity test (tagged for skipping in container)
+    - name: Test API connectivity
+      ansible.builtin.uri:
+        url: https://localhost/organizations
+        validate_certs: false
+        status_code: 200
+      tags: molecule-notest

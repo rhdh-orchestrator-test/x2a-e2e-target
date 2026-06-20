@@ -1,0 +1,32 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_hostname }}"
+  become: true
+- name: Update /etc/hosts with hostname
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: 127.0.0.1 {{ chef_hostname }}
+    regexp: ^127.0.0.1
+    state: present
+  become: true
+- name: Set system parameters for Chef
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop:
+    - name: vm.max_map_count
+      value: "{{ chef_vm_max_map_count }}"
+    - name: vm.dirty_expire_centisecs
+      value: "{{ chef_vm_dirty_expire_centisecs }}"
+  become: true
+- name: Deploy Chef Automate with Infra Server
+  ansible.builtin.include_tasks: deploy_automate.yml
+  when: deploy_automate | bool
+- name: Deploy Chef Infra Server only
+  ansible.builtin.include_tasks: deploy_chef_server.yml
+  when: not deploy_automate | bool and deploy_chef_server | bool
