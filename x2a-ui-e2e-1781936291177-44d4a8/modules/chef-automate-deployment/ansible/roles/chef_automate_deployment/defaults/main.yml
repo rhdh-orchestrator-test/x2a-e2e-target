@@ -1,0 +1,12 @@
+---
+chef_hostname: automate.chef.lab
+chef_username: "{{ username | default('admin') }}"
+chef_longusername: Chef Administrator
+chef_useremail: admin@example.com
+chef_orgname: "{{ organization_name | default('chef') }}"
+chef_longorgname: Chef Organization
+chef_userfilename: "{{ key_file_path | default(chef_username + '.pem') }}"
+chef_orgfilename: "{{ validator_key_path | default(chef_orgname + '-validator.pem') }}"
+chef_vm_max_map_count: 262144
+chef_vm_dirty_expire_centisecs: 20000
+chef_automate_cli_url: https://packages.chef.io/files/current/latest/chef-automate-cli/chef-automate_linux_amd64.zip
