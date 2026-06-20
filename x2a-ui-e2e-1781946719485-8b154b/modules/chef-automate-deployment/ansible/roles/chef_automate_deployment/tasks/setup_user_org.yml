@@ -1,0 +1,28 @@
+---
+- name: Ensure key directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0750"
+  loop:
+    - "{{ chef_user_key_path }}"
+    - "{{ chef_org_validator_key_path }}"
+  become: true
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create {{ username }} {{ full_name }} {{ email }} "{{ password }}" --filename {{ chef_user_key_path }}/{{ username }}.pem
+
+      '
+  args:
+    creates: "{{ chef_user_key_path }}/{{ username }}.pem"
+  become: true
+  no_log: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create {{ chef_org_name }} "{{ chef_org_full_name }}" --association_user {{ username }} --filename {{ chef_org_validator_key_path }}/{{
+      chef_org_name }}-validator.pem
+
+      '
+  args:
+    creates: "{{ chef_org_validator_key_path }}/{{ chef_org_name }}-validator.pem"
+  become: true
