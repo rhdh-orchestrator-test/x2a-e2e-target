@@ -1,0 +1,72 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create required directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/proc/sys/vm
+    - /tmp/molecule_test/tmp
+    - /tmp/molecule_test/hab
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: automate.chef.lab
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create kernel parameter files
+    ansible.builtin.copy:
+      content: '{{ item.value }}'
+      dest: /tmp/molecule_test/proc/sys/vm/{{ item.name }}
+      mode: '0644'
+    loop:
+    - name: max_map_count
+      value: '262144'
+    - name: dirty_expire_centisecs
+      value: '20000'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/bash echo ''Chef Automate CLI mock'' '
+      dest: /tmp/molecule_test/tmp/chef-automate
+      mode: '0755'
+  - name: Create Chef Automate deployment marker
+    ansible.builtin.file:
+      path: /tmp/molecule_test/hab
+      state: directory
+      mode: '0755'
+  - name: Create user key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- MOCK USER KEY -----END RSA PRIVATE KEY----- '
+      dest: /tmp/molecule_test/tmp/jtonello.pem
+      mode: '0600'
+  - name: Create organization validator key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- MOCK ORG VALIDATOR KEY -----END RSA PRIVATE KEY----- '
+      dest: /tmp/molecule_test/tmp/lab-validator.pem
+      mode: '0600'
+  - name: Create chef-server-ctl mock
+    ansible.builtin.copy:
+      content: "#!/bin/bash\nif [ \"$1\" == \"user-list\" ]; then\n  echo \"jtonello\"\nelif [ \"$1\" == \"org-list\" ]; then\n  echo \"lab\"\nelse\n  echo \"Mock
+        chef-server-ctl command\"\nfi\n"
+      dest: /tmp/molecule_test/tmp/chef-server-ctl
+      mode: '0755'
+  - name: Create chef-automate mock
+    ansible.builtin.copy:
+      content: "#!/bin/bash\nif [ \"$1\" == \"status\" ]; then\n  echo \"Chef Automate services: running\"\nelif [ \"$1\" == \"version\" ]; then\n  echo \"chef-automate
+        version 1.0.0\"\nelif [ \"$1\" == \"logs\" ]; then\n  echo \"No errors in logs\"\nelse\n  echo \"Mock chef-automate command\"\nfi\n"
+      dest: /tmp/molecule_test/tmp/chef-automate-cli
+      mode: '0755'
+  - name: Create mock network service file
+    ansible.builtin.copy:
+      content: tcp        0      0 0.0.0.0:443             0.0.0.0:*               LISTEN      -
+      dest: /tmp/molecule_test/tmp/netstat-output
+      mode: '0644'
+  - name: Set test variables
+    ansible.builtin.set_fact:
+      username: jtonello
+      password: testpassword
+      full_name: John Tonello
+      email: jtonello@chef.lab
