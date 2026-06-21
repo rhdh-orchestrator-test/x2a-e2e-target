@@ -1,0 +1,91 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: chef-admin
+    password: password
+    email: admin@example.com
+    full_name: Chef Admin
+    certificate: "fake-certificate"
+    private_key: "fake-private-key"
+    organization_name: chef-org
+    organization_full_name: "Chef Organization"
+    validator_key: "fake-validator-key"
+    chef_hostname: automate.chef.lab
+    chef_deploy_automate: true
+    chef_automate_cli_path: /tmp/molecule_test/chef-automate
+    chef_user_key_file: /tmp/molecule_test/chef-admin.pem
+    chef_org_validator_file: /tmp/molecule_test/chef-org-validator.pem
+  tasks:
+    # Create directory structure
+    - name: Create required directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/etc/chef-server
+        - /tmp/molecule_test/etc/systemd/system
+
+    # Simulate hostname file
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "{{ chef_hostname }}"
+        dest: /tmp/molecule_test/etc/hostname
+        mode: "0644"
+
+    # Simulate Chef Automate CLI
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: "#!/bin/bash\necho 'Chef Automate CLI mock'"
+        dest: "{{ chef_automate_cli_path }}"
+        mode: "0755"
+
+    # Simulate Chef user key file
+    - name: Create Chef user key file
+      ansible.builtin.copy:
+        content: "-----BEGIN RSA PRIVATE KEY-----\nMock Chef user key\n-----END RSA PRIVATE KEY-----"
+        dest: "{{ chef_user_key_file }}"
+        mode: "0600"
+
+    # Simulate Chef organization validator key file
+    - name: Create Chef organization validator key file
+      ansible.builtin.copy:
+        content: "-----BEGIN RSA PRIVATE KEY-----\nMock Chef organization validator key\n-----END RSA PRIVATE KEY-----"
+        dest: "{{ chef_org_validator_file }}"
+        mode: "0600"
+
+    # Simulate Chef Automate service file
+    - name: Create Chef Automate service file
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Chef Automate
+          After=network.target
+
+          [Service]
+          Type=simple
+          ExecStart=/usr/bin/chef-automate
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /tmp/molecule_test/etc/systemd/system/chef-automate.service
+        mode: "0644"
+
+    # Simulate Chef Server status output files
+    - name: Create Chef Server status files
+      ansible.builtin.copy:
+        content: "running"
+        dest: "/tmp/molecule_test/etc/chef-server/{{ item }}_status"
+        mode: "0644"
+      loop:
+        - nginx
+        - postgresql
+        - bookshelf
+        - oc_bifrost
+        - oc_id
+        - opscode-erchef
+        - opscode-solr4

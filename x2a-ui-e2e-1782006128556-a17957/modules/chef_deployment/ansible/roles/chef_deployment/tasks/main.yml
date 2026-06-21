@@ -1,0 +1,12 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks:
+    file: validate_credentials.yml
+- name: Deploy Chef Automate with Infra Server
+  ansible.builtin.include_tasks:
+    file: deploy_automate.yml
+  when: chef_deploy_automate | default(true) | bool
+- name: Deploy Chef Infra Server only
+  ansible.builtin.include_tasks:
+    file: deploy_chef_server.yml
+  when: not chef_deploy_automate | default(true) | bool
