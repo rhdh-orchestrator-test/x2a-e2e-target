@@ -1,0 +1,128 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/hab
+    - /tmp/molecule_test/tmp
+    - /tmp/molecule_test/usr/bin
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: '{{ chef_automate_hostname }}'
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create sysctl configuration files
+    ansible.builtin.copy:
+      content: '# Simulated sysctl configuration for Chef Automate
+
+        vm.max_map_count = {{ chef_automate_vm_max_map_count }}
+
+        vm.dirty_expire_centisecs = {{ chef_automate_vm_dirty_expire_centisecs }}
+
+        '
+      dest: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      mode: '0644'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/bash
+
+        # Simulated Chef Automate CLI
+
+        echo "Chef Automate CLI"
+
+        '
+      dest: /tmp/molecule_test/tmp/chef-automate
+      mode: '0755'
+  - name: Create Chef Server control binary
+    ansible.builtin.copy:
+      content: '#!/bin/bash
+
+        # Simulated Chef Server control binary
+
+        echo "Chef Server Control"
+
+        '
+      dest: /tmp/molecule_test/usr/bin/chef-server-ctl
+      mode: '0755'
+  - name: Create Chef Automate deployment files
+    ansible.builtin.copy:
+      content: '# Simulated Chef Automate deployment
+
+        # This would be created by the chef-automate deploy command
+
+        '
+      dest: /tmp/molecule_test/hab/sup/default/data/chef-automate-deployed
+      mode: '0644'
+  - name: Create user key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEowIBAAKCAQEAvPbwWUJiQsUJPLyMbq9pJKHovSmpZkU/WXLGVdGJDIqq1Vix
+
+        LJSIuSTfGTAMFHx5kRGaBBIJRm3BYwku3VxEjzI8WKXJdIHmK9pOOPEQkEQIYUVj
+
+        SIMULATED_KEY_CONTENT_FOR_USER
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/{{ chef_automate_username }}.pem
+      mode: '0600'
+  - name: Create organization validator key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEowIBAAKCAQEAvPbwWUJiQsUJPLyMbq9pJKHovSmpZkU/WXLGVdGJDIqq1Vix
+
+        LJSIuSTfGTAMFHx5kRGaBBIJRm3BYwku3VxEjzI8WKXJdIHmK9pOOPEQkEQIYUVj
+
+        SIMULATED_KEY_CONTENT_FOR_ORG_VALIDATOR
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/{{ chef_automate_org_name }}-validator.pem
+      mode: '0600'
+  - name: Create Chef Server user list file
+    ansible.builtin.copy:
+      content: '# Simulated output of chef-server-ctl user-list
+
+        {{ chef_automate_username }}
+
+        admin
+
+        '
+      dest: /tmp/molecule_test/chef-server-users
+      mode: '0644'
+  - name: Create Chef Server org list file
+    ansible.builtin.copy:
+      content: '# Simulated output of chef-server-ctl org-list
+
+        {{ chef_automate_org_name }}
+
+        '
+      dest: /tmp/molecule_test/chef-server-orgs
+      mode: '0644'
+  vars:
+    chef_automate_hostname: automate.chef.lab
+    chef_automate_username: jtonello
+    chef_automate_full_name: John Tonello
+    chef_automate_email: jtonello@chef.lab
+    chef_automate_org_name: lab
+    chef_automate_org_full_name: Chef Lab
+    chef_automate_vm_max_map_count: 262144
+    chef_automate_vm_dirty_expire_centisecs: 20000
+    chef_automate_cli_url: https://packages.chef.io/files/current/latest/chef-automate-cli/chef-automate_linux_amd64.zip
+    chef_automate_cli_path: /tmp/chef-automate
+    chef_automate_user_key_path: '{{ chef_automate_username }}.pem'
+    chef_automate_org_key_path: '{{ chef_automate_org_name }}-validator.pem'
+    username: jtonello
+    password: password
+    full_name: John Tonello
+    email: jtonello@chef.lab
