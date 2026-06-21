@@ -1,0 +1,14 @@
+---
+- name: Check current SSL protocol setting
+  ansible.builtin.command: grep -E "^SSLProtocol" /etc/apache2/mods-available/ssl.conf
+  register: ssl_protocol_check
+  changed_when: false
+  failed_when: false
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    dest: /etc/apache2/mods-available/ssl.conf
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol -all +TLSv1.2
+  notify:
+    - Restart apache
+  when: ssl_protocol_check.rc == 0 and "SSLProtocol -all +TLSv1.2" not in ssl_protocol_check.stdout
