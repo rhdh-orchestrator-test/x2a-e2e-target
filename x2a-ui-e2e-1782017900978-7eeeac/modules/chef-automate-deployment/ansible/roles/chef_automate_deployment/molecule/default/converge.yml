@@ -1,0 +1,89 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create base directories for Chef Automate and Chef Infra Server
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/chef-automate
+        - /tmp/molecule_test/etc/chef-server
+        - /tmp/molecule_test/var/opt/chef-automate
+        - /tmp/molecule_test/var/opt/opscode
+
+    # Simulate Chef Automate config file
+    - name: Create Chef Automate config file
+      ansible.builtin.copy:
+        content: |
+          [global]
+            v1 = true
+          [deployment]
+            hostname = "automate.chef.lab"
+          [products]
+            automate = true
+            infra-server = true
+        dest: /tmp/molecule_test/etc/chef-automate/config.toml
+        mode: "0644"
+
+    # Simulate Chef Server config file
+    - name: Create Chef Server config file
+      ansible.builtin.copy:
+        content: |
+          topology "standalone"
+          api_fqdn "automate.chef.lab"
+          server "automate.chef.lab",
+            :ipaddress => "127.0.0.1",
+            :bootstrap => true,
+            :role => "standalone"
+        dest: /tmp/molecule_test/etc/chef-server/chef-server.rb
+        mode: "0644"
+
+    # Simulate user and organization PEM files
+    - name: Create user PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
+          (simulated PEM content)
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/jtonello.pem
+        mode: "0600"
+
+    - name: Create organization validator PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA0987654321zyxwvutsrqponmlkjihgfedcba
+          (simulated PEM content)
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/lab-validator.pem
+        mode: "0600"
+
+    # Simulate Chef Automate CLI binary
+    - name: Create Chef Automate CLI binary
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          echo "Chef Automate CLI mock"
+          exit 0
+        dest: /tmp/molecule_test/chef-automate
+        mode: "0755"
+
+    # Simulate system configuration files
+    - name: Create sysctl configuration files
+      ansible.builtin.copy:
+        content: |
+          vm.max_map_count = 262144
+          vm.dirty_expire_centisecs = 20000
+        dest: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+        mode: "0644"
+
+    # Simulate hostname file
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: /tmp/molecule_test/etc/hostname
+        mode: "0644"
