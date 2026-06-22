@@ -1,0 +1,63 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/proc/sys/vm
+    - /tmp/molecule_test/hab
+    - /tmp/molecule_test/tmp
+    - /tmp/molecule_test/usr/bin
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: '{{ chef_automate_hostname | default(''automate.chef.lab'') }}'
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create max_map_count file
+    ansible.builtin.copy:
+      content: '{{ chef_automate_vm_max_map_count | default(''262144'') }}'
+      dest: /tmp/molecule_test/proc/sys/vm/max_map_count
+      mode: '0644'
+  - name: Create dirty_expire_centisecs file
+    ansible.builtin.copy:
+      content: '{{ chef_automate_vm_dirty_expire_centisecs | default(''20000'') }}'
+      dest: /tmp/molecule_test/proc/sys/vm/dirty_expire_centisecs
+      mode: '0644'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/sh echo ''Chef Automate CLI mock'' '
+      dest: /tmp/molecule_test/tmp/chef-automate
+      mode: '0755'
+  - name: Create Chef Automate deployment marker
+    ansible.builtin.file:
+      path: /tmp/molecule_test/hab
+      state: directory
+      mode: '0755'
+  - name: Create user key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- Mock Chef user key -----END RSA PRIVATE KEY----- '
+      dest: /tmp/molecule_test/{{ chef_user_key_file | default('jtonello.pem') }}
+      mode: '0600'
+  - name: Create organization key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- Mock Chef organization validator key -----END RSA PRIVATE KEY----- '
+      dest: /tmp/molecule_test/{{ chef_org_key_file | default('lab-validator.pem') }}
+      mode: '0600'
+  - name: Create chef-server-ctl mock
+    ansible.builtin.copy:
+      content: '#!/bin/sh
+
+        echo "Chef Server Control mock"
+
+        echo "Command executed: $@"
+
+        exit 0
+
+        '
+      dest: /tmp/molecule_test/usr/bin/chef-server-ctl
+      mode: '0755'
