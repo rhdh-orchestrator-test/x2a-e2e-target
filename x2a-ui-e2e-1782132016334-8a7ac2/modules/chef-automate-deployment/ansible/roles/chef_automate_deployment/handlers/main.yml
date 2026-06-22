@@ -1,0 +1,7 @@
+---
+- name: Reload sysctl
+  ansible.builtin.command:
+    cmd: sysctl -p
+  changed_when: true
+  args:
+    removes: /tmp/sysctl_reload_required

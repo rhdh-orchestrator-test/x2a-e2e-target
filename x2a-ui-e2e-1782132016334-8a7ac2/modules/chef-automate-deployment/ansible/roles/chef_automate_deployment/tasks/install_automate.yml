@@ -1,0 +1,43 @@
+---
+- name: Ensure required packages are installed
+  ansible.builtin.package:
+    name:
+      - curl
+      - gzip
+    state: present
+- name: Create temporary directory for Chef Automate CLI
+  ansible.builtin.tempfile:
+    state: directory
+    suffix: chef-automate
+  register: chef_automate_temp_dir
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: "{{ chef_automate_temp_dir.path }}/chef-automate.zip"
+    mode: "0644"
+- name: Check if Chef Automate CLI already exists
+  ansible.builtin.stat:
+    path: "{{ chef_automate_temp_dir.path }}/chef-automate"
+  register: chef_automate_cli_stat
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip -c {{ chef_automate_temp_dir.path }}/chef-automate.zip > {{ chef_automate_temp_dir.path }}/chef-automate
+  args:
+    creates: "{{ chef_automate_temp_dir.path }}/chef-automate"
+  changed_when: not chef_automate_cli_stat.stat.exists
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_temp_dir.path }}/chef-automate"
+    mode: "0755"
+- name: Deploy Chef Automate with Infra Server
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_temp_dir.path }}/chef-automate deploy {% for product in chef_automate_products %} --product {{ product }} {% endfor %} --accept-terms-and-mlsa={{
+      chef_automate_accept_terms | lower }}"
+  args:
+    creates: /hab
+  register: chef_automate_deploy
+  changed_when: chef_automate_deploy.rc == 0
+- name: Display Chef Automate deployment output
+  ansible.builtin.debug:
+    var: chef_automate_deploy.stdout_lines
+  when: chef_automate_deploy.stdout_lines is defined
