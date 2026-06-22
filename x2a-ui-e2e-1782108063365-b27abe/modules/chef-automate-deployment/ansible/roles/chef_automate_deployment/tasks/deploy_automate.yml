@@ -1,0 +1,29 @@
+---
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: "./chef-automate deploy --product automate --product infra-server --accept-terms-and-mlsa=true "
+    creates: /etc/chef-automate/config.toml
+  become: true
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
+  tags: molecule-notest
+- name: Wait for Chef Automate services to be ready
+  ansible.builtin.command:
+    cmd: ./chef-automate status
+  register: status_result
+  until: status_result.rc == 0
+  retries: 30
+  delay: 10
+  become: true
+  changed_when: false
+  tags: molecule-notest
+- name: Wait for Chef Infra Server services to be ready
+  ansible.builtin.command:
+    cmd: chef-server-ctl status
+  register: chef_server_status
+  until: chef_server_status.rc == 0
+  retries: 30
+  delay: 10
+  become: true
+  changed_when: false
+  tags: molecule-notest

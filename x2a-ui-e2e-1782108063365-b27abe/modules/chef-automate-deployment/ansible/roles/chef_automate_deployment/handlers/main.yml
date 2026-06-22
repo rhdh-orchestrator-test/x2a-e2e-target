@@ -1,0 +1,13 @@
+---
+- name: Restart Chef Automate services
+  ansible.builtin.command:
+    cmd: ./chef-automate restart-services
+  become: true
+  changed_when: true
+  tags: molecule-notest
+- name: Restart Chef Infra Server
+  ansible.builtin.command:
+    cmd: chef-server-ctl restart
+  become: true
+  changed_when: true
+  tags: molecule-notest
