@@ -1,0 +1,13 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Configure system parameters
+  ansible.builtin.include_tasks: system_configuration.yml
+- name: Install Chef Automate with Infra Server
+  ansible.builtin.include_tasks: install_automate.yml
+  when: chef_deploy_automate and chef_deploy_infra_server
+- name: Install Chef Infra Server only
+  ansible.builtin.include_tasks: install_chef_server.yml
+  when: chef_deploy_infra_server and not chef_deploy_automate
+- name: Create Chef user and organization
+  ansible.builtin.include_tasks: create_user_org.yml

@@ -1,0 +1,94 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: molecule_test_user
+    password: molecule_test_password
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/hab
+    - /tmp/molecule_test/tmp
+    - /tmp/molecule_test/home/jtonello
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: automate.chef.lab
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create sysctl settings file
+    ansible.builtin.copy:
+      content: 'vm.max_map_count = 262144
+
+        vm.dirty_expire_centisecs = 20000
+
+        '
+      dest: /tmp/molecule_test/etc/sysctl.d/99-chef-deployment.conf
+      mode: '0644'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/bash echo ''Chef Automate CLI mock'''
+      dest: /tmp/molecule_test/tmp/chef-automate
+      mode: '0755'
+  - name: Create user PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
+
+        EXAMPLE_PEM_CONTENT_FOR_USER
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/home/jtonello/jtonello.pem
+      mode: '0600'
+  - name: Create organization validator PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA0987654321zyxwvutsrqponmlkjihgfedcba
+
+        EXAMPLE_PEM_CONTENT_FOR_ORG_VALIDATOR
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/home/jtonello/lab-validator.pem
+      mode: '0600'
+  - name: Create Chef server status output file
+    ansible.builtin.copy:
+      content: 'run: service_name: "chef-server"
+
+        status: "running"
+
+        '
+      dest: /tmp/molecule_test/tmp/chef-server-status.txt
+      mode: '0644'
+  - name: Create Chef Automate status output file
+    ansible.builtin.copy:
+      content: 'run: service_name: "chef-automate"
+
+        status: "running"
+
+        '
+      dest: /tmp/molecule_test/tmp/chef-automate-status.txt
+      mode: '0644'
+  - name: Create Chef user list output file
+    ansible.builtin.copy:
+      content: 'jtonello
+
+        '
+      dest: /tmp/molecule_test/tmp/chef-user-list.txt
+      mode: '0644'
+  - name: Create Chef organization list output file
+    ansible.builtin.copy:
+      content: 'lab
+
+        '
+      dest: /tmp/molecule_test/tmp/chef-org-list.txt
+      mode: '0644'
