@@ -1,0 +1,133 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: jtonello
+    password: molecule_test_password
+  tasks:
+    # Create directory structure that would be created by the role
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/chef-automate
+        - /tmp/molecule_test/etc/chef-server
+        - /tmp/molecule_test/var/opt/chef-server
+        - /tmp/molecule_test/var/log/chef-server/nginx
+        - /tmp/molecule_test/tmp
+
+    # Create mock config files
+    - name: Create mock Chef Automate config file
+      ansible.builtin.copy:
+        content: |
+          # Mock Chef Automate config.toml
+          [global]
+            fqdn = "automate.chef.lab"
+          [deployment]
+            products = ["automate", "infra-server"]
+        dest: /tmp/molecule_test/etc/chef-automate/config.toml
+        mode: "0644"
+
+    # Create mock hostname files
+    - name: Create mock hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: /tmp/molecule_test/etc/hostname
+        mode: "0644"
+
+    - name: Create mock hosts file
+      ansible.builtin.copy:
+        content: |
+          127.0.0.1 localhost
+          127.0.1.1 automate.chef.lab
+        dest: /tmp/molecule_test/etc/hosts
+        mode: "0644"
+
+    # Create mock sysctl files
+    - name: Create mock sysctl files
+      ansible.builtin.copy:
+        content: |
+          vm.max_map_count = 262144
+          vm.dirty_expire_centisecs = 20000
+        dest: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+        mode: "0644"
+
+    # Create mock PEM files
+    - name: Create mock user PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAx4UbaPvY3zGYJN1w8gL5n3ZBN3JTmMmZ6J3SzxhKmdx9uYN4
+          VksVPQQy9nYXbDGrBLwO7aQm8oYhyLPQQUMnTKRZkGnPZZGWU0MnfXHxJP1V0m2n
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/jtonello.pem
+        mode: "0600"
+
+    - name: Create mock organization validator PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAx4UbaPvY3zGYJN1w8gL5n3ZBN3JTmMmZ6J3SzxhKmdx9uYN4
+          VksVPQQy9nYXbDGrBLwO7aQm8oYhyLPQQUMnTKRZkGnPZZGWU0MnfXHxJP1V0m2n
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/lab-validator.pem
+        mode: "0600"
+
+    # Create mock Chef Automate CLI
+    - name: Create mock Chef Automate CLI
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          echo "Chef Automate CLI mock"
+          exit 0
+        dest: /tmp/molecule_test/tmp/chef-automate
+        mode: "0755"
+
+    # Create mock service status files
+    - name: Create mock Chef Automate status file
+      ansible.builtin.copy:
+        content: |
+          Service: chef-automate-postgresql.service - active
+          Service: chef-automate-elasticsearch.service - active
+          Service: chef-automate-nginx.service - active
+        dest: /tmp/molecule_test/var/log/chef-automate-status.log
+        mode: "0644"
+
+    - name: Create mock Chef Server status file
+      ansible.builtin.copy:
+        content: |
+          run: postgresql: (pid 12345) 300s; run: log: (pid 12346) 300s
+          run: nginx: (pid 12347) 300s; run: log: (pid 12348) 300s
+          run: bookshelf: (pid 12349) 300s; run: log: (pid 12350) 300s
+        dest: /tmp/molecule_test/var/log/chef-server-status.log
+        mode: "0644"
+
+    # Create mock user and org list files
+    - name: Create mock user list file
+      ansible.builtin.copy:
+        content: "jtonello"
+        dest: /tmp/molecule_test/var/opt/chef-server/user-list.txt
+        mode: "0644"
+
+    - name: Create mock org list file
+      ansible.builtin.copy:
+        content: "lab"
+        dest: /tmp/molecule_test/var/opt/chef-server/org-list.txt
+        mode: "0644"
+
+    # Create mock log files
+    - name: Create mock nginx access log
+      ansible.builtin.copy:
+        content: |
+          192.168.1.1 - - [01/Jan/2023:12:00:00 +0000] "GET /api/v0/health HTTP/1.1" 200 123 "-" "curl/7.68.0"
+        dest: /tmp/molecule_test/var/log/chef-server/nginx/access.log
+        mode: "0644"
+
+    - name: Create mock nginx error log
+      ansible.builtin.copy:
+        content: ""
+        dest: /tmp/molecule_test/var/log/chef-server/nginx/error.log
+        mode: "0644"
