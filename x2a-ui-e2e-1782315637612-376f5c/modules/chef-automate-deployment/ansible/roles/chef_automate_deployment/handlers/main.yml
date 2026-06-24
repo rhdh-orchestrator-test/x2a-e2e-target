@@ -1,0 +1,15 @@
+---
+- name: Restart Chef Automate
+  ansible.builtin.shell:
+    cmd: sudo chef-automate status && sudo chef-automate restart
+  listen: restart chef-automate
+  register: restart_automate_result
+  changed_when: restart_automate_result.rc == 0
+  failed_when: restart_automate_result.rc != 0
+- name: Restart Chef Server
+  ansible.builtin.shell:
+    cmd: sudo chef-server-ctl status && sudo chef-server-ctl restart
+  listen: restart chef-server
+  register: restart_server_result
+  changed_when: restart_server_result.rc == 0
+  failed_when: restart_server_result.rc != 0

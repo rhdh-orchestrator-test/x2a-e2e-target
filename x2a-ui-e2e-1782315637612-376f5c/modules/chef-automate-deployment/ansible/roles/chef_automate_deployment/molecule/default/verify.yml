@@ -1,0 +1,283 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Hostname verification
+    - name: Check hostname file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/hostname
+      register: hostname_file
+
+    - name: Assert hostname file was created
+      ansible.builtin.assert:
+        that:
+          - hostname_file.stat.exists
+          - hostname_file.stat.isreg
+        fail_msg: "Hostname file not found"
+        success_msg: "Hostname file exists"
+
+    - name: Get hostname content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/hostname
+      register: hostname_content
+      when: hostname_file.stat.exists
+
+    - name: Verify hostname content
+      ansible.builtin.assert:
+        that:
+          - (hostname_content.content | b64decode | trim) == "automate.chef.lab"
+        fail_msg: "Hostname is not set correctly"
+        success_msg: "Hostname is set correctly"
+      when: hostname_file.stat.exists
+
+    # System parameters verification
+    - name: Check sysctl vm.max_map_count file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/sysctl_vm_max_map_count
+      register: max_map_count_file
+
+    - name: Assert vm.max_map_count file was created
+      ansible.builtin.assert:
+        that:
+          - max_map_count_file.stat.exists
+          - max_map_count_file.stat.isreg
+        fail_msg: "vm.max_map_count file not found"
+        success_msg: "vm.max_map_count file exists"
+
+    - name: Get vm.max_map_count content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/sysctl_vm_max_map_count
+      register: max_map_count_content
+      when: max_map_count_file.stat.exists
+
+    - name: Verify vm.max_map_count content
+      ansible.builtin.assert:
+        that:
+          - (max_map_count_content.content | b64decode | trim) == "vm.max_map_count = 262144"
+        fail_msg: "vm.max_map_count is not set correctly"
+        success_msg: "vm.max_map_count is set correctly"
+      when: max_map_count_file.stat.exists
+
+    - name: Check sysctl vm.dirty_expire_centisecs file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/sysctl_vm_dirty_expire_centisecs
+      register: dirty_expire_file
+
+    - name: Assert vm.dirty_expire_centisecs file was created
+      ansible.builtin.assert:
+        that:
+          - dirty_expire_file.stat.exists
+          - dirty_expire_file.stat.isreg
+        fail_msg: "vm.dirty_expire_centisecs file not found"
+        success_msg: "vm.dirty_expire_centisecs file exists"
+
+    - name: Get vm.dirty_expire_centisecs content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/sysctl_vm_dirty_expire_centisecs
+      register: dirty_expire_content
+      when: dirty_expire_file.stat.exists
+
+    - name: Verify vm.dirty_expire_centisecs content
+      ansible.builtin.assert:
+        that:
+          - (dirty_expire_content.content | b64decode | trim) == "vm.dirty_expire_centisecs = 20000"
+        fail_msg: "vm.dirty_expire_centisecs is not set correctly"
+        success_msg: "vm.dirty_expire_centisecs is set correctly"
+      when: dirty_expire_file.stat.exists
+
+    # Chef Automate CLI verification
+    - name: Check Chef Automate CLI file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/chef-automate
+      register: chef_automate_cli
+
+    - name: Assert Chef Automate CLI file was created
+      ansible.builtin.assert:
+        that:
+          - chef_automate_cli.stat.exists
+          - chef_automate_cli.stat.isreg
+          - chef_automate_cli.stat.executable
+        fail_msg: "Chef Automate CLI file not found or not executable"
+        success_msg: "Chef Automate CLI file exists and is executable"
+
+    # Chef Automate deployment verification
+    - name: Check Chef Automate deployment status file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/hab/automate_deployment_status
+      register: automate_status_file
+
+    - name: Assert Chef Automate deployment status file was created
+      ansible.builtin.assert:
+        that:
+          - automate_status_file.stat.exists
+          - automate_status_file.stat.isreg
+        fail_msg: "Chef Automate deployment status file not found"
+        success_msg: "Chef Automate deployment status file exists"
+
+    # User verification
+    - name: Check user PEM file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/jtonello.pem
+      register: user_pem_file
+
+    - name: Assert user PEM file was created
+      ansible.builtin.assert:
+        that:
+          - user_pem_file.stat.exists
+          - user_pem_file.stat.isreg
+        fail_msg: "User PEM file not found"
+        success_msg: "User PEM file exists"
+
+    - name: Check Chef server user list file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/chef_server_user_list
+      register: user_list_file
+
+    - name: Assert Chef server user list file was created
+      ansible.builtin.assert:
+        that:
+          - user_list_file.stat.exists
+          - user_list_file.stat.isreg
+        fail_msg: "Chef server user list file not found"
+        success_msg: "Chef server user list file exists"
+
+    - name: Get Chef server user list content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/chef_server_user_list
+      register: user_list_content
+      when: user_list_file.stat.exists
+
+    - name: Verify Chef server user list content
+      ansible.builtin.assert:
+        that:
+          - "'jtonello' in (user_list_content.content | b64decode)"
+        fail_msg: "User jtonello not found in Chef server user list"
+        success_msg: "User jtonello found in Chef server user list"
+      when: user_list_file.stat.exists
+
+    # Organization verification
+    - name: Check organization validator PEM file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/lab-validator.pem
+      register: org_pem_file
+
+    - name: Assert organization validator PEM file was created
+      ansible.builtin.assert:
+        that:
+          - org_pem_file.stat.exists
+          - org_pem_file.stat.isreg
+        fail_msg: "Organization validator PEM file not found"
+        success_msg: "Organization validator PEM file exists"
+
+    - name: Check Chef server organization list file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/chef_server_org_list
+      register: org_list_file
+
+    - name: Assert Chef server organization list file was created
+      ansible.builtin.assert:
+        that:
+          - org_list_file.stat.exists
+          - org_list_file.stat.isreg
+        fail_msg: "Chef server organization list file not found"
+        success_msg: "Chef server organization list file exists"
+
+    - name: Get Chef server organization list content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/chef_server_org_list
+      register: org_list_content
+      when: org_list_file.stat.exists
+
+    - name: Verify Chef server organization list content
+      ansible.builtin.assert:
+        that:
+          - "'lab' in (org_list_content.content | b64decode)"
+        fail_msg: "Organization lab not found in Chef server organization list"
+        success_msg: "Organization lab found in Chef server organization list"
+      when: org_list_file.stat.exists
+
+    # Health API verification - would be done with URI module in real environment
+    - name: Check health API response file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/health_api_response
+      register: health_api_file
+
+    - name: Assert health API response file was created
+      ansible.builtin.assert:
+        that:
+          - health_api_file.stat.exists
+          - health_api_file.stat.isreg
+        fail_msg: "Health API response file not found"
+        success_msg: "Health API response file exists"
+
+    - name: Get health API response content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/health_api_response
+      register: health_api_content
+      when: health_api_file.stat.exists
+
+    - name: Verify health API response content
+      ansible.builtin.assert:
+        that:
+          - "'status' in (health_api_content.content | b64decode | from_json)"
+          - "(health_api_content.content | b64decode | from_json).status == 'ok'"
+        fail_msg: "Health API response does not indicate healthy status"
+        success_msg: "Health API response indicates healthy status"
+      when: health_api_file.stat.exists
+
+    # Service status checks - these would be done with service_facts in real environment
+    - name: Check Chef Automate service status file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/chef_automate_status
+      register: automate_service_file
+
+    - name: Assert Chef Automate service status file was created
+      ansible.builtin.assert:
+        that:
+          - automate_service_file.stat.exists
+          - automate_service_file.stat.isreg
+        fail_msg: "Chef Automate service status file not found"
+        success_msg: "Chef Automate service status file exists"
+
+    - name: Get Chef Automate service status content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/chef_automate_status
+      register: automate_service_content
+      when: automate_service_file.stat.exists
+
+    - name: Verify Chef Automate service status content
+      ansible.builtin.assert:
+        that:
+          - "'running' in (automate_service_content.content | b64decode)"
+        fail_msg: "Chef Automate service is not running"
+        success_msg: "Chef Automate service is running"
+      when: automate_service_file.stat.exists
+
+    # The following tasks would be run in a real environment but are tagged to be skipped in molecule
+    - name: Check Chef Automate service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Chef Automate service is active
+      ansible.builtin.assert:
+        that:
+          - "'chef-automate.service' in ansible_facts.services"
+          - "ansible_facts.services['chef-automate.service'].state == 'running'"
+        fail_msg: "Chef Automate service is not running"
+        success_msg: "Chef Automate service is running"
+      tags: molecule-notest
+
+    - name: Check HTTPS port is listening
+      ansible.builtin.wait_for:
+        port: 443
+        state: started
+        timeout: 5
+      tags: molecule-notest
+
+    - name: Check Chef Automate API health
+      ansible.builtin.uri:
+        url: https://localhost/api/v0/health
+        validate_certs: false
+        status_code: 200
+      tags: molecule-notest
