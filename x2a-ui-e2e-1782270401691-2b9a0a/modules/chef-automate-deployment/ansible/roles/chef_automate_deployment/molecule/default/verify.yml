@@ -1,0 +1,168 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # System configuration checks
+    - name: Check hostname file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/hostname
+      register: hostname_file
+
+    - name: Assert hostname file was created
+      ansible.builtin.assert:
+        that:
+          - hostname_file.stat.exists
+          - hostname_file.stat.isreg
+        fail_msg: "Hostname file not found"
+        success_msg: "Hostname file exists"
+
+    - name: Get hostname content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/hostname
+      register: hostname_content
+      when: hostname_file.stat.exists
+
+    - name: Assert hostname is set correctly
+      ansible.builtin.assert:
+        that:
+          - (hostname_content.content | b64decode | trim) == "automate.chef.lab"
+        fail_msg: "Hostname not set correctly"
+        success_msg: "Hostname set correctly"
+      when: hostname_file.stat.exists
+
+    # Sysctl configuration checks
+    - name: Check sysctl vm.max_map_count file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/sysctl.d/99-chef-automate-vm-max_map_count.conf
+      register: sysctl_max_map_count
+
+    - name: Assert sysctl vm.max_map_count file was created
+      ansible.builtin.assert:
+        that:
+          - sysctl_max_map_count.stat.exists
+          - sysctl_max_map_count.stat.isreg
+        fail_msg: "Sysctl vm.max_map_count file not found"
+        success_msg: "Sysctl vm.max_map_count file exists"
+
+    - name: Check sysctl vm.dirty_expire_centisecs file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/sysctl.d/99-chef-automate-vm-dirty_expire_centisecs.conf
+      register: sysctl_dirty_expire
+
+    - name: Assert sysctl vm.dirty_expire_centisecs file was created
+      ansible.builtin.assert:
+        that:
+          - sysctl_dirty_expire.stat.exists
+          - sysctl_dirty_expire.stat.isreg
+        fail_msg: "Sysctl vm.dirty_expire_centisecs file not found"
+        success_msg: "Sysctl vm.dirty_expire_centisecs file exists"
+
+    # Chef Automate CLI checks
+    - name: Check Chef Automate CLI exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/tmp/chef-automate
+      register: chef_automate_cli
+
+    - name: Assert Chef Automate CLI was created
+      ansible.builtin.assert:
+        that:
+          - chef_automate_cli.stat.exists
+          - chef_automate_cli.stat.isreg
+          - chef_automate_cli.stat.executable
+        fail_msg: "Chef Automate CLI not found or not executable"
+        success_msg: "Chef Automate CLI exists and is executable"
+
+    # Chef Automate deployment checks
+    - name: Check Chef Automate deployment marker exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/hab
+      register: chef_automate_hab
+
+    - name: Assert Chef Automate was deployed
+      ansible.builtin.assert:
+        that:
+          - chef_automate_hab.stat.exists
+          - chef_automate_hab.stat.isdir
+        fail_msg: "Chef Automate deployment marker not found"
+        success_msg: "Chef Automate deployment marker exists"
+
+    # User and organization key checks
+    - name: Check user key file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/chef/admin.pem
+      register: user_key_file
+
+    - name: Assert user key file was created
+      ansible.builtin.assert:
+        that:
+          - user_key_file.stat.exists
+          - user_key_file.stat.isreg
+          - user_key_file.stat.mode == "0600"
+        fail_msg: "User key file not found or has incorrect permissions"
+        success_msg: "User key file exists with correct permissions"
+
+    - name: Check organization key file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/chef/lab-validator.pem
+      register: org_key_file
+
+    - name: Assert organization key file was created
+      ansible.builtin.assert:
+        that:
+          - org_key_file.stat.exists
+          - org_key_file.stat.isreg
+          - org_key_file.stat.mode == "0600"
+        fail_msg: "Organization key file not found or has incorrect permissions"
+        success_msg: "Organization key file exists with correct permissions"
+
+    # The following checks would normally be performed but can't run in a container
+    # Adding them with molecule-notest tag for documentation purposes
+
+    - name: Check Chef Automate status
+      ansible.builtin.command:
+        cmd: sudo chef-automate status
+      register: chef_automate_status
+      changed_when: false
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Check Chef Infra Server status
+      ansible.builtin.command:
+        cmd: sudo chef-server-ctl status
+      register: chef_server_status
+      changed_when: false
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Check user list
+      ansible.builtin.command:
+        cmd: sudo chef-server-ctl user-list
+      register: chef_user_list
+      changed_when: false
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Check organization list
+      ansible.builtin.command:
+        cmd: sudo chef-server-ctl org-list
+      register: chef_org_list
+      changed_when: false
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Check web UI access
+      ansible.builtin.uri:
+        url: https://automate.chef.lab/
+        validate_certs: false
+      register: chef_web_ui
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Check network listening
+      ansible.builtin.command:
+        cmd: ss -tlnp | grep chef
+      register: chef_network_listening
+      changed_when: false
+      failed_when: false
+      tags: molecule-notest

@@ -1,0 +1,50 @@
+---
+- name: Ensure /etc/chef directory exists
+  ansible.builtin.file:
+    path: /etc/chef
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+  become: true
+- name: Create initial admin user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create {{ chef_automate_username }} {{ chef_automate_full_name }} {{ chef_automate_email }} "{{ chef_automate_password }}" --filename
+      {{ chef_automate_user_key_path }}
+
+      '
+  args:
+    creates: "{{ chef_automate_user_key_path }}"
+  become: true
+  register: user_create_result
+  changed_when: user_create_result.rc == 0
+  failed_when: user_create_result.rc != 0
+  no_log: true
+- name: Create initial organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create {{ chef_automate_org_name }} "{{ chef_automate_org_full_name }}" --association_user {{ chef_automate_username }} --filename {{
+      chef_automate_org_key_path }}
+
+      '
+  args:
+    creates: "{{ chef_automate_org_key_path }}"
+  become: true
+  register: org_create_result
+  changed_when: org_create_result.rc == 0
+  failed_when: org_create_result.rc != 0
+- name: Set proper permissions on user key file
+  ansible.builtin.file:
+    path: "{{ chef_automate_user_key_path }}"
+    mode: "0600"
+    owner: root
+    group: root
+  become: true
+  when: user_create_result.changed
+- name: Set proper permissions on organization key file
+  ansible.builtin.file:
+    path: "{{ chef_automate_org_key_path }}"
+    mode: "0600"
+    owner: root
+    group: root
+  become: true
+  when: org_create_result.changed
