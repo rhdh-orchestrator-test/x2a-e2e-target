@@ -1,0 +1,37 @@
+---
+- name: Check if Chef Automate CLI already exists
+  ansible.builtin.stat:
+    path: "{{ chef_automate_cli_path }}"
+  register: chef_automate_cli_stat
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: /tmp/chef-automate.zip
+    mode: "0644"
+  when: not chef_automate_cli_stat.stat.exists
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip - > {{ chef_automate_cli_path }}
+    stdin: "{{ lookup('ansible.builtin.file', '/tmp/chef-automate.zip') }}"
+    creates: "{{ chef_automate_cli_path }}"
+  args:
+    executable: /bin/bash
+  when: not chef_automate_cli_stat.stat.exists
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+    state: file
+- name: Build Chef Automate deploy command
+  ansible.builtin.set_fact:
+    chef_automate_deploy_cmd: "{{ chef_automate_cli_path }} deploy {% for product in chef_automate_products %} --product {{ product }} {% endfor %} --accept-terms-and-mlsa={{
+      chef_automate_accept_terms | lower }}"
+- name: Deploy Chef Automate
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_deploy_cmd }}"
+  become: true
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
+  failed_when: deploy_result.rc != 0
+  args:
+    creates: /hab
