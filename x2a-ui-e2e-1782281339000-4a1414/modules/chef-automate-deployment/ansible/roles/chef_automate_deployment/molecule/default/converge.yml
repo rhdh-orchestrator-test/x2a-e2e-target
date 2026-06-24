@@ -1,0 +1,73 @@
+- name: Converge
+  hosts: all
+  gather_facts: false
+  vars:
+    username: jtonello
+    full_name: John Tonello
+    email: jtonello@chef.lab
+    password: password
+    hostname: automate.chef.lab
+    orgname: lab
+    longorgname: Chef Lab
+    userfilename: jtonello.pem
+    orgfilename: lab-validator.pem
+    chef_automate_cli_path: /tmp/molecule_test/chef-automate
+    vm_max_map_count: 262144
+    vm_dirty_expire_centisecs: 20000
+    deploy_automate: true
+    accept_terms_and_mlsa: true
+    create_initial_user_and_org: true
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/proc/sys/vm
+    - /tmp/molecule_test/hab
+    - /tmp/molecule_test/tmp
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: '{{ hostname }}'
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create vm.max_map_count file
+    ansible.builtin.copy:
+      content: '{{ vm_max_map_count }}'
+      dest: /tmp/molecule_test/proc/sys/vm/max_map_count
+      mode: '0644'
+  - name: Create vm.dirty_expire_centisecs file
+    ansible.builtin.copy:
+      content: '{{ vm_dirty_expire_centisecs }}'
+      dest: /tmp/molecule_test/proc/sys/vm/dirty_expire_centisecs
+      mode: '0644'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/bash echo ''Chef Automate CLI Mock'' '
+      dest: '{{ chef_automate_cli_path }}'
+      mode: '0755'
+  - name: Create Chef Automate deployment marker
+    ansible.builtin.file:
+      path: /tmp/molecule_test/hab
+      state: directory
+      mode: '0755'
+  - name: Create user key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- Mock Chef User Key -----END RSA PRIVATE KEY-----'
+      dest: /tmp/molecule_test/{{ userfilename }}
+      mode: '0600'
+  - name: Create organization validator key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- Mock Chef Organization Validator Key -----END RSA PRIVATE KEY-----'
+      dest: /tmp/molecule_test/{{ orgfilename }}
+      mode: '0600'
+  - name: Create Chef server status files
+    ansible.builtin.copy:
+      content: running
+      dest: /tmp/molecule_test/{{ item }}
+      mode: '0644'
+    loop:
+    - chef-server-status
+    - chef-automate-status
