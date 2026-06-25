@@ -1,0 +1,98 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create required directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/proc/sys/vm
+    - /tmp/molecule_test/root
+    - /tmp/molecule_test/hab
+    - /tmp/molecule_test/tmp
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: '{{ chef_automate_hostname }}'
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create sysctl files
+    ansible.builtin.copy:
+      content: '{{ item.value }}'
+      dest: /tmp/molecule_test/proc/sys/vm/{{ item.name | regex_replace('^vm\.', '') }}
+      mode: '0644'
+    loop:
+    - name: vm.max_map_count
+      value: '{{ chef_automate_vm_max_map_count }}'
+    - name: vm.dirty_expire_centisecs
+      value: '{{ chef_automate_vm_dirty_expire_centisecs }}'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/bash echo ''Chef Automate CLI mock'' '
+      dest: /tmp/molecule_test{{ chef_automate_cli_path }}
+      mode: '0755'
+  - name: Create Chef Automate CLI zip file
+    ansible.builtin.copy:
+      content: Mock Chef Automate CLI zip content
+      dest: /tmp/molecule_test{{ chef_automate_cli_path }}.zip
+      mode: '0644'
+  - name: Create hab directory to indicate successful deployment
+    ansible.builtin.file:
+      path: /tmp/molecule_test/hab
+      state: directory
+      mode: '0755'
+  - name: Create user PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEowIBAAKCAQEAwZ5UJULAjWr7p6FVwGRQRjFN2s8tZ/6LC3X82fajpVsYqF1x
+
+        qEuUDndDXVD09E4u83MS6HO6a1cRL7SP2gxLT9D0ifXnAoXxwOQGtBikWEFKPJJD
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test{{ chef_automate_user_pem_path }}
+      mode: '0600'
+  - name: Create organization validator PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA7NF8iE8XNRN8PqEXSIAa1c+mKKcjWNRYpKOYn9HZJVnQwyCv
+
+        RbXIfZLMEuLTtgK+8FQVc8LRb4uNpQj8+Mqk2uGtE1RIkFnUK6iJfLTQi65IvVVk
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test{{ chef_automate_org_pem_path }}
+      mode: '0600'
+  - name: Create mock chef-server-ctl user-list output
+    ansible.builtin.copy:
+      content: '{{ chef_automate_username }}'
+      dest: /tmp/molecule_test/tmp/chef-server-user-list
+      mode: '0644'
+  - name: Create mock chef-server-ctl org-list output
+    ansible.builtin.copy:
+      content: '{{ chef_automate_org_name }}'
+      dest: /tmp/molecule_test/tmp/chef-server-org-list
+      mode: '0644'
+  - name: Create mock chef-automate status output
+    ansible.builtin.copy:
+      content: 'deployment-service running
+
+        postgresql-service running
+
+        elasticsearch-service running
+
+        automate-ui-service running
+
+        automate-cs-nginx-service running
+
+        automate-cs-oc-erchef-service running
+
+        '
+      dest: /tmp/molecule_test/tmp/chef-automate-status
+      mode: '0644'
