@@ -1,0 +1,26 @@
+---
+- name: Set hostname for Chef Automate server
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  become: true
+- name: Configure kernel parameters for Chef Automate
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_set: true
+    reload: true
+  loop: "{{ chef_automate_sysctl_params | dict2items }}"
+  become: true
+- name: Create required directories for Chef Automate
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+  loop:
+    - /etc/chef-automate
+    - /var/log/chef-automate
+    - /var/opt/chef-automate
+  become: true
