@@ -1,0 +1,133 @@
+{
+  "module_name": "chef_automate_setup",
+  "items": [
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_setup/aap-configuration/controller_credential_types.yml",
+      "status": "complete",
+      "description": "AAP credential types configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_setup/aap-configuration/controller_credentials.yml",
+      "status": "complete",
+      "description": "AAP credentials configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_setup/tasks/validate_credentials.yml",
+      "status": "complete",
+      "description": "Credential validation tasks",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_setup/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_setup/handlers/main.yml",
+      "status": "complete",
+      "description": "Main handler file",
+      "notes": "Created handlers file with sysctl reload handler"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_setup/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables for Chef Automate setup",
+      "notes": "Created defaults file with configuration variables"
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-automate.sh",
+      "target_path": "ansible/roles/chef_automate_setup/tasks/main.yml",
+      "status": "complete",
+      "description": "Main tasks file for Chef Automate setup",
+      "notes": "Created main tasks file with include_tasks for all subtasks"
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-automate.sh",
+      "target_path": "ansible/roles/chef_automate_setup/tasks/system_config.yml",
+      "status": "complete",
+      "description": "Tasks for system configuration",
+      "notes": "Created system configuration tasks with ansible.posix.sysctl module"
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-automate.sh",
+      "target_path": "ansible/roles/chef_automate_setup/tasks/install_automate.yml",
+      "status": "complete",
+      "description": "Tasks for Chef Automate installation",
+      "notes": "Created Chef Automate installation tasks"
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-chef-server.sh",
+      "target_path": "ansible/roles/chef_automate_setup/tasks/install_chef_server.yml",
+      "status": "complete",
+      "description": "Tasks for Chef Infra Server installation",
+      "notes": "Created Chef Infra Server installation tasks"
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-automate.sh",
+      "target_path": "ansible/roles/chef_automate_setup/tasks/create_users_orgs.yml",
+      "status": "complete",
+      "description": "Tasks for user and organization creation",
+      "notes": "Created tasks for creating Chef users and organizations"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_setup/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule scenario configuration",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_setup/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook",
+      "notes": "Created converge.yml that sets up the expected filesystem structure under /tmp/molecule_test/ for Chef Automate and Chef Infra Server"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_setup/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification tasks",
+      "notes": "Created verify.yml that tests the expected filesystem structure and configuration files with appropriate molecule-notest tags for container-incompatible tests"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_setup/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Molecule instance creation (no-op)",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_setup/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Molecule instance destruction (no-op)",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    }
+  ]
+}

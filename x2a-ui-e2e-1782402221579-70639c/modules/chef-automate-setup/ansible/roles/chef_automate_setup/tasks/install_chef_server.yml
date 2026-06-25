@@ -1,0 +1,34 @@
+---
+- name: Ensure required packages are installed
+  ansible.builtin.package:
+    name:
+      - unzip
+      - curl
+    state: present
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: /tmp/chef-automate_linux_amd64.zip
+    mode: "0644"
+  become: true
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip < /tmp/chef-automate_linux_amd64.zip > {{ chef_automate_cli_path }}
+    creates: "{{ chef_automate_cli_path }}"
+  become: true
+  changed_when: true
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+  become: true
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy --product infra-server --accept-terms-and-mlsa={{ chef_automate_accept_terms_and_mlsa | lower }} "
+  become: true
+  changed_when: true
+  async: 3600
+  poll: 30
+  args:
+    creates: /etc/opscode/pivotal.pem
