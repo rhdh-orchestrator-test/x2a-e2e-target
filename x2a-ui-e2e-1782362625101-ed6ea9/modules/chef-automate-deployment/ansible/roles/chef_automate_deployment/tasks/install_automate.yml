@@ -1,0 +1,29 @@
+- name: Create directory for Chef Automate binary if needed
+  ansible.builtin.file:
+    path: '{{ chef_automate_binary_path | dirname }}'
+    state: directory
+    mode: '0755'
+  when: chef_automate_binary_path | dirname != ansible_env.HOME
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: '{{ chef_automate_cli_url }}'
+    dest: /tmp/chef-automate_linux_amd64.zip
+    mode: '0644'
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip < /tmp/chef-automate_linux_amd64.zip > {{ chef_automate_binary_path }}
+  args:
+    creates: '{{ chef_automate_binary_path }}'
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: '{{ chef_automate_binary_path }}'
+    mode: '0755'
+    state: file
+- name: Deploy Chef Automate with Infra Server
+  ansible.builtin.command:
+    cmd: '{{ chef_automate_binary_path }} deploy --product automate --product infra-server --accept-terms-and-mlsa={{ accept_terms_and_mlsa | lower }}'
+  become: true
+  args:
+    creates: /etc/chef-automate/config.toml
+  register: automate_deploy
+  changed_when: automate_deploy.rc == 0
