@@ -1,0 +1,22 @@
+---
+- name: Check if chef-server-ctl is available
+  ansible.builtin.command:
+    cmd: which chef-server-ctl
+  register: chef_server_ctl_check
+  changed_when: false
+  failed_when: false
+  become: true
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ username }} {{ full_name }} {{ email }} "{{ password }}" --filename {{ userfilename }}
+  become: true
+  args:
+    creates: "{{ userfilename }}"
+  when: chef_server_ctl_check.rc == 0
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ orgname }} "{{ longorgname }}" --association_user {{ username }} --filename {{ orgfilename }}
+  become: true
+  args:
+    creates: "{{ orgfilename }}"
+  when: chef_server_ctl_check.rc == 0
