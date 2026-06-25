@@ -1,0 +1,75 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc/chef-automate
+    - /tmp/molecule_test/etc/chef-server
+    - /tmp/molecule_test/etc/sysctl.conf.d
+    - /tmp/molecule_test/tmp
+    - /tmp/molecule_test/usr/bin
+  - name: Create Chef Automate config file
+    ansible.builtin.copy:
+      content: "# Mock Chef Automate config file\n[global]\n  v1 = true\n[deployment]\n  automate = \"enabled\"\n  infra-server = \"enabled\"\n"
+      dest: /tmp/molecule_test/etc/chef-automate/config.toml
+      mode: '0644'
+  - name: Create mock sysctl.conf file
+    ansible.builtin.copy:
+      content: '# Mock sysctl.conf file
+
+        vm.max_map_count=262144
+
+        vm.dirty_expire_centisecs=20000
+
+        '
+      dest: /tmp/molecule_test/etc/sysctl.conf
+      mode: '0644'
+  - name: Create mock user key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEowIBAAKCAQEAzMock+PEMKeyFileContent+EXAMPLE
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/jtonello.pem
+      mode: '0600'
+  - name: Create mock organization key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEowIBAAKCAQEAzMock+OrgKeyFileContent+EXAMPLE
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/lab-validator.pem
+      mode: '0600'
+  - name: Create mock chef-automate binary
+    ansible.builtin.copy:
+      content: '#!/bin/bash
+
+        echo "Chef Automate CLI mock"
+
+        echo "Status: running"
+
+        '
+      dest: /tmp/molecule_test/tmp/chef-automate
+      mode: '0755'
+  - name: Create mock chef-server-ctl binary
+    ansible.builtin.copy:
+      content: '#!/bin/bash
+
+        echo "Chef Server Control mock"
+
+        echo "Status: running"
+
+        '
+      dest: /tmp/molecule_test/usr/bin/chef-server-ctl
+      mode: '0755'
