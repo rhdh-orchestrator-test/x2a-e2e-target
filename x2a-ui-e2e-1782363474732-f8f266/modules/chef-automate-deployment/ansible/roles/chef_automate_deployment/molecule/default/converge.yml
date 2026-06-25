@@ -1,0 +1,75 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/etc/chef-automate
+    - /tmp/molecule_test/etc/hostname
+    - /tmp/molecule_test/proc/sys/vm
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: '{{ chef_automate_hostname | default(''automate.chef.lab'') }}'
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create Chef Automate config file
+    ansible.builtin.copy:
+      content: "# Mock Chef Automate config file\n[global]\n  v1 = true\n[deployment]\n  automate = true\n  infra_server = true\n"
+      dest: /tmp/molecule_test/etc/chef-automate/config.toml
+      mode: '0644'
+  - name: Create Chef Automate CLI mock
+    ansible.builtin.copy:
+      content: '#!/bin/bash
+
+        echo "Chef Automate CLI mock"
+
+        echo "Command: $@"
+
+        exit 0
+
+        '
+      dest: /tmp/molecule_test/chef-automate
+      mode: '0755'
+  - name: Create Chef user key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEowIBAAKCAQEAwZ5UJULAjWr7p6FVwGRQRjFN2s8tZ/6LC3X82fajpVsYqF1x
+
+        qEuUDndDXVD09E4u83MS6HO6a1cRL7SP2gxLT9D0ifXnj8NpjrPQtEc7dZHLnNdv
+
+        BzoudQZi7CmAZ9L5JITZKSPXjbLCCjN0iJUvb11XB8rCo/fHgB1/6bAv9ito3oyn
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/chefuser.pem
+      mode: '0600'
+  - name: Create Chef organization validator key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA7Gedi7oT5Dy5rtkJiEjU4KCGp+CQmXhbx3VFbJN9o7sG/Uqn
+
+        pJLlVZ9tiPSwCSWWbjAPpTMi1vgsJU9tDDUXVpj/K62ahN8ZQKNBl7vi3BqWfS2K
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/lab-validator.pem
+      mode: '0600'
+  - name: Create sysctl parameter files
+    ansible.builtin.copy:
+      content: '{{ item.value }}'
+      dest: /tmp/molecule_test/proc/sys/{{ item.key | regex_replace('\.', '/') }}
+      mode: '0644'
+    loop:
+    - key: vm.max_map_count
+      value: '262144'
+    - key: vm.dirty_expire_centisecs
+      value: '20000'
