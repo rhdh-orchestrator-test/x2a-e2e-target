@@ -1,0 +1,30 @@
+---
+- name: Create admin user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ username }} {{ full_name }} {{ email }} {{ password }} --filename {{ user_key_path }}
+  become: true
+  args:
+    creates: "{{ user_key_path }}"
+  no_log: true
+- name: Create organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ orgname }} "{{ longorgname }}" --association_user {{ username }} --filename {{ org_key_path }}
+  become: true
+  args:
+    creates: "{{ org_key_path }}"
+- name: Set permissions on user key file
+  ansible.builtin.file:
+    path: "{{ user_key_path }}"
+    mode: "0600"
+    owner: "{{ ansible_user_id }}"
+    group: "{{ ansible_user_gid }}"
+  become: true
+  when: ansible_user_id != 'root'
+- name: Set permissions on organization key file
+  ansible.builtin.file:
+    path: "{{ org_key_path }}"
+    mode: "0600"
+    owner: "{{ ansible_user_id }}"
+    group: "{{ ansible_user_gid }}"
+  become: true
+  when: ansible_user_id != 'root'
