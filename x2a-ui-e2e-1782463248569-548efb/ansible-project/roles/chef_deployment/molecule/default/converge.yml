@@ -1,0 +1,71 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  become: false
+  vars:
+    user_password: password
+    username: jtonello
+    chef_hostname: automate.chef.lab
+    chef_username: jtonello
+    chef_user_fullname: John Tonello
+    chef_user_email: jtonello@chef.lab
+    chef_org_name: lab
+    chef_org_fullname: Chef Lab
+    chef_user_pem_path: jtonello.pem
+    chef_org_validator_pem_path: lab-validator.pem
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/hab/sup/default/data
+    - /tmp/molecule_test/home/ansible
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: '{{ chef_hostname }}'
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/bash echo ''Chef Automate CLI mock'' '
+      dest: /tmp/molecule_test/chef-automate
+      mode: '0755'
+  - name: Create services.dat file
+    ansible.builtin.copy:
+      content: '# Chef services data file '
+      dest: /tmp/molecule_test/hab/sup/default/data/services.dat
+      mode: '0644'
+  - name: Create user PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEowIBAAKCAQEAzMock_PEM_File_Content
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/{{ chef_user_pem_path }}
+      mode: '0600'
+  - name: Create organization validator PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEowIBAAKCAQEAzMock_Validator_PEM_File_Content
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/{{ chef_org_validator_pem_path }}
+      mode: '0600'
+  - name: Create sysctl settings file
+    ansible.builtin.copy:
+      content: 'vm.max_map_count = 262144
+
+        vm.dirty_expire_centisecs = 20000
+
+        '
+      dest: /tmp/molecule_test/etc/sysctl.d/99-chef-settings.conf
+      mode: '0644'
