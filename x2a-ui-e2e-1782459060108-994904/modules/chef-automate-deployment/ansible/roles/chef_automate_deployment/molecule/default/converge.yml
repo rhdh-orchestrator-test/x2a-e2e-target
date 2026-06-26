@@ -1,0 +1,61 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/hab/sup/default/data
+    - /tmp/molecule_test/home/ansible
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: '{{ chef_automate_hostname }}'
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create sysctl settings file
+    ansible.builtin.copy:
+      content: 'vm.max_map_count = {{ chef_automate_vm_max_map_count }}
+
+        vm.dirty_expire_centisecs = {{ chef_automate_vm_dirty_expire_centisecs }}
+
+        '
+      dest: /tmp/molecule_test/etc/sysctl.conf
+      mode: '0644'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/bash # Simulated Chef Automate CLI echo ''Chef Automate CLI'''
+      dest: /tmp/molecule_test/chef-automate
+      mode: '0755'
+  - name: Create services.dat file
+    ansible.builtin.copy:
+      content: '# Simulated Chef Automate services data'
+      dest: /tmp/molecule_test/hab/sup/default/data/services.dat
+      mode: '0644'
+  - name: Create user key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- Simulated user key content -----END RSA PRIVATE KEY-----'
+      dest: /tmp/molecule_test{{ chef_automate_user_key_path | expanduser | regex_replace('^~', '/home/ansible') }}
+      mode: '0600'
+  - name: Create organization validator key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- Simulated organization validator key content -----END RSA PRIVATE KEY-----'
+      dest: /tmp/molecule_test{{ chef_automate_org_key_path | expanduser | regex_replace('^~', '/home/ansible') }}
+      mode: '0600'
+  vars:
+    chef_automate_hostname: automate.chef.lab
+    chef_automate_vm_max_map_count: 262144
+    chef_automate_vm_dirty_expire_centisecs: 20000
+    chef_automate_cli_path: ./chef-automate
+    chef_automate_accept_terms: true
+    username: jtonello
+    user_full_name: John Tonello
+    user_email: jtonello@chef.lab
+    user_password: password
+    organization_name: lab
+    organization_full_name: Chef Lab
+    chef_automate_user_key_path: ~/{{ username }}.pem
+    chef_automate_org_key_path: ~/{{ organization_name }}-validator.pem
