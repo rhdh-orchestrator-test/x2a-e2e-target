@@ -1,0 +1,215 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # System configuration checks
+    - name: Check hostname file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/hostname
+      register: hostname_file
+
+    - name: Assert hostname file exists
+      ansible.builtin.assert:
+        that:
+          - hostname_file.stat.exists
+          - hostname_file.stat.isreg
+        fail_msg: "Hostname file not found"
+        success_msg: "Hostname file exists"
+
+    - name: Get hostname content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/hostname
+      register: hostname_content
+      when: hostname_file.stat.exists
+
+    - name: Assert hostname is properly set
+      ansible.builtin.assert:
+        that:
+          - (hostname_content.content | b64decode | trim) == "chef-automate.example.com"
+        fail_msg: "Hostname is not properly set"
+        success_msg: "Hostname is properly set"
+      when: hostname_file.stat.exists
+
+    - name: Check sysctl settings file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      register: sysctl_file
+
+    - name: Assert sysctl file exists
+      ansible.builtin.assert:
+        that:
+          - sysctl_file.stat.exists
+          - sysctl_file.stat.isreg
+        fail_msg: "Sysctl settings file not found"
+        success_msg: "Sysctl settings file exists"
+
+    - name: Get sysctl settings content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      register: sysctl_content
+      when: sysctl_file.stat.exists
+
+    - name: Assert sysctl settings are properly set
+      ansible.builtin.assert:
+        that:
+          - (sysctl_content.content | b64decode) is search("vm.max_map_count = 262144")
+          - (sysctl_content.content | b64decode) is search("vm.dirty_expire_centisecs = 20000")
+        fail_msg: "Sysctl settings are not properly set"
+        success_msg: "Sysctl settings are properly set"
+      when: sysctl_file.stat.exists
+
+    # Chef Automate CLI check
+    - name: Check Chef Automate CLI exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/opt/chef-automate/chef-automate
+      register: chef_automate_cli
+
+    - name: Assert Chef Automate CLI exists
+      ansible.builtin.assert:
+        that:
+          - chef_automate_cli.stat.exists
+          - chef_automate_cli.stat.isreg
+          - chef_automate_cli.stat.executable
+        fail_msg: "Chef Automate CLI not found or not executable"
+        success_msg: "Chef Automate CLI exists and is executable"
+
+    # Chef Automate config check
+    - name: Check Chef Automate config file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/opt/chef-automate/config.toml
+      register: chef_automate_config
+
+    - name: Assert Chef Automate config file exists
+      ansible.builtin.assert:
+        that:
+          - chef_automate_config.stat.exists
+          - chef_automate_config.stat.isreg
+        fail_msg: "Chef Automate config file not found"
+        success_msg: "Chef Automate config file exists"
+
+    # Chef user key file check
+    - name: Check Chef user key file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/chef/admin.pem
+      register: chef_user_key
+
+    - name: Assert Chef user key file exists with proper permissions
+      ansible.builtin.assert:
+        that:
+          - chef_user_key.stat.exists
+          - chef_user_key.stat.isreg
+          - chef_user_key.stat.mode == "0600"
+        fail_msg: "Chef user key file not found or has incorrect permissions"
+        success_msg: "Chef user key file exists with proper permissions"
+
+    # Chef organization validator key file check
+    - name: Check Chef organization validator key file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/chef/example-validator.pem
+      register: chef_org_validator_key
+
+    - name: Assert Chef organization validator key file exists with proper permissions
+      ansible.builtin.assert:
+        that:
+          - chef_org_validator_key.stat.exists
+          - chef_org_validator_key.stat.isreg
+          - chef_org_validator_key.stat.mode == "0600"
+        fail_msg: "Chef organization validator key file not found or has incorrect permissions"
+        success_msg: "Chef organization validator key file exists with proper permissions"
+
+    # Chef Automate status check
+    - name: Check Chef Automate status file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/opt/chef-automate/status.yml
+      register: chef_automate_status
+
+    - name: Assert Chef Automate status file exists
+      ansible.builtin.assert:
+        that:
+          - chef_automate_status.stat.exists
+          - chef_automate_status.stat.isreg
+        fail_msg: "Chef Automate status file not found"
+        success_msg: "Chef Automate status file exists"
+
+    # Chef Server status check
+    - name: Check Chef Server status file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/opt/chef-server/status.yml
+      register: chef_server_status
+
+    - name: Assert Chef Server status file exists
+      ansible.builtin.assert:
+        that:
+          - chef_server_status.stat.exists
+          - chef_server_status.stat.isreg
+        fail_msg: "Chef Server status file not found"
+        success_msg: "Chef Server status file exists"
+
+    # The following checks cannot run in a container environment
+    # They are tagged with molecule-notest so they will be skipped during molecule testing
+
+    - name: Check Chef Automate service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Chef Automate service is running
+      ansible.builtin.assert:
+        that:
+          - "'chef-automate.service' in ansible_facts.services"
+          - "ansible_facts.services['chef-automate.service'].state == 'running'"
+        fail_msg: "Chef Automate service is not running"
+        success_msg: "Chef Automate service is running"
+      tags: molecule-notest
+
+    - name: Check Chef Server service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Chef Server service is running
+      ansible.builtin.assert:
+        that:
+          - "'chef-server.service' in ansible_facts.services"
+          - "ansible_facts.services['chef-server.service'].state == 'running'"
+        fail_msg: "Chef Server service is not running"
+        success_msg: "Chef Server service is running"
+      tags: molecule-notest
+
+    - name: Check Chef Automate API endpoint
+      ansible.builtin.uri:
+        url: https://localhost/api/v0/auth/version
+        validate_certs: false
+        status_code: 200
+      register: chef_automate_api
+      tags: molecule-notest
+
+    - name: Assert Chef Automate API is accessible
+      ansible.builtin.assert:
+        that:
+          - chef_automate_api.status == 200
+        fail_msg: "Chef Automate API is not accessible"
+        success_msg: "Chef Automate API is accessible"
+      tags: molecule-notest
+
+    - name: Check Chef Automate health endpoint
+      ansible.builtin.uri:
+        url: https://localhost/api/v0/health
+        validate_certs: false
+        status_code: 200
+      register: chef_automate_health
+      tags: molecule-notest
+
+    - name: Assert Chef Automate is healthy
+      ansible.builtin.assert:
+        that:
+          - chef_automate_health.status == 200
+        fail_msg: "Chef Automate is not healthy"
+        success_msg: "Chef Automate is healthy"
+      tags: molecule-notest
+
+    - name: Check port 443 is listening
+      ansible.builtin.wait_for:
+        port: 443
+        state: started
+        timeout: 5
+      tags: molecule-notest
