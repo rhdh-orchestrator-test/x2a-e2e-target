@@ -1,0 +1,138 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  become: false
+  vars:
+    chef_hostname: automate.chef.lab
+    chef_username: jtonello
+    chef_org_name: lab
+  tasks:
+  - name: Check hostname file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/hostname
+    register: hostname_file
+  - name: Assert hostname file exists
+    ansible.builtin.assert:
+      that:
+      - hostname_file.stat.exists
+      - hostname_file.stat.isreg
+      fail_msg: Hostname file not found
+      success_msg: Hostname file exists
+  - name: Get hostname content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/hostname
+    register: hostname_content
+    when: hostname_file.stat.exists
+  - name: Verify hostname content
+    ansible.builtin.assert:
+      that:
+      - (hostname_content.content | b64decode | trim) == chef_hostname
+      fail_msg: Hostname is not set correctly
+      success_msg: Hostname is set correctly
+    when: hostname_file.stat.exists
+  - name: Check sysctl settings file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/sysctl.d/99-chef-settings.conf
+    register: sysctl_file
+  - name: Assert sysctl file exists
+    ansible.builtin.assert:
+      that:
+      - sysctl_file.stat.exists
+      - sysctl_file.stat.isreg
+      fail_msg: Sysctl settings file not found
+      success_msg: Sysctl settings file exists
+  - name: Get sysctl content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/sysctl.d/99-chef-settings.conf
+    register: sysctl_content
+    when: sysctl_file.stat.exists
+  - name: Verify sysctl content
+    ansible.builtin.assert:
+      that:
+      - (sysctl_content.content | b64decode) is search('vm.max_map_count = 262144')
+      - (sysctl_content.content | b64decode) is search('vm.dirty_expire_centisecs = 20000')
+      fail_msg: Sysctl settings are not configured correctly
+      success_msg: Sysctl settings are configured correctly
+    when: sysctl_file.stat.exists
+  - name: Check Chef Automate CLI exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/chef-automate
+    register: chef_automate_cli
+  - name: Assert Chef Automate CLI exists
+    ansible.builtin.assert:
+      that:
+      - chef_automate_cli.stat.exists
+      - chef_automate_cli.stat.isreg
+      - chef_automate_cli.stat.executable
+      fail_msg: Chef Automate CLI not found or not executable
+      success_msg: Chef Automate CLI exists and is executable
+  - name: Check Chef Automate status
+    ansible.builtin.command:
+      cmd: sudo chef-automate status
+    register: chef_automate_status
+    changed_when: false
+    failed_when: false
+    tags: molecule-notest
+  - name: Check Chef Infra Server status
+    ansible.builtin.command:
+      cmd: sudo chef-server-ctl status
+    register: chef_server_status
+    changed_when: false
+    failed_when: false
+    tags: molecule-notest
+  - name: Check user PEM file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/{{ chef_username }}.pem
+    register: user_pem
+  - name: Assert user PEM file exists
+    ansible.builtin.assert:
+      that:
+      - user_pem.stat.exists
+      - user_pem.stat.isreg
+      - user_pem.stat.size > 0
+      fail_msg: User PEM file not found
+      success_msg: User PEM file exists
+  - name: Check organization validator PEM file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/{{ chef_org_name }}-validator.pem
+    register: org_validator_pem
+  - name: Assert organization validator PEM file exists
+    ansible.builtin.assert:
+      that:
+      - org_validator_pem.stat.exists
+      - org_validator_pem.stat.isreg
+      - org_validator_pem.stat.size > 0
+      fail_msg: Organization validator PEM file not found
+      success_msg: Organization validator PEM file exists
+  - name: Check web UI accessibility
+    ansible.builtin.uri:
+      url: https://localhost
+      validate_certs: false
+    register: web_ui_check
+    failed_when: false
+    tags: molecule-notest
+  - name: Check Chef Automate web UI accessibility
+    ansible.builtin.uri:
+      url: https://{{ chef_hostname }}
+      validate_certs: false
+    register: automate_web_ui_check
+    failed_when: false
+    tags: molecule-notest
+  - name: Check port 443 is listening
+    ansible.builtin.wait_for:
+      port: 443
+      timeout: 5
+    register: port_check
+    failed_when: false
+    tags: molecule-notest
+  - name: Check services data file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/hab/sup/default/data/services.dat
+    register: services_dat
+  - name: Assert services data file exists
+    ansible.builtin.assert:
+      that:
+      - services_dat.stat.exists
+      - services_dat.stat.isreg
+      fail_msg: Services data file not found
+      success_msg: Services data file exists
