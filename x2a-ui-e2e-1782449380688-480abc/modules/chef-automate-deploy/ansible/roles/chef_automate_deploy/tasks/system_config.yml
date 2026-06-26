@@ -1,0 +1,23 @@
+---
+- name: Ensure required packages are installed
+  ansible.builtin.package:
+    name:
+      - gzip
+      - hostname
+    state: present
+- name: Configure kernel parameters for Elasticsearch
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_set: true
+    reload: true
+  loop:
+    - name: vm.max_map_count
+      value: "262144"
+    - name: vm.dirty_expire_centisecs
+      value: "20000"
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  when: chef_automate_hostname is defined

@@ -1,0 +1,68 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/proc/sys/vm
+        - /tmp/molecule_test/hab
+        - /tmp/molecule_test/chef
+
+    # Simulate system configuration
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: "/tmp/molecule_test/etc/hostname"
+        mode: "0644"
+
+    - name: Create sysctl parameter files
+      ansible.builtin.copy:
+        content: "{{ item.value }}"
+        dest: "/tmp/molecule_test/proc/sys/vm/{{ item.name | regex_replace('^vm\\.', '') }}"
+        mode: "0644"
+      loop:
+        - name: vm.max_map_count
+          value: "262144"
+        - name: vm.dirty_expire_centisecs
+          value: "20000"
+
+    # Simulate Chef Automate CLI download and extraction
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: "#!/bin/bash\necho 'Chef Automate CLI Mock'\n"
+        dest: "/tmp/molecule_test/chef/chef-automate"
+        mode: "0755"
+
+    # Simulate Chef Automate deployment
+    - name: Create Chef Automate deployment marker
+      ansible.builtin.file:
+        path: "/tmp/molecule_test/hab"
+        state: directory
+        mode: "0755"
+
+    # Simulate user and organization creation
+    - name: Create user PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
+          MOCK_USER_PEM_CONTENT_FOR_TESTING_ONLY
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/chef/admin.pem"
+        mode: "0600"
+
+    - name: Create organization validator PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA0987654321zyxwvutsrqponmlkjihgfedcba
+          MOCK_ORG_VALIDATOR_PEM_CONTENT_FOR_TESTING_ONLY
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/chef/myorg-validator.pem"
+        mode: "0600"

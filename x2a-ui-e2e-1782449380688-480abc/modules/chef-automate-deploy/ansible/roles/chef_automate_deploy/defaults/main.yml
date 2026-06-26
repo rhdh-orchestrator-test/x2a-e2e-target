@@ -1,0 +1,8 @@
+---
+chef_automate_accept_terms: true
+chef_automate_products:
+  - automate
+  - infra-server
+chef_server_only: false
+chef_automate_user_key_dest: "{{ chef_automate_user_key_path | default(username + '.pem') }}"
+chef_automate_org_validator_dest: "{{ chef_automate_org_validator_path | default(org_name + '-validator.pem') }}"
