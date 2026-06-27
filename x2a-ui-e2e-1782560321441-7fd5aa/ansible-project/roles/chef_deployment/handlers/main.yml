@@ -1,0 +1,11 @@
+---
+- name: Reload sysctl
+  ansible.builtin.command:
+    cmd: sysctl -p
+  changed_when: false
+- name: Extract Chef Automate CLI
+  ansible.builtin.command:
+    cmd: chmod +x {{ chef_automate_cli_path }}
+  args:
+    creates: "{{ chef_automate_cli_path }}"
+  changed_when: true
