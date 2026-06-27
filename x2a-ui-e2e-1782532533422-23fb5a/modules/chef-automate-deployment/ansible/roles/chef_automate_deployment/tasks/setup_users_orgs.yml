@@ -1,0 +1,28 @@
+---
+- name: Check if chef-server-ctl is available
+  ansible.builtin.stat:
+    path: /usr/bin/chef-server-ctl
+  register: chef_server_ctl
+  become: true
+- name: Create Chef admin user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ username }} "{{ full_name | default('Chef Admin') }}" {{ email | default('admin@example.com') }} "{{ password }}"
+      --filename {{ chef_automate_user_key_path }}{{ username }}.pem
+  become: true
+  register: chef_user_create
+  changed_when: chef_user_create.rc == 0
+  failed_when: chef_user_create.rc != 0 and "already exists" not in chef_user_create.stderr
+  args:
+    creates: "{{ chef_automate_user_key_path }}{{ username }}.pem"
+  when: chef_server_ctl.stat.exists
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ org_name }} "{{ org_full_name | default('Chef Organization') }}" --association_user {{ username }} --filename {{
+      chef_automate_validator_key_path }}{{ org_name }}-validator.pem
+  become: true
+  register: chef_org_create
+  changed_when: chef_org_create.rc == 0
+  failed_when: chef_org_create.rc != 0 and "already exists" not in chef_org_create.stderr
+  args:
+    creates: "{{ chef_automate_validator_key_path }}{{ org_name }}-validator.pem"
+  when: chef_server_ctl.stat.exists
