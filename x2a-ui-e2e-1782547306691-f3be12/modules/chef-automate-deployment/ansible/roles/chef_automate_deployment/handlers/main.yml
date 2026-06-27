@@ -1,0 +1,7 @@
+---
+- name: Restart Chef Automate
+  ansible.builtin.command:
+    cmd: chef-automate restart
+  listen: restart chef-automate
+  changed_when: true
+  become: true
