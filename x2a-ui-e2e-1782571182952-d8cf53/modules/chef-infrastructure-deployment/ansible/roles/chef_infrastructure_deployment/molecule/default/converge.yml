@@ -1,0 +1,69 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: molecule_test_user
+    password: molecule_test_password
+    organization: molecule_test_org
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/etc/chef-automate
+    - /tmp/molecule_test/etc/hosts
+    - /tmp/molecule_test/etc/hostname
+    - /tmp/molecule_test/chef-automate_dir
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: automate.chef.lab
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create hosts file with hostname entry
+    ansible.builtin.copy:
+      content: '127.0.0.1 localhost
+
+        127.0.1.1 automate.chef.lab
+
+        '
+      dest: /tmp/molecule_test/etc/hosts
+      mode: '0644'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.file:
+      path: /tmp/molecule_test/chef-automate
+      state: touch
+      mode: '0755'
+  - name: Create Chef Automate config file
+    ansible.builtin.copy:
+      content: "# This is a simulated Chef Automate config file\n[global]\n  v1 = true\n[automate]\n  enabled = true\n[infra-server]\n  enabled = true\n"
+      dest: /tmp/molecule_test/etc/chef-automate/config.toml
+      mode: '0644'
+  - name: Create user key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEowIBAAKCAQEAzMolecOqz4YfUUEmjrLLuH7Gq6zzZMPj+iUVR88oVkqAmQhC
+
+        MOLECULE_TEST_KEY_CONTENT
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/molecule_test_user.pem
+      mode: '0600'
+  - name: Create organization validator key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEowIBAAKCAQEAzMolecOqz4YfUUEmjrLLuH7Gq6zzZMPj+iUVR88oVkqAmQhC
+
+        MOLECULE_TEST_ORG_KEY_CONTENT
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/molecule_test_org-validator.pem
+      mode: '0600'
