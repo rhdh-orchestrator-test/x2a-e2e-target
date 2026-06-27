@@ -1,0 +1,141 @@
+{
+  "module_name": "chef_automate_deployment",
+  "items": [
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/aap-configuration/controller_credential_types.yml",
+      "status": "complete",
+      "description": "AAP credential types configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/aap-configuration/controller_credentials.yml",
+      "status": "complete",
+      "description": "AAP credentials configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/tasks/validate_credentials.yml",
+      "status": "complete",
+      "description": "Credential validation tasks",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables for Chef Automate deployment",
+      "notes": "Created defaults/main.yml with default variables for Chef Automate deployment"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/tasks/main.yml",
+      "status": "complete",
+      "description": "Main task entry point",
+      "notes": "Created tasks/main.yml that includes all task files in the correct order"
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-automate.sh",
+      "target_path": "ansible/roles/chef_automate_deployment/tasks/deploy_automate.yml",
+      "status": "complete",
+      "description": "Chef Automate deployment script",
+      "notes": "Created deploy_automate.yml with tasks to download and deploy Chef Automate with Infra Server"
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-chef-server.sh",
+      "target_path": "ansible/roles/chef_automate_deployment/tasks/deploy_chef_server.yml",
+      "status": "complete",
+      "description": "Chef Server deployment script",
+      "notes": "Created deploy_chef_server.yml with tasks to download and deploy Chef Infra Server only"
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-automate.sh",
+      "target_path": "ansible/roles/chef_automate_deployment/tasks/configure_system.yml",
+      "status": "complete",
+      "description": "System configuration tasks (hostname, kernel parameters)",
+      "notes": "Created configure_system.yml with tasks to set hostname and configure kernel parameters"
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-automate.sh",
+      "target_path": "ansible/roles/chef_automate_deployment/tasks/setup_users_and_orgs.yml",
+      "status": "complete",
+      "description": "User and organization setup tasks",
+      "notes": "Created setup_users_and_orgs.yml with tasks to create Chef user and organization"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule scenario configuration",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook",
+      "notes": "Created converge.yml that simulates the filesystem state under /tmp/molecule_test/ including hostname, kernel parameters, Chef Automate CLI, deployment markers, and credential files."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification tasks",
+      "notes": "Created verify.yml that checks the simulated filesystem state under /tmp/molecule_test/ and includes container-safe tests with molecule-notest tags for service checks."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Molecule create playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_automate_deployment/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Molecule destroy playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "recipes",
+      "source_path": "setup-automate/deploy-automate.sh",
+      "target_path": "ansible/roles/chef_automate_deployment/tasks/manage_credentials.yml",
+      "status": "complete",
+      "description": "Credential management tasks",
+      "notes": "Created manage_credentials.yml with tasks to store user and organization validator keys"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:eloy.redis",
+      "target_path": "ansible/roles/chef_automate_deployment/requirements.yml",
+      "status": "complete",
+      "description": "Redis collection for potential Chef Automate dependency",
+      "notes": "Created requirements.yml with eloy.redis collection"
+    }
+  ]
+}

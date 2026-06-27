@@ -1,0 +1,11 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Configure system parameters
+  ansible.builtin.include_tasks: configure_system.yml
+- name: Deploy Chef Automate
+  ansible.builtin.include_tasks: deploy_automate.yml
+- name: Setup users and organizations
+  ansible.builtin.include_tasks: setup_users_and_orgs.yml
+- name: Manage credentials
+  ansible.builtin.include_tasks: manage_credentials.yml
