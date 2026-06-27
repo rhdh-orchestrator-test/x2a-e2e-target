@@ -1,0 +1,181 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Check hostname file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/hostname
+    register: hostname_file
+    tags: molecule-notest
+  - name: Assert hostname file exists
+    ansible.builtin.assert:
+      that:
+      - hostname_file.stat.exists | default(false)
+      success_msg: Hostname file exists
+      fail_msg: Hostname file does not exist
+    tags: molecule-notest
+  - name: Check sysctl settings file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+    register: sysctl_file
+    tags: molecule-notest
+  - name: Assert sysctl settings file exists
+    ansible.builtin.assert:
+      that:
+      - sysctl_file.stat.exists | default(false)
+      success_msg: Sysctl settings file exists
+      fail_msg: Sysctl settings file does not exist
+    tags: molecule-notest
+  - name: Check Chef Automate config file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/chef-automate/config.toml
+    register: automate_config
+  - name: Assert Chef Automate config file exists
+    ansible.builtin.assert:
+      that:
+      - automate_config.stat.exists
+      - automate_config.stat.size > 0
+      success_msg: Chef Automate config file exists
+      fail_msg: Chef Automate config file does not exist or is empty
+  - name: Check Chef Automate CLI exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/chef-automate
+    register: automate_cli
+  - name: Assert Chef Automate CLI exists and is executable
+    ansible.builtin.assert:
+      that:
+      - automate_cli.stat.exists
+      - automate_cli.stat.executable
+      success_msg: Chef Automate CLI exists and is executable
+      fail_msg: Chef Automate CLI does not exist or is not executable
+  - name: Check user PEM file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/jtonello.pem
+    register: user_pem
+  - name: Assert user PEM file exists
+    ansible.builtin.assert:
+      that:
+      - user_pem.stat.exists
+      - user_pem.stat.size > 0
+      success_msg: User PEM file exists
+      fail_msg: User PEM file does not exist or is empty
+  - name: Check organization validator PEM file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/lab-validator.pem
+    register: org_validator_pem
+  - name: Assert organization validator PEM file exists
+    ansible.builtin.assert:
+      that:
+      - org_validator_pem.stat.exists
+      - org_validator_pem.stat.size > 0
+      success_msg: Organization validator PEM file exists
+      fail_msg: Organization validator PEM file does not exist or is empty
+  - name: Check Chef Automate status
+    ansible.builtin.command:
+      cmd: sudo chef-automate status
+    register: automate_status
+    changed_when: false
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert Chef Automate is running
+    ansible.builtin.assert:
+      that:
+      - automate_status.rc == 0
+      success_msg: Chef Automate is running
+      fail_msg: Chef Automate is not running
+    tags: molecule-notest
+  - name: Check Chef Infra Server status
+    ansible.builtin.command:
+      cmd: sudo chef-server-ctl status
+    register: server_status
+    changed_when: false
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert Chef Infra Server is running
+    ansible.builtin.assert:
+      that:
+      - server_status.rc == 0
+      success_msg: Chef Infra Server is running
+      fail_msg: Chef Infra Server is not running
+    tags: molecule-notest
+  - name: Check user creation
+    ansible.builtin.command:
+      cmd: sudo chef-server-ctl user-list
+    register: user_list
+    changed_when: false
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert user was created
+    ansible.builtin.assert:
+      that:
+      - '''jtonello'' in user_list.stdout'
+      success_msg: User jtonello was created
+      fail_msg: User jtonello was not created
+    tags: molecule-notest
+  - name: Check organization creation
+    ansible.builtin.command:
+      cmd: sudo chef-server-ctl org-list
+    register: org_list
+    changed_when: false
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert organization was created
+    ansible.builtin.assert:
+      that:
+      - '''lab'' in org_list.stdout'
+      success_msg: Organization lab was created
+      fail_msg: Organization lab was not created
+    tags: molecule-notest
+  - name: Check web UI access
+    ansible.builtin.uri:
+      url: https://localhost/api/v0/auth/version
+      validate_certs: false
+    register: web_ui_access
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert web UI is accessible
+    ansible.builtin.assert:
+      that:
+      - web_ui_access.status == 200
+      success_msg: Web UI is accessible
+      fail_msg: Web UI is not accessible
+    tags: molecule-notest
+  - name: Check organization API access
+    ansible.builtin.uri:
+      url: https://localhost/organizations/lab
+      validate_certs: false
+    register: org_api_access
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert organization API is accessible
+    ansible.builtin.assert:
+      that:
+      - org_api_access.status == 200
+      success_msg: Organization API is accessible
+      fail_msg: Organization API is not accessible
+    tags: molecule-notest
+  - name: Check Chef Automate service
+    ansible.builtin.service_facts: null
+    tags: molecule-notest
+  - name: Assert Chef Automate service is active
+    ansible.builtin.assert:
+      that:
+      - '''chef-automate.service'' in ansible_facts.services'
+      - ansible_facts.services['chef-automate.service'].state == 'running'
+      success_msg: Chef Automate service is active
+      fail_msg: Chef Automate service is not active
+    tags: molecule-notest
+  - name: Check port 443 is listening
+    ansible.builtin.wait_for:
+      port: 443
+      timeout: 5
+    register: port_check
+    failed_when: false
+    tags: molecule-notest
+  - name: Assert port 443 is listening
+    ansible.builtin.assert:
+      that:
+      - port_check is succeeded
+      success_msg: Port 443 is listening
+      fail_msg: Port 443 is not listening
+    tags: molecule-notest
