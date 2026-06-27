@@ -1,0 +1,103 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc/chef-automate
+    - /tmp/molecule_test/etc/opscode
+    - /tmp/molecule_test/var/opt/chef-automate
+    - /tmp/molecule_test/var/opt/opscode
+    - /tmp/molecule_test/var/log/chef-automate
+    - /tmp/molecule_test/var/log/opscode
+    - /tmp/molecule_test/proc/sys/vm
+    - /tmp/molecule_test/etc
+  - name: Create Chef Automate config file
+    ansible.builtin.copy:
+      content: "[global]\n  v1 = true\n[deployment]\n  automate = \"true\"\n  infra_server = \"true\"\n[load_balancer]\n  [[load_balancer.v1.sys.service]]\n    name
+        = \"automate-load-balancer\"\n    port = 443\n"
+      dest: /tmp/molecule_test/etc/chef-automate/config.toml
+      mode: '0644'
+  - name: Create Chef Infra Server config file
+    ansible.builtin.copy:
+      content: 'api_fqdn "automate.chef.lab"
+
+        nginx[''ssl_protocols''] = "TLSv1.2 TLSv1.3"
+
+        nginx[''ssl_ciphers''] = "HIGH:!aNULL:!MD5:!RC4"
+
+        '
+      dest: /tmp/molecule_test/etc/opscode/chef-server.rb
+      mode: '0644'
+  - name: Create mock Chef Automate CLI
+    ansible.builtin.copy:
+      content: '#!/bin/bash
+
+        echo "Chef Automate CLI mock"
+
+        exit 0
+
+        '
+      dest: /tmp/molecule_test/chef-automate
+      mode: '0755'
+  - name: Create mock user PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
+
+        ... mock key content ...
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/jtonello.pem
+      mode: '0600'
+  - name: Create mock organization validator PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA0987654321zyxwvutsrqponmlkjihgfedcba
+
+        ... mock key content ...
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/lab-validator.pem
+      mode: '0600'
+  - name: Create mock sysctl settings
+    ansible.builtin.copy:
+      content: 'vm.max_map_count = 262144
+
+        vm.dirty_expire_centisecs = 20000
+
+        '
+      dest: /tmp/molecule_test/proc/sys/vm/settings
+      mode: '0644'
+  - name: Create mock Chef Automate service status
+    ansible.builtin.copy:
+      content: 'Service: chef-automate-postgresql.service - active
+
+        Service: chef-automate-elasticsearch.service - active
+
+        Service: chef-automate-nginx.service - active
+
+        '
+      dest: /tmp/molecule_test/var/log/chef-automate/service-status
+      mode: '0644'
+  - name: Create mock Chef Infra Server service status
+    ansible.builtin.copy:
+      content: 'Service: chef-server-nginx.service - active
+
+        Service: chef-server-postgresql.service - active
+
+        Service: chef-server-bookshelf.service - active
+
+        '
+      dest: /tmp/molecule_test/var/log/opscode/service-status
+      mode: '0644'

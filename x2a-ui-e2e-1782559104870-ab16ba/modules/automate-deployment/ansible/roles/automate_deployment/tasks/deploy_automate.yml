@@ -1,0 +1,20 @@
+---
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: sudo ./chef-automate deploy {% for product in chef_products.automate_and_infra %} --product {{ product }} {% endfor %} --accept-terms-and-mlsa={{
+      accept_terms_and_mlsa | lower }}
+  args:
+    creates: /etc/chef-automate/config.toml
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
+  failed_when: deploy_result.rc != 0
+  become: true
+- name: Wait for Chef Automate services to be fully available
+  ansible.builtin.wait_for:
+    host: localhost
+    port: 443
+    state: started
+    delay: 10
+    timeout: 300
+  when: deploy_result.changed
+  tags: molecule-notest
