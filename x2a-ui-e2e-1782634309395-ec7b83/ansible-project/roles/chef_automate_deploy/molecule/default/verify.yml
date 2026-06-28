@@ -1,0 +1,189 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  vars:
+    username: molecule_user
+    org_name: molecule_org
+    chef_automate_hostname: molecule.chef.lab
+    chef_automate_user_pem_path: molecule_user.pem
+    chef_automate_org_pem_path: molecule_org-validator.pem
+
+  tasks:
+    # Verify hostname was set correctly
+    - name: Check hostname file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/hostname
+      register: hostname_file
+
+    - name: Assert hostname file was created
+      ansible.builtin.assert:
+        that:
+          - hostname_file.stat.exists
+          - hostname_file.stat.isreg
+        fail_msg: "Hostname file not found"
+        success_msg: "Hostname file exists"
+
+    - name: Get hostname file content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/hostname
+      register: hostname_content
+      when: hostname_file.stat.exists
+
+    - name: Verify hostname content
+      ansible.builtin.assert:
+        that:
+          - (hostname_content.content | b64decode | trim) == chef_automate_hostname
+        fail_msg: "Hostname not set correctly"
+        success_msg: "Hostname set correctly"
+      when: hostname_file.stat.exists
+
+    # Verify kernel parameters were set
+    - name: Check sysctl settings file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      register: sysctl_file
+
+    - name: Assert sysctl file was created
+      ansible.builtin.assert:
+        that:
+          - sysctl_file.stat.exists
+          - sysctl_file.stat.isreg
+        fail_msg: "Sysctl settings file not found"
+        success_msg: "Sysctl settings file exists"
+
+    - name: Get sysctl file content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      register: sysctl_content
+      when: sysctl_file.stat.exists
+
+    - name: Verify sysctl content
+      ansible.builtin.assert:
+        that:
+          - "'vm.max_map_count = 262144' in (sysctl_content.content | b64decode)"
+          - "'vm.dirty_expire_centisecs = 20000' in (sysctl_content.content | b64decode)"
+        fail_msg: "Sysctl parameters not set correctly"
+        success_msg: "Sysctl parameters set correctly"
+      when: sysctl_file.stat.exists
+
+    # Verify Chef Automate CLI was downloaded and extracted
+    - name: Check Chef Automate CLI exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/tmp/chef-automate
+      register: chef_automate_cli
+
+    - name: Assert Chef Automate CLI was downloaded
+      ansible.builtin.assert:
+        that:
+          - chef_automate_cli.stat.exists
+          - chef_automate_cli.stat.executable
+        fail_msg: "Chef Automate CLI not found or not executable"
+        success_msg: "Chef Automate CLI exists and is executable"
+
+    # Verify Chef Automate was deployed
+    - name: Check Chef Automate deployment marker exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/hab/sup
+      register: chef_automate_deployed
+
+    - name: Assert Chef Automate was deployed
+      ansible.builtin.assert:
+        that:
+          - chef_automate_deployed.stat.exists
+          - chef_automate_deployed.stat.isdir
+        fail_msg: "Chef Automate deployment marker not found"
+        success_msg: "Chef Automate deployment marker exists"
+
+    # Verify user PEM file was created
+    - name: Check user PEM file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/{{ chef_automate_user_pem_path }}
+      register: user_pem
+
+    - name: Assert user PEM file was created
+      ansible.builtin.assert:
+        that:
+          - user_pem.stat.exists
+          - user_pem.stat.isreg
+          - user_pem.stat.size > 0
+        fail_msg: "User PEM file not found"
+        success_msg: "User PEM file exists"
+
+    # Verify organization PEM file was created
+    - name: Check organization PEM file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/{{ chef_automate_org_pem_path }}
+      register: org_pem
+
+    - name: Assert organization PEM file was created
+      ansible.builtin.assert:
+        that:
+          - org_pem.stat.exists
+          - org_pem.stat.isreg
+          - org_pem.stat.size > 0
+        fail_msg: "Organization PEM file not found"
+        success_msg: "Organization PEM file exists"
+
+    # The following checks would normally be performed but can't run in a container
+    # They are tagged with molecule-notest so they won't be executed during molecule testing
+
+    - name: Check if Chef Automate is running
+      ansible.builtin.command: chef-automate status
+      register: automate_status
+      changed_when: false
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Assert Chef Automate is running
+      ansible.builtin.assert:
+        that:
+          - automate_status.rc == 0
+        fail_msg: "Chef Automate is not running"
+        success_msg: "Chef Automate is running"
+      tags: molecule-notest
+
+    - name: Check if Chef Infra Server is running
+      ansible.builtin.command: chef-server-ctl status
+      register: server_status
+      changed_when: false
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Assert Chef Infra Server is running
+      ansible.builtin.assert:
+        that:
+          - server_status.rc == 0
+        fail_msg: "Chef Infra Server is not running"
+        success_msg: "Chef Infra Server is running"
+      tags: molecule-notest
+
+    - name: Verify user creation
+      ansible.builtin.command: chef-server-ctl user-list
+      register: user_list
+      changed_when: false
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Assert user was created
+      ansible.builtin.assert:
+        that:
+          - username in user_list.stdout
+        fail_msg: "User was not created"
+        success_msg: "User was created"
+      tags: molecule-notest
+
+    - name: Verify organization creation
+      ansible.builtin.command: chef-server-ctl org-list
+      register: org_list
+      changed_when: false
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Assert organization was created
+      ansible.builtin.assert:
+        that:
+          - org_name in org_list.stdout
+        fail_msg: "Organization was not created"
+        success_msg: "Organization was created"
+      tags: molecule-notest
