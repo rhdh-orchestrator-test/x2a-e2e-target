@@ -1,0 +1,135 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/tmp
+        - /tmp/molecule_test/hab
+        - /tmp/molecule_test/etc/hostname
+        - /tmp/molecule_test/etc/sysctl.d
+
+    # Simulate system configuration
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: "/tmp/molecule_test/etc/hostname"
+        mode: "0644"
+
+    - name: Create sysctl configuration files
+      ansible.builtin.copy:
+        content: |
+          # Managed by Ansible
+          vm.max_map_count = 262144
+        dest: "/tmp/molecule_test/etc/sysctl.d/99-chef-automate-vm-max-map-count.conf"
+        mode: "0644"
+
+    - name: Create sysctl dirty expire configuration
+      ansible.builtin.copy:
+        content: |
+          # Managed by Ansible
+          vm.dirty_expire_centisecs = 20000
+        dest: "/tmp/molecule_test/etc/sysctl.d/99-chef-automate-vm-dirty-expire.conf"
+        mode: "0644"
+
+    # Simulate Chef Automate CLI download and installation
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: "#!/bin/sh\necho 'Chef Automate CLI Mock'\n"
+        dest: "/tmp/molecule_test/tmp/chef-automate"
+        mode: "0755"
+
+    # Simulate Chef Automate deployment
+    - name: Create hab directory structure
+      ansible.builtin.file:
+        path: "/tmp/molecule_test/hab/sup"
+        state: directory
+        mode: "0755"
+
+    - name: Create Chef Automate status file
+      ansible.builtin.copy:
+        content: |
+          {
+            "status": "running",
+            "services": [
+              {"name": "automate", "status": "running"},
+              {"name": "infra-server", "status": "running"}
+            ]
+          }
+        dest: "/tmp/molecule_test/hab/sup/status.json"
+        mode: "0644"
+
+    # Simulate user and organization creation
+    - name: Create user key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAx4UbaDzY5xjW6hc9jwN0mX33XpTDVW9WqHp5AKaRbtAC3DqX
+          IXFMPgw3K45jxRb93f8tv9vL3rD9CUG1Gv4FM+o7ds7FRES5RTjv2RT/JVNJCoqF
+          ol8+ngLqRZCyBtQN7zYByWMRirPGoDUqdPYrj2yq+ObBBNhg5N+hOwKjjpzdj2Ud
+          1l7R+wxIqmJo1IYyy16xS8WsjyQuyC0lL456qkd5BDZ0Ag8j2X9H9D5220Ln7s9i
+          oezTipXipS7p7Jekf3Ywx6abJwOmB0rX79dV4qiNcGgzATnG1PkXxqt76VhcGa0W
+          DDVHEEYGbSQ6hIGSh0I7BQun0aLRZojfE3gqHQIDAQABAoIBAQCW3I4sKN5B9jOe
+          ZG8C4AwQ5tpwzZE+0pwU3+9FwgMnm+qcUbB1FFVBxxBE1SqvCmhIKncu3O6fb8mn
+          8K6jyS9wNrQ/g7F7o/C+UUPPnpRSblasOxEC7HWcPwcBsxonxs1QvuhwXBKH0Tg7
+          MOCK_KEY_CONTENT
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/jtonello.pem"
+        mode: "0600"
+
+    - name: Create organization validator key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAx4UbaDzY5xjW6hc9jwN0mX33XpTDVW9WqHp5AKaRbtAC3DqX
+          IXFMPgw3K45jxRb93f8tv9vL3rD9CUG1Gv4FM+o7ds7FRES5RTjv2RT/JVNJCoqF
+          ol8+ngLqRZCyBtQN7zYByWMRirPGoDUqdPYrj2yq+ObBBNhg5N+hOwKjjpzdj2Ud
+          1l7R+wxIqmJo1IYyy16xS8WsjyQuyC0lL456qkd5BDZ0Ag8j2X9H9D5220Ln7s9i
+          oezTipXipS7p7Jekf3Ywx6abJwOmB0rX79dV4qiNcGgzATnG1PkXxqt76VhcGa0W
+          MOCK_ORG_KEY_CONTENT
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/lab-validator.pem"
+        mode: "0600"
+
+    # Simulate Chef server command outputs
+    - name: Create mock chef-server-ctl user-list output
+      ansible.builtin.copy:
+        content: "jtonello"
+        dest: "/tmp/molecule_test/user-list.txt"
+        mode: "0644"
+
+    - name: Create mock chef-server-ctl org-list output
+      ansible.builtin.copy:
+        content: "lab"
+        dest: "/tmp/molecule_test/org-list.txt"
+        mode: "0644"
+
+    # Simulate Chef Automate API endpoints
+    - name: Create mock API version response
+      ansible.builtin.copy:
+        content: |
+          {
+            "build_timestamp": "20230101000000",
+            "build_sha": "abcdef1234567890",
+            "version": "1.0.0"
+          }
+        dest: "/tmp/molecule_test/api-version.json"
+        mode: "0644"
+
+    - name: Create mock API status response
+      ansible.builtin.copy:
+        content: |
+          {
+            "status": "ok",
+            "services": [
+              {"name": "automate", "status": "running"},
+              {"name": "infra-server", "status": "running"}
+            ]
+          }
+        dest: "/tmp/molecule_test/api-status.json"
+        mode: "0644"
