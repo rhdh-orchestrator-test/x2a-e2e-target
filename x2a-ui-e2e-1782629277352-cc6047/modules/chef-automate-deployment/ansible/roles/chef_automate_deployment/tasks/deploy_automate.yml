@@ -1,0 +1,27 @@
+---
+- name: Ensure required directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /etc/chef-automate
+  become: true
+- name: Check if Chef Automate is already deployed
+  ansible.builtin.stat:
+    path: /etc/chef-automate/config.toml
+  register: config_file
+  become: true
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: "./chef-automate deploy {% for product in chef_automate_products %} --product {{ product }} {% endfor %} --accept-terms-and-mlsa={{ chef_automate_accept_terms
+      | lower }} "
+  args:
+    creates: /etc/chef-automate/config.toml
+  become: true
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
+- name: Wait for Chef Automate services to be ready
+  ansible.builtin.pause:
+    seconds: 30
+  when: deploy_result.changed
