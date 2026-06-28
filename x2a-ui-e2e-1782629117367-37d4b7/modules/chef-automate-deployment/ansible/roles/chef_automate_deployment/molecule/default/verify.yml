@@ -1,0 +1,184 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # System configuration checks
+    - name: Check hostname file
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/hostname
+      register: hostname_file
+
+    - name: Assert hostname file exists
+      ansible.builtin.assert:
+        that:
+          - hostname_file.stat.exists
+          - hostname_file.stat.isreg
+        fail_msg: "Hostname file not found"
+        success_msg: "Hostname file exists"
+
+    - name: Get hostname content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/hostname
+      register: hostname_content
+      when: hostname_file.stat.exists
+
+    - name: Assert hostname is set correctly
+      ansible.builtin.assert:
+        that:
+          - (hostname_content.content | b64decode | trim) == "automate.chef.lab"
+        fail_msg: "Hostname not set correctly"
+        success_msg: "Hostname set correctly"
+      when: hostname_file.stat.exists
+
+    - name: Check sysctl configuration file
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      register: sysctl_file
+
+    - name: Assert sysctl file exists
+      ansible.builtin.assert:
+        that:
+          - sysctl_file.stat.exists
+          - sysctl_file.stat.isreg
+        fail_msg: "Sysctl configuration file not found"
+        success_msg: "Sysctl configuration file exists"
+
+    - name: Get sysctl file content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      register: sysctl_content
+      when: sysctl_file.stat.exists
+
+    - name: Assert sysctl parameters are set correctly
+      ansible.builtin.assert:
+        that:
+          - (sysctl_content.content | b64decode) is search("vm.max_map_count = 262144")
+          - (sysctl_content.content | b64decode) is search("vm.dirty_expire_centisecs = 20000")
+        fail_msg: "Sysctl parameters not set correctly"
+        success_msg: "Sysctl parameters set correctly"
+      when: sysctl_file.stat.exists
+
+    # Chef Automate CLI checks
+    - name: Check Chef Automate CLI
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/usr/local/bin/chef-automate
+      register: automate_cli
+
+    - name: Assert Chef Automate CLI exists
+      ansible.builtin.assert:
+        that:
+          - automate_cli.stat.exists
+          - automate_cli.stat.isreg
+          - automate_cli.stat.executable
+        fail_msg: "Chef Automate CLI not found or not executable"
+        success_msg: "Chef Automate CLI exists and is executable"
+
+    # Chef Server CLI checks
+    - name: Check Chef Server CLI
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/usr/local/bin/chef-server-ctl
+      register: server_cli
+
+    - name: Assert Chef Server CLI exists
+      ansible.builtin.assert:
+        that:
+          - server_cli.stat.exists
+          - server_cli.stat.isreg
+          - server_cli.stat.executable
+        fail_msg: "Chef Server CLI not found or not executable"
+        success_msg: "Chef Server CLI exists and is executable"
+
+    # PEM files checks
+    - name: Check user PEM file
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/jtonello.pem
+      register: user_pem
+
+    - name: Assert user PEM file exists
+      ansible.builtin.assert:
+        that:
+          - user_pem.stat.exists
+          - user_pem.stat.isreg
+          - user_pem.stat.mode == "0600"
+        fail_msg: "User PEM file not found or incorrect permissions"
+        success_msg: "User PEM file exists with correct permissions"
+
+    - name: Check organization validator PEM file
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/lab-validator.pem
+      register: org_pem
+
+    - name: Assert organization validator PEM file exists
+      ansible.builtin.assert:
+        that:
+          - org_pem.stat.exists
+          - org_pem.stat.isreg
+          - org_pem.stat.mode == "0600"
+        fail_msg: "Organization validator PEM file not found or incorrect permissions"
+        success_msg: "Organization validator PEM file exists with correct permissions"
+
+    # Service status checks (tagged for skipping in container)
+    - name: Check Chef Automate service status
+      ansible.builtin.command:
+        cmd: chef-automate status
+      register: automate_status
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert Chef Automate services are running
+      ansible.builtin.assert:
+        that:
+          - automate_status.stdout is search("Status: running")
+        fail_msg: "Chef Automate services not running"
+        success_msg: "Chef Automate services are running"
+      tags: molecule-notest
+
+    - name: Check Chef Server service status
+      ansible.builtin.command:
+        cmd: chef-server-ctl status
+      register: server_status
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert Chef Server services are running
+      ansible.builtin.assert:
+        that:
+          - server_status.stdout is search("run:")
+        fail_msg: "Chef Server services not running"
+        success_msg: "Chef Server services are running"
+      tags: molecule-notest
+
+    # Network checks (tagged for skipping in container)
+    - name: Check HTTPS port
+      ansible.builtin.wait_for:
+        port: 443
+        timeout: 5
+      register: port_check
+      ignore_errors: true
+      tags: molecule-notest
+
+    - name: Assert HTTPS port is listening
+      ansible.builtin.assert:
+        that:
+          - port_check is succeeded
+        fail_msg: "HTTPS port 443 not listening"
+        success_msg: "HTTPS port 443 is listening"
+      tags: molecule-notest
+
+    # API health check (tagged for skipping in container)
+    - name: Check API health
+      ansible.builtin.uri:
+        url: https://localhost/api/v0/health
+        validate_certs: false
+      register: api_health
+      ignore_errors: true
+      tags: molecule-notest
+
+    - name: Assert API is healthy
+      ansible.builtin.assert:
+        that:
+          - api_health is succeeded
+        fail_msg: "API health check failed"
+        success_msg: "API is healthy"
+      tags: molecule-notest
