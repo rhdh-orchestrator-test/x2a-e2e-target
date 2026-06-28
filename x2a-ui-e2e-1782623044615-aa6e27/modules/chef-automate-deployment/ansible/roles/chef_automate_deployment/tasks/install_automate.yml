@@ -1,0 +1,21 @@
+---
+- name: Ensure directory for Chef Automate CLI exists
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path | dirname }}"
+    state: directory
+    mode: "0755"
+  when: chef_automate_cli_path | dirname != '.'
+- name: Download and extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: curl {{ chef_automate_cli_url }} | gunzip - > {{ chef_automate_cli_path }}
+    creates: "{{ chef_automate_cli_path }}"
+  args:
+    warn: false
+  register: download_result
+  changed_when: download_result is changed
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+    state: file
+  when: download_result is changed
