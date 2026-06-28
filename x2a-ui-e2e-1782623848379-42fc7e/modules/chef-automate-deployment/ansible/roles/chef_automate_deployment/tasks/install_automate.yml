@@ -1,0 +1,32 @@
+---
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: /tmp/chef-automate_linux_amd64.zip
+    mode: "0644"
+- name: Check if Chef Automate CLI exists
+  ansible.builtin.stat:
+    path: "{{ ansible_env.HOME }}/{{ chef_automate_cli_binary }}"
+  register: automate_cli_stat
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip < /tmp/chef-automate_linux_amd64.zip > {{ ansible_env.HOME }}/{{ chef_automate_cli_binary }}
+  args:
+    creates: "{{ ansible_env.HOME }}/{{ chef_automate_cli_binary }}"
+  when: not automate_cli_stat.stat.exists
+  changed_when: true
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/{{ chef_automate_cli_binary }}"
+    mode: "0755"
+    state: file
+- name: Deploy Chef Automate with Infra Server
+  ansible.builtin.command:
+    cmd: ./{{ chef_automate_cli_binary }} deploy --product {{ chef_automate_products | join(' --product ') }} --accept-terms-and-mlsa=true
+  args:
+    chdir: "{{ ansible_env.HOME }}"
+    creates: /etc/chef-automate/config.toml
+  become: true
+  register: chef_automate_deploy
+  changed_when: chef_automate_deploy.rc == 0
+  notify: restart chef automate
