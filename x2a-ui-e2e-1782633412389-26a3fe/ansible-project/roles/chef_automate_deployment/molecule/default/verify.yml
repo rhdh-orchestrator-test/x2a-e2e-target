@@ -1,0 +1,295 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # System configuration checks
+    - name: Check hostname file
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/hostname
+      register: hostname_file
+
+    - name: Assert hostname file exists
+      ansible.builtin.assert:
+        that:
+          - hostname_file.stat.exists
+          - hostname_file.stat.isreg
+        fail_msg: "Hostname file not found"
+        success_msg: "Hostname file exists"
+
+    - name: Get hostname content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/hostname
+      register: hostname_content
+      when: hostname_file.stat.exists
+
+    - name: Assert hostname is set correctly
+      ansible.builtin.assert:
+        that:
+          - (hostname_content.content | b64decode | trim) == "automate.chef.lab"
+        fail_msg: "Hostname not set correctly"
+        success_msg: "Hostname set correctly"
+      when: hostname_file.stat.exists
+
+    - name: Check sysctl vm.max_map_count file
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/sysctl.d/99-chef-automate-vm-max-map-count.conf
+      register: max_map_count_file
+
+    - name: Assert vm.max_map_count file exists
+      ansible.builtin.assert:
+        that:
+          - max_map_count_file.stat.exists
+          - max_map_count_file.stat.isreg
+        fail_msg: "vm.max_map_count configuration file not found"
+        success_msg: "vm.max_map_count configuration file exists"
+
+    - name: Get vm.max_map_count content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/sysctl.d/99-chef-automate-vm-max-map-count.conf
+      register: max_map_count_content
+      when: max_map_count_file.stat.exists
+
+    - name: Assert vm.max_map_count is set correctly
+      ansible.builtin.assert:
+        that:
+          - max_map_count_content.content | b64decode | regex_search('vm.max_map_count = 262144')
+        fail_msg: "vm.max_map_count not set correctly"
+        success_msg: "vm.max_map_count set correctly"
+      when: max_map_count_file.stat.exists
+
+    - name: Check sysctl vm.dirty_expire_centisecs file
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/sysctl.d/99-chef-automate-vm-dirty-expire.conf
+      register: dirty_expire_file
+
+    - name: Assert vm.dirty_expire_centisecs file exists
+      ansible.builtin.assert:
+        that:
+          - dirty_expire_file.stat.exists
+          - dirty_expire_file.stat.isreg
+        fail_msg: "vm.dirty_expire_centisecs configuration file not found"
+        success_msg: "vm.dirty_expire_centisecs configuration file exists"
+
+    - name: Get vm.dirty_expire_centisecs content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/sysctl.d/99-chef-automate-vm-dirty-expire.conf
+      register: dirty_expire_content
+      when: dirty_expire_file.stat.exists
+
+    - name: Assert vm.dirty_expire_centisecs is set correctly
+      ansible.builtin.assert:
+        that:
+          - dirty_expire_content.content | b64decode | regex_search('vm.dirty_expire_centisecs = 20000')
+        fail_msg: "vm.dirty_expire_centisecs not set correctly"
+        success_msg: "vm.dirty_expire_centisecs set correctly"
+      when: dirty_expire_file.stat.exists
+
+    # Chef Automate CLI checks
+    - name: Check Chef Automate CLI
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/tmp/chef-automate
+      register: chef_automate_cli
+
+    - name: Assert Chef Automate CLI exists
+      ansible.builtin.assert:
+        that:
+          - chef_automate_cli.stat.exists
+          - chef_automate_cli.stat.isreg
+          - chef_automate_cli.stat.executable
+        fail_msg: "Chef Automate CLI not found or not executable"
+        success_msg: "Chef Automate CLI exists and is executable"
+
+    # Chef Automate deployment checks
+    - name: Check hab directory
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/hab
+      register: hab_dir
+
+    - name: Assert hab directory exists
+      ansible.builtin.assert:
+        that:
+          - hab_dir.stat.exists
+          - hab_dir.stat.isdir
+        fail_msg: "hab directory not found"
+        success_msg: "hab directory exists"
+
+    # Chef Automate status check
+    - name: Check Chef Automate status
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/hab/sup/status.json
+      register: automate_status_file
+
+    - name: Assert Chef Automate status file exists
+      ansible.builtin.assert:
+        that:
+          - automate_status_file.stat.exists
+          - automate_status_file.stat.isreg
+        fail_msg: "Chef Automate status file not found"
+        success_msg: "Chef Automate status file exists"
+
+    - name: Get Chef Automate status content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/hab/sup/status.json
+      register: automate_status_content
+      when: automate_status_file.stat.exists
+
+    - name: Assert Chef Automate status is running
+      ansible.builtin.assert:
+        that:
+          - (automate_status_content.content | b64decode | from_json).status == "running"
+        fail_msg: "Chef Automate is not running"
+        success_msg: "Chef Automate is running"
+      when: automate_status_file.stat.exists
+
+    # User and organization checks
+    - name: Check user key file
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/jtonello.pem
+      register: user_key_file
+
+    - name: Assert user key file exists
+      ansible.builtin.assert:
+        that:
+          - user_key_file.stat.exists
+          - user_key_file.stat.isreg
+        fail_msg: "User key file not found"
+        success_msg: "User key file exists"
+
+    - name: Check organization validator key file
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/lab-validator.pem
+      register: org_validator_key_file
+
+    - name: Assert organization validator key file exists
+      ansible.builtin.assert:
+        that:
+          - org_validator_key_file.stat.exists
+          - org_validator_key_file.stat.isreg
+        fail_msg: "Organization validator key file not found"
+        success_msg: "Organization validator key file exists"
+
+    - name: Check user list file
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/user-list.txt
+      register: user_list_file
+
+    - name: Assert user list file exists
+      ansible.builtin.assert:
+        that:
+          - user_list_file.stat.exists
+          - user_list_file.stat.isreg
+        fail_msg: "User list file not found"
+        success_msg: "User list file exists"
+
+    - name: Get user list content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/user-list.txt
+      register: user_list_content
+      when: user_list_file.stat.exists
+
+    - name: Assert user exists in user list
+      ansible.builtin.assert:
+        that:
+          - (user_list_content.content | b64decode | trim) == "jtonello"
+        fail_msg: "User jtonello not found in user list"
+        success_msg: "User jtonello exists in user list"
+      when: user_list_file.stat.exists
+
+    - name: Check organization list file
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/org-list.txt
+      register: org_list_file
+
+    - name: Assert organization list file exists
+      ansible.builtin.assert:
+        that:
+          - org_list_file.stat.exists
+          - org_list_file.stat.isreg
+        fail_msg: "Organization list file not found"
+        success_msg: "Organization list file exists"
+
+    - name: Get organization list content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/org-list.txt
+      register: org_list_content
+      when: org_list_file.stat.exists
+
+    - name: Assert organization exists in organization list
+      ansible.builtin.assert:
+        that:
+          - (org_list_content.content | b64decode | trim) == "lab"
+        fail_msg: "Organization lab not found in organization list"
+        success_msg: "Organization lab exists in organization list"
+      when: org_list_file.stat.exists
+
+    # Service status checks (tagged to skip in container)
+    - name: Check Chef Automate service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Chef Automate service is running
+      ansible.builtin.assert:
+        that:
+          - "'chef-automate.service' in ansible_facts.services"
+          - "ansible_facts.services['chef-automate.service'].state == 'running'"
+        fail_msg: "Chef Automate service is not running"
+        success_msg: "Chef Automate service is running"
+      tags: molecule-notest
+
+    - name: Check Chef Infra Server service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Chef Infra Server service is running
+      ansible.builtin.assert:
+        that:
+          - "'chef-server.service' in ansible_facts.services"
+          - "ansible_facts.services['chef-server.service'].state == 'running'"
+        fail_msg: "Chef Infra Server service is not running"
+        success_msg: "Chef Infra Server service is running"
+      tags: molecule-notest
+
+    # Network checks (tagged to skip in container)
+    - name: Check port 443 is listening
+      ansible.builtin.wait_for:
+        port: 443
+        state: started
+        timeout: 5
+      tags: molecule-notest
+
+    # API checks (tagged to skip in container)
+    - name: Check Chef Automate API version
+      ansible.builtin.uri:
+        url: https://localhost/api/v0/auth/version
+        validate_certs: false
+        return_content: true
+      register: api_version_response
+      tags: molecule-notest
+
+    - name: Assert API version response is valid
+      ansible.builtin.assert:
+        that:
+          - api_version_response.status == 200
+          - api_version_response.json is defined
+        fail_msg: "Chef Automate API version check failed"
+        success_msg: "Chef Automate API version check passed"
+      tags: molecule-notest
+
+    - name: Check Chef Automate API status
+      ansible.builtin.uri:
+        url: https://localhost/api/v0/status
+        validate_certs: false
+        return_content: true
+      register: api_status_response
+      tags: molecule-notest
+
+    - name: Assert API status response is valid
+      ansible.builtin.assert:
+        that:
+          - api_status_response.status == 200
+          - api_status_response.json is defined
+          - api_status_response.json.status == "ok"
+        fail_msg: "Chef Automate API status check failed"
+        success_msg: "Chef Automate API status check passed"
+      tags: molecule-notest
