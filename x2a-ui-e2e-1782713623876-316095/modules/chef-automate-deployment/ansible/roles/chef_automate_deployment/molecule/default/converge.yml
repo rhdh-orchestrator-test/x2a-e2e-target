@@ -1,0 +1,91 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/hab
+    - /tmp/molecule_test/tmp
+    - /tmp/molecule_test/etc/sysctl.d
+    - /tmp/molecule_test/etc/hostname
+    - /tmp/molecule_test/usr/bin
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: automate.chef.lab
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create sysctl configuration files
+    ansible.builtin.copy:
+      content: '{{ item.content }}'
+      dest: /tmp/molecule_test/etc/sysctl.d/{{ item.filename }}
+      mode: '0644'
+    loop:
+    - filename: 99-chef-automate-vm-max-map-count.conf
+      content: vm.max_map_count = 262144
+    - filename: 99-chef-automate-vm-dirty-expire-centisecs.conf
+      content: vm.dirty_expire_centisecs = 20000
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/bash echo ''Chef Automate CLI Mock'''
+      dest: /tmp/molecule_test/tmp/chef-automate
+      mode: '0755'
+  - name: Create Chef user PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
+
+        EXAMPLE_MOCK_PEM_CONTENT_FOR_USER
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/jtonello.pem
+      mode: '0600'
+  - name: Create Chef organization validator PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEA0987654321zyxwvutsrqponmlkjihgfedcba
+
+        EXAMPLE_MOCK_PEM_CONTENT_FOR_ORG_VALIDATOR
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/lab-validator.pem
+      mode: '0600'
+  - name: Create hab directory structure
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/hab/sup
+    - /tmp/molecule_test/hab/pkgs/chef
+    - /tmp/molecule_test/hab/etc
+  - name: Create mock Chef Automate and Chef Infra Server files
+    ansible.builtin.copy:
+      content: '# Mock configuration file'
+      dest: '{{ item }}'
+      mode: '0644'
+    loop:
+    - /tmp/molecule_test/hab/etc/chef-automate-config.toml
+    - /tmp/molecule_test/hab/etc/chef-server-config.rb
+  - name: Create mock chef-server-ctl command
+    ansible.builtin.copy:
+      content: '#!/bin/bash
+
+        echo "Mock chef-server-ctl command"
+
+        echo "Command executed: $@"
+
+        exit 0
+
+        '
+      dest: /tmp/molecule_test/usr/bin/chef-server-ctl
+      mode: '0755'

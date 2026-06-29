@@ -1,0 +1,26 @@
+---
+- name: Check if Chef Infra Server is installed
+  ansible.builtin.stat:
+    path: /hab
+  register: hab_dir_stat
+  become: true
+- name: Wait for Chef Infra Server to be ready
+  ansible.builtin.wait_for:
+    path: /usr/bin/chef-server-ctl
+    timeout: 300
+  become: true
+  when: hab_dir_stat.stat.exists
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create  {{ username }}  {{ long_username }}  {{ user_email }}  "{{ user_password }}"  --filename {{ user_pem_file }}
+  args:
+    creates: "{{ user_pem_file }}"
+  become: true
+  when: hab_dir_stat.stat.exists
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create  {{ org_name }}  "{{ long_org_name }}"  --association_user {{ username }}  --filename {{ org_validator_pem_file }}
+  args:
+    creates: "{{ org_validator_pem_file }}"
+  become: true
+  when: hab_dir_stat.stat.exists
