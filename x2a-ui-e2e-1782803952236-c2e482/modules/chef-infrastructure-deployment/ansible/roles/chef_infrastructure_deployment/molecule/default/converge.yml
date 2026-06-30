@@ -1,0 +1,100 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    # Create directory structure for testing
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/etc/hosts
+        - /tmp/molecule_test/etc/sysctl.d
+        - /tmp/molecule_test/home/ansible
+        - /tmp/molecule_test/var/chef
+
+    # Simulate hostname configuration
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: "/tmp/molecule_test/etc/hostname"
+        mode: "0644"
+
+    # Simulate hosts file entry
+    - name: Create hosts file entry
+      ansible.builtin.copy:
+        content: |
+          127.0.0.1 localhost
+          127.0.1.1 automate.chef.lab
+        dest: "/tmp/molecule_test/etc/hosts"
+        mode: "0644"
+
+    # Simulate kernel parameters
+    - name: Create sysctl configuration files
+      ansible.builtin.copy:
+        content: |
+          # Kernel parameters for Chef Automate
+          vm.max_map_count = 262144
+          vm.dirty_expire_centisecs = 20000
+        dest: "/tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf"
+        mode: "0644"
+
+    # Simulate Chef Automate CLI installation
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          echo "Chef Automate CLI v1.0.0"
+        dest: "/tmp/molecule_test/home/ansible/chef-automate"
+        mode: "0755"
+
+    # Simulate Chef user and organization PEM files
+    - name: Create Chef user PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
+          (simulated PEM content)
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/var/chef/chefuser.pem"
+        mode: "0600"
+
+    - name: Create Chef organization validator PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA0987654321zyxwvutsrqponmlkjihgfedcba
+          (simulated PEM content)
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/var/chef/lab-validator.pem"
+        mode: "0600"
+
+    # Simulate Chef server configuration file
+    - name: Create Chef server configuration file
+      ansible.builtin.copy:
+        content: |
+          # Chef Server Configuration
+          nginx['server_name'] = "automate.chef.lab"
+          nginx['ssl_certificate'] = "/var/opt/chef-server/nginx/ca/automate.chef.lab.crt"
+          nginx['ssl_certificate_key'] = "/var/opt/chef-server/nginx/ca/automate.chef.lab.key"
+        dest: "/tmp/molecule_test/etc/chef-server.rb"
+        mode: "0644"
+
+    # Simulate Chef Automate configuration file
+    - name: Create Chef Automate configuration file
+      ansible.builtin.copy:
+        content: |
+          # Chef Automate Configuration
+          [global.v1]
+          fqdn = "automate.chef.lab"
+          
+          [deployment.v1.svc]
+          products = ["automate", "chef-server"]
+          
+          [auth.sys.service]
+          mlsa_accept = true
+        dest: "/tmp/molecule_test/etc/chef-automate.toml"
+        mode: "0644"

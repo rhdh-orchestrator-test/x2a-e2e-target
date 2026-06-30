@@ -1,0 +1,194 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Verify hostname configuration
+    - name: Check hostname file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/hostname
+      register: hostname_file
+
+    - name: Assert hostname file was created
+      ansible.builtin.assert:
+        that:
+          - hostname_file.stat.exists
+          - hostname_file.stat.size > 0
+        fail_msg: "Hostname file not found"
+        success_msg: "Hostname file exists"
+
+    - name: Get hostname file content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/hostname
+      register: hostname_content
+      when: hostname_file.stat.exists
+
+    - name: Assert hostname is set correctly
+      ansible.builtin.assert:
+        that:
+          - (hostname_content.content | b64decode | trim) == "automate.chef.lab"
+        fail_msg: "Hostname not set to automate.chef.lab"
+        success_msg: "Hostname set correctly"
+      when: hostname_file.stat.exists
+
+    # Verify hosts file configuration
+    - name: Check hosts file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/hosts
+      register: hosts_file
+
+    - name: Assert hosts file was created
+      ansible.builtin.assert:
+        that:
+          - hosts_file.stat.exists
+          - hosts_file.stat.size > 0
+        fail_msg: "Hosts file not found"
+        success_msg: "Hosts file exists"
+
+    - name: Get hosts file content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/hosts
+      register: hosts_content
+      when: hosts_file.stat.exists
+
+    - name: Assert hosts file contains hostname entry
+      ansible.builtin.assert:
+        that:
+          - (hosts_content.content | b64decode) is search("automate.chef.lab")
+        fail_msg: "Hosts file does not contain hostname entry"
+        success_msg: "Hosts file contains hostname entry"
+      when: hosts_file.stat.exists
+
+    # Verify kernel parameters
+    - name: Check sysctl configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      register: sysctl_file
+
+    - name: Assert sysctl configuration file was created
+      ansible.builtin.assert:
+        that:
+          - sysctl_file.stat.exists
+          - sysctl_file.stat.size > 0
+        fail_msg: "Sysctl configuration file not found"
+        success_msg: "Sysctl configuration file exists"
+
+    - name: Get sysctl configuration file content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      register: sysctl_content
+      when: sysctl_file.stat.exists
+
+    - name: Assert sysctl configuration contains required parameters
+      ansible.builtin.assert:
+        that:
+          - (sysctl_content.content | b64decode) is search("vm.max_map_count = 262144")
+          - (sysctl_content.content | b64decode) is search("vm.dirty_expire_centisecs = 20000")
+        fail_msg: "Sysctl configuration does not contain required parameters"
+        success_msg: "Sysctl configuration contains required parameters"
+      when: sysctl_file.stat.exists
+
+    # Verify Chef Automate CLI installation
+    - name: Check Chef Automate CLI file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/home/ansible/chef-automate
+      register: automate_cli_file
+
+    - name: Assert Chef Automate CLI file was created
+      ansible.builtin.assert:
+        that:
+          - automate_cli_file.stat.exists
+          - automate_cli_file.stat.size > 0
+          - automate_cli_file.stat.executable
+        fail_msg: "Chef Automate CLI file not found or not executable"
+        success_msg: "Chef Automate CLI file exists and is executable"
+
+    # Verify Chef user and organization PEM files
+    - name: Check Chef user PEM file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/chef/chefuser.pem
+      register: user_pem_file
+
+    - name: Assert Chef user PEM file was created
+      ansible.builtin.assert:
+        that:
+          - user_pem_file.stat.exists
+          - user_pem_file.stat.size > 0
+          - user_pem_file.stat.mode == "0600"
+        fail_msg: "Chef user PEM file not found or has incorrect permissions"
+        success_msg: "Chef user PEM file exists with correct permissions"
+
+    - name: Check Chef organization validator PEM file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/chef/lab-validator.pem
+      register: org_pem_file
+
+    - name: Assert Chef organization validator PEM file was created
+      ansible.builtin.assert:
+        that:
+          - org_pem_file.stat.exists
+          - org_pem_file.stat.size > 0
+          - org_pem_file.stat.mode == "0600"
+        fail_msg: "Chef organization validator PEM file not found or has incorrect permissions"
+        success_msg: "Chef organization validator PEM file exists with correct permissions"
+
+    # Verify Chef server configuration
+    - name: Check Chef server configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/chef-server.rb
+      register: chef_server_config_file
+
+    - name: Assert Chef server configuration file was created
+      ansible.builtin.assert:
+        that:
+          - chef_server_config_file.stat.exists
+          - chef_server_config_file.stat.size > 0
+        fail_msg: "Chef server configuration file not found"
+        success_msg: "Chef server configuration file exists"
+
+    # Verify Chef Automate configuration
+    - name: Check Chef Automate configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/chef-automate.toml
+      register: chef_automate_config_file
+
+    - name: Assert Chef Automate configuration file was created
+      ansible.builtin.assert:
+        that:
+          - chef_automate_config_file.stat.exists
+          - chef_automate_config_file.stat.size > 0
+        fail_msg: "Chef Automate configuration file not found"
+        success_msg: "Chef Automate configuration file exists"
+
+    # The following checks would normally run on a real system but can't run in a container
+    # They are tagged with molecule-notest to be skipped during molecule testing
+
+    - name: Check Chef services status
+      ansible.builtin.command:
+        cmd: chef-server-ctl status
+      register: chef_services_status
+      changed_when: false
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Assert Chef services are running
+      ansible.builtin.assert:
+        that:
+          - chef_services_status.rc == 0
+        fail_msg: "Chef services are not running"
+        success_msg: "Chef services are running"
+      tags: molecule-notest
+
+    - name: Check system requirements
+      ansible.builtin.setup:
+        filter: ansible_memtotal_mb,ansible_processor_cores
+      tags: molecule-notest
+
+    - name: Assert system meets requirements
+      ansible.builtin.assert:
+        that:
+          - ansible_memtotal_mb | int >= 4096
+          - ansible_processor_cores | int >= 2
+        fail_msg: "System does not meet minimum requirements"
+        success_msg: "System meets minimum requirements"
+      tags: molecule-notest

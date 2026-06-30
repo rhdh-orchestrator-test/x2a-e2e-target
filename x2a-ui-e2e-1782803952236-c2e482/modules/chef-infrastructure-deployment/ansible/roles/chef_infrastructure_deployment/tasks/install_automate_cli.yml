@@ -1,0 +1,31 @@
+---
+- name: Check if Chef Automate CLI already exists
+  ansible.builtin.stat:
+    path: "{{ chef_automate_cli_path }}"
+  register: automate_cli_stat
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: /tmp/chef-automate_linux_amd64.zip
+    mode: "0644"
+  when: not automate_cli_stat.stat.exists
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip < /tmp/chef-automate_linux_amd64.zip > {{ chef_automate_cli_path }}
+  args:
+    creates: "{{ chef_automate_cli_path }}"
+  when: not automate_cli_stat.stat.exists
+- name: Set executable permissions on Chef Automate CLI
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+    state: file
+- name: Verify Chef Automate CLI installation
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} version"
+  register: automate_cli_version
+  changed_when: false
+  failed_when: false
+- name: Display Chef Automate CLI version
+  ansible.builtin.debug:
+    msg: "Chef Automate CLI version: {{ automate_cli_version.stdout if automate_cli_version.rc == 0 else 'Not installed correctly' }}"
