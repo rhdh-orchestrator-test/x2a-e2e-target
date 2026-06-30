@@ -1,0 +1,79 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  become: true
+- name: Set vm.max_map_count kernel parameter
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "{{ chef_automate_vm_max_map_count }}"
+    state: present
+    sysctl_set: true
+  become: true
+- name: Set vm.dirty_expire_centisecs kernel parameter
+  ansible.posix.sysctl:
+    name: vm.dirty_expire_centisecs
+    value: "{{ chef_automate_vm_dirty_expire_centisecs }}"
+    state: present
+    sysctl_set: true
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: /tmp/chef-automate.gz
+    mode: "0644"
+- name: Ensure Chef Automate CLI directory exists
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path | dirname }}"
+    state: directory
+    mode: "0755"
+  when: chef_automate_cli_path | dirname != '.'
+- name: Check if Chef Automate CLI archive exists
+  ansible.builtin.stat:
+    path: /tmp/chef-automate.gz
+  register: chef_automate_gz
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell: gunzip -c /tmp/chef-automate.gz > {{ chef_automate_cli_path }}
+  args:
+    creates: "{{ chef_automate_cli_path }}"
+  when: chef_automate_gz.stat.exists
+- name: Set execute permission on Chef Automate CLI
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command: "{{ chef_automate_cli_path }} deploy  {% if chef_automate_deploy_automate %}--product automate {% endif %} --product infra-server  --accept-terms-and-mlsa={{
+    chef_automate_accept_terms_and_mlsa | lower }} "
+  args:
+    creates: /hab
+  become: true
+- name: Create Chef user
+  ansible.builtin.command: 'chef-server-ctl user-create {{ username }} {{ long_username }} {{ user_email }} "{{ user_password }}"  --filename {{ chef_automate_user_pem_path
+    }}
+
+    '
+  args:
+    creates: "{{ chef_automate_user_pem_path }}"
+  become: true
+- name: Create Chef organization
+  ansible.builtin.command: 'chef-server-ctl org-create {{ org_name }} "{{ long_org_name }}"  --association_user {{ username }}  --filename {{ chef_automate_org_validator_pem_path
+    }}
+
+    '
+  args:
+    creates: "{{ chef_automate_org_validator_pem_path }}"
+  become: true
+- name: Save user PEM file content
+  ansible.builtin.copy:
+    content: "{{ user_pem }}"
+    dest: "{{ chef_automate_user_pem_path }}"
+    mode: "0600"
+  when: user_pem is defined and user_pem | length > 0
+- name: Save organization validator PEM file content
+  ansible.builtin.copy:
+    content: "{{ org_validator_pem }}"
+    dest: "{{ chef_automate_org_validator_pem_path }}"
+    mode: "0600"
+  when: org_validator_pem is defined and org_validator_pem | length > 0
