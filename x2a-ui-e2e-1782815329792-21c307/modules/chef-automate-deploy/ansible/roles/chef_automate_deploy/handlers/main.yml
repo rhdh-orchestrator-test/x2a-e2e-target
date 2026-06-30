@@ -1,0 +1,10 @@
+---
+- name: Reload sysctl
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    state: present
+    reload: true
+  become: true
+  loop:
+    - vm.max_map_count
+    - vm.dirty_expire_centisecs

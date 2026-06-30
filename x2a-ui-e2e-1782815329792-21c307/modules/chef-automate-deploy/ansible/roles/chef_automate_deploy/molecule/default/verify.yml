@@ -1,0 +1,106 @@
+- name: Verify
+  hosts: all
+  gather_facts: true
+  vars:
+    username: test_user
+    org_name: test_org
+  tasks:
+  - name: Check system resources
+    ansible.builtin.command: free -m
+    register: free_result
+    changed_when: false
+    tags: molecule-notest
+  - name: Check disk space
+    ansible.builtin.command: df -h
+    register: df_result
+    changed_when: false
+    tags: molecule-notest
+  - name: Check network connectivity to Chef packages
+    ansible.builtin.uri:
+      url: https://packages.chef.io
+      method: GET
+    tags: molecule-notest
+  - name: Verify hostname resolution
+    ansible.builtin.command: getent hosts automate.chef.lab
+    changed_when: false
+    tags: molecule-notest
+  - name: Check Chef Automate CLI exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/tmp/chef-automate
+    register: chef_automate_cli
+  - name: Assert Chef Automate CLI exists
+    ansible.builtin.assert:
+      that:
+      - chef_automate_cli.stat.exists
+      - chef_automate_cli.stat.executable
+      fail_msg: Chef Automate CLI not found or not executable
+      success_msg: Chef Automate CLI exists and is executable
+  - name: Check if /hab directory exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/hab
+    register: hab_dir
+  - name: Assert /hab directory exists
+    ansible.builtin.assert:
+      that:
+      - hab_dir.stat.exists
+      - hab_dir.stat.isdir
+      fail_msg: /hab directory not found
+      success_msg: /hab directory exists
+  - name: Check if user PEM file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/tmp/{{ username }}.pem
+    register: user_pem
+  - name: Assert user PEM file exists
+    ansible.builtin.assert:
+      that:
+      - user_pem.stat.exists
+      - user_pem.stat.size > 0
+      fail_msg: User PEM file not found
+      success_msg: User PEM file exists
+  - name: Check if organization validator PEM file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/tmp/{{ org_name }}-validator.pem
+    register: org_pem
+  - name: Assert organization validator PEM file exists
+    ansible.builtin.assert:
+      that:
+      - org_pem.stat.exists
+      - org_pem.stat.size > 0
+      fail_msg: Organization validator PEM file not found
+      success_msg: Organization validator PEM file exists
+  - name: Check sysctl configuration files
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/sysctl.d/{{ item.name | replace('.', '-') }}.conf
+    register: sysctl_files
+    loop:
+    - name: vm.max_map_count
+      value: '262144'
+    - name: vm.dirty_expire_centisecs
+      value: '20000'
+  - name: Assert sysctl configuration files exist
+    ansible.builtin.assert:
+      that:
+      - item.stat.exists
+      fail_msg: Sysctl configuration file for {{ item.item.name }} not found
+      success_msg: Sysctl configuration file for {{ item.item.name }} exists
+    loop: '{{ sysctl_files.results }}'
+    loop_control:
+      label: '{{ item.item.name }}'
+  - name: Check Chef Automate service
+    ansible.builtin.service_facts: null
+    tags: molecule-notest
+  - name: Assert Chef Automate service is running
+    ansible.builtin.assert:
+      that:
+      - '''chef-automate.service'' in ansible_facts.services'
+      fail_msg: Chef Automate service not found
+    tags: molecule-notest
+  - name: Check Chef Infra Server service
+    ansible.builtin.service_facts: null
+    tags: molecule-notest
+  - name: Assert Chef Infra Server service is running
+    ansible.builtin.assert:
+      that:
+      - '''chef-server.service'' in ansible_facts.services'
+      fail_msg: Chef Infra Server service not found
+    tags: molecule-notest
