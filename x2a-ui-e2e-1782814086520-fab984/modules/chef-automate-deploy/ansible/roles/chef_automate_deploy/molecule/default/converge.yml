@@ -1,0 +1,108 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    # Create directory structure
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/etc/sysctl.d
+        - /tmp/molecule_test/usr/local/bin
+        - /tmp/molecule_test/var/opt/chef-automate
+        - /tmp/molecule_test/var/opt/chef-server
+
+    # Simulate hostname configuration
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "{{ chef_automate_hostname | default('automate.chef.lab') }}"
+        dest: /tmp/molecule_test/etc/hostname
+        mode: "0644"
+
+    # Simulate sysctl settings
+    - name: Create sysctl settings file
+      ansible.builtin.copy:
+        content: |
+          vm.max_map_count = 262144
+          vm.dirty_expire_centisecs = 20000
+        dest: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+        mode: "0644"
+
+    # Simulate Chef Automate CLI
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          echo "Chef Automate CLI mock"
+        dest: /tmp/molecule_test/usr/local/bin/chef-automate
+        mode: "0755"
+
+    # Simulate Chef Server CLI
+    - name: Create Chef Server CLI file
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          echo "Chef Server CLI mock"
+        dest: /tmp/molecule_test/usr/local/bin/chef-server-ctl
+        mode: "0755"
+
+    # Simulate Chef Automate deployment status file
+    - name: Create Chef Automate deployment status file
+      ansible.builtin.copy:
+        content: |
+          {
+            "deployment_id": "mock-deployment-id",
+            "deployed": true,
+            "products": ["automate", "infra-server"]
+          }
+        dest: /tmp/molecule_test/var/opt/chef-automate/deployment-status.json
+        mode: "0644"
+
+    # Simulate user PEM file
+    - name: Create user PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAx4UbaDzY5xjW6hc9jwN0mX33XpTDVW9WqHp5AKaRbtAC3DqX
+          IXFMPgw3K45jxRb93f8tv9vL3rD9CUG1Gv4FM+o7ds7FRES5RTjv2RT/JVNJCoqF
+          ol8+ngLqRZCyBtQN7zYByWMRirPGoDUqdPYrj2yq+ObBBNhg5N+hOwKjjpzdj2Ud
+          1l7R+wxIqmJo1IYyy16xS8WsjyQuyC0lL456qkd5BDZ0Ag8j2X9H9D5220Ln7s9i
+          oezTipXipS7p7Jekf3Ywx6abJwOmB0rX79dV4qiNcGgzATnG1PkXxqt76VhcGa0W
+          DDVHEEYGbSQ6hIGSh0I7BQun0aLRZojfE3gqHQIDAQABAoIBAQCW3I4sKN5B9jOe
+          9EaLxVVJJBEr/RL5nbhXrBl0Am+uzM8AJK0CxAMKFXq4JZ4C0PjOQ5zXQ/tFfzto
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/{{ chef_automate_user.filename | default('jtonello.pem') }}
+        mode: "0600"
+
+    # Simulate organization validator PEM file
+    - name: Create organization validator PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAx4UbaDzY5xjW6hc9jwN0mX33XpTDVW9WqHp5AKaRbtAC3DqX
+          IXFMPgw3K45jxRb93f8tv9vL3rD9CUG1Gv4FM+o7ds7FRES5RTjv2RT/JVNJCoqF
+          ol8+ngLqRZCyBtQN7zYByWMRirPGoDUqdPYrj2yq+ObBBNhg5N+hOwKjjpzdj2Ud
+          1l7R+wxIqmJo1IYyy16xS8WsjyQuyC0lL456qkd5BDZ0Ag8j2X9H9D5220Ln7s9i
+          oezTipXipS7p7Jekf3Ywx6abJwOmB0rX79dV4qiNcGgzATnG1PkXxqt76VhcGa0W
+          DDVHEEYGbSQ6hIGSh0I7BQun0aLRZojfE3gqHQIDAQABAoIBAQCW3I4sKN5B9jOe
+          9EaLxVVJJBEr/RL5nbhXrBl0Am+uzM8AJK0CxAMKFXq4JZ4C0PjOQ5zXQ/tFfzto
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/{{ chef_automate_org.filename | default('lab-validator.pem') }}
+        mode: "0600"
+
+    # Simulate user and organization list files
+    - name: Create user list file
+      ansible.builtin.copy:
+        content: "{{ chef_automate_user.username | default('jtonello') }}"
+        dest: /tmp/molecule_test/var/opt/chef-server/user-list.txt
+        mode: "0644"
+
+    - name: Create organization list file
+      ansible.builtin.copy:
+        content: "{{ chef_automate_org.name | default('lab') }}"
+        dest: /tmp/molecule_test/var/opt/chef-server/org-list.txt
+        mode: "0644"
