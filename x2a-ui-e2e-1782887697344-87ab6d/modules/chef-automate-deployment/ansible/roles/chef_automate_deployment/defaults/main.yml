@@ -1,0 +1,17 @@
+---
+chef_automate_hostname: automate.chef.lab
+chef_automate_sysctl_params:
+  vm.max_map_count: 262144
+  vm.dirty_expire_centisecs: 20000
+chef_automate_cli_url: https://packages.chef.io/files/current/latest/chef-automate-cli/chef-automate_linux_amd64.zip
+chef_automate_cli_path: ./chef-automate
+chef_automate_accept_terms: true
+chef_org_name: lab
+chef_org_full_name: Chef Lab
+chef_user_key_filename: "{{ username }}.pem"
+chef_org_validator_filename: "{{ chef_org_name }}-validator.pem"
+chef_automate_products:
+  - automate
+  - infra-server
+chef_server_products:
+  - infra-server

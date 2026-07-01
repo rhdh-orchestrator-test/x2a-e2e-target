@@ -1,0 +1,119 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected directory structure
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/chef-automate
+        - /tmp/molecule_test/etc/systemd/system
+        - /tmp/molecule_test/var/log/chef-automate
+
+    # Simulate system configuration
+    - name: Create mock hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: "/tmp/molecule_test/hostname"
+        mode: "0644"
+
+    - name: Create mock sysctl configuration
+      ansible.builtin.copy:
+        content: |
+          vm.max_map_count = 262144
+          vm.dirty_expire_centisecs = 20000
+        dest: "/tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf"
+        mode: "0644"
+
+    # Simulate Chef Automate CLI download and installation
+    - name: Create mock Chef Automate CLI
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          echo "Chef Automate CLI mock"
+        dest: "/tmp/molecule_test/chef-automate"
+        mode: "0755"
+
+    # Simulate Chef Automate deployment
+    - name: Create mock Chef Automate config
+      ansible.builtin.copy:
+        content: |
+          [global]
+            v1 = true
+          
+          [deployment]
+            automate = true
+            infra_server = true
+        dest: "/tmp/molecule_test/etc/chef-automate/config.toml"
+        mode: "0644"
+
+    # Simulate Chef Automate service
+    - name: Create mock Chef Automate service file
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Chef Automate
+          
+          [Service]
+          ExecStart=/usr/bin/chef-automate
+          
+          [Install]
+          WantedBy=multi-user.target
+        dest: "/tmp/molecule_test/etc/systemd/system/chef-automate.service"
+        mode: "0644"
+
+    # Simulate user and organization creation
+    - name: Create mock user key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA1234567890abcdefghijklmnopqrstuvwxyz
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/jtonello.pem"
+        mode: "0400"
+
+    - name: Create mock organization validator key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA0987654321zyxwvutsrqponmlkjihgfedcba
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/lab-validator.pem"
+        mode: "0400"
+
+    # Simulate Chef server status output
+    - name: Create mock Chef server status file
+      ansible.builtin.copy:
+        content: |
+          run: service_name: running
+          run: service_name: running
+        dest: "/tmp/molecule_test/chef-server-status.txt"
+        mode: "0644"
+
+    # Simulate Chef Automate status output
+    - name: Create mock Chef Automate status file
+      ansible.builtin.copy:
+        content: |
+          Service: deployment-service status=running
+          Service: automate-gateway status=running
+          Service: automate-load-balancer status=running
+        dest: "/tmp/molecule_test/chef-automate-status.txt"
+        mode: "0644"
+
+    # Simulate user and org list outputs
+    - name: Create mock user list output
+      ansible.builtin.copy:
+        content: |
+          jtonello
+        dest: "/tmp/molecule_test/chef-user-list.txt"
+        mode: "0644"
+
+    - name: Create mock org list output
+      ansible.builtin.copy:
+        content: |
+          lab
+        dest: "/tmp/molecule_test/chef-org-list.txt"
+        mode: "0644"
