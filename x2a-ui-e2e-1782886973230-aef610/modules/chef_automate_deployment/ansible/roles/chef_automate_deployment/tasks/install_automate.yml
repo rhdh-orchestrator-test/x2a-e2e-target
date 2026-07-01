@@ -1,0 +1,40 @@
+---
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: /tmp/chef-automate_linux_amd64.zip
+    mode: "0644"
+- name: Check if Chef Automate CLI exists
+  ansible.builtin.stat:
+    path: "{{ chef_automate_cli_path | expanduser }}"
+  register: chef_automate_cli_stat
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip - > {{ chef_automate_cli_path | expanduser }}
+    stdin: "{{ lookup('ansible.builtin.file', '/tmp/chef-automate_linux_amd64.zip') }}"
+  args:
+    executable: /bin/bash
+  when: not chef_automate_cli_stat.stat.exists
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path | expanduser }}"
+    mode: "0755"
+    state: file
+- name: Build Chef Automate deploy command
+  ansible.builtin.set_fact:
+    chef_automate_deploy_cmd: "{{ chef_automate_cli_path | expanduser }} deploy {% for product in chef_automate_products %} --product {{ product }} {% endfor %} --accept-terms-and-mlsa={{
+      chef_automate_accept_terms | lower }}"
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_deploy_cmd }}"
+    creates: /etc/chef-automate/config.toml
+  become: true
+  register: deploy_result
+  notify: display deployment result
+- name: Force handlers to run
+  ansible.builtin.meta: flush_handlers
+  when: deploy_result.changed
+- name: Remove downloaded Chef Automate CLI zip
+  ansible.builtin.file:
+    path: /tmp/chef-automate_linux_amd64.zip
+    state: absent
