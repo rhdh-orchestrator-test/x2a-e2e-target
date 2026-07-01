@@ -1,0 +1,11 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Run preflight checks
+  ansible.builtin.include_tasks: preflight_checks.yml
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.include_tasks: deploy_automate.yml
+  when: chef_automate_deployment_type == 'automate_and_server'
+- name: Deploy Chef Infra Server only
+  ansible.builtin.include_tasks: deploy_chef_server.yml
+  when: chef_automate_deployment_type == 'server_only'
