@@ -1,0 +1,85 @@
+{
+  "module_name": "poodle_fix",
+  "items": [
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "./ansible/roles/poodle_fix/tasks/main.yml",
+      "status": "complete",
+      "description": "Convert standalone playbook tasks to role tasks with FQCN",
+      "notes": "Converted to use FQCN (ansible.builtin.replace), added variable references for configuration paths and settings, and added file mode parameter."
+    },
+    {
+      "category": "structure",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "./ansible/roles/poodle_fix/handlers/main.yml",
+      "status": "complete",
+      "description": "Create handlers file with consistent handler names",
+      "notes": "Fixed handler name to match task notification (Restart apache), using FQCN for service module."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/meta/main.yml",
+      "status": "complete",
+      "description": "Create role metadata file",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/defaults/main.yml",
+      "status": "complete",
+      "description": "Create defaults file with configuration parameters",
+      "notes": "Created defaults/main.yml with variables for Apache SSL configuration path and SSL protocol settings."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/README.md",
+      "status": "complete",
+      "description": "Create README file with role documentation",
+      "notes": "Created comprehensive README.md with role description, variables, usage examples, and security impact."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Create molecule scenario configuration with delegated driver",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Create molecule converge playbook",
+      "notes": "Created converge.yml that sets up a test environment with mock Apache SSL config file under /tmp/molecule_test/ and includes the role with test paths."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Create molecule verification tasks",
+      "notes": "Created verify.yml that checks if the SSL config file exists and has the correct protocol settings. Added additional checks for real systems tagged with molecule-notest."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Create molecule no-op instance create file",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Create molecule no-op instance destroy file",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    }
+  ]
+}
