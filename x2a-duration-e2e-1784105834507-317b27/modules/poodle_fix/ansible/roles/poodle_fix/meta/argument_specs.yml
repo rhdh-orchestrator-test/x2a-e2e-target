@@ -1,0 +1,14 @@
+---
+argument_specs:
+  main:
+    short_description: Role to fix POODLE vulnerability in Apache
+    description: Updates Apache SSL configuration to disable vulnerable protocols
+    options:
+      ssl_config_path:
+        type: str
+        default: /etc/apache2/mods-available/ssl.conf
+        description: Path to Apache SSL configuration file
+      ssl_protocol_setting:
+        type: str
+        default: -all +TLSv1.2
+        description: SSL protocol settings for Apache
