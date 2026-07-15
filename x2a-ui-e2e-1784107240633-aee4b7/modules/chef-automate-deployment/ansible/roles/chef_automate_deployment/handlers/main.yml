@@ -1,0 +1,21 @@
+---
+- name: Apply sysctl settings
+  ansible.builtin.command:
+    cmd: sysctl --system
+  become: true
+  changed_when: false
+- name: Set permissions on user key
+  ansible.builtin.file:
+    path: "{{ chef_user_key_path }}"
+    mode: "0600"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+- name: Set permissions on org validator key
+  ansible.builtin.file:
+    path: "{{ chef_org_validator_key_path }}"
+    mode: "0600"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+- name: Wait for Chef services to be ready
+  ansible.builtin.pause:
+    seconds: 30
