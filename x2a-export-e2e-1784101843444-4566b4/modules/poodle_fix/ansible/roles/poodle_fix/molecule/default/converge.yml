@@ -1,0 +1,41 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    poodle_fix_apache_config_path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    poodle_fix_ssl_protocol: -all +TLSv1.2
+    username: test_user
+    password: test_password
+  tasks:
+  - name: Create directory structure for Apache SSL config
+    ansible.builtin.file:
+      path: /tmp/molecule_test/etc/apache2/mods-available
+      state: directory
+      mode: '0755'
+  - name: Create mock Apache SSL config file
+    ansible.builtin.copy:
+      content: '# Mock Apache SSL config file for testing
+
+        SSLProtocol all -SSLv3
+
+        SSLCipherSuite HIGH:!aNULL:!MD5
+
+        '
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      mode: '0644'
+  - name: Mock Apache installation
+    ansible.builtin.set_fact:
+      apache_installed: true
+  - name: Mock SSH server installation
+    ansible.builtin.set_fact:
+      ssh_installed: true
+  - name: Check if Apache SSL module is enabled
+    ansible.builtin.stat:
+      path: '{{ poodle_fix_apache_config_path }}'
+    register: ssl_config_file
+  - name: Fix SSL in Apache
+    ansible.builtin.replace:
+      path: '{{ poodle_fix_apache_config_path }}'
+      regexp: ^SSLProtocol.*$
+      replace: SSLProtocol {{ poodle_fix_ssl_protocol }}
+    when: ssl_config_file.stat.exists

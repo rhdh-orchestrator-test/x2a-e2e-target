@@ -1,0 +1,24 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Ensure Apache is installed
+  ansible.builtin.package:
+    name: apache2
+    state: present
+- name: Ensure SSH server is installed
+  ansible.builtin.package:
+    name: openssh-server
+    state: present
+- name: Check if Apache SSL module is enabled
+  ansible.builtin.stat:
+    path: "{{ poodle_fix_apache_config_path }}"
+  register: ssl_config_file
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    path: "{{ poodle_fix_apache_config_path }}"
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol {{ poodle_fix_ssl_protocol }}
+  when: ssl_config_file.stat.exists
+  notify:
+    - Restart apache2
+    - Restart sshd
