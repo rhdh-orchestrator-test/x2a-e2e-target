@@ -1,0 +1,72 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check if ssl.conf file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_conf_file
+
+    - name: Assert ssl.conf file exists
+      ansible.builtin.assert:
+        that:
+          - ssl_conf_file.stat.exists
+          - ssl_conf_file.stat.isreg
+        fail_msg: "ssl.conf file does not exist"
+        success_msg: "ssl.conf file exists"
+
+    - name: Get ssl.conf content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_conf_content
+      when: ssl_conf_file.stat.exists
+
+    - name: Decode ssl.conf content
+      ansible.builtin.set_fact:
+        ssl_conf_decoded: "{{ ssl_conf_content.content | b64decode }}"
+      when: ssl_conf_file.stat.exists
+
+    - name: Assert SSLProtocol is properly configured for POODLE mitigation
+      ansible.builtin.assert:
+        that:
+          - ssl_conf_decoded is search('SSLProtocol -all \+TLSv1.2')
+        fail_msg: "SSLProtocol is not properly configured to mitigate POODLE vulnerability"
+        success_msg: "SSLProtocol is properly configured to mitigate POODLE vulnerability"
+      when: ssl_conf_file.stat.exists
+
+    # The following checks would be performed on a real system but can't run in a container
+    # They are tagged with molecule-notest to be skipped during molecule testing
+
+    - name: Check if Apache is installed and running
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Apache service is available
+      ansible.builtin.assert:
+        that:
+          - "'apache2.service' in ansible_facts.services"
+        fail_msg: "Apache service is not available"
+        success_msg: "Apache service is available"
+      tags: molecule-notest
+
+    - name: Assert SSH service is available
+      ansible.builtin.assert:
+        that:
+          - "'sshd.service' in ansible_facts.services"
+        fail_msg: "SSH service is not available"
+        success_msg: "SSH service is available"
+      tags: molecule-notest
+
+    - name: Validate Apache configuration
+      ansible.builtin.command: apache2ctl configtest
+      register: apache_configtest
+      changed_when: false
+      failed_when: apache_configtest.rc != 0
+      tags: molecule-notest
+
+    - name: Test TLS version support
+      ansible.builtin.command: nmap --script ssl-enum-ciphers -p 443 localhost
+      register: nmap_result
+      changed_when: false
+      tags: molecule-notest

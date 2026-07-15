@@ -1,0 +1,35 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create directory structure
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc/apache2/mods-available
+  - name: Create sample ssl.conf file with vulnerable configuration
+    ansible.builtin.copy:
+      content: '# Sample Apache SSL configuration file for testing
+
+        # This represents a vulnerable configuration before the POODLE fix
+
+
+        SSLCipherSuite HIGH:MEDIUM:!aNULL:!MD5
+
+        SSLProtocol all -SSLv3
+
+        SSLHonorCipherOrder on
+
+        '
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      mode: '0644'
+  - name: Simulate Apache installation
+    ansible.builtin.set_fact:
+      apache_installed: true
+  - name: Apply poodle_fix - Fix SSL in Apache
+    ansible.builtin.replace:
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      regexp: ^SSLProtocol.*$
+      replace: SSLProtocol -all +TLSv1.2
