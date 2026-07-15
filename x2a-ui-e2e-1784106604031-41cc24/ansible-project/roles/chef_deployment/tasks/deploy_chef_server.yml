@@ -1,0 +1,74 @@
+---
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_hostname }}"
+  become: true
+- name: Set vm.max_map_count kernel parameter
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "{{ chef_vm_max_map_count }}"
+    state: present
+    sysctl_set: true
+  become: true
+- name: Set vm.dirty_expire_centisecs kernel parameter
+  ansible.posix.sysctl:
+    name: vm.dirty_expire_centisecs
+    value: "{{ chef_vm_dirty_expire_centisecs }}"
+    state: present
+    sysctl_set: true
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: /tmp/chef-automate.zip
+    mode: "0644"
+- name: Create directory for Chef Automate CLI extraction
+  ansible.builtin.file:
+    path: /tmp/chef-automate-extract
+    state: directory
+    mode: "0755"
+- name: Extract Chef Automate CLI
+  ansible.builtin.unarchive:
+    src: /tmp/chef-automate.zip
+    dest: /tmp/chef-automate-extract
+    remote_src: true
+    creates: /tmp/chef-automate-extract/chef-automate
+- name: Move Chef Automate CLI to expected location
+  ansible.builtin.copy:
+    src: /tmp/chef-automate-extract/chef-automate
+    dest: /tmp/chef-automate
+    mode: "0755"
+    remote_src: true
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command:
+    cmd: ./chef-automate deploy --product infra-server --accept-terms-and-mlsa={{ chef_automate_accept_terms | ternary('true', 'false') }}
+    chdir: /tmp
+    creates: /hab
+  become: true
+  register: chef_server_deploy
+  changed_when: chef_server_deploy.rc == 0
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ username }} {{ chef_longusername }} {{ email }} "{{ password }}" --filename /root/{{ chef_userfilename }}
+    creates: /root/{{ chef_userfilename }}
+  become: true
+  no_log: true
+- name: Copy Chef user PEM file to current directory
+  ansible.builtin.copy:
+    src: /root/{{ chef_userfilename }}
+    dest: ./{{ chef_userfilename }}
+    mode: "0600"
+    remote_src: true
+  become: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ chef_orgname }} "{{ chef_longorgname }}" --association_user {{ username }} --filename /root/{{ chef_orgfilename }}
+    creates: /root/{{ chef_orgfilename }}
+  become: true
+- name: Copy Chef organization validator PEM file to current directory
+  ansible.builtin.copy:
+    src: /root/{{ chef_orgfilename }}
+    dest: ./{{ chef_orgfilename }}
+    mode: "0600"
+    remote_src: true
+  become: true
