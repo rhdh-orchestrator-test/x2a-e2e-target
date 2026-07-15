@@ -1,0 +1,7 @@
+---
+- name: Deploy Chef Infra Server
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy --product infra-server --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }}\n"
+  args:
+    creates: /hab
+  become: true

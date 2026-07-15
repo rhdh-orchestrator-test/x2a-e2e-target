@@ -1,0 +1,21 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Configure system for Chef Automate
+  ansible.builtin.include_tasks: configure_system.yml
+- name: Install Chef Automate CLI
+  ansible.builtin.include_tasks: install_cli.yml
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy {% for product in chef_automate_products %}--product {{ product }} {% endfor %} --accept-terms-and-mlsa={{ chef_automate_accept_terms
+      | lower }}\n"
+  args:
+    creates: /hab
+  become: true
+  when: "'automate' in chef_automate_products"
+- name: Deploy Chef Infra Server only
+  ansible.builtin.include_tasks: deploy_chef_server.yml
+  when: "'automate' not in chef_automate_products and 'infra-server' in chef_automate_products"
+- name: Create Chef Server user and organization
+  ansible.builtin.include_tasks: create_user_org.yml
+  when: "'infra-server' in chef_automate_products"
