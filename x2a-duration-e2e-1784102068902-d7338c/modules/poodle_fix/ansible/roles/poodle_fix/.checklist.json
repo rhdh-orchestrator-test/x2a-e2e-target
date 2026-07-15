@@ -1,0 +1,69 @@
+{
+  "module_name": "poodle_fix",
+  "items": [
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata file",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/handlers/main.yml",
+      "status": "complete",
+      "description": "Role handlers file",
+      "notes": "Created handlers file with corrected handler name to match notification in tasks."
+    },
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "./ansible/roles/poodle_fix/tasks/main.yml",
+      "status": "complete",
+      "description": "Convert standalone playbook to role tasks",
+      "notes": "Converted playbook to role tasks file with FQCN for replace module and preserved handler notifications."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule scenario configuration",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook",
+      "notes": "Created converge.yml that sets up a test environment with Apache SSL config under /tmp/molecule_test/ and simulates the role's task to fix the POODLE vulnerability."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification tasks",
+      "notes": "Created verify.yml that checks if the POODLE fix was correctly applied to the Apache SSL configuration, with additional service checks tagged as molecule-notest."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Molecule create playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Molecule destroy playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    }
+  ]
+}
