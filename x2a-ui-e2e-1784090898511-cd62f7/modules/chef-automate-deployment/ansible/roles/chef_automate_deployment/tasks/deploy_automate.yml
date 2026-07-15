@@ -1,0 +1,97 @@
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: '{{ chef_automate_hostname }}'
+  become: true
+- name: Set vm.max_map_count kernel parameter
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: '{{ chef_automate_vm_max_map_count }}'
+    state: present
+    sysctl_set: true
+  become: true
+- name: Set vm.dirty_expire_centisecs kernel parameter
+  ansible.posix.sysctl:
+    name: vm.dirty_expire_centisecs
+    value: '{{ chef_automate_vm_dirty_expire_centisecs }}'
+    state: present
+    sysctl_set: true
+  become: true
+- name: Create temporary directory for Chef Automate CLI
+  ansible.builtin.file:
+    path: '{{ chef_automate_cli_path | dirname }}'
+    state: directory
+    mode: '0755'
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: '{{ chef_automate_cli_url }}'
+    dest: '{{ chef_automate_cli_path }}.zip'
+    mode: '0644'
+  become: true
+- name: Extract Chef Automate CLI
+  ansible.builtin.unarchive:
+    src: '{{ chef_automate_cli_path }}.zip'
+    dest: '{{ chef_automate_cli_path | dirname }}'
+    remote_src: true
+  become: true
+- name: Set executable permissions on Chef Automate CLI
+  ansible.builtin.file:
+    path: '{{ chef_automate_cli_path }}'
+    mode: '0755'
+  become: true
+- name: Ensure /usr/local/bin directory exists
+  ansible.builtin.file:
+    path: '{{ chef_automate_cli_dest | dirname }}'
+    state: directory
+    mode: '0755'
+  become: true
+- name: Copy Chef Automate CLI to /usr/local/bin
+  ansible.builtin.copy:
+    src: '{{ chef_automate_cli_path }}'
+    dest: '{{ chef_automate_cli_dest }}'
+    remote_src: true
+    mode: '0755'
+  become: true
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: '{{ chef_automate_cli_path }} deploy --product automate --product infra-server --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }}'
+  args:
+    creates: /hab
+  become: true
+  register: chef_automate_deploy
+  changed_when: chef_automate_deploy.rc == 0
+- name: Wait for chef-server-ctl to be available
+  ansible.builtin.wait_for:
+    path: /usr/bin/chef-server-ctl
+    timeout: 300
+  become: true
+- name: Create system user for Chef
+  ansible.builtin.user:
+    name: '{{ username }}'
+    comment: '{{ full_name }}'
+    state: present
+  become: true
+- name: Ensure user home directory exists
+  ansible.builtin.file:
+    path: /home/{{ username }}
+    state: directory
+    owner: '{{ username }}'
+    group: '{{ username }}'
+    mode: '0750'
+  become: true
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ username }} {{ full_name }} {{ email }} {{ password }} --filename {{ chef_automate_user_pem_path }}
+  args:
+    creates: '{{ chef_automate_user_pem_path }}'
+  become: true
+  register: chef_user_create
+  changed_when: chef_user_create.rc == 0
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ org_name }} {{ org_full_name }} --association_user {{ username }} --filename {{ chef_automate_org_pem_path }}
+  args:
+    creates: '{{ chef_automate_org_pem_path }}'
+  become: true
+  register: chef_org_create
+  changed_when: chef_org_create.rc == 0
