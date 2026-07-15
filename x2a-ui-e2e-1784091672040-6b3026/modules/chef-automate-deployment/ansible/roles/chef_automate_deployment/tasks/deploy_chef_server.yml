@@ -1,0 +1,19 @@
+---
+- name: Ensure Chef Automate config directory exists
+  ansible.builtin.file:
+    path: /etc/chef-automate
+    state: directory
+    mode: "0755"
+  become: true
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy --product infra-server --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }}"
+  args:
+    creates: /etc/chef-automate/config.toml
+  become: true
+  register: deploy_result
+  notify: Display chef server deployment result
+- name: Add handler for deployment result
+  ansible.builtin.set_fact:
+    deploy_chef_server_result: "{{ deploy_result.stdout_lines | default('No output') }}"
+  when: deploy_result.changed

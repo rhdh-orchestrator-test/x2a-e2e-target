@@ -1,0 +1,11 @@
+---
+- name: Reload sysctl
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+- name: Display automate deployment result
+  ansible.builtin.debug:
+    msg: "{{ deploy_automate_result | default('No output') }}"
+- name: Display chef server deployment result
+  ansible.builtin.debug:
+    msg: "{{ deploy_chef_server_result | default('No output') }}"

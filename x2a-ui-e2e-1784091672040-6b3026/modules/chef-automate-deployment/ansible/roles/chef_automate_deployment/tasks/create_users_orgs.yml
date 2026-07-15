@@ -1,0 +1,38 @@
+---
+- name: Check if Chef server is installed
+  ansible.builtin.stat:
+    path: /usr/bin/chef-server-ctl
+  register: chef_server_ctl
+  become: true
+- name: Fail if Chef server is not installed
+  ansible.builtin.fail:
+    msg: Chef server is not installed. Cannot create users and organizations.
+  when: not chef_server_ctl.stat.exists
+- name: Ensure key output directory exists
+  ansible.builtin.file:
+    path: "{{ chef_automate_key_output_dir }}"
+    state: directory
+    mode: "0700"
+  become: true
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ username }} {{ full_name }} {{ email }} "{{ password }}"  --filename {{ chef_automate_key_output_dir }}/{{
+      chef_automate_user_key_path }}
+  args:
+    creates: "{{ chef_automate_key_output_dir }}/{{ chef_automate_user_key_path }}"
+  become: true
+  register: user_create_result
+  no_log: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ org_name }} "{{ org_full_name }}"  --association_user {{ username }}  --filename {{ chef_automate_key_output_dir }}/{{
+      chef_automate_org_key_path }}
+  args:
+    creates: "{{ chef_automate_key_output_dir }}/{{ chef_automate_org_key_path }}"
+  become: true
+  register: org_create_result
+- name: Display user and organization creation results
+  ansible.builtin.debug:
+    msg:
+      - "User creation: {{ 'Success' if user_create_result.changed else 'Already exists' }}"
+      - "Organization creation: {{ 'Success' if org_create_result.changed else 'Already exists' }}"
