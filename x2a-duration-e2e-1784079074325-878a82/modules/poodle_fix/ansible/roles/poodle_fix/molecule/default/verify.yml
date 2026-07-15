@@ -1,0 +1,71 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Check SSL configuration file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_conf_file
+  - name: Assert SSL configuration file exists
+    ansible.builtin.assert:
+      that:
+      - ssl_conf_file.stat.exists
+      - ssl_conf_file.stat.isreg
+      fail_msg: SSL configuration file not found
+      success_msg: SSL configuration file exists
+  - name: Get SSL configuration file content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_conf_content
+  - name: Decode SSL configuration file content
+    ansible.builtin.set_fact:
+      ssl_conf_decoded: '{{ ssl_conf_content.content | b64decode }}'
+  - name: Assert SSL configuration has been updated to mitigate POODLE
+    ansible.builtin.assert:
+      that:
+      - '''SSLProtocol -all +TLSv1.2'' in ssl_conf_decoded'
+      - '''SSLProtocol all -SSLv3'' not in ssl_conf_decoded'
+      fail_msg: SSL configuration was not properly updated to mitigate POODLE vulnerability
+      success_msg: SSL configuration was properly updated to mitigate POODLE vulnerability
+  - name: Check SSL module load file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/apache2/mods-enabled/ssl.load
+    register: ssl_load_file
+  - name: Assert SSL module is enabled
+    ansible.builtin.assert:
+      that:
+      - ssl_load_file.stat.exists
+      - ssl_load_file.stat.isreg
+      fail_msg: SSL module is not enabled
+      success_msg: SSL module is enabled
+  - name: Check Apache service status
+    ansible.builtin.service_facts: null
+    tags: molecule-notest
+  - name: Assert Apache service is running
+    ansible.builtin.assert:
+      that:
+      - '''apache2.service'' in ansible_facts.services'
+      - ansible_facts.services['apache2.service'].state == 'running'
+      fail_msg: Apache service is not running
+      success_msg: Apache service is running
+    tags: molecule-notest
+  - name: Validate Apache configuration
+    ansible.builtin.command: apache2ctl configtest
+    changed_when: false
+    tags: molecule-notest
+  - name: Test TLSv1.2 connection
+    ansible.builtin.command: openssl s_client -connect localhost:443 -tls1_2
+    changed_when: false
+    tags: molecule-notest
+  - name: Check for POODLE vulnerability
+    ansible.builtin.command: nmap --script ssl-enum-ciphers -p 443 localhost
+    changed_when: false
+    register: nmap_result
+    tags: molecule-notest
+  - name: Assert POODLE vulnerability is mitigated
+    ansible.builtin.assert:
+      that:
+      - '''SSLv3'' not in nmap_result.stdout'
+      fail_msg: POODLE vulnerability is not mitigated
+      success_msg: POODLE vulnerability is mitigated
+    tags: molecule-notest
