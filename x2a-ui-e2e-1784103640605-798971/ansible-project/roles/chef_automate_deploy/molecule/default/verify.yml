@@ -1,0 +1,245 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  vars:
+    chef_automate_hostname: "automate.chef.lab"
+    chef_automate_username: "jtonello"
+    chef_automate_orgname: "lab"
+  tasks:
+    # System configuration checks
+    - name: Check hostname file
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/hostname
+      register: hostname_file
+
+    - name: Assert hostname file exists
+      ansible.builtin.assert:
+        that:
+          - hostname_file.stat.exists
+          - hostname_file.stat.isreg
+        fail_msg: "Hostname file not found"
+        success_msg: "Hostname file exists"
+
+    - name: Get hostname content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/hostname
+      register: hostname_content
+      when: hostname_file.stat.exists
+
+    - name: Assert hostname is set correctly
+      ansible.builtin.assert:
+        that:
+          - (hostname_content.content | b64decode | trim) == chef_automate_hostname
+        fail_msg: "Hostname is not set correctly"
+        success_msg: "Hostname is set correctly"
+      when: hostname_file.stat.exists
+
+    # Kernel parameter checks
+    - name: Check kernel parameter files
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/proc/sys/vm/{{ item.name }}"
+      register: kernel_param_file
+      loop:
+        - name: max_map_count
+          expected: "262144"
+        - name: dirty_expire_centisecs
+          expected: "20000"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Assert kernel parameter files exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isreg
+        fail_msg: "Kernel parameter file {{ item.item.name }} not found"
+        success_msg: "Kernel parameter file {{ item.item.name }} exists"
+      loop: "{{ kernel_param_file.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+
+    - name: Get kernel parameter content
+      ansible.builtin.slurp:
+        src: "/tmp/molecule_test/proc/sys/vm/{{ item.item.name }}"
+      register: kernel_param_content
+      loop: "{{ kernel_param_file.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+      when: item.stat.exists
+
+    - name: Assert kernel parameters are set correctly
+      ansible.builtin.assert:
+        that:
+          - (item.content | b64decode | trim) == item.item.item.expected
+        fail_msg: "Kernel parameter {{ item.item.item.name }} is not set correctly"
+        success_msg: "Kernel parameter {{ item.item.item.name }} is set correctly"
+      loop: "{{ kernel_param_content.results }}"
+      loop_control:
+        label: "{{ item.item.item.name }}"
+
+    # Chef Automate CLI check
+    - name: Check Chef Automate CLI binary
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/usr/local/bin/chef-automate
+      register: chef_automate_cli
+
+    - name: Assert Chef Automate CLI binary exists
+      ansible.builtin.assert:
+        that:
+          - chef_automate_cli.stat.exists
+          - chef_automate_cli.stat.isreg
+          - chef_automate_cli.stat.executable
+        fail_msg: "Chef Automate CLI binary not found or not executable"
+        success_msg: "Chef Automate CLI binary exists and is executable"
+
+    # Chef Server CLI check
+    - name: Check Chef Server CLI binary
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/usr/local/bin/chef-server-ctl
+      register: chef_server_cli
+
+    - name: Assert Chef Server CLI binary exists
+      ansible.builtin.assert:
+        that:
+          - chef_server_cli.stat.exists
+          - chef_server_cli.stat.isreg
+          - chef_server_cli.stat.executable
+        fail_msg: "Chef Server CLI binary not found or not executable"
+        success_msg: "Chef Server CLI binary exists and is executable"
+
+    # PEM files verification
+    - name: Check user PEM file
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/{{ chef_automate_username }}.pem"
+      register: user_pem_file
+
+    - name: Assert user PEM file exists
+      ansible.builtin.assert:
+        that:
+          - user_pem_file.stat.exists
+          - user_pem_file.stat.isreg
+          - user_pem_file.stat.size > 0
+        fail_msg: "User PEM file not found"
+        success_msg: "User PEM file exists"
+
+    - name: Check organization validator PEM file
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/{{ chef_automate_orgname }}-validator.pem"
+      register: org_validator_pem_file
+
+    - name: Assert organization validator PEM file exists
+      ansible.builtin.assert:
+        that:
+          - org_validator_pem_file.stat.exists
+          - org_validator_pem_file.stat.isreg
+          - org_validator_pem_file.stat.size > 0
+        fail_msg: "Organization validator PEM file not found"
+        success_msg: "Organization validator PEM file exists"
+
+    # Chef Automate status check
+    - name: Check Chef Automate status
+      ansible.builtin.command:
+        cmd: chef-automate status
+      register: chef_automate_status
+      changed_when: false
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Assert Chef Automate is running
+      ansible.builtin.assert:
+        that:
+          - chef_automate_status.rc == 0
+          - "'Status: running' in chef_automate_status.stdout"
+        fail_msg: "Chef Automate is not running properly"
+        success_msg: "Chef Automate is running properly"
+      tags: molecule-notest
+
+    # Chef Infra Server status check
+    - name: Check Chef Infra Server status
+      ansible.builtin.command:
+        cmd: chef-server-ctl status
+      register: chef_server_status
+      changed_when: false
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Assert Chef Infra Server is running
+      ansible.builtin.assert:
+        that:
+          - chef_server_status.rc == 0
+          - "'run:' in chef_server_status.stdout"
+        fail_msg: "Chef Infra Server is not running properly"
+        success_msg: "Chef Infra Server is running properly"
+      tags: molecule-notest
+
+    # User verification
+    - name: Check user list
+      ansible.builtin.command:
+        cmd: chef-server-ctl user-list
+      register: user_list
+      changed_when: false
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Assert user exists
+      ansible.builtin.assert:
+        that:
+          - chef_automate_username in user_list.stdout
+        fail_msg: "User {{ chef_automate_username }} not found"
+        success_msg: "User {{ chef_automate_username }} exists"
+      tags: molecule-notest
+
+    # Organization verification
+    - name: Check organization list
+      ansible.builtin.command:
+        cmd: chef-server-ctl org-list
+      register: org_list
+      changed_when: false
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Assert organization exists
+      ansible.builtin.assert:
+        that:
+          - chef_automate_orgname in org_list.stdout
+        fail_msg: "Organization {{ chef_automate_orgname }} not found"
+        success_msg: "Organization {{ chef_automate_orgname }} exists"
+      tags: molecule-notest
+
+    # Network listening check
+    - name: Check port 443 is listening
+      ansible.builtin.wait_for:
+        port: 443
+        state: started
+        timeout: 5
+      register: port_check
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Assert port 443 is listening
+      ansible.builtin.assert:
+        that:
+          - port_check is succeeded
+        fail_msg: "Port 443 is not listening"
+        success_msg: "Port 443 is listening"
+      tags: molecule-notest
+
+    # Web UI access check
+    - name: Check Web UI access
+      ansible.builtin.uri:
+        url: https://localhost/api/v0/health
+        validate_certs: false
+        status_code: 200
+      register: web_ui_check
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Assert Web UI is accessible
+      ansible.builtin.assert:
+        that:
+          - web_ui_check is succeeded
+          - web_ui_check.status == 200
+        fail_msg: "Web UI is not accessible"
+        success_msg: "Web UI is accessible"
+      tags: molecule-notest

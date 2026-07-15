@@ -1,0 +1,90 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  become: true
+- name: Configure kernel parameters for Chef Automate
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop:
+    - name: vm.max_map_count
+      value: "262144"
+    - name: vm.dirty_expire_centisecs
+      value: "20000"
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: https://packages.chef.io/files/current/latest/chef-automate-cli/chef-automate_linux_amd64.zip
+    dest: /tmp/chef-automate_linux_amd64.zip
+    mode: "0644"
+  become: true
+- name: Create directory for Chef Automate
+  ansible.builtin.file:
+    path: /tmp/chef-automate-extract
+    state: directory
+    mode: "0755"
+  become: true
+- name: Extract Chef Automate CLI
+  ansible.builtin.unarchive:
+    src: /tmp/chef-automate_linux_amd64.zip
+    dest: /tmp/chef-automate-extract
+    remote_src: true
+  become: true
+- name: Move Chef Automate CLI to /usr/local/bin
+  ansible.builtin.copy:
+    src: /tmp/chef-automate-extract/chef-automate
+    dest: /usr/local/bin/chef-automate
+    mode: "0755"
+    remote_src: true
+  become: true
+- name: Check if Chef Automate is already deployed
+  ansible.builtin.command:
+    cmd: chef-automate status
+  register: automate_status
+  changed_when: false
+  failed_when: false
+  become: true
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: chef-automate deploy --product automate --product infra-server --accept-terms-and-mlsa=true
+  become: true
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
+  failed_when: deploy_result.rc != 0
+  when: automate_status.rc != 0
+- name: Check if Chef user already exists
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-list
+  register: user_list
+  changed_when: false
+  failed_when: false
+  become: true
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ chef_automate_username }}  "{{ full_name }}" "{{ email }}" "{{ password }}"  --filename {{ chef_automate_username }}.pem
+  become: true
+  register: user_create_result
+  changed_when: user_create_result.rc == 0
+  failed_when: user_create_result.rc != 0
+  when: chef_automate_username not in user_list.stdout
+- name: Check if Chef organization already exists
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-list
+  register: org_list
+  changed_when: false
+  failed_when: false
+  become: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ chef_automate_orgname }}  "{{ chef_automate_longorgname }}"  --association_user {{ chef_automate_username }}  --filename
+      {{ chef_automate_orgname }}-validator.pem
+  become: true
+  register: org_create_result
+  changed_when: org_create_result.rc == 0
+  failed_when: org_create_result.rc != 0
+  when: chef_automate_orgname not in org_list.stdout
