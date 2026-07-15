@@ -1,0 +1,16 @@
+---
+argument_specs:
+  main:
+    short_description: Role to mitigate SSL POODLE vulnerability in Apache
+    description:
+      - This role updates Apache SSL configuration to disable vulnerable protocols
+      - Enables only TLSv1.2 to mitigate POODLE vulnerability
+    options:
+      ssl_poodle_apache_config_path:
+        type: str
+        default: /etc/apache2/mods-available/ssl.conf
+        description: Path to Apache SSL configuration file
+      ssl_poodle_protocol_string:
+        type: str
+        default: -all +TLSv1.2
+        description: SSL protocol string to use in Apache configuration
