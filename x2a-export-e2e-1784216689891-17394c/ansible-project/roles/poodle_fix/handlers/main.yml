@@ -1,0 +1,13 @@
+---
+- name: Restart apache2
+  ansible.builtin.service:
+    name: apache2
+    state: restarted
+  when: restart_apache | bool
+  tags: molecule-notest
+- name: Restart sshd
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
+  when: restart_ssh | bool
+  tags: molecule-notest
