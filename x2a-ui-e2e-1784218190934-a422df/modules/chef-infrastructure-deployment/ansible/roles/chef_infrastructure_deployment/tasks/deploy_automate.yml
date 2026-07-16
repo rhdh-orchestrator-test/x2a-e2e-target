@@ -1,0 +1,58 @@
+---
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_hostname }}"
+  become: true
+- name: Configure system parameters
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop: "{{ chef_sysctl_params | dict2items }}"
+  become: true
+- name: Ensure directory exists for Chef Automate CLI
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path | dirname }}"
+    state: directory
+    mode: "0755"
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: "{{ chef_automate_cli_path }}.zip"
+    mode: "0644"
+  register: chef_automate_cli_download
+  notify:
+    - Extract Chef Automate CLI
+    - Make Chef Automate CLI executable
+- name: Ensure Chef Automate CLI is extracted
+  ansible.builtin.meta: flush_handlers
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path | regex_replace('\\.zip$', '') }} deploy --product automate --product infra-server --accept-terms-and-mlsa=true"
+  args:
+    creates: /hab
+  become: true
+- name: Ensure directory exists for PEM files
+  ansible.builtin.file:
+    path: "{{ item | dirname }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ chef_user_pem_path }}"
+    - "{{ chef_org_validator_pem_path }}"
+  become: true
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ username }} '{{ chef_user_long_name }}' {{ email }} '{{ password }}' --filename {{ chef_user_pem_path }}
+  args:
+    creates: "{{ chef_user_pem_path }}"
+  become: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ chef_org_name }} '{{ chef_org_long_name }}' --association_user {{ username }} --filename {{ chef_org_validator_pem_path
+      }}
+  args:
+    creates: "{{ chef_org_validator_pem_path }}"
+  become: true
