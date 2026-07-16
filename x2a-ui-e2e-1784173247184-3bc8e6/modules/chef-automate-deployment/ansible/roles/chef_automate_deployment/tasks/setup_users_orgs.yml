@@ -1,0 +1,30 @@
+---
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create {{ username }} "{{ longusername }}" {{ useremail }} "{{ password }}" --filename {{ userfilename }}
+
+      '
+  args:
+    creates: "{{ userfilename }}"
+  become: true
+  no_log: true
+- name: Set permissions on user key file
+  ansible.builtin.file:
+    path: "{{ userfilename }}"
+    mode: "{{ chef_automate_pem_file_mode }}"
+    state: file
+  become: false
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create {{ orgname }} "{{ longorgname }}" --association_user {{ username }} --filename {{ orgfilename }}
+
+      '
+  args:
+    creates: "{{ orgfilename }}"
+  become: true
+- name: Set permissions on organization validator key file
+  ansible.builtin.file:
+    path: "{{ orgfilename }}"
+    mode: "{{ chef_automate_pem_file_mode }}"
+    state: file
+  become: false
