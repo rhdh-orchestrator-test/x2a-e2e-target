@@ -1,0 +1,26 @@
+---
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  become: true
+- name: Ensure hostname is in /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: ^127.0.0.1\s+{{ chef_automate_hostname }}$
+    line: 127.0.0.1 {{ chef_automate_hostname }}
+    state: present
+  become: true
+- name: Set vm.max_map_count kernel parameter
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "{{ chef_automate_vm_max_map_count }}"
+    state: present
+    reload: true
+  become: true
+- name: Set vm.dirty_expire_centisecs kernel parameter
+  ansible.posix.sysctl:
+    name: vm.dirty_expire_centisecs
+    value: "{{ chef_automate_vm_dirty_expire_centisecs }}"
+    state: present
+    reload: true
+  become: true
