@@ -1,0 +1,131 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Check if Chef Automate CLI exists
+    - name: Check if Chef Automate CLI exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/chef-automate
+      register: chef_automate_cli
+
+    - name: Assert Chef Automate CLI exists
+      ansible.builtin.assert:
+        that:
+          - chef_automate_cli.stat.exists
+          - chef_automate_cli.stat.executable
+        fail_msg: "Chef Automate CLI not found or not executable"
+        success_msg: "Chef Automate CLI exists and is executable"
+
+    # Check if user PEM file exists
+    - name: Check if user PEM file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/test_user.pem
+      register: user_pem
+
+    - name: Assert user PEM file exists
+      ansible.builtin.assert:
+        that:
+          - user_pem.stat.exists
+          - user_pem.stat.size > 0
+        fail_msg: "User PEM file not found or empty"
+        success_msg: "User PEM file exists"
+
+    # Check if organization validator PEM file exists
+    - name: Check if organization validator PEM file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/test_org-validator.pem
+      register: org_pem
+
+    - name: Assert organization validator PEM file exists
+      ansible.builtin.assert:
+        that:
+          - org_pem.stat.exists
+          - org_pem.stat.size > 0
+        fail_msg: "Organization validator PEM file not found or empty"
+        success_msg: "Organization validator PEM file exists"
+
+    # Check if /hab directory exists (indicates successful deployment)
+    - name: Check if /hab directory exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/hab
+      register: hab_dir
+
+    - name: Assert /hab directory exists
+      ansible.builtin.assert:
+        that:
+          - hab_dir.stat.exists
+          - hab_dir.stat.isdir
+        fail_msg: "/hab directory not found"
+        success_msg: "/hab directory exists"
+
+    # Check if Chef Automate service files exist
+    - name: Check if Chef Automate service files exist
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/hab/sup/automate-service
+      register: automate_service
+
+    - name: Assert Chef Automate service files exist
+      ansible.builtin.assert:
+        that:
+          - automate_service.stat.exists
+        fail_msg: "Chef Automate service files not found"
+        success_msg: "Chef Automate service files exist"
+
+    # Check if Chef Infra Server service files exist
+    - name: Check if Chef Infra Server service files exist
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/hab/sup/infra-server-service
+      register: infra_server_service
+
+    - name: Assert Chef Infra Server service files exist
+      ansible.builtin.assert:
+        that:
+          - infra_server_service.stat.exists
+        fail_msg: "Chef Infra Server service files not found"
+        success_msg: "Chef Infra Server service files exist"
+
+    # Check if sysctl configuration was created
+    - name: Check if sysctl configuration was created
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      register: sysctl_conf
+
+    - name: Assert sysctl configuration was created
+      ansible.builtin.assert:
+        that:
+          - sysctl_conf.stat.exists
+        fail_msg: "Sysctl configuration not found"
+        success_msg: "Sysctl configuration exists"
+
+    # The following checks would normally be performed but can't run in a container
+    # They are tagged with molecule-notest to be skipped during molecule testing
+
+    - name: Check if Chef Automate is running
+      ansible.builtin.uri:
+        url: https://localhost/api/v0/health
+        validate_certs: false
+      register: chef_automate_health
+      tags: molecule-notest
+
+    - name: Assert Chef Automate is running
+      ansible.builtin.assert:
+        that:
+          - chef_automate_health.status == 200
+        fail_msg: "Chef Automate is not running"
+        success_msg: "Chef Automate is running"
+      tags: molecule-notest
+
+    - name: Check if Chef Infra Server is running
+      ansible.builtin.command: chef-server-ctl status
+      register: chef_server_status
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert Chef Infra Server is running
+      ansible.builtin.assert:
+        that:
+          - chef_server_status.rc == 0
+        fail_msg: "Chef Infra Server is not running"
+        success_msg: "Chef Infra Server is running"
+      tags: molecule-notest
