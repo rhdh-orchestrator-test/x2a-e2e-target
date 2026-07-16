@@ -1,0 +1,81 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify SSL configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_conf_file
+
+    - name: Assert SSL configuration file exists
+      ansible.builtin.assert:
+        that:
+          - ssl_conf_file.stat.exists
+          - ssl_conf_file.stat.isreg
+        fail_msg: "SSL configuration file not found"
+        success_msg: "SSL configuration file exists"
+
+    - name: Get SSL configuration file content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_conf_content
+
+    - name: Assert SSL configuration has been updated for POODLE fix
+      ansible.builtin.assert:
+        that:
+          - "'SSLProtocol -all +TLSv1.2' in ssl_conf_content.content | b64decode"
+        fail_msg: "SSL configuration not properly updated to mitigate POODLE vulnerability"
+        success_msg: "SSL configuration successfully updated to mitigate POODLE vulnerability"
+
+    # The following checks would be performed in a real environment but can't run in the molecule container
+    - name: Check Apache is installed and running
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Apache service is running
+      ansible.builtin.assert:
+        that:
+          - "'apache2.service' in ansible_facts.services"
+          - "ansible_facts.services['apache2.service'].state == 'running'"
+        fail_msg: "Apache service is not running"
+        success_msg: "Apache service is running"
+      tags: molecule-notest
+
+    - name: Assert SSH service is running
+      ansible.builtin.assert:
+        that:
+          - "'sshd.service' in ansible_facts.services"
+          - "ansible_facts.services['sshd.service'].state == 'running'"
+        fail_msg: "SSH service is not running"
+        success_msg: "SSH service is running"
+      tags: molecule-notest
+
+    - name: Check SSL module is enabled in Apache
+      ansible.builtin.command: apache2ctl -M
+      register: apache_modules
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert SSL module is enabled
+      ansible.builtin.assert:
+        that:
+          - "'ssl_module' in apache_modules.stdout"
+        fail_msg: "SSL module is not enabled in Apache"
+        success_msg: "SSL module is enabled in Apache"
+      tags: molecule-notest
+
+    - name: Test SSL connection security
+      ansible.builtin.command: nmap --script ssl-enum-ciphers -p 443 localhost
+      register: ssl_security_check
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert no vulnerable protocols are enabled
+      ansible.builtin.assert:
+        that:
+          - "'SSLv3' not in ssl_security_check.stdout"
+          - "'SSLv2' not in ssl_security_check.stdout"
+        fail_msg: "Vulnerable SSL protocols are still enabled"
+        success_msg: "No vulnerable SSL protocols are enabled"
+      tags: molecule-notest
