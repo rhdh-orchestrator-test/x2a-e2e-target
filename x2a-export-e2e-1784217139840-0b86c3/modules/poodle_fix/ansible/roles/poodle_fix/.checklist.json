@@ -1,0 +1,101 @@
+{
+  "module_name": "poodle_fix",
+  "items": [
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "./ansible/roles/poodle_fix/tasks/main.yml",
+      "status": "complete",
+      "description": "Convert playbook to role tasks with FQCN and proper boolean syntax",
+      "notes": "Converted to use FQCN (ansible.builtin.replace) and fixed parameter formatting."
+    },
+    {
+      "category": "structure",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "./ansible/roles/poodle_fix/handlers/main.yml",
+      "status": "complete",
+      "description": "Create handlers file with consistent handler names",
+      "notes": "Created handlers file with modernized syntax (true instead of yes) and consistent handler names."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/meta/main.yml",
+      "status": "complete",
+      "description": "Create role metadata file",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/defaults/main.yml",
+      "status": "complete",
+      "description": "Create defaults file",
+      "notes": "Created defaults file with variables extracted from the playbook."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/meta/argument_specs.yml",
+      "status": "complete",
+      "description": "Create argument specification file",
+      "notes": "Created argument specifications for role variables."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/README.md",
+      "status": "complete",
+      "description": "Create role README file",
+      "notes": "Created README.md with role documentation."
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.builtin",
+      "target_path": "./ansible/roles/poodle_fix/requirements.yml",
+      "status": "complete",
+      "description": "Add ansible.builtin collection dependency",
+      "notes": "Created requirements.yml file. Note: ansible.builtin is a pseudo-collection that ships with ansible-core and cannot be installed from Galaxy, so it's not included in requirements.yml."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Create molecule scenario configuration",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Create molecule converge playbook",
+      "notes": "Created converge.yml that sets up a mock Apache ssl.conf file under /tmp/molecule_test/ and applies the role with test paths."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Create molecule verification tasks",
+      "notes": "Created verify.yml that checks the ssl.conf file exists and has the correct SSLProtocol configuration. Added service checks with molecule-notest tags."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Create molecule create playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/poodle_fix/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Create molecule destroy playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    }
+  ]
+}

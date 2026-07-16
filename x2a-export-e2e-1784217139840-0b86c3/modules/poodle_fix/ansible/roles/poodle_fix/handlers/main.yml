@@ -1,0 +1,13 @@
+---
+- name: Restart apache
+  ansible.builtin.service:
+    name: "{{ apache_service_name }}"
+    state: restarted
+  become: true
+  tags: molecule-notest
+- name: Restart sshd
+  ansible.builtin.service:
+    name: "{{ ssh_service_name }}"
+    state: restarted
+  become: true
+  tags: molecule-notest
