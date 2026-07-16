@@ -1,0 +1,127 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Check Apache configuration files
+    - name: Check if virtual host configuration exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+      register: vhost_config
+
+    - name: Assert virtual host configuration exists
+      ansible.builtin.assert:
+        that:
+          - vhost_config.stat.exists
+          - vhost_config.stat.size > 0
+        fail_msg: "Virtual host configuration file not found or empty"
+        success_msg: "Virtual host configuration file exists and has content"
+
+    # Check SSL certificates
+    - name: Check if SSL certificate files exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: ssl_files
+      loop:
+        - /tmp/molecule_test/etc/apache2/certs/apache.key
+        - /tmp/molecule_test/etc/apache2/certs/apache.csr
+        - /tmp/molecule_test/etc/apache2/certs/apache.crt
+
+    - name: Assert SSL certificate files exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.size > 0
+        fail_msg: "SSL certificate file not found or empty"
+        success_msg: "SSL certificate file exists and has content"
+      loop: "{{ ssl_files.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    # Check website content
+    - name: Check if website content exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/www/helloworld/index.html
+      register: website_content
+
+    - name: Assert website content exists
+      ansible.builtin.assert:
+        that:
+          - website_content.stat.exists
+          - website_content.stat.size > 0
+        fail_msg: "Website content file not found or empty"
+        success_msg: "Website content file exists and has content"
+
+    # Check if website content contains expected text
+    - name: Get website content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/var/www/helloworld/index.html
+      register: website_content_data
+
+    - name: Assert website content has expected text
+      ansible.builtin.assert:
+        that:
+          - "'Hello, world!' in (website_content_data.content | b64decode)"
+          - "'Test Site' in (website_content_data.content | b64decode)"
+        fail_msg: "Website content does not contain expected text"
+        success_msg: "Website content contains expected text"
+
+    # Check if virtual host is enabled (symlink exists)
+    - name: Check if virtual host is enabled
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/sites-enabled/helloworld.conf
+      register: vhost_enabled
+
+    - name: Assert virtual host is enabled
+      ansible.builtin.assert:
+        that:
+          - vhost_enabled.stat.exists
+          - vhost_enabled.stat.islnk
+        fail_msg: "Virtual host is not enabled"
+        success_msg: "Virtual host is enabled"
+
+    # Check if SSL module is enabled
+    - name: Check if SSL module is enabled
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/mods-enabled/ssl.load
+      register: ssl_module
+
+    - name: Assert SSL module is enabled
+      ansible.builtin.assert:
+        that:
+          - ssl_module.stat.exists
+        fail_msg: "SSL module is not enabled"
+        success_msg: "SSL module is enabled"
+
+    # The following checks cannot run in a container environment
+    # They are tagged with molecule-notest so they will be skipped during molecule testing
+
+    - name: Check Apache service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Apache service is running
+      ansible.builtin.assert:
+        that:
+          - "'apache2.service' in ansible_facts.services"
+          - "ansible_facts.services['apache2.service'].state == 'running'"
+        fail_msg: "Apache service is not running"
+        success_msg: "Apache service is running"
+      tags: molecule-notest
+
+    - name: Test HTTPS connection
+      ansible.builtin.uri:
+        url: https://localhost/
+        validate_certs: false
+        return_content: true
+      register: https_response
+      tags: molecule-notest
+
+    - name: Assert HTTPS connection works
+      ansible.builtin.assert:
+        that:
+          - https_response.status == 200
+          - "'Hello, world!' in https_response.content"
+        fail_msg: "HTTPS connection failed or content not as expected"
+        success_msg: "HTTPS connection successful and content as expected"
+      tags: molecule-notest
