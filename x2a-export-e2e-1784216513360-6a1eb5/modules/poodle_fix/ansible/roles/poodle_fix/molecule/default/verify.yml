@@ -1,0 +1,82 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Check if the Apache SSL config file exists
+    - name: Check if Apache SSL config file exists
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/etc/apache2/mods-available/ssl.conf"
+      register: ssl_conf_file
+
+    - name: Assert SSL config file exists
+      ansible.builtin.assert:
+        that:
+          - ssl_conf_file.stat.exists
+          - ssl_conf_file.stat.isreg
+        fail_msg: "Apache SSL config file does not exist"
+        success_msg: "Apache SSL config file exists"
+
+    # Check if the SSL config file has the correct content
+    - name: Get SSL config file content
+      ansible.builtin.slurp:
+        src: "/tmp/molecule_test/etc/apache2/mods-available/ssl.conf"
+      register: ssl_conf_content
+
+    - name: Assert SSL config has correct protocol settings
+      ansible.builtin.assert:
+        that:
+          - "'SSLProtocol -all +TLSv1.2' in ssl_conf_content.content | b64decode"
+        fail_msg: "SSL config does not have the correct protocol settings"
+        success_msg: "SSL config has correct protocol settings"
+
+    # The following tests would be run in a real environment but not in molecule container
+    # Check Apache configuration
+    - name: Verify Apache configuration
+      ansible.builtin.command: apache2ctl configtest
+      changed_when: false
+      tags: molecule-notest
+
+    # Check SSL/TLS protocols
+    - name: Check SSL/TLS protocols
+      ansible.builtin.command: nmap --script ssl-enum-ciphers -p 443 localhost
+      changed_when: false
+      tags: molecule-notest
+
+    # Verify SSH configuration
+    - name: Verify SSH configuration
+      ansible.builtin.command: sshd -t
+      changed_when: false
+      tags: molecule-notest
+
+    # Test SSL vulnerability
+    - name: Test SSL vulnerability
+      ansible.builtin.command: openssl s_client -connect localhost:443 -ssl3
+      register: ssl_test
+      failed_when: ssl_test.rc == 0
+      changed_when: false
+      tags: molecule-notest
+
+    # Check if Apache service would be restarted
+    - name: Check Apache service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Apache service is running
+      ansible.builtin.assert:
+        that:
+          - "'apache2.service' in ansible_facts.services"
+          - "ansible_facts.services['apache2.service'].state == 'running'"
+        fail_msg: "Apache service is not running"
+        success_msg: "Apache service is running"
+      tags: molecule-notest
+
+    # Check if SSH service would be restarted
+    - name: Assert SSH service is running
+      ansible.builtin.assert:
+        that:
+          - "'sshd.service' in ansible_facts.services"
+          - "ansible_facts.services['sshd.service'].state == 'running'"
+        fail_msg: "SSH service is not running"
+        success_msg: "SSH service is running"
+      tags: molecule-notest

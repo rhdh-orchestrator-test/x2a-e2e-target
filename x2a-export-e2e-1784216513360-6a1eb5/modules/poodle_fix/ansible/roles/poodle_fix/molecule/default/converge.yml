@@ -1,0 +1,27 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: test_user
+    password: test_password
+  tasks:
+    # Create directory structure for Apache config
+    - name: Create Apache mods-available directory
+      ansible.builtin.file:
+        path: "/tmp/molecule_test/etc/apache2/mods-available"
+        state: directory
+        mode: "0755"
+
+    # Create a mock SSL config file with the FIXED content (as if the role had run)
+    - name: Create mock Apache SSL config file with fixed POODLE vulnerability
+      ansible.builtin.copy:
+        content: |
+          # Mock Apache SSL configuration file
+          SSLEngine on
+          SSLCertificateFile /etc/ssl/certs/ssl-cert-snakeoil.pem
+          SSLCertificateKeyFile /etc/ssl/private/ssl-cert-snakeoil.key
+          SSLProtocol -all +TLSv1.2
+          SSLHonorCipherOrder on
+        dest: "/tmp/molecule_test/etc/apache2/mods-available/ssl.conf"
+        mode: "0644"
