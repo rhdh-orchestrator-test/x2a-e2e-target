@@ -1,0 +1,109 @@
+{
+  "module_name": "poodle_fix",
+  "items": [
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/aap-configuration/controller_credential_types.yml",
+      "status": "complete",
+      "description": "AAP credential types configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/aap-configuration/controller_credentials.yml",
+      "status": "complete",
+      "description": "AAP credentials configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/tasks/validate_credentials.yml",
+      "status": "complete",
+      "description": "Credential validation tasks",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "ansible/roles/poodle_fix/tasks/main.yml",
+      "status": "complete",
+      "description": "Main task file that updates SSL configuration to mitigate POODLE vulnerability",
+      "notes": "Converted to use FQCN (ansible.builtin.replace) and fixed handler name references to match handler definitions."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata file",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/handlers/main.yml",
+      "status": "complete",
+      "description": "Handlers file for Apache and SSH service restarts",
+      "notes": "Created handlers file with proper FQCN and boolean syntax."
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.builtin",
+      "target_path": "ansible/roles/poodle_fix/requirements.yml",
+      "status": "complete",
+      "description": "Built-in Ansible modules dependency",
+      "notes": "Created requirements.yml file. Note that ansible.builtin is a pseudo-collection that ships with ansible-core and should not be included in requirements.yml."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables file (empty as no variables are defined)",
+      "notes": "Created defaults file with variables for SSL protocol configuration and service names."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule scenario configuration with delegated driver",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook that creates expected filesystem state",
+      "notes": "Created converge.yml that sets up a test environment with a sample Apache SSL config file under /tmp/molecule_test/ and includes the role tasks directly."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification tasks to check SSL configuration",
+      "notes": "Created verify.yml that checks if the SSL configuration file exists and contains the proper protocol settings to mitigate the POODLE vulnerability. Added service and connection tests with molecule-notest tags."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/molecule/default/create.yml",
+      "status": "complete",
+      "description": "No-op instance creation for molecule testing",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "No-op instance destruction for molecule testing",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    }
+  ]
+}
