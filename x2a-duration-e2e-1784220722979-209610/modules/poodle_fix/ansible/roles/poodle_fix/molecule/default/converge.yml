@@ -1,0 +1,44 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create directory structure for Apache config
+    ansible.builtin.file:
+      path: /tmp/molecule_test/etc/apache2/mods-available
+      state: directory
+      mode: '0755'
+  - name: Create mock Apache SSL config file
+    ansible.builtin.copy:
+      content: '# Mock Apache SSL configuration file
+
+        SSLProtocol all -SSLv3
+
+        SSLCipherSuite HIGH:!aNULL:!MD5
+
+        '
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      mode: '0644'
+  - name: Set test variables
+    ansible.builtin.set_fact:
+      apache_config_path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      username: test_user
+      password: test_password
+      ssl_protocols: -all +TLSv1.2
+  - name: Validate required credential variables are defined
+    ansible.builtin.assert:
+      that:
+      - username is defined
+      - password is defined
+      fail_msg: One or more required credential variables are not defined. Ensure the AAP credential type is attached to the job template.
+      quiet: true
+  - name: Simulate Apache installation
+    ansible.builtin.debug:
+      msg: Would install Apache in a real environment
+  - name: Simulate SSH server installation
+    ansible.builtin.debug:
+      msg: Would install SSH server in a real environment
+  - name: Fix SSL in Apache
+    ansible.builtin.replace:
+      dest: '{{ apache_config_path }}'
+      regexp: ^SSLProtocol.*$
+      replace: SSLProtocol {{ ssl_protocols }}
