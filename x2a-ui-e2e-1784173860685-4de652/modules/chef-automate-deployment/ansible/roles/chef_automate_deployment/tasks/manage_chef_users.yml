@@ -1,0 +1,18 @@
+---
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create {{ username }} {{ full_name }} {{ email }} "{{ password }}"  --filename {{ chef_automate_user_pem_file }}
+
+      '
+  args:
+    creates: "{{ chef_automate_user_pem_file }}"
+  become: true
+  no_log: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create {{ org_name }} "{{ org_full_name }}"  --association_user {{ username }}  --filename {{ chef_automate_org_pem_file }}
+
+      '
+  args:
+    creates: "{{ chef_automate_org_pem_file }}"
+  become: true
