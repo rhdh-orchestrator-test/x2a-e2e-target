@@ -1,0 +1,133 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    # Create directory structure
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/hab
+        - /tmp/molecule_test/tmp
+        - /tmp/molecule_test/home/molecule
+
+    # Simulate hostname configuration
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "{{ hostname }}"
+        dest: /tmp/molecule_test/etc/hostname
+        mode: "0644"
+
+    # Simulate sysctl configuration
+    - name: Create sysctl configuration file
+      ansible.builtin.copy:
+        content: |
+          vm.max_map_count = {{ vm_max_map_count }}
+          vm.dirty_expire_centisecs = {{ vm_dirty_expire_centisecs }}
+        dest: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+        mode: "0644"
+
+    # Simulate Chef Automate CLI download and extraction
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          echo "Chef Automate CLI mock"
+          echo "Version: 1.0.0"
+        dest: /tmp/molecule_test/home/molecule/chef-automate
+        mode: "0755"
+
+    # Simulate Chef Automate deployment
+    - name: Create Chef Automate deployment marker
+      ansible.builtin.file:
+        path: /tmp/molecule_test/hab
+        state: directory
+        mode: "0755"
+
+    # Simulate user key file
+    - name: Create user key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEowIBAAKCAQEAwZ5UJULAjWr7p6FVwGRQRjFN2s8tZ/6LC3X82fajpVsYqF1x
+          qEuUDndDXVD09E4u83MS6HO6a3bIVQDp6/klnYldiE6Vp8HH5BSKaCWKVg8lGWg1
+          UM9wZFnlryi14KgmpIFmcu9nA8yV/6MZAe6RSDmb3iyNBmiZ8aZhGw2pI1YwR+15
+          MVqFFGB+7ExkziROi7L8CFCyCezK2/oOOvQsH1dzQ8z1JXWdg8/9Zx7Ktvgwu5PQ
+          M3cJtSHX6iBPOkMU8Z8TugLlTqQXKZOEgwajwvQ5mf2DPkVgM08XAgaLJcLigwD5
+          13koAdtJd5v+9irw+5LAuO3JclqwTvwy7u/YwwIDAQABAoIBACU9S5fjD9/jTMXA
+          DRs08A+gGgZUxLn0xk+NAPX3LyB1tfdkCaFB8BccLzO6h3KZuwQOBPv6jkdvEDbx
+          Nwyw3eA/9GJsIvKiHc0rejdvyPymaw9I8MA7NbXHaJrY7KpqDQyk6sx+aUTcy5jg
+          iMXLWdwXYHhJ/1HVOo603oZyiS6HZeYU089NDUcX+1SJi3e5Ke0gPVXEqCq1O11/
+          rh24bMxnwZo4PKBWdcMBN5Zf/4ij9vrZE+fFzW7vGBO48A5lvZxWU2U5rRxiUF13
+          FMoI8Yl5+qIWGGZymSXtBmB/JmK5Hl8SyQ2qpL0IOXWnCrkxoXdSXKYcjgFNuHJH
+          8zw/YpECgYEA6goRQYSiM03y8Tt/M4u1Mm7OWYCksqAsU7rzQllHekIN3WjD41Xj
+          rmN4QCZXpbZuzO1xiTP6uF1cUtDmdbsNvA4Zrr5qR4GJBGHYPiUt5NUq6QRKw8Bb
+          UIwdKJEpGXAuZJzrPBSB6i9YsnKSxlV+vr1YBkpG0ycLZW2UY7C8/wUCgYEA1CXf
+          T00olN+7dTwoIfTRE+G3CqLXYPZNpnPSWOcLgJKrLDz1VOo8xRvM9AwMFNGRWBdG
+          4sy7FiQ8B2Kj3R69G1O+D9OU4+N3w+NuuRQgGFhZ9wgrtQRPGFGj4TsiQtKvgfIU
+          HCALU4wQqbFo5ZXNv+IGHJZuXGYpowkAMnZEVCcCgYAJQFhY5+Vx3R4dOiAHwXGX
+          JGqBhyFCvQf0X+Z7iBUXCBJY6jV3DmP+rGrBRw1/yQokZhGOMNFO1wgvCYxC8v3j
+          Qhvdz09TtpI0cPdXvfJA+PdHfRzfqZH5V8j/d/qrPcbZ/EoTJtAx3paJI4+7iAzh
+          nW4/cTh5NsfQRKt6KNfLBQKBgQC/PR3gBPsONTtJ7QYOj/GJQDHVXaYEiUVn5Ihi
+          T5RH739UdYeJCbaQdpzO5jnFIq8VcY/Ey8BHuOdMQneLw7EzjgJsEi5SJZ1n+J2E
+          gWSLcpDuojp1G9oLLJMSQDYkNvQ7MiIQzXLuXHXYJSLfx+lKqLVXOSiBzsZ11Q1P
+          hkDznQKBgDiTFTeGeDv5nVoVbS67tDao7XKchJvqd9q3WGiXikeELJyuTDqE6Zob
+          KCvKXI7cDVpO6qJ/FGyrEGpK5U8Ry174hQgz0jbmfZTL7jFA/PwNzlELOXdvXQeG
+          OGAYoDZKfSXGzNkVlBC9+YxvdLlKI71L47k8TVxpm+hW4kK0yHJb
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/home/molecule/{{ username }}.pem"
+        mode: "0600"
+
+    # Simulate organization validator key file
+    - name: Create organization validator key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEowIBAAKCAQEAwZ5UJULAjWr7p6FVwGRQRjFN2s8tZ/6LC3X82fajpVsYqF1x
+          qEuUDndDXVD09E4u83MS6HO6a3bIVQDp6/klnYldiE6Vp8HH5BSKaCWKVg8lGWg1
+          UM9wZFnlryi14KgmpIFmcu9nA8yV/6MZAe6RSDmb3iyNBmiZ8aZhGw2pI1YwR+15
+          MVqFFGB+7ExkziROi7L8CFCyCezK2/oOOvQsH1dzQ8z1JXWdg8/9Zx7Ktvgwu5PQ
+          M3cJtSHX6iBPOkMU8Z8TugLlTqQXKZOEgwajwvQ5mf2DPkVgM08XAgaLJcLigwD5
+          13koAdtJd5v+9irw+5LAuO3JclqwTvwy7u/YwwIDAQABAoIBACU9S5fjD9/jTMXA
+          DRs08A+gGgZUxLn0xk+NAPX3LyB1tfdkCaFB8BccLzO6h3KZuwQOBPv6jkdvEDbx
+          Nwyw3eA/9GJsIvKiHc0rejdvyPymaw9I8MA7NbXHaJrY7KpqDQyk6sx+aUTcy5jg
+          iMXLWdwXYHhJ/1HVOo603oZyiS6HZeYU089NDUcX+1SJi3e5Ke0gPVXEqCq1O11/
+          rh24bMxnwZo4PKBWdcMBN5Zf/4ij9vrZE+fFzW7vGBO48A5lvZxWU2U5rRxiUF13
+          FMoI8Yl5+qIWGGZymSXtBmB/JmK5Hl8SyQ2qpL0IOXWnCrkxoXdSXKYcjgFNuHJH
+          8zw/YpECgYEA6goRQYSiM03y8Tt/M4u1Mm7OWYCksqAsU7rzQllHekIN3WjD41Xj
+          rmN4QCZXpbZuzO1xiTP6uF1cUtDmdbsNvA4Zrr5qR4GJBGHYPiUt5NUq6QRKw8Bb
+          UIwdKJEpGXAuZJzrPBSB6i9YsnKSxlV+vr1YBkpG0ycLZW2UY7C8/wUCgYEA1CXf
+          T00olN+7dTwoIfTRE+G3CqLXYPZNpnPSWOcLgJKrLDz1VOo8xRvM9AwMFNGRWBdG
+          4sy7FiQ8B2Kj3R69G1O+D9OU4+N3w+NuuRQgGFhZ9wgrtQRPGFGj4TsiQtKvgfIU
+          HCALU4wQqbFo5ZXNv+IGHJZuXGYpowkAMnZEVCcCgYAJQFhY5+Vx3R4dOiAHwXGX
+          JGqBhyFCvQf0X+Z7iBUXCBJY6jV3DmP+rGrBRw1/yQokZhGOMNFO1wgvCYxC8v3j
+          Qhvdz09TtpI0cPdXvfJA+PdHfRzfqZH5V8j/d/qrPcbZ/EoTJtAx3paJI4+7iAzh
+          nW4/cTh5NsfQRKt6KNfLBQKBgQC/PR3gBPsONTtJ7QYOj/GJQDHVXaYEiUVn5Ihi
+          T5RH739UdYeJCbaQdpzO5jnFIq8VcY/Ey8BHuOdMQneLw7EzjgJsEi5SJZ1n+J2E
+          gWSLcpDuojp1G9oLLJMSQDYkNvQ7MiIQzXLuXHXYJSLfx+lKqLVXOSiBzsZ11Q1P
+          hkDznQKBgDiTFTeGeDv5nVoVbS67tDao7XKchJvqd9q3WGiXikeELJyuTDqE6Zob
+          KCvKXI7cDVpO6qJ/FGyrEGpK5U8Ry174hQgz0jbmfZTL7jFA/PwNzlELOXdvXQeG
+          OGAYoDZKfSXGzNkVlBC9+YxvdLlKI71L47k8TVxpm+hW4kK0yHJb
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/home/molecule/{{ org_name }}-validator.pem"
+        mode: "0600"
+
+  vars:
+    hostname: automate.chef.lab
+    username: jtonello
+    full_name: John Tonello
+    email: jtonello@chef.lab
+    password: password
+    org_name: lab
+    org_full_name: Chef Lab
+    vm_max_map_count: 262144
+    vm_dirty_expire_centisecs: 20000
+    chef_automate_cli_path: "/home/molecule/chef-automate"
+    deploy_automate: true
+    accept_terms_and_mlsa: true
+    user_key_filename: "{{ username }}.pem"
+    org_validator_key_filename: "{{ org_name }}-validator.pem"

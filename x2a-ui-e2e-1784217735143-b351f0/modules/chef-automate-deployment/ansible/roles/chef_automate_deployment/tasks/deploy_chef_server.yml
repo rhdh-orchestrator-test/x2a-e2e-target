@@ -1,0 +1,11 @@
+---
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command: "{{ chef_automate_cli_path }} deploy --product infra-server --accept-terms-and-mlsa={{ accept_terms_and_mlsa | lower }}\n"
+  args:
+    creates: /hab
+  become: true
+  register: deploy_result
+- name: Display deployment result
+  ansible.builtin.debug:
+    var: deploy_result.stdout_lines
+  when: deploy_result.stdout_lines is defined
