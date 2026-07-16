@@ -1,0 +1,83 @@
+---
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  become: true
+- name: Set vm.max_map_count kernel parameter
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "{{ chef_automate_vm_max_map_count }}"
+    state: present
+    reload: true
+  become: true
+- name: Set vm.dirty_expire_centisecs kernel parameter
+  ansible.posix.sysctl:
+    name: vm.dirty_expire_centisecs
+    value: "{{ chef_automate_vm_dirty_expire_centisecs }}"
+    state: present
+    reload: true
+  become: true
+- name: Check if Chef Automate CLI exists
+  ansible.builtin.stat:
+    path: "{{ chef_automate_cli_path }}"
+  register: cli_stat
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: "{{ chef_automate_cli_path }}.zip"
+    mode: "0644"
+  when: not cli_stat.stat.exists
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip -c {{ chef_automate_cli_path }}.zip > {{ chef_automate_cli_path }}
+    creates: "{{ chef_automate_cli_path }}"
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+    state: file
+- name: Check if Chef Infra Server is already deployed
+  ansible.builtin.stat:
+    path: /etc/chef-server/chef-server.rb
+  register: chef_server_config
+  become: true
+- name: Deploy Chef Infra Server
+  ansible.builtin.command:
+    cmd: ./chef-automate deploy --product infra-server --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }}
+  become: true
+  register: deploy_result
+  changed_when: "'Success!' in deploy_result.stdout"
+  failed_when:
+    - deploy_result.rc != 0
+    - "'already deployed' not in deploy_result.stderr"
+  when: not chef_server_config.stat.exists
+- name: Check if user key file exists
+  ansible.builtin.stat:
+    path: "{{ chef_automate_user_key_path }}"
+  register: user_key_stat
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ username }} {{ chef_automate_user_longname }} {{ chef_automate_user_email }} "{{ password }}" --filename {{
+      chef_automate_user_key_path }}
+  become: true
+  register: user_create_result
+  changed_when: user_create_result.rc == 0
+  failed_when:
+    - user_create_result.rc != 0
+    - "'already exists' not in user_create_result.stderr"
+  when: not user_key_stat.stat.exists
+- name: Check if organization key file exists
+  ansible.builtin.stat:
+    path: "{{ chef_automate_org_key_path }}"
+  register: org_key_stat
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ chef_automate_org_name }} "{{ chef_automate_org_longname }}" --association_user {{ username }} --filename {{
+      chef_automate_org_key_path }}
+  become: true
+  register: org_create_result
+  changed_when: org_create_result.rc == 0
+  failed_when:
+    - org_create_result.rc != 0
+    - "'already exists' not in org_create_result.stderr"
+  when: not org_key_stat.stat.exists
