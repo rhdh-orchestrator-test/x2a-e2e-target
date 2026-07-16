@@ -1,0 +1,109 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Check hostname file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/hostname
+    register: hostname_file
+  - name: Assert hostname file was created
+    ansible.builtin.assert:
+      that:
+      - hostname_file.stat.exists
+      - hostname_file.stat.size > 0
+      fail_msg: Hostname file not found or empty
+      success_msg: Hostname file exists and has content
+  - name: Check kernel parameter files exist
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/{{ item | replace('.', '_') }}
+    register: kernel_param_file
+    loop:
+    - vm.max_map_count
+    - vm.dirty_expire_centisecs
+  - name: Assert kernel parameter files were created
+    ansible.builtin.assert:
+      that:
+      - item.stat.exists
+      - item.stat.size > 0
+      fail_msg: Kernel parameter file not found or empty
+      success_msg: Kernel parameter file exists and has content
+    loop: '{{ kernel_param_file.results }}'
+    loop_control:
+      label: '{{ item.item }}'
+  - name: Check Chef Automate CLI file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/tmp/chef-automate
+    register: chef_automate_cli
+  - name: Assert Chef Automate CLI file was created
+    ansible.builtin.assert:
+      that:
+      - chef_automate_cli.stat.exists
+      - chef_automate_cli.stat.executable
+      fail_msg: Chef Automate CLI file not found or not executable
+      success_msg: Chef Automate CLI file exists and is executable
+  - name: Check Chef Automate binary exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/usr/bin/chef-automate
+    register: chef_automate_bin
+  - name: Assert Chef Automate binary was created
+    ansible.builtin.assert:
+      that:
+      - chef_automate_bin.stat.exists
+      - chef_automate_bin.stat.executable
+      fail_msg: Chef Automate binary not found or not executable
+      success_msg: Chef Automate binary exists and is executable
+  - name: Check chef-server-ctl binary exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/usr/bin/chef-server-ctl
+    register: chef_server_ctl
+  - name: Assert chef-server-ctl binary was created
+    ansible.builtin.assert:
+      that:
+      - chef_server_ctl.stat.exists
+      - chef_server_ctl.stat.executable
+      fail_msg: chef-server-ctl binary not found or not executable
+      success_msg: chef-server-ctl binary exists and is executable
+  - name: Check user PEM file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/jtonello.pem
+    register: user_pem
+  - name: Assert user PEM file was created
+    ansible.builtin.assert:
+      that:
+      - user_pem.stat.exists
+      - user_pem.stat.size > 0
+      fail_msg: User PEM file not found or empty
+      success_msg: User PEM file exists and has content
+  - name: Check organization validator PEM file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/lab-validator.pem
+    register: org_pem
+  - name: Assert organization validator PEM file was created
+    ansible.builtin.assert:
+      that:
+      - org_pem.stat.exists
+      - org_pem.stat.size > 0
+      fail_msg: Organization validator PEM file not found or empty
+      success_msg: Organization validator PEM file exists and has content
+  - name: Check Chef Automate service status
+    ansible.builtin.service_facts: null
+    tags: molecule-notest
+  - name: Assert Chef Automate service is running
+    ansible.builtin.assert:
+      that:
+      - '''chef-automate.service'' in ansible_facts.services'
+      - ansible_facts.services['chef-automate.service'].state == 'running'
+      fail_msg: Chef Automate service is not running
+      success_msg: Chef Automate service is running
+    tags: molecule-notest
+  - name: Check Chef Infra Server service status
+    ansible.builtin.service_facts: null
+    tags: molecule-notest
+  - name: Assert Chef Infra Server service is running
+    ansible.builtin.assert:
+      that:
+      - '''chef-server.service'' in ansible_facts.services'
+      - ansible_facts.services['chef-server.service'].state == 'running'
+      fail_msg: Chef Infra Server service is not running
+      success_msg: Chef Infra Server service is running
+    tags: molecule-notest
