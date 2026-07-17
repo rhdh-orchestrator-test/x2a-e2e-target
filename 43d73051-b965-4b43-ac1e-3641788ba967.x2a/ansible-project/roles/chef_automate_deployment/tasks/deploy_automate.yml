@@ -1,0 +1,62 @@
+---
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  become: true
+- name: Configure vm.max_map_count kernel parameter
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "{{ chef_automate_vm_max_map_count }}"
+    state: present
+    sysctl_set: true
+  become: true
+- name: Configure vm.dirty_expire_centisecs kernel parameter
+  ansible.posix.sysctl:
+    name: vm.dirty_expire_centisecs
+    value: "{{ chef_automate_vm_dirty_expire_centisecs }}"
+    state: present
+    sysctl_set: true
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: "{{ chef_automate_cli_path }}.zip"
+    mode: "0644"
+  become: true
+- name: Check if Chef Automate CLI already exists
+  ansible.builtin.stat:
+    path: "{{ chef_automate_cli_dest }}"
+  register: chef_automate_cli_stat
+  become: true
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell: gunzip -c "{{ chef_automate_cli_path }}.zip" > "{{ chef_automate_cli_dest }}"
+  args:
+    creates: "{{ chef_automate_cli_dest }}"
+  become: true
+  when: not chef_automate_cli_stat.stat.exists
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_dest }}"
+    mode: "0755"
+  become: true
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command: "{{ chef_automate_cli_dest }} deploy  --product automate  --product infra-server  --accept-terms-and-mlsa={{ chef_automate_accept_terms
+    | lower }} "
+  args:
+    creates: /hab
+  become: true
+- name: Create Chef user
+  ansible.builtin.command: 'chef-server-ctl user-create  {{ username }} {{ full_name }} {{ email }}  "{{ password }}" --filename {{ chef_automate_user_key_path }}
+
+    '
+  args:
+    creates: "{{ chef_automate_user_key_path }}"
+  become: true
+- name: Create Chef organization
+  ansible.builtin.command: 'chef-server-ctl org-create  {{ org_name }} "{{ org_full_name }}"  --association_user {{ username }}  --filename {{ chef_automate_org_key_path
+    }}
+
+    '
+  args:
+    creates: "{{ chef_automate_org_key_path }}"
+  become: true

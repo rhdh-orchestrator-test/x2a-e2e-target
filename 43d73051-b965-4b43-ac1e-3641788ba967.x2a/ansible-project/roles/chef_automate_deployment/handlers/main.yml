@@ -1,0 +1,21 @@
+---
+- name: Restart Chef Automate
+  ansible.builtin.command:
+    cmd: chef-automate restart
+  become: true
+  register: restart_automate_result
+  changed_when: restart_automate_result.rc == 0
+  failed_when:
+    - restart_automate_result.rc != 0
+    - "'not installed' not in restart_automate_result.stderr"
+  tags: molecule-notest
+- name: Restart Chef Infra Server
+  ansible.builtin.command:
+    cmd: chef-server-ctl restart
+  become: true
+  register: restart_server_result
+  changed_when: restart_server_result.rc == 0
+  failed_when:
+    - restart_server_result.rc != 0
+    - "'not installed' not in restart_server_result.stderr"
+  tags: molecule-notest
