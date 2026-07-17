@@ -1,0 +1,178 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  vars:
+    username: jtonello
+    chef_org_name: lab
+  tasks:
+    # Hostname verification
+    - name: Check hostname file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/hostname
+      register: hostname_file
+
+    - name: Assert hostname file was created
+      ansible.builtin.assert:
+        that:
+          - hostname_file.stat.exists
+          - hostname_file.stat.isreg
+        fail_msg: "Hostname file not found"
+        success_msg: "Hostname file exists"
+
+    - name: Get hostname content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/hostname
+      register: hostname_content
+      when: hostname_file.stat.exists
+
+    - name: Assert hostname is set correctly
+      ansible.builtin.assert:
+        that:
+          - (hostname_content.content | b64decode | trim) == 'automate.chef.lab'
+        fail_msg: "Hostname not set correctly"
+        success_msg: "Hostname set correctly"
+      when: hostname_file.stat.exists
+
+    # System parameters verification
+    - name: Check sysctl parameters file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/sysctl.d/99-chef-deployment.conf
+      register: sysctl_file
+
+    - name: Assert sysctl file was created
+      ansible.builtin.assert:
+        that:
+          - sysctl_file.stat.exists
+          - sysctl_file.stat.isreg
+        fail_msg: "Sysctl parameters file not found"
+        success_msg: "Sysctl parameters file exists"
+
+    - name: Get sysctl parameters content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/sysctl.d/99-chef-deployment.conf
+      register: sysctl_content
+      when: sysctl_file.stat.exists
+
+    - name: Assert sysctl parameters are set correctly
+      ansible.builtin.assert:
+        that:
+          - (sysctl_content.content | b64decode) is search('vm.max_map_count = 262144')
+          - (sysctl_content.content | b64decode) is search('vm.dirty_expire_centisecs = 20000')
+        fail_msg: "Sysctl parameters not set correctly"
+        success_msg: "Sysctl parameters set correctly"
+      when: sysctl_file.stat.exists
+
+    # Chef Automate config verification
+    - name: Check Chef Automate config file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/chef-automate/config.toml
+      register: chef_config_file
+
+    - name: Assert Chef Automate config file was created
+      ansible.builtin.assert:
+        that:
+          - chef_config_file.stat.exists
+          - chef_config_file.stat.isreg
+        fail_msg: "Chef Automate config file not found"
+        success_msg: "Chef Automate config file exists"
+
+    # User key file verification
+    - name: Check user key file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/home/jtonello.pem
+      register: user_key_file
+
+    - name: Assert user key file was created
+      ansible.builtin.assert:
+        that:
+          - user_key_file.stat.exists
+          - user_key_file.stat.isreg
+          - user_key_file.stat.mode == '0600'
+        fail_msg: "User key file not found or has incorrect permissions"
+        success_msg: "User key file exists with correct permissions"
+
+    # Organization validator key file verification
+    - name: Check organization validator key file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/home/lab-validator.pem
+      register: org_key_file
+
+    - name: Assert organization validator key file was created
+      ansible.builtin.assert:
+        that:
+          - org_key_file.stat.exists
+          - org_key_file.stat.isreg
+          - org_key_file.stat.mode == '0600'
+        fail_msg: "Organization validator key file not found or has incorrect permissions"
+        success_msg: "Organization validator key file exists with correct permissions"
+
+    # Chef Automate status check (would fail in container)
+    - name: Check Chef Automate status
+      ansible.builtin.command:
+        cmd: sudo chef-automate status
+      changed_when: false
+      tags: molecule-notest
+
+    # Chef Infra Server status check (would fail in container)
+    - name: Check Chef Infra Server status
+      ansible.builtin.command:
+        cmd: sudo chef-server-ctl status
+      changed_when: false
+      tags: molecule-notest
+
+    # User verification (would fail in container)
+    - name: Verify user exists
+      ansible.builtin.command:
+        cmd: sudo chef-server-ctl user-list
+      register: user_list
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert user was created
+      ansible.builtin.assert:
+        that:
+          - user_list.stdout is search('jtonello')
+        fail_msg: "User jtonello not found"
+        success_msg: "User jtonello exists"
+      tags: molecule-notest
+
+    # Organization verification (would fail in container)
+    - name: Verify organization exists
+      ansible.builtin.command:
+        cmd: sudo chef-server-ctl org-list
+      register: org_list
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert organization was created
+      ansible.builtin.assert:
+        that:
+          - org_list.stdout is search('lab')
+        fail_msg: "Organization lab not found"
+        success_msg: "Organization lab exists"
+      tags: molecule-notest
+
+    # Network listening check (would fail in container)
+    - name: Check port 443 is listening
+      ansible.builtin.wait_for:
+        port: 443
+        state: started
+        timeout: 5
+      tags: molecule-notest
+
+    # Service health check (would fail in container)
+    - name: Check Chef Automate API health
+      ansible.builtin.uri:
+        url: https://localhost/api/_status
+        validate_certs: false
+      register: api_status
+      tags: molecule-notest
+
+    - name: Assert Chef Automate API is healthy
+      ansible.builtin.assert:
+        that:
+          - api_status.status == 200
+        fail_msg: "Chef Automate API is not healthy"
+        success_msg: "Chef Automate API is healthy"
+      tags: molecule-notest
