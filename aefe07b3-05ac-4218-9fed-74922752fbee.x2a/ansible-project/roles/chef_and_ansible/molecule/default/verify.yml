@@ -1,0 +1,150 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Apache configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: apache_config_files
+      loop:
+        - /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+        - /tmp/molecule_test/etc/apache2/sites-enabled/helloworld.conf
+        - /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+
+    - name: Assert Apache configuration files exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+        fail_msg: "Apache configuration file {{ item.item }} not found"
+        success_msg: "Apache configuration file {{ item.item }} exists"
+      loop: "{{ apache_config_files.results }}"
+
+    - name: Check SSL certificate files exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: ssl_files
+      loop:
+        - /tmp/molecule_test/etc/apache2/certs/apache.key
+        - /tmp/molecule_test/etc/apache2/certs/apache.crt
+        - /tmp/molecule_test/etc/apache2/certs/apache.csr
+
+    - name: Assert SSL certificate files exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+        fail_msg: "SSL certificate file {{ item.item }} not found"
+        success_msg: "SSL certificate file {{ item.item }} exists"
+      loop: "{{ ssl_files.results }}"
+
+    - name: Check website content exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/www/helloworld/index.html
+      register: website_content
+
+    - name: Assert website content exists
+      ansible.builtin.assert:
+        that:
+          - website_content.stat.exists
+        fail_msg: "Website content file not found"
+        success_msg: "Website content file exists"
+
+    - name: Get website content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/var/www/helloworld/index.html
+      register: website_content_data
+
+    - name: Assert website content contains expected text
+      ansible.builtin.assert:
+        that:
+          - "'Hello, world!' in (website_content_data.content | b64decode)"
+        fail_msg: "Website content does not contain expected text"
+        success_msg: "Website content contains expected text"
+
+    - name: Get SSL configuration
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_config_data
+
+    - name: Assert SSL configuration has POODLE fix
+      ansible.builtin.assert:
+        that:
+          - "'SSLProtocol -all +TLSv1.2' in (ssl_config_data.content | b64decode)"
+        fail_msg: "SSL configuration does not have POODLE fix"
+        success_msg: "SSL configuration has POODLE fix"
+
+    - name: Get virtual host configuration
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+      register: vhost_config_data
+
+    - name: Assert virtual host configuration is correct
+      ansible.builtin.assert:
+        that:
+          - "'SSLEngine on' in (vhost_config_data.content | b64decode)"
+          - "'SSLCertificateFile /etc/apache2/certs/apache.crt' in (vhost_config_data.content | b64decode)"
+          - "'SSLCertificateKeyFile /etc/apache2/certs/apache.key' in (vhost_config_data.content | b64decode)"
+        fail_msg: "Virtual host configuration is incorrect"
+        success_msg: "Virtual host configuration is correct"
+
+    - name: Get SSH configuration
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/ssh/sshd_config
+      register: ssh_config_data
+
+    - name: Assert SSH root login is disabled
+      ansible.builtin.assert:
+        that:
+          - "'PermitRootLogin no' in (ssh_config_data.content | b64decode)"
+        fail_msg: "SSH root login is not disabled"
+        success_msg: "SSH root login is disabled"
+
+    # Service checks that can't run in container
+    - name: Check Apache service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Apache service is running
+      ansible.builtin.assert:
+        that:
+          - "'apache2.service' in ansible_facts.services"
+          - "ansible_facts.services['apache2.service'].state == 'running'"
+        fail_msg: "Apache service is not running"
+        success_msg: "Apache service is running"
+      tags: molecule-notest
+
+    - name: Check SSH service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert SSH service is running
+      ansible.builtin.assert:
+        that:
+          - "'sshd.service' in ansible_facts.services"
+          - "ansible_facts.services['sshd.service'].state == 'running'"
+        fail_msg: "SSH service is not running"
+        success_msg: "SSH service is running"
+      tags: molecule-notest
+
+    - name: Check HTTPS port is listening
+      ansible.builtin.wait_for:
+        port: 443
+        timeout: 5
+      tags: molecule-notest
+
+    - name: Check HTTPS website accessibility
+      ansible.builtin.uri:
+        url: https://localhost/
+        validate_certs: false
+        return_content: true
+      register: https_response
+      tags: molecule-notest
+
+    - name: Assert HTTPS website returns expected content
+      ansible.builtin.assert:
+        that:
+          - https_response.status == 200
+          - "'Hello, world!' in https_response.content"
+        fail_msg: "HTTPS website does not return expected content"
+        success_msg: "HTTPS website returns expected content"
+      tags: molecule-notest

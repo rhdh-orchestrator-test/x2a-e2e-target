@@ -1,0 +1,20 @@
+--- 
+driver: 
+  name: vagrant 
+provisioner: 
+  hosts: myhost 
+  name: ansible_playbook 
+  require_ansible_repo: true 
+  ansible_verbose: true 
+  ansible_version: latest 
+  require_chef_for_busser: false
+  playbook: website_https.yml 
+verifier: 
+  name: inspec 
+platforms: 
+  - name: ubuntu-20.04 
+suites: 
+  - name: default 
+    verifier: 
+      inspec_tests: 
+        - path: tests/website_https_verify.rb 
