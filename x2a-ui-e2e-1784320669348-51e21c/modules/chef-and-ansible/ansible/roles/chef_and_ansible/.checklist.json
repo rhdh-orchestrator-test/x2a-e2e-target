@@ -1,0 +1,133 @@
+{
+  "module_name": "chef_and_ansible",
+  "items": [
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/tasks/main.yml",
+      "status": "complete",
+      "description": "Main tasks file",
+      "notes": "Created main.yml to include task files"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables",
+      "notes": "Created defaults/main.yml with variables extracted from playbooks"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/handlers/main.yml",
+      "status": "complete",
+      "description": "Role handlers",
+      "notes": "Created handlers/main.yml with handlers extracted from playbooks"
+    },
+    {
+      "category": "recipes",
+      "source_path": "website_https.yml",
+      "target_path": "./ansible/roles/chef_and_ansible/tasks/website_https.yml",
+      "status": "complete",
+      "description": "HTTPS website configuration playbook",
+      "notes": "Converted to use FQCN module names, quoted boolean values, and added changed_when for command modules"
+    },
+    {
+      "category": "recipes",
+      "source_path": "poodle_fix.yml",
+      "target_path": "./ansible/roles/chef_and_ansible/tasks/poodle_fix.yml",
+      "status": "complete",
+      "description": "POODLE vulnerability fix playbook",
+      "notes": "Converted to use FQCN module names"
+    },
+    {
+      "category": "files",
+      "source_path": "index.html",
+      "target_path": "./ansible/roles/chef_and_ansible/files/index.html",
+      "status": "complete",
+      "description": "Website index file",
+      "notes": "Copied static file"
+    },
+    {
+      "category": "files",
+      "source_path": "tests/ssh_profile.rb",
+      "target_path": "./ansible/roles/chef_and_ansible/files/tests/ssh_profile.rb",
+      "status": "complete",
+      "description": "SSH profile InSpec test",
+      "notes": "Copied InSpec test file"
+    },
+    {
+      "category": "files",
+      "source_path": "tests/website_https_verify.rb",
+      "target_path": "./ansible/roles/chef_and_ansible/files/tests/website_https_verify.rb",
+      "status": "complete",
+      "description": "HTTPS website verification InSpec test",
+      "notes": "Copied InSpec test file"
+    },
+    {
+      "category": "files",
+      "source_path": "README.md",
+      "target_path": "./ansible/roles/chef_and_ansible/README.md",
+      "status": "complete",
+      "description": "Role documentation",
+      "notes": "Copied README file"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:community.crypto",
+      "target_path": "./ansible/roles/chef_and_ansible/requirements.yml",
+      "status": "complete",
+      "description": "Crypto collection for SSL certificate operations",
+      "notes": "Created requirements.yml with community.crypto collection and eloy.redis from AAP Private Hub"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule scenario configuration",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook",
+      "notes": "Created converge.yml that recreates the expected filesystem state under /tmp/molecule_test/ for Apache configuration, SSL certificates, virtual host config, and website content."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification playbook",
+      "notes": "Created verify.yml that tests the existence and content of Apache configuration files, SSL certificates, virtual host config, website content, and POODLE fix. Added molecule-notest tags for service and HTTP checks that can't run in containers."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Molecule create playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Molecule destroy playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    }
+  ]
+}
