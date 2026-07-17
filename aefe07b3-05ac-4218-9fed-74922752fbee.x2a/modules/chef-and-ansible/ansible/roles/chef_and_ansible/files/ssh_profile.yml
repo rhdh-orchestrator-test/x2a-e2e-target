@@ -1,0 +1,24 @@
+- name: Ensure SSH root login is disabled
+  block:
+  - name: Check if SSH server is installed
+    ansible.builtin.package_facts:
+      manager: auto
+  - name: Check SSH configuration for PermitRootLogin
+    ansible.builtin.lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: ^PermitRootLogin
+      line: PermitRootLogin no
+      state: present
+    check_mode: true
+    register: ssh_config_check
+    failed_when:
+    - '''openssh-server'' in ansible_facts.packages'
+    - ssh_config_check.changed or 'PermitRootLogin yes' in lookup('file', '/etc/ssh/sshd_config')
+    when: '''openssh-server'' in ansible_facts.packages'
+  tags:
+  - SRG-OS-000112
+  - V-38607
+  - SV-50408r1_rule
+  - CAT_I
+  - RHEL-08-000227
+  - CCI-000774
