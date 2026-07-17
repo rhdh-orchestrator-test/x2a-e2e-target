@@ -1,0 +1,11 @@
+<VirtualHost *:443>
+ DocumentRoot "/var/www/helloworld"
+ SSLEngine on
+ SSLCertificateFile /etc/apache2/certs/apache.crt
+ SSLCertificateKeyFile /etc/apache2/certs/apache.key
+  <Directory "/var/www/helloworld">
+    allow from all
+    Options None
+    Require all granted
+  </Directory>
+</VirtualHost>
