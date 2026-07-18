@@ -1,0 +1,19 @@
+---
+- name: Ensure SSH server is installed
+  ansible.builtin.apt:
+    name: openssh-server
+    state: present
+- name: Ensure SSH root login is disabled
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^PermitRootLogin\s+
+    line: PermitRootLogin no
+    state: present
+  register: ssh_config_updated
+  notify: Restart sshd
+- name: Display compliance information
+  ansible.builtin.debug:
+    msg: "Compliance Information: - Title: Ensure SSH root login is disabled - Group: SRG-OS-000112 - VulID: V-38607 - RuleID: SV-50408r1_rule - Severity: CAT I -
+      STIG ID: RHEL-08-000227 - CCI: CCI-000774 - Impact: 1.0\nRationale: Disallowing root logins over SSH requires system admins to authenticate using their own
+      individual account, then escalating to root via sudo or su. This in turn limits opportunity for non-repudiation and provides a clear audit trail in the event
+      of a security incident."
