@@ -1,0 +1,12 @@
+---
+apache_version: 2.4.41-4ubuntu3.10
+apache_certs_dir: /etc/apache2/certs
+apache_vhost_name: helloworld
+apache_document_root: /var/www/helloworld
+ssl_key_path: "{{ apache_certs_dir }}/apache.key"
+ssl_csr_path: "{{ apache_certs_dir }}/apache.csr"
+ssl_cert_path: "{{ apache_certs_dir }}/apache.crt"
+ssl_common_name: myhost
+conftext: '<VirtualHost *:443> DocumentRoot "{{ apache_document_root }}" SSLEngine on SSLCertificateFile {{ ssl_cert_path }} SSLCertificateKeyFile {{ ssl_key_path
+  }} <Directory "{{ apache_document_root }}"> allow from all Options None Require all granted </Directory> </VirtualHost> '
+webtext: <html> <head><title>Test Site</title></head> <body> <h1>Hello, world!</h1> <p>The site is up and running</p> </body> </html>
