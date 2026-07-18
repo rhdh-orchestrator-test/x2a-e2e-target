@@ -1,0 +1,64 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  become: false
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc/apache2/sites-available
+    - /tmp/molecule_test/etc/apache2/sites-enabled
+    - /tmp/molecule_test/etc/apache2/mods-available
+    - /tmp/molecule_test/etc/apache2/certs
+    - /tmp/molecule_test/var/www/helloworld
+    - /tmp/molecule_test/etc/ssh
+  - name: Create SSL certificate files
+    ansible.builtin.copy:
+      content: '# Mock SSL certificate content'
+      dest: '{{ item }}'
+      mode: '0640'
+    loop:
+    - /tmp/molecule_test/etc/apache2/certs/apache.key
+    - /tmp/molecule_test/etc/apache2/certs/apache.crt
+    - /tmp/molecule_test/etc/apache2/certs/apache.csr
+  - name: Create virtual host configuration
+    ansible.builtin.copy:
+      content: "<VirtualHost *:443>\n DocumentRoot \"/var/www/helloworld\"\n SSLEngine on\n SSLCertificateFile /etc/apache2/certs/apache.crt\n SSLCertificateKeyFile
+        /etc/apache2/certs/apache.key\n  <Directory \"/var/www/helloworld\">\n    allow from all\n    Options None\n    Require all granted\n  </Directory>\n</VirtualHost>\n"
+      dest: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+      mode: '0640'
+  - name: Create sites-enabled symlink
+    ansible.builtin.file:
+      src: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+      dest: /tmp/molecule_test/etc/apache2/sites-enabled/helloworld.conf
+      state: link
+  - name: Create website content
+    ansible.builtin.copy:
+      content: "<html>\n  <head>\n    <title>Website Test</title>\n  </head>\n  <body>\n    <p>Hello, world!</p>\n</html>\n"
+      dest: /tmp/molecule_test/var/www/helloworld/index.html
+      mode: '0644'
+  - name: Create SSL module configuration
+    ansible.builtin.copy:
+      content: '# SSL module configuration
+
+        SSLProtocol -all +TLSv1.2
+
+        SSLCipherSuite HIGH:!aNULL:!MD5
+
+        '
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      mode: '0644'
+  - name: Create SSH configuration
+    ansible.builtin.copy:
+      content: '# SSH configuration
+
+        PermitRootLogin no
+
+        PasswordAuthentication yes
+
+        '
+      dest: /tmp/molecule_test/etc/ssh/sshd_config
+      mode: '0644'
