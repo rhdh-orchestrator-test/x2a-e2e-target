@@ -1,0 +1,117 @@
+{
+  "module_name": "chef_and_ansible",
+  "items": [
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata file",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/tasks/main.yml",
+      "status": "complete",
+      "description": "Main tasks file",
+      "notes": "Created main task file that includes website_https.yml and poodle_fix.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables",
+      "notes": "Created defaults file with Apache and SSL configuration variables"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/handlers/main.yml",
+      "status": "complete",
+      "description": "Handlers file",
+      "notes": "Created handlers file with Apache and SSH service restart handlers"
+    },
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/website_https.yml",
+      "target_path": "./ansible/roles/chef_and_ansible/tasks/website_https.yml",
+      "status": "complete",
+      "description": "Main HTTPS website configuration playbook",
+      "notes": "Converted website_https.yml to Ansible task format"
+    },
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "./ansible/roles/chef_and_ansible/tasks/poodle_fix.yml",
+      "status": "complete",
+      "description": "POODLE vulnerability fix playbook",
+      "notes": "Converted poodle_fix.yml to Ansible task format"
+    },
+    {
+      "category": "files",
+      "source_path": "chef-and-ansible/index.html",
+      "target_path": "./ansible/roles/chef_and_ansible/files/index.html",
+      "status": "complete",
+      "description": "HTML content for the website",
+      "notes": "Copied index.html to files directory"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule configuration for testing",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook",
+      "notes": "Created converge.yml that recreates the expected filesystem state under /tmp/molecule_test/"
+    },
+    {
+      "category": "molecule",
+      "source_path": "chef-and-ansible/tests/website_https_verify.rb",
+      "target_path": "./ansible/roles/chef_and_ansible/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification tests",
+      "notes": "Created verify.yml that translates pre-flight checks into Ansible assertions"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Molecule instance creation (no-op)",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Molecule instance destruction (no-op)",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "files",
+      "source_path": "chef-and-ansible/tests/ssh_profile.rb",
+      "target_path": "./ansible/roles/chef_and_ansible/files/ssh_profile.rb",
+      "status": "complete",
+      "description": "SSH security profile test",
+      "notes": "Copied ssh_profile.rb to files directory"
+    },
+    {
+      "category": "templates",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible/templates/helloworld.conf.j2",
+      "status": "complete",
+      "description": "Apache virtual host configuration template",
+      "notes": "Created template for Apache virtual host configuration"
+    }
+  ]
+}

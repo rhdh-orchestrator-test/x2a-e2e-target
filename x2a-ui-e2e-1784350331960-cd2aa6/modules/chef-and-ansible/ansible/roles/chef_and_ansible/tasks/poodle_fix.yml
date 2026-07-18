@@ -1,0 +1,20 @@
+---
+- name: Ensure SSH server is installed
+  ansible.builtin.apt:
+    name: openssh-server
+    state: present
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    path: /etc/apache2/mods-available/ssl.conf
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol -all +TLSv1.2
+  notify:
+    - Restart apache
+- name: Configure SSH to disable weak ciphers
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^Ciphers
+    line: Ciphers aes128-ctr,aes192-ctr,aes256-ctr
+    state: present
+  notify:
+    - Restart sshd
