@@ -1,0 +1,10 @@
+---
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: sudo ./chef-automate deploy --product automate --product infra-server --accept-terms-and-mlsa={{ chef_accept_terms_and_mlsa | lower }}
+  args:
+    creates: /hab
+  become: true
+  register: chef_automate_deploy
+  changed_when: chef_automate_deploy.rc == 0
+  notify: wait for chef server
