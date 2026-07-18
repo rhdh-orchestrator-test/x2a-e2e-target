@@ -1,0 +1,162 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Verify Apache configuration files
+    - name: Check Apache virtual host config exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+      register: vhost_config
+
+    - name: Assert virtual host config was created
+      ansible.builtin.assert:
+        that:
+          - vhost_config.stat.exists
+          - vhost_config.stat.size > 0
+        fail_msg: "Virtual host config file not found"
+        success_msg: "Virtual host config file exists"
+
+    # Verify SSL certificates
+    - name: Check SSL certificate files exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: ssl_files
+      loop:
+        - /tmp/molecule_test/etc/apache2/certs/apache.key
+        - /tmp/molecule_test/etc/apache2/certs/apache.csr
+        - /tmp/molecule_test/etc/apache2/certs/apache.crt
+
+    - name: Assert SSL certificate files were created
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+        fail_msg: "SSL file {{ item.item }} not found"
+        success_msg: "SSL file {{ item.item }} exists"
+      loop: "{{ ssl_files.results }}"
+
+    # Verify website content
+    - name: Check website content exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/www/helloworld/index.html
+      register: website_content
+
+    - name: Assert website content was created
+      ansible.builtin.assert:
+        that:
+          - website_content.stat.exists
+          - website_content.stat.size > 0
+        fail_msg: "Website content file not found"
+        success_msg: "Website content file exists"
+
+    # Verify SSL configuration (POODLE fix)
+    - name: Check SSL configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_conf
+
+    - name: Get SSL configuration content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_conf_content
+      when: ssl_conf.stat.exists
+
+    - name: Assert SSL configuration has POODLE fix
+      ansible.builtin.assert:
+        that:
+          - ssl_conf.stat.exists
+          - ssl_conf_content.content | b64decode | string is search('SSLProtocol -all \+TLSv1.2')
+        fail_msg: "SSL configuration does not have POODLE fix"
+        success_msg: "SSL configuration has POODLE fix"
+      when: ssl_conf.stat.exists
+
+    # Verify site is enabled (symlink exists)
+    - name: Check site is enabled
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/sites-enabled/helloworld.conf
+      register: site_enabled
+
+    - name: Assert site is enabled
+      ansible.builtin.assert:
+        that:
+          - site_enabled.stat.exists
+          - site_enabled.stat.islnk
+        fail_msg: "Site is not enabled"
+        success_msg: "Site is enabled"
+
+    # Verify SSL module is enabled (symlink exists)
+    - name: Check SSL module is enabled
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/mods-enabled/ssl.conf
+      register: ssl_enabled
+
+    - name: Assert SSL module is enabled
+      ansible.builtin.assert:
+        that:
+          - ssl_enabled.stat.exists
+          - ssl_enabled.stat.islnk
+        fail_msg: "SSL module is not enabled"
+        success_msg: "SSL module is enabled"
+
+    # The following checks can't run in a container, so they're tagged with molecule-notest
+    - name: Check Apache service is running
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Apache service is active
+      ansible.builtin.assert:
+        that:
+          - "'apache2.service' in ansible_facts.services"
+          - "ansible_facts.services['apache2.service'].state == 'running'"
+        fail_msg: "Apache service is not running"
+        success_msg: "Apache service is running"
+      tags: molecule-notest
+
+    - name: Check HTTPS is accessible
+      ansible.builtin.uri:
+        url: https://localhost/
+        validate_certs: false
+        return_content: true
+      register: https_result
+      tags: molecule-notest
+
+    - name: Assert HTTPS is working
+      ansible.builtin.assert:
+        that:
+          - https_result.status == 200
+          - "'Hello, world!' in https_result.content"
+        fail_msg: "HTTPS is not working"
+        success_msg: "HTTPS is working"
+      tags: molecule-notest
+
+    - name: Check TLS 1.2 is enabled
+      ansible.builtin.command:
+        cmd: openssl s_client -connect localhost:443 -tls1_2
+      register: tls_check
+      failed_when: false
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert TLS 1.2 is enabled
+      ansible.builtin.assert:
+        that:
+          - tls_check.rc == 0
+        fail_msg: "TLS 1.2 is not enabled"
+        success_msg: "TLS 1.2 is enabled"
+      tags: molecule-notest
+
+    - name: Check SSL3 is disabled (POODLE fix)
+      ansible.builtin.command:
+        cmd: openssl s_client -connect localhost:443 -ssl3
+      register: ssl3_check
+      failed_when: false
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert SSL3 is disabled (POODLE fix)
+      ansible.builtin.assert:
+        that:
+          - ssl3_check.rc != 0
+        fail_msg: "SSL3 is still enabled (POODLE vulnerability)"
+        success_msg: "SSL3 is disabled (POODLE fix applied)"
+      tags: molecule-notest
