@@ -1,0 +1,75 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    conftext: "<VirtualHost *:443>\n DocumentRoot \"/var/www/helloworld\"\n SSLEngine on\n SSLCertificateFile /etc/apache2/certs/apache.crt\n SSLCertificateKeyFile /etc/apache2/certs/apache.key\n\
+      \  <Directory \"/var/www/helloworld\">\n    allow from all\n    Options None\n    Require all granted\n  </Directory>\n</VirtualHost>\n"
+    webtext: "<html>\n  <head><title>Test Site</title></head>\n  <body>\n   <h1>Hello, world!</h1>\n   <p>The site is up and running</p>\n  </body>\n</html>"
+    username: "test_user"
+    password: "test_password"
+  tasks:
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/apache2/certs
+        - /tmp/molecule_test/etc/apache2/sites-available
+        - /tmp/molecule_test/etc/apache2/mods-available
+        - /tmp/molecule_test/var/www/helloworld
+
+    - name: Create mock SSL files
+      ansible.builtin.copy:
+        content: "# Mock SSL certificate file"
+        dest: "{{ item }}"
+        mode: "0640"
+      loop:
+        - /tmp/molecule_test/etc/apache2/certs/apache.key
+        - /tmp/molecule_test/etc/apache2/certs/apache.csr
+        - /tmp/molecule_test/etc/apache2/certs/apache.crt
+
+    - name: Create virtual host configuration
+      ansible.builtin.copy:
+        content: "{{ conftext }}"
+        dest: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+        mode: "0640"
+
+    - name: Create website content
+      ansible.builtin.copy:
+        content: "{{ webtext }}"
+        dest: /tmp/molecule_test/var/www/helloworld/index.html
+        mode: "0644"
+
+    - name: Create mock SSL configuration file
+      ansible.builtin.copy:
+        content: |
+          # Mock SSL configuration file
+          SSLProtocol -all +TLSv1.2 +TLSv1.3
+        dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+        mode: "0644"
+
+    - name: Create mock enabled sites directory
+      ansible.builtin.file:
+        path: /tmp/molecule_test/etc/apache2/sites-enabled
+        state: directory
+        mode: "0755"
+
+    - name: Create mock symlink for enabled site
+      ansible.builtin.file:
+        src: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+        dest: /tmp/molecule_test/etc/apache2/sites-enabled/helloworld.conf
+        state: link
+
+    - name: Create mock enabled mods directory
+      ansible.builtin.file:
+        path: /tmp/molecule_test/etc/apache2/mods-enabled
+        state: directory
+        mode: "0755"
+
+    - name: Create mock symlink for enabled SSL module
+      ansible.builtin.file:
+        src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+        dest: /tmp/molecule_test/etc/apache2/mods-enabled/ssl.conf
+        state: link

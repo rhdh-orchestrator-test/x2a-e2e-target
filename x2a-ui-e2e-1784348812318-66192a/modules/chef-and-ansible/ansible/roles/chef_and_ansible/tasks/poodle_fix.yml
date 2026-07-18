@@ -1,0 +1,8 @@
+---
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    dest: /etc/apache2/mods-available/ssl.conf
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol -all +TLSv1.2 +TLSv1.3
+  notify:
+    - Restart apache
