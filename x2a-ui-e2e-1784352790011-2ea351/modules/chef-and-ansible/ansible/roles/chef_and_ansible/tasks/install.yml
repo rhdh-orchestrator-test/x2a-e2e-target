@@ -1,0 +1,102 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+  become: true
+- name: Install Apache web server
+  ansible.builtin.apt:
+    name: apache2={{ apache_version }}
+    state: present
+  become: true
+- name: Install additional packages
+  ansible.builtin.apt:
+    name: "{{ additional_packages }}"
+    state: present
+  become: true
+- name: Create a directory for SSL certificates
+  ansible.builtin.file:
+    path: "{{ ssl_cert_dir }}"
+    state: directory
+    mode: "0640"
+  become: true
+- name: Generate an OpenSSL private key
+  community.crypto.openssl_privatekey:
+    path: "{{ ssl_cert_dir }}/apache.key"
+    mode: "0640"
+  become: true
+  when: ssl_key is not defined
+- name: Use provided SSL key
+  ansible.builtin.copy:
+    content: "{{ ssl_key }}"
+    dest: "{{ ssl_cert_dir }}/apache.key"
+    mode: "0640"
+  become: true
+  when: ssl_key is defined
+- name: Generate an OpenSSL CSR
+  community.crypto.openssl_csr:
+    path: "{{ ssl_cert_dir }}/apache.csr"
+    privatekey_path: "{{ ssl_cert_dir }}/apache.key"
+    common_name: "{{ ansible_hostname }}"
+    mode: "0640"
+  become: true
+  when: ssl_csr is not defined
+- name: Use provided SSL CSR
+  ansible.builtin.copy:
+    content: "{{ ssl_csr }}"
+    dest: "{{ ssl_cert_dir }}/apache.csr"
+    mode: "0640"
+  become: true
+  when: ssl_csr is defined
+- name: Generate a self-signed OpenSSL certificate
+  community.crypto.openssl_certificate:
+    path: "{{ ssl_cert_dir }}/apache.crt"
+    privatekey_path: "{{ ssl_cert_dir }}/apache.key"
+    csr_path: "{{ ssl_cert_dir }}/apache.csr"
+    provider: selfsigned
+    mode: "0640"
+  become: true
+  when: ssl_cert is not defined
+- name: Use provided SSL certificate
+  ansible.builtin.copy:
+    content: "{{ ssl_cert }}"
+    dest: "{{ ssl_cert_dir }}/apache.crt"
+    mode: "0640"
+  become: true
+  when: ssl_cert is defined
+- name: Create the document root directory
+  ansible.builtin.file:
+    path: "{{ document_root }}"
+    state: directory
+    mode: "0755"
+  become: true
+- name: Deploy the Hello World website
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: "{{ document_root }}/index.html"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+- name: Check if default site is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/sites-enabled/000-default.conf
+  register: default_site
+  become: true
+- name: Deactivate the default virtualhost
+  ansible.builtin.command: a2dissite 000-default
+  become: true
+  changed_when: true
+  when: default_site.stat.exists
+- name: Check if SSL module is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/mods-enabled/ssl.load
+  register: ssl_module
+  become: true
+- name: Activate SSL on Apache
+  ansible.builtin.command: a2enmod ssl
+  become: true
+  changed_when: true
+  when: not ssl_module.stat.exists
+  notify:
+    - Restart sshd
+    - Restart apache

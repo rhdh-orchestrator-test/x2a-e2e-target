@@ -1,0 +1,149 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Verify Apache configuration files
+    - name: Check Apache virtual host configuration exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+      register: vhost_config
+
+    - name: Assert virtual host configuration exists
+      ansible.builtin.assert:
+        that:
+          - vhost_config.stat.exists
+          - vhost_config.stat.size > 0
+        fail_msg: "Virtual host configuration file not found"
+        success_msg: "Virtual host configuration file exists"
+
+    # Verify SSL configuration (POODLE fix)
+    - name: Check SSL configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_config
+
+    - name: Assert SSL configuration file exists
+      ansible.builtin.assert:
+        that:
+          - ssl_config.stat.exists
+          - ssl_config.stat.size > 0
+        fail_msg: "SSL configuration file not found"
+        success_msg: "SSL configuration file exists"
+
+    - name: Get SSL configuration content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_config_content
+
+    - name: Assert SSL configuration has POODLE fix
+      ansible.builtin.assert:
+        that:
+          - (ssl_config_content.content | b64decode) is regex('SSLProtocol -all \+TLSv1.2')
+        fail_msg: "SSL configuration does not have POODLE fix"
+        success_msg: "SSL configuration has POODLE fix"
+
+    # Verify SSL certificates
+    - name: Check SSL certificate files exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /tmp/molecule_test/etc/apache2/certs/apache.key
+        - /tmp/molecule_test/etc/apache2/certs/apache.csr
+        - /tmp/molecule_test/etc/apache2/certs/apache.crt
+      register: ssl_files
+
+    - name: Assert SSL certificate files exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+        fail_msg: "SSL certificate file {{ item.item }} not found"
+        success_msg: "SSL certificate file {{ item.item }} exists"
+      loop: "{{ ssl_files.results }}"
+
+    # Verify website content
+    - name: Check website index file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/www/helloworld/index.html
+      register: index_file
+
+    - name: Assert website index file exists
+      ansible.builtin.assert:
+        that:
+          - index_file.stat.exists
+          - index_file.stat.size > 0
+        fail_msg: "Website index file not found"
+        success_msg: "Website index file exists"
+
+    - name: Get website index content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/var/www/helloworld/index.html
+      register: index_content
+
+    - name: Assert website index has expected content
+      ansible.builtin.assert:
+        that:
+          - (index_content.content | b64decode) is regex('Hello, world!')
+        fail_msg: "Website index does not have expected content"
+        success_msg: "Website index has expected content"
+
+    # Verify site is enabled (symlink exists)
+    - name: Check site is enabled
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/sites-enabled/helloworld.conf
+      register: enabled_site
+
+    - name: Assert site is enabled
+      ansible.builtin.assert:
+        that:
+          - enabled_site.stat.exists
+          - enabled_site.stat.islnk
+        fail_msg: "Site is not enabled"
+        success_msg: "Site is enabled"
+
+    # Verify SSL module is enabled (symlink exists)
+    - name: Check SSL module is enabled
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/mods-enabled/ssl.conf
+      register: enabled_ssl
+
+    - name: Assert SSL module is enabled
+      ansible.builtin.assert:
+        that:
+          - enabled_ssl.stat.exists
+          - enabled_ssl.stat.islnk
+        fail_msg: "SSL module is not enabled"
+        success_msg: "SSL module is enabled"
+
+    # The following tests would run on real systems but not in containers
+    # They are tagged with molecule-notest to be skipped during molecule testing
+
+    - name: Check Apache service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Apache service is running
+      ansible.builtin.assert:
+        that:
+          - "'apache2.service' in ansible_facts.services"
+          - "ansible_facts.services['apache2.service'].state == 'running'"
+        fail_msg: "Apache service is not running"
+        success_msg: "Apache service is running"
+      tags: molecule-notest
+
+    - name: Check HTTPS is accessible
+      ansible.builtin.uri:
+        url: https://localhost/
+        validate_certs: false
+        return_content: true
+      register: https_response
+      tags: molecule-notest
+
+    - name: Assert HTTPS response contains expected content
+      ansible.builtin.assert:
+        that:
+          - https_response.status == 200
+          - "'Hello, world!' in https_response.content"
+        fail_msg: "HTTPS response does not contain expected content"
+        success_msg: "HTTPS response contains expected content"
+      tags: molecule-notest

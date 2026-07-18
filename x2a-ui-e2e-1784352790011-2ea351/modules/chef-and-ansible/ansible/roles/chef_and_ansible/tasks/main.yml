@@ -1,0 +1,9 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Install and configure Apache with HTTPS
+  ansible.builtin.include_tasks: install.yml
+- name: Configure Apache virtual host
+  ansible.builtin.include_tasks: configure.yml
+- name: Apply security hardening
+  ansible.builtin.include_tasks: secure.yml

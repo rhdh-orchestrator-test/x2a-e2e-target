@@ -1,0 +1,19 @@
+---
+- name: Configure Hello World virtual host
+  ansible.builtin.template:
+    src: apache_vhost.j2
+    dest: /etc/apache2/sites-available/{{ vhost_name }}.conf
+    mode: "0640"
+  become: true
+- name: Check if virtual host is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/sites-enabled/{{ vhost_name }}.conf
+  register: vhost_enabled
+  become: true
+- name: Activate the virtual host
+  ansible.builtin.command: a2ensite {{ vhost_name }}
+  become: true
+  changed_when: true
+  when: not vhost_enabled.stat.exists
+  notify:
+    - Restart apache
