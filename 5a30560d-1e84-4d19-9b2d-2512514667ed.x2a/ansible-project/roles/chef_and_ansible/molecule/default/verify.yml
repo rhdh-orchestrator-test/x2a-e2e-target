@@ -1,0 +1,137 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  become: false
+  tasks:
+  - name: Check Apache virtual host configuration exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+    register: vhost_config
+  - name: Assert virtual host configuration exists
+    ansible.builtin.assert:
+      that:
+      - vhost_config.stat.exists
+      - vhost_config.stat.size > 0
+      fail_msg: Virtual host configuration not found
+      success_msg: Virtual host configuration exists
+  - name: Check virtual host is enabled (symlink exists)
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/apache2/sites-enabled/helloworld.conf
+    register: vhost_enabled
+  - name: Assert virtual host is enabled
+    ansible.builtin.assert:
+      that:
+      - vhost_enabled.stat.exists
+      - vhost_enabled.stat.islnk
+      fail_msg: Virtual host is not enabled
+      success_msg: Virtual host is enabled
+  - name: Check SSL configuration exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_config
+  - name: Assert SSL configuration exists
+    ansible.builtin.assert:
+      that:
+      - ssl_config.stat.exists
+      - ssl_config.stat.size > 0
+      fail_msg: SSL configuration not found
+      success_msg: SSL configuration exists
+  - name: Get SSL configuration content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_config_content
+  - name: Assert SSL protocol is properly configured (TLS 1.2 only)
+    ansible.builtin.assert:
+      that:
+      - (ssl_config_content.content | b64decode) is regex('SSLProtocol -all \+TLSv1.2')
+      fail_msg: SSL protocol configuration is incorrect
+      success_msg: SSL protocol is correctly configured for TLS 1.2 only
+  - name: Check SSL certificate files exist
+    ansible.builtin.stat:
+      path: '{{ item }}'
+    register: ssl_files
+    loop:
+    - /tmp/molecule_test/etc/apache2/certs/apache.key
+    - /tmp/molecule_test/etc/apache2/certs/apache.crt
+    - /tmp/molecule_test/etc/apache2/certs/apache.csr
+  - name: Assert SSL certificate files exist
+    ansible.builtin.assert:
+      that:
+      - item.stat.exists
+      fail_msg: SSL certificate file {{ item.item }} not found
+      success_msg: SSL certificate file {{ item.item }} exists
+    loop: '{{ ssl_files.results }}'
+  - name: Check website content exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/var/www/helloworld/index.html
+    register: website_content
+  - name: Assert website content exists
+    ansible.builtin.assert:
+      that:
+      - website_content.stat.exists
+      - website_content.stat.size > 0
+      fail_msg: Website content not found
+      success_msg: Website content exists
+  - name: Get website content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/var/www/helloworld/index.html
+    register: index_content
+  - name: Assert website contains "Hello, world!"
+    ansible.builtin.assert:
+      that:
+      - (index_content.content | b64decode) is regex('Hello, world!')
+      fail_msg: Website content does not contain 'Hello, world!'
+      success_msg: Website content contains 'Hello, world!'
+  - name: Check SSH configuration exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/ssh/sshd_config
+    register: ssh_config
+  - name: Assert SSH configuration exists
+    ansible.builtin.assert:
+      that:
+      - ssh_config.stat.exists
+      - ssh_config.stat.size > 0
+      fail_msg: SSH configuration not found
+      success_msg: SSH configuration exists
+  - name: Get SSH configuration content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/ssh/sshd_config
+    register: ssh_config_content
+  - name: Assert root login is disabled
+    ansible.builtin.assert:
+      that:
+      - (ssh_config_content.content | b64decode) is regex('PermitRootLogin no')
+      fail_msg: SSH root login is not disabled
+      success_msg: SSH root login is properly disabled
+  - name: Check Apache service status
+    ansible.builtin.service_facts: null
+    tags: molecule-notest
+  - name: Assert Apache service is running
+    ansible.builtin.assert:
+      that:
+      - '''apache2.service'' in ansible_facts.services'
+      - ansible_facts.services['apache2.service'].state == 'running'
+      fail_msg: Apache service is not running
+      success_msg: Apache service is running
+    tags: molecule-notest
+  - name: Check if port 443 is listening
+    ansible.builtin.wait_for:
+      port: 443
+      state: started
+      timeout: 5
+    tags: molecule-notest
+  - name: Check HTTPS website availability
+    ansible.builtin.uri:
+      url: https://localhost/
+      validate_certs: false
+      return_content: true
+    register: website_response
+    tags: molecule-notest
+  - name: Assert website returns correct content
+    ansible.builtin.assert:
+      that:
+      - website_response.status == 200
+      - '''Hello, world!'' in website_response.content'
+      fail_msg: Website is not returning expected content
+      success_msg: Website is returning expected content
+    tags: molecule-notest

@@ -1,0 +1,11 @@
+<VirtualHost *:443>
+ DocumentRoot "{{ website_doc_root }}"
+ SSLEngine on
+ SSLCertificateFile {{ apache_ssl_cert_file }}
+ SSLCertificateKeyFile {{ apache_ssl_key_file }}
+  <Directory "{{ website_doc_root }}">
+    allow from all
+    Options None
+    Require all granted
+  </Directory>
+</VirtualHost>

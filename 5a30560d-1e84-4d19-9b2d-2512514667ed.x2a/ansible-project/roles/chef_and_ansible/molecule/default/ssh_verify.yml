@@ -1,0 +1,37 @@
+- name: Verify SSH configuration
+  hosts: all
+  gather_facts: false
+  become: false
+  tasks:
+  - name: Check SSH configuration exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/ssh/sshd_config
+    register: ssh_config
+  - name: Assert SSH configuration exists
+    ansible.builtin.assert:
+      that:
+      - ssh_config.stat.exists
+      - ssh_config.stat.size > 0
+      fail_msg: SSH configuration not found
+      success_msg: SSH configuration exists
+  - name: Get SSH configuration content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/ssh/sshd_config
+    register: ssh_config_content
+  - name: Assert root login is disabled
+    ansible.builtin.assert:
+      that:
+      - (ssh_config_content.content | b64decode) is regex('PermitRootLogin no')
+      fail_msg: SSH root login is not disabled
+      success_msg: SSH root login is properly disabled
+  - name: Check SSH service status
+    ansible.builtin.service_facts: null
+    tags: molecule-notest
+  - name: Assert SSH service is running
+    ansible.builtin.assert:
+      that:
+      - '''sshd.service'' in ansible_facts.services'
+      - ansible_facts.services['sshd.service'].state == 'running'
+      fail_msg: SSH service is not running
+      success_msg: SSH service is running
+    tags: molecule-notest
