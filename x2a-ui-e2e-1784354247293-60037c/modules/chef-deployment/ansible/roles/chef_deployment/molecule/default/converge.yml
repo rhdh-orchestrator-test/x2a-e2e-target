@@ -1,0 +1,129 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: jtonello
+    password: testpassword
+    email: jtonello@example.com
+    full_name: John Tonello
+    chef_hostname: automate.chef.lab
+    chef_org_name: lab
+    chef_org_long_name: Chef Lab
+    chef_user_pem_filename: jtonello.pem
+    chef_org_validator_filename: lab-validator.pem
+    chef_automate_cli_path: /tmp/molecule_test/chef-automate
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/etc/chef-automate
+    - /tmp/molecule_test/etc/systemd/system
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: '{{ chef_hostname }}'
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create hosts file
+    ansible.builtin.copy:
+      content: '127.0.0.1 localhost
+
+        127.0.1.1 {{ chef_hostname }}
+
+        '
+      dest: /tmp/molecule_test/etc/hosts
+      mode: '0644'
+  - name: Create sysctl configuration
+    ansible.builtin.copy:
+      content: 'vm.max_map_count = 262144
+
+        vm.dirty_expire_centisecs = 20000
+
+        '
+      dest: /tmp/molecule_test/etc/sysctl.d/99-chef-deployment.conf
+      mode: '0644'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/sh echo ''Chef Automate CLI mock'' '
+      dest: '{{ chef_automate_cli_path }}'
+      mode: '0755'
+  - name: Create Chef Automate config file
+    ansible.builtin.copy:
+      content: "# Mock Chef Automate configuration\n[global]\n  v1 = true\n[deployment]\n  products = [\"automate\", \"infra-server\"]\n"
+      dest: /tmp/molecule_test/etc/chef-automate/config.toml
+      mode: '0644'
+  - name: Create user PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEowIBAAKCAQEAzMock_pem_content_for_testing
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/{{ chef_user_pem_filename }}
+      mode: '0600'
+  - name: Create organization validator PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEowIBAAKCAQEAzMock_validator_pem_content
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/{{ chef_org_validator_filename }}
+      mode: '0600'
+  - name: Create Chef Automate service file
+    ansible.builtin.copy:
+      content: '[Unit]
+
+        Description=Chef Automate
+
+        After=network.target
+
+
+        [Service]
+
+        Type=simple
+
+        ExecStart=/usr/bin/chef-automate start
+
+        ExecStop=/usr/bin/chef-automate stop
+
+
+        [Install]
+
+        WantedBy=multi-user.target
+
+        '
+      dest: /tmp/molecule_test/etc/systemd/system/chef-automate.service
+      mode: '0644'
+  - name: Create Chef Server service file
+    ansible.builtin.copy:
+      content: '[Unit]
+
+        Description=Chef Infra Server
+
+        After=network.target
+
+
+        [Service]
+
+        Type=simple
+
+        ExecStart=/usr/bin/chef-server-ctl start
+
+        ExecStop=/usr/bin/chef-server-ctl stop
+
+
+        [Install]
+
+        WantedBy=multi-user.target
+
+        '
+      dest: /tmp/molecule_test/etc/systemd/system/chef-server.service
+      mode: '0644'
