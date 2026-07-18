@@ -1,0 +1,9 @@
+---
+- name: Configure kernel parameters for optimal Chef performance
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop: "{{ chef_kernel_params | dict2items }}"
+  become: true
