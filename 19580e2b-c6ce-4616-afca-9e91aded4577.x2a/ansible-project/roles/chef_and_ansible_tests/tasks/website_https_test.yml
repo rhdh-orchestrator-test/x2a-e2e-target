@@ -1,0 +1,84 @@
+---
+- name: Check if port 443 is listening
+  ansible.builtin.wait_for:
+    port: 443
+    state: started
+    timeout: 5
+  register: port_check
+  failed_when: false
+  tags:
+    - https
+    - security
+    - molecule-notest
+- name: Verify HTTPS response status is 200
+  ansible.builtin.uri:
+    url: https://localhost/
+    validate_certs: false
+    return_content: true
+  register: https_response
+  failed_when: false
+  tags:
+    - https
+    - security
+    - molecule-notest
+- name: Verify HTTPS response contains expected content
+  ansible.builtin.assert:
+    that:
+      - "'Hello, world!' in https_response.content"
+    fail_msg: HTTPS response does not contain expected content 'Hello, world!'
+    success_msg: HTTPS response contains expected content
+  when: https_response is defined and https_response.status == 200
+  failed_when: false
+  tags:
+    - https
+    - security
+    - molecule-notest
+- name: Check if SSL3 is disabled
+  ansible.builtin.shell:
+    cmd: openssl s_client -connect localhost:443 -ssl3 < /dev/null 2>&1
+  register: ssl3_check
+  failed_when: false
+  changed_when: false
+  check_mode: false
+  tags:
+    - https
+    - security
+    - ssl
+    - molecule-notest
+- name: Verify SSL3 is disabled
+  ansible.builtin.assert:
+    that:
+      - ssl3_check.rc != 0 or "ssl3 alert handshake failure" in ssl3_check.stderr
+    fail_msg: SSL3 protocol is enabled but should be disabled
+    success_msg: SSL3 protocol is properly disabled
+  failed_when: false
+  tags:
+    - https
+    - security
+    - ssl
+    - molecule-notest
+- name: Check if TLS 1.2 is enabled
+  ansible.builtin.shell:
+    cmd: openssl s_client -connect localhost:443 -tls1_2 < /dev/null 2>&1
+  register: tls12_check
+  failed_when: false
+  changed_when: false
+  check_mode: false
+  tags:
+    - https
+    - security
+    - ssl
+    - molecule-notest
+- name: Verify TLS 1.2 is enabled
+  ansible.builtin.assert:
+    that:
+      - tls12_check.rc == 0
+      - "'Protocol  : TLSv1.2' in tls12_check.stdout"
+    fail_msg: TLS 1.2 protocol is not enabled
+    success_msg: TLS 1.2 protocol is properly enabled
+  failed_when: false
+  tags:
+    - https
+    - security
+    - ssl
+    - molecule-notest

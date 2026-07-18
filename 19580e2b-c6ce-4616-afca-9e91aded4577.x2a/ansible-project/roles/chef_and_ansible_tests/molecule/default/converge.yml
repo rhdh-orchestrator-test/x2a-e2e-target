@@ -1,0 +1,60 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create directory structure for SSH config
+    ansible.builtin.file:
+      path: /tmp/molecule_test/etc/ssh
+      state: directory
+      mode: '0755'
+  - name: Create mock sshd_config file
+    ansible.builtin.copy:
+      content: '# Mock sshd_config file for testing
+
+        Port 22
+
+        Protocol 2
+
+        PermitRootLogin no
+
+        PasswordAuthentication yes
+
+        ChallengeResponseAuthentication no
+
+        UsePAM yes
+
+        X11Forwarding yes
+
+        PrintMotd no
+
+        '
+      dest: /tmp/molecule_test/etc/ssh/sshd_config
+      mode: '0644'
+  - name: Create directory for HTTPS test
+    ansible.builtin.file:
+      path: /tmp/molecule_test/var/www/html
+      state: directory
+      mode: '0755'
+  - name: Create mock HTML file with expected content
+    ansible.builtin.copy:
+      content: Hello, world!
+      dest: /tmp/molecule_test/var/www/html/index.html
+      mode: '0644'
+  - name: Create SSL certificate directory
+    ansible.builtin.file:
+      path: /tmp/molecule_test/etc/ssl/certs
+      state: directory
+      mode: '0755'
+  - name: Create mock TLS configuration file
+    ansible.builtin.copy:
+      content: '# Mock TLS configuration
+
+        ssl_protocols TLSv1.2 TLSv1.3;
+
+        ssl_prefer_server_ciphers on;
+
+        ssl_ciphers ''EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH'';
+
+        '
+      dest: /tmp/molecule_test/etc/ssl/openssl.cnf
+      mode: '0644'
