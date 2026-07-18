@@ -1,0 +1,10 @@
+---
+- name: Include website HTTPS tasks
+  ansible.builtin.include_tasks:
+    file: website_https.yml
+- name: Include POODLE vulnerability fix tasks
+  ansible.builtin.include_tasks:
+    file: poodle_fix.yml
+- name: Include SSH verification tasks
+  ansible.builtin.include_tasks:
+    file: verify_ssh.yml
