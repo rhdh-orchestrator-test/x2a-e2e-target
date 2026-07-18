@@ -1,0 +1,13 @@
+---
+- name: Ensure SSH server is installed
+  ansible.builtin.package:
+    name: openssh-server
+    state: present
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    path: /etc/apache2/mods-available/ssl.conf
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol {{ ssl_protocol }}
+  notify:
+    - Restart apache
+    - Restart sshd
