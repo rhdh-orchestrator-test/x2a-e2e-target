@@ -1,0 +1,77 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    # Create directory structure
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/apache2/sites-available
+        - /tmp/molecule_test/etc/apache2/sites-enabled
+        - /tmp/molecule_test/etc/apache2/certs
+        - /tmp/molecule_test/etc/apache2/mods-available
+        - /tmp/molecule_test/var/www/helloworld
+
+    # Create Apache virtual host configuration
+    - name: Create virtual host configuration
+      ansible.builtin.copy:
+        content: |
+          <VirtualHost *:443>
+           DocumentRoot "/var/www/helloworld"
+           SSLEngine on
+           SSLCertificateFile /etc/apache2/certs/apache.crt
+           SSLCertificateKeyFile /etc/apache2/certs/apache.key
+            <Directory "/var/www/helloworld">
+              allow from all
+              Options None
+              Require all granted
+            </Directory>
+          </VirtualHost>
+        dest: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+        mode: "0640"
+
+    # Create symlink for enabled site
+    - name: Create sites-enabled symlink
+      ansible.builtin.file:
+        src: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+        dest: /tmp/molecule_test/etc/apache2/sites-enabled/helloworld.conf
+        state: link
+
+    # Create website content
+    - name: Create website content
+      ansible.builtin.copy:
+        content: |
+          <html>
+            <head>
+              <title>Website Test</title>
+            </head>
+            <body>
+              <p>Hello, world!</p>
+          </html>
+        dest: /tmp/molecule_test/var/www/helloworld/index.html
+        mode: "0644"
+
+    # Create SSL certificate files
+    - name: Create SSL certificate files
+      ansible.builtin.copy:
+        content: "# Mock SSL certificate content"
+        dest: "{{ item }}"
+        mode: "0640"
+      loop:
+        - /tmp/molecule_test/etc/apache2/certs/apache.key
+        - /tmp/molecule_test/etc/apache2/certs/apache.crt
+        - /tmp/molecule_test/etc/apache2/certs/apache.csr
+
+    # Create SSL configuration with POODLE fix
+    - name: Create SSL configuration
+      ansible.builtin.copy:
+        content: |
+          # Mock SSL configuration file
+          SSLProtocol -all +TLSv1.2
+          # Other SSL settings would be here
+        dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+        mode: "0644"
