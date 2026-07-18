@@ -1,0 +1,11 @@
+---
+- name: Run SSH security tests
+  ansible.builtin.include_tasks: ssh_security_test.yml
+  tags:
+    - ssh
+    - security
+- name: Run HTTPS website tests
+  ansible.builtin.include_tasks: website_https_test.yml
+  tags:
+    - https
+    - security

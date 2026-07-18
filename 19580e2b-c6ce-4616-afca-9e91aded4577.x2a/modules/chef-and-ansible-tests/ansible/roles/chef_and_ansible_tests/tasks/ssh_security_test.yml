@@ -1,0 +1,46 @@
+---
+- name: Check if openssh-server is installed
+  ansible.builtin.package_facts:
+    manager: auto
+  tags:
+    - security
+    - ssh
+    - STIG-RHEL-08-000227
+    - molecule-notest
+- name: Set openssh package result
+  ansible.builtin.set_fact:
+    openssh_package_result:
+      rc: "{{ 0 if 'openssh-server' in ansible_facts.packages else 1 }}"
+  tags:
+    - security
+    - ssh
+    - STIG-RHEL-08-000227
+- name: Check PermitRootLogin setting in sshd_config
+  ansible.builtin.shell:
+    cmd: set -o pipefail && grep -i '^PermitRootLogin' {{ sshd_config_path }} | awk '{print $2}'
+    executable: /bin/bash
+  register: sshd_config_result
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  tags:
+    - security
+    - ssh
+    - STIG-RHEL-08-000227
+- name: Ensure SSH root login is disabled
+  ansible.builtin.assert:
+    that:
+      - (sshd_config_result.stdout is defined and sshd_config_result.stdout != 'yes') or (openssh_package_result.rc != 0)
+    fail_msg: "SSH root login is enabled. PermitRootLogin should not be set to 'yes' in /etc/ssh/sshd_config. This is a CAT I severity issue (STIG ID: RHEL-08-000227,
+      Vulnerability ID: V-38607, CCI: CCI-000774). "
+    success_msg: SSH root login is properly disabled or openssh-server is not installed.
+  vars:
+    sshd_config_path: /etc/ssh/sshd_config
+  register: ssh_root_login_check
+  failed_when: false
+  tags:
+    - security
+    - ssh
+    - STIG-RHEL-08-000227
+    - V-38607
+    - CCI-000774

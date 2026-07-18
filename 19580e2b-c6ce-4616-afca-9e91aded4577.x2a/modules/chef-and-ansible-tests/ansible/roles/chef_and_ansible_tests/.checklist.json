@@ -1,0 +1,85 @@
+{
+  "module_name": "chef_and_ansible_tests",
+  "items": [
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible_tests/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible_tests/tasks/main.yml",
+      "status": "complete",
+      "description": "Main tasks file",
+      "notes": "Created main tasks file that includes both test files"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible_tests/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables",
+      "notes": "Created defaults file with test configuration parameters"
+    },
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/tests/ssh_profile.rb",
+      "target_path": "./ansible/roles/chef_and_ansible_tests/tasks/ssh_security_test.yml",
+      "status": "complete",
+      "description": "SSH security test profile - convert to Ansible tasks",
+      "notes": "Converted Chef InSpec SSH security test to Ansible assert tasks"
+    },
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/tests/website_https_verify.rb",
+      "target_path": "./ansible/roles/chef_and_ansible_tests/tasks/website_https_test.yml",
+      "status": "complete",
+      "description": "HTTPS website test profile - convert to Ansible tasks",
+      "notes": "Converted Chef InSpec HTTPS website test to Ansible assert tasks"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible_tests/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule scenario configuration",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible_tests/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook",
+      "notes": "Created converge.yml that sets up the test environment with mock files under /tmp/molecule_test/"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible_tests/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification tasks",
+      "notes": "Created verify.yml that tests SSH security and HTTPS website configurations under /tmp/molecule_test/"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible_tests/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Molecule create playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/chef_and_ansible_tests/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Molecule destroy playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    }
+  ]
+}
