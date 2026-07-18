@@ -1,0 +1,38 @@
+- name: Ensure SSH root login is disabled
+  block:
+  - name: Check if SSH server is installed
+    ansible.builtin.package:
+      name: openssh-server
+      state: present
+    check_mode: true
+    register: ssh_installed
+    failed_when: false
+  - name: Check SSH configuration for PermitRootLogin
+    ansible.builtin.lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: ^PermitRootLogin\s+
+      line: PermitRootLogin no
+    check_mode: true
+    register: ssh_config_check
+    failed_when: ssh_installed.changed == false and ssh_config_check.changed == true
+    when: ssh_installed.changed == false
+  vars:
+    security_control:
+      title: Ensure SSH root login is disabled
+      description: 'The PermitRootLogin parameter specifies if the root user can log in using ssh. The default is no.
+
+        Rationale: Disallowing root logins over SSH requires system admins to  authenticate using their own individual account, then escalating to root  via sudo
+        or su. This in turn limits opportunity for non-repudiation and  provides a clear audit trail in the event of a security incident
+
+        '
+      group: SRG-OS-000112
+      vulid: V-38607
+      ruleid: SV-50408r1_rule
+      severity: CAT I
+      stigid: RHEL-08-000227
+      cci: CCI-000774
+      fixtext: 'PermitRootLogin should not be permitted. The default setting in "/etc/ssh/sshd_config" is correct, and can be verified by ensuring that the following
+        line appears: PermitRootLogin no
+
+        '
+      impact: 1.0
