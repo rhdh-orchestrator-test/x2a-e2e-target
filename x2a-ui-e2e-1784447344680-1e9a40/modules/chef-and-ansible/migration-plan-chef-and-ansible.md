@@ -1,0 +1,152 @@
+---
+source-path: chef-and-ansible
+---
+
+Based on my analysis, I'll now provide a migration plan for the chef-and-ansible module.
+
+# Migration Plan: chef-and-ansible
+
+**TLDR**: This is not a traditional Ansible role but rather a set of Ansible playbooks with Chef InSpec tests for compliance automation. The migration needs focus on modernizing the Ansible playbooks to use FQCN, proper boolean syntax, and structured loops while preserving the Chef InSpec integration for compliance testing.
+
+## Service Type and Configuration
+
+**Service Type**: Web Server (Apache) with SSL/TLS Security Hardening
+
+**Key Operations**:
+- Installs and configures Apache web server with HTTPS
+- Generates self-signed SSL certificates
+- Deploys a simple "Hello World" website
+- Configures SSL/TLS security settings (disables SSLv3, enables TLSv1.2)
+- Uses Chef InSpec for compliance testing
+
+## File Structure
+
+**IMPORTANT: List files using RELATIVE PATHS (relative to the role root), one per line. DO NOT use tree structure format.**
+
+```
+README.md
+index.html
+kitchen.yml
+poodle_fix.yml
+tests/ssh_profile.rb
+tests/website_https_verify.rb
+website_https.yml
+```
+
+**Task Files:**
+website_https.yml
+poodle_fix.yml
+
+**Handler Files:**
+(Handlers are embedded within the playbooks)
+
+**Variable Files:**
+(Variables are embedded within the playbooks)
+
+**Meta:**
+(No dedicated meta file)
+
+**Templates:**
+(No dedicated template files, content is embedded in variables)
+
+**Static Files:**
+index.html
+
+## Module Explanation
+
+The module performs operations in this order:
+
+1. **website_https.yml**:
+   - Updates apt cache and installs Apache web server with specific version
+   - Installs curl, openssl, and PyOpenSSL
+   - Creates directory for SSL certificates
+   - Generates SSL key, CSR, and self-signed certificate
+   - Configures Apache virtual host for HTTPS
+   - Creates web directory and deploys "Hello World" website
+   - Disables default site and enables the new virtual host with SSL
+   - Legacy patterns include short module names, unquoted boolean values, and command modules without changed_when
+   - Modern equivalent would use FQCN, quoted boolean values, and proper changed_when conditions
+
+2. **poodle_fix.yml**:
+   - Updates SSL configuration in Apache to disable SSLv3 and enable only TLSv1.2
+   - Uses replace module to modify SSL configuration
+   - Legacy patterns include short module names and no changed_when for handlers
+   - Modern equivalent would use FQCN and proper handler naming
+
+## Modernization Mapping
+
+| Legacy Pattern | Modern Equivalent | Files Affected | Notes |
+|---|---|---|---|
+| `apt:` | `ansible.builtin.apt:` | website_https.yml | FQCN |
+| `file:` | `ansible.builtin.file:` | website_https.yml | FQCN |
+| `openssl_privatekey:` | `community.crypto.openssl_privatekey:` | website_https.yml | FQCN |
+| `openssl_csr:` | `community.crypto.openssl_csr:` | website_https.yml | FQCN |
+| `openssl_certificate:` | `community.crypto.openssl_certificate:` | website_https.yml | FQCN |
+| `copy:` | `ansible.builtin.copy:` | website_https.yml | FQCN |
+| `command:` | `ansible.builtin.command:` | website_https.yml | FQCN |
+| `replace:` | `ansible.builtin.replace:` | poodle_fix.yml | FQCN |
+| `update_cache=true` | `update_cache: true` | website_https.yml | Boolean syntax |
+| `force: yes` | `force: true` | website_https.yml | Boolean syntax |
+| `command: a2dissite 000-default` | `ansible.builtin.command: a2dissite 000-default`<br>with `changed_when: false` | website_https.yml | Idempotency |
+| `command: a2ensite helloworld` | `ansible.builtin.command: a2ensite helloworld`<br>with `changed_when: "command_result.rc != 0"` | website_https.yml | Idempotency |
+| `command: a2enmod ssl` | `ansible.builtin.command: a2enmod ssl`<br>with `changed_when: "command_result.rc != 0"` | website_https.yml | Idempotency |
+| `Restart apache` | `Restart apache2` | website_https.yml, poodle_fix.yml | Handler name consistency |
+
+## Dependencies
+
+**Collection dependencies** (for requirements.yml):
+- community.crypto: ">=1.0.0"
+- ansible.posix: ">=1.0.0"
+
+**Role dependencies**: None explicitly defined
+**External packages**: apache2, curl, openssl, python3-openssl
+**Services managed**: apache2, sshd
+
+## Template Modernization
+
+No dedicated template files exist in this module. The templates are embedded as variables in the playbooks.
+
+## Argument Specification
+
+For a proper role conversion, the following variables should be in meta/argument_specs.yml:
+- `conftext`: string, default as shown in website_https.yml, description: "Apache virtual host configuration"
+- `webtext`: string, default as shown in website_https.yml, description: "HTML content for the website"
+
+## Checks for the Migration
+
+**Files to verify**:
+- tasks/main.yml (new file to be created)
+- tasks/website_https.yml (new file to be created)
+- tasks/poodle_fix.yml (new file to be created)
+- handlers/main.yml (new file to be created)
+- defaults/main.yml (new file to be created)
+- meta/main.yml (new file to be created)
+- meta/argument_specs.yml (new file to be created)
+
+**Services to check**:
+- apache2
+- sshd
+
+**Templates to validate**:
+- templates/virtualhost.conf.j2 (new file to be created)
+- templates/index.html.j2 (new file to be created)
+
+## Pre-flight checks:
+```
+# Verify Apache is installed and running
+systemctl status apache2
+
+# Verify SSL is enabled
+apache2ctl -M | grep ssl
+
+# Verify website is accessible via HTTPS
+curl -k https://localhost/ | grep "Hello, world!"
+
+# Verify SSL/TLS configuration
+openssl s_client -connect localhost:443 -tls1_2
+openssl s_client -connect localhost:443 -ssl3 # Should fail
+
+# Run InSpec tests
+inspec exec tests/website_https_verify.rb
+inspec exec tests/ssh_profile.rb
+```
