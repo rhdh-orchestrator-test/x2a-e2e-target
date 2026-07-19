@@ -1,0 +1,34 @@
+---
+- name: Deactivate the default virtualhost
+  ansible.builtin.command:
+    cmd: a2dissite 000-default
+    removes: /etc/apache2/sites-enabled/000-default.conf
+  register: a2dissite_result
+  changed_when: "'Site 000-default disabled' in a2dissite_result.stdout"
+  become: true
+- name: Activate the virtualhost
+  ansible.builtin.command:
+    cmd: a2ensite {{ apache_vhost_name }}
+    creates: /etc/apache2/sites-enabled/{{ apache_vhost_name }}.conf
+  register: a2ensite_result
+  changed_when: "'Enabling site' in a2ensite_result.stdout"
+  notify:
+    - Restart apache
+  become: true
+- name: Activate SSL on Apache
+  ansible.builtin.command:
+    cmd: a2enmod ssl
+    creates: /etc/apache2/mods-enabled/ssl.conf
+  register: a2enmod_result
+  changed_when: "'Enabling module ssl' in a2enmod_result.stdout"
+  notify:
+    - Restart apache
+  become: true
+- name: Fix SSL in Apache (POODLE vulnerability)
+  ansible.builtin.replace:
+    dest: /etc/apache2/mods-available/ssl.conf
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol {{ apache_ssl_protocols }}
+  notify:
+    - Restart apache
+  become: true
