@@ -1,0 +1,48 @@
+---
+argument_specs:
+  main:
+    short_description: Role for setting up a secure HTTPS website with Apache
+    description: "This role installs and configures Apache web server with HTTPS enabled, sets up a self-signed certificate, and applies security hardening for SSL/TLS.
+      It also includes InSpec tests for compliance verification.\n"
+    author: X2A Migration
+    options:
+      apache_package:
+        type: str
+        default: apache2
+        description: Apache package name
+      apache_version:
+        type: str
+        default: 2.4.41-4ubuntu3.10
+        description: Apache version to install
+      apache_service:
+        type: str
+        default: apache2
+        description: Apache service name
+      apache_certs_dir:
+        type: str
+        default: /etc/apache2/certs
+        description: Directory for Apache SSL certificates
+      website_name:
+        type: str
+        default: helloworld
+        description: Name of the website
+      website_root:
+        type: str
+        default: /var/www/helloworld
+        description: Document root for the website
+      website_port:
+        type: int
+        default: 443
+        description: Port for the website
+      website_ssl_enabled:
+        type: bool
+        default: true
+        description: Whether SSL is enabled for the website
+      website_ssl_protocol:
+        type: str
+        default: -all +TLSv1.2
+        description: SSL/TLS protocols to enable/disable
+      ssl_common_name:
+        type: str
+        default: myhost
+        description: Common name for the SSL certificate
