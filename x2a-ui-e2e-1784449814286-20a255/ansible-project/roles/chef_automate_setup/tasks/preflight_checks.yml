@@ -1,0 +1,69 @@
+- name: Check CPU resources
+  ansible.builtin.command: grep -c processor /proc/cpuinfo
+  register: cpu_count
+  changed_when: false
+  check_mode: false
+  tags: molecule-notest
+- name: Verify minimum CPU requirements
+  ansible.builtin.assert:
+    that: cpu_count.stdout | int >= 4
+    fail_msg: System requires at least 4 CPU cores, found {{ cpu_count.stdout }}
+    success_msg: 'System has adequate CPU resources: {{ cpu_count.stdout }} cores'
+  tags: molecule-notest
+- name: Check memory resources
+  ansible.builtin.command: free -m
+  register: memory_info
+  changed_when: false
+  check_mode: false
+  tags: molecule-notest
+- name: Extract total memory
+  ansible.builtin.set_fact:
+    total_memory: '{{ memory_info.stdout_lines[1].split()[1] | int }}'
+  tags: molecule-notest
+- name: Verify minimum memory requirements
+  ansible.builtin.assert:
+    that: total_memory >= 16384
+    fail_msg: System requires at least 16GB RAM, found {{ (total_memory / 1024) | round(1) }}GB
+    success_msg: 'System has adequate memory: {{ (total_memory / 1024) | round(1) }}GB'
+  tags: molecule-notest
+- name: Check disk space
+  ansible.builtin.command: df -h /
+  register: disk_info
+  changed_when: false
+  check_mode: false
+  tags: molecule-notest
+- name: Extract available disk space
+  ansible.builtin.set_fact:
+    available_space: '{{ disk_info.stdout_lines[1].split()[3] }}'
+  tags: molecule-notest
+- name: Verify minimum disk space requirements
+  ansible.builtin.assert:
+    that: available_space is regex('^\d+(\.\d+)?G$') and (available_space | replace('G', '') | float >= 40)
+    fail_msg: System requires at least 40GB free disk space, found {{ available_space }}
+    success_msg: 'System has adequate disk space: {{ available_space }}'
+  tags: molecule-notest
+- name: Check network connectivity to Chef packages
+  ansible.builtin.uri:
+    url: https://packages.chef.io
+    timeout: 5
+  register: chef_connectivity
+  failed_when: false
+  tags: molecule-notest
+- name: Verify Chef packages connectivity
+  ansible.builtin.assert:
+    that: chef_connectivity.status == 200
+    fail_msg: Cannot connect to Chef package repository
+    success_msg: Successfully connected to Chef package repository
+  tags: molecule-notest
+- name: Check hostname resolution
+  ansible.builtin.command: getent hosts {{ chef_automate_hostname }}
+  register: hostname_resolution
+  changed_when: false
+  failed_when: false
+  tags: molecule-notest
+- name: Verify hostname resolution
+  ansible.builtin.assert:
+    that: hostname_resolution.rc == 0
+    fail_msg: Hostname {{ chef_automate_hostname }} cannot be resolved
+    success_msg: Hostname {{ chef_automate_hostname }} resolves correctly
+  tags: molecule-notest
