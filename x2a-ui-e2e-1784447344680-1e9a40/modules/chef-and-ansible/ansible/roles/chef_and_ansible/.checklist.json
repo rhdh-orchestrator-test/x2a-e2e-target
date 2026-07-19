@@ -1,0 +1,181 @@
+{
+  "module_name": "chef_and_ansible",
+  "items": [
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/aap-configuration/controller_credential_types.yml",
+      "status": "complete",
+      "description": "AAP credential types configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/aap-configuration/controller_credentials.yml",
+      "status": "complete",
+      "description": "AAP credentials configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/tasks/validate_credentials.yml",
+      "status": "complete",
+      "description": "Credential validation tasks",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/meta/argument_specs.yml",
+      "status": "complete",
+      "description": "Role argument specifications",
+      "notes": "Created argument_specs.yml with variables from the original playbooks."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/tasks/main.yml",
+      "status": "complete",
+      "description": "Main task file that includes other task files",
+      "notes": "Created main.yml that includes validate_credentials.yml, website_https.yml, and poodle_fix.yml tasks."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/handlers/main.yml",
+      "status": "complete",
+      "description": "Handler definitions",
+      "notes": "Created handlers/main.yml with handlers for apache2 and sshd services."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables",
+      "notes": "Created defaults/main.yml with variables extracted from the original playbooks."
+    },
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/website_https.yml",
+      "target_path": "ansible/roles/chef_and_ansible/tasks/website_https.yml",
+      "status": "complete",
+      "description": "Apache HTTPS website setup tasks",
+      "notes": "Converted website_https.yml to Ansible task file with FQCN, proper boolean syntax, and improved idempotency with changed_when. Changed template usage from copy to template module."
+    },
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "ansible/roles/chef_and_ansible/tasks/poodle_fix.yml",
+      "status": "complete",
+      "description": "SSL/TLS security hardening tasks",
+      "notes": "Converted poodle_fix.yml to Ansible task file with FQCN and consistent handler naming."
+    },
+    {
+      "category": "files",
+      "source_path": "chef-and-ansible/index.html",
+      "target_path": "ansible/roles/chef_and_ansible/files/index.html",
+      "status": "complete",
+      "description": "HTML content for the website",
+      "notes": "Copied index.html static file."
+    },
+    {
+      "category": "templates",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/templates/virtualhost.conf.j2",
+      "status": "complete",
+      "description": "Apache virtual host configuration template",
+      "notes": "Created virtualhost.conf.j2 template from the conftext variable in website_https.yml"
+    },
+    {
+      "category": "templates",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/templates/index.html.j2",
+      "status": "complete",
+      "description": "Website HTML content template",
+      "notes": "Created index.html.j2 template from the webtext variable in website_https.yml. Fixed the missing closing tag for head."
+    },
+    {
+      "category": "files",
+      "source_path": "chef-and-ansible/tests/ssh_profile.rb",
+      "target_path": "ansible/roles/chef_and_ansible/files/tests/ssh_profile.rb",
+      "status": "complete",
+      "description": "InSpec SSH profile test",
+      "notes": "Copied Chef InSpec test file for SSH profile."
+    },
+    {
+      "category": "files",
+      "source_path": "chef-and-ansible/tests/website_https_verify.rb",
+      "target_path": "ansible/roles/chef_and_ansible/files/tests/website_https_verify.rb",
+      "status": "complete",
+      "description": "InSpec HTTPS website verification test",
+      "notes": "Copied Chef InSpec test file for website HTTPS verification."
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:community.crypto",
+      "target_path": "ansible/roles/chef_and_ansible/requirements.yml",
+      "status": "complete",
+      "description": "Crypto collection for SSL certificate operations",
+      "notes": "Created requirements.yml with community.crypto collection dependency."
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.posix",
+      "target_path": "ansible/roles/chef_and_ansible/requirements.yml",
+      "status": "complete",
+      "description": "Posix collection for system operations",
+      "notes": "Added ansible.posix collection to requirements.yml."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule scenario configuration",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook",
+      "notes": "Created converge.yml that recreates the expected filesystem state under /tmp/molecule_test/ including Apache configuration files, SSL certificates, virtualhost configuration, and website files."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification playbook",
+      "notes": "Created verify.yml that translates pre-flight checks into Ansible assertions. Includes checks for Apache configuration files, SSL certificates, virtualhost configuration, website files, and POODLE fix. Service and connectivity checks are tagged with molecule-notest as they can't run in a container."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Molecule create playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Molecule destroy playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    }
+  ]
+}

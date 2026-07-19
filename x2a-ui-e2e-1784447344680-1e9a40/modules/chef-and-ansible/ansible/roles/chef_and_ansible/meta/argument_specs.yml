@@ -1,0 +1,15 @@
+---
+argument_specs:
+  main:
+    short_description: Apache web server with SSL/TLS security hardening
+    description: Installs and configures Apache web server with HTTPS, generates self-signed SSL certificates, and configures SSL/TLS security settings
+    options:
+      conftext:
+        type: str
+        description: Apache virtual host configuration
+        default: "<VirtualHost *:443>\n DocumentRoot \"/var/www/helloworld\"\n SSLEngine on\n SSLCertificateFile /etc/apache2/certs/apache.crt\n SSLCertificateKeyFile
+          /etc/apache2/certs/apache.key\n  <Directory \"/var/www/helloworld\">\n    allow from all\n    Options None\n    Require all granted\n  </Directory>\n</VirtualHost>\n"
+      webtext:
+        type: str
+        description: HTML content for the website
+        default: "<html>\n  <head><title>Test Site</title></head>\n  <body>\n   <h1>Hello, world!</h1>\n   <p>The site is up and running</p>\n  </body>\n</html>"
