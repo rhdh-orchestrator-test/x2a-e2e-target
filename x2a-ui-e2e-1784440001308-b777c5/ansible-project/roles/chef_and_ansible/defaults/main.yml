@@ -1,0 +1,11 @@
+---
+apache_version: 2.4.41-4ubuntu3.10
+ssl_protocols: -all +TLSv1.2
+cert_directory: /etc/apache2/certs
+ssl_certificate_file: "{{ cert_directory }}/apache.crt"
+ssl_certificate_key_file: "{{ cert_directory }}/apache.key"
+ssl_certificate_csr_file: "{{ cert_directory }}/apache.csr"
+website_name: helloworld
+website_document_root: /var/www/helloworld
+website_port: 443
+certificate_common_name: myhost
