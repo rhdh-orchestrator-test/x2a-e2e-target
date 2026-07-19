@@ -1,0 +1,35 @@
+---
+argument_specs:
+  main:
+    short_description: Apache HTTPS website role
+    description: Sets up an Apache web server with HTTPS enabled using a self-signed certificate
+    author: X2A Migration
+    options:
+      apache_version:
+        type: str
+        default: 2.4.41-4ubuntu3.10
+        description: Apache version to install
+      website_domain:
+        type: str
+        default: myhost
+        description: Domain name for the website
+      ssl_cert_path:
+        type: str
+        default: /etc/apache2/certs
+        description: Path to store SSL certificates
+      website_root:
+        type: str
+        default: /var/www/helloworld
+        description: Path to website root directory
+      website_title:
+        type: str
+        default: Test Site
+        description: Website title
+      website_heading:
+        type: str
+        default: Hello, world!
+        description: Website heading
+      website_content:
+        type: str
+        default: The site is up and running
+        description: Website content
