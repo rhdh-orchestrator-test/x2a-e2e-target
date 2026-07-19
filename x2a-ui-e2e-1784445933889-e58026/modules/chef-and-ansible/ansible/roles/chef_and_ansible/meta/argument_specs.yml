@@ -1,0 +1,26 @@
+---
+argument_specs:
+  main:
+    short_description: Configures a secure HTTPS website with Apache
+    description:
+      - Installs and configures Apache web server with HTTPS
+      - Generates self-signed SSL certificates
+      - Configures a virtual host for a "Hello World" website
+      - Implements security hardening for SSL/TLS (POODLE vulnerability fix)
+    options:
+      apache_version:
+        type: str
+        default: 2.4.41-4ubuntu3.10
+        description: The version of Apache to install
+      ssl_cert_path:
+        type: str
+        default: /etc/apache2/certs
+        description: Path where SSL certificates will be stored
+      document_root:
+        type: str
+        default: /var/www/helloworld
+        description: Document root for the website
+      site_name:
+        type: str
+        default: helloworld
+        description: Name of the Apache site configuration

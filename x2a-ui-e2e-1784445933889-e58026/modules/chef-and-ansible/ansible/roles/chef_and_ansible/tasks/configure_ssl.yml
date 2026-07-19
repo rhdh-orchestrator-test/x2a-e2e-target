@@ -1,0 +1,23 @@
+---
+- name: Create a directory for certs
+  ansible.builtin.file:
+    path: /etc/apache2/certs
+    state: directory
+    mode: "0640"
+- name: Generate an openssl key
+  community.crypto.openssl_privatekey:
+    path: /etc/apache2/certs/apache.key
+    mode: "0600"
+- name: Generate an openssl csr
+  community.crypto.openssl_csr:
+    path: /etc/apache2/certs/apache.csr
+    privatekey_path: /etc/apache2/certs/apache.key
+    common_name: myhost
+    mode: "0644"
+- name: Generate a self-signed openssl certificate
+  community.crypto.x509_certificate:
+    path: /etc/apache2/certs/apache.crt
+    privatekey_path: /etc/apache2/certs/apache.key
+    csr_path: /etc/apache2/certs/apache.csr
+    provider: selfsigned
+    mode: "0644"
