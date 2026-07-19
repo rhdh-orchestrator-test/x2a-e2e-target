@@ -1,0 +1,97 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/hab
+    - /tmp/molecule_test/tmp
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/proc/sys/vm
+    - /tmp/molecule_test/proc
+    - /tmp/molecule_test/usr/bin
+  - name: Create mock Chef Automate CLI
+    ansible.builtin.copy:
+      content: '#!/bin/bash
+
+        echo "Chef Automate CLI mock"
+
+        echo "Deployment successful"
+
+        mkdir -p /tmp/molecule_test/hab/sup
+
+        echo "hab-sup service started" > /tmp/molecule_test/hab/sup/status
+
+        '
+      dest: /tmp/molecule_test/tmp/chef-automate
+      mode: '0755'
+  - name: Create mock chef-server-ctl
+    ansible.builtin.copy:
+      content: "#!/bin/bash\necho \"Chef Server CTL mock\"\nif [[ \"$1\" == \"user-create\" ]]; then\n  echo \"Creating user $2\"\n  echo \"user-data\" > \"/tmp/molecule_test$5\"\nelif
+        [[ \"$1\" == \"org-create\" ]]; then\n  echo \"Creating organization $2\"\n  echo \"org-data\" > \"/tmp/molecule_test$5\"\nfi\n"
+      dest: /tmp/molecule_test/usr/bin/chef-server-ctl
+      mode: '0755'
+  - name: Create mock user PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- MOCK USER KEY -----END RSA PRIVATE KEY----- '
+      dest: /tmp/molecule_test/tmp/testuser.pem
+      mode: '0600'
+  - name: Create mock organization validator PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- MOCK ORG VALIDATOR KEY -----END RSA PRIVATE KEY----- '
+      dest: /tmp/molecule_test/tmp/testorg-validator.pem
+      mode: '0600'
+  - name: Create mock hostname file
+    ansible.builtin.copy:
+      content: automate.chef.lab
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create mock sysctl files
+    ansible.builtin.copy:
+      content: '{{ item.value }}'
+      dest: /tmp/molecule_test/proc/sys/{{ item.path }}
+      mode: '0644'
+    loop:
+    - path: vm/max_map_count
+      value: '262144'
+    - path: vm/dirty_expire_centisecs
+      value: '20000'
+  - name: Create mock CPU info file
+    ansible.builtin.copy:
+      content: 'processor : 0
+
+        processor : 1
+
+        processor : 2
+
+        processor : 3
+
+        processor : 4
+
+        processor : 5
+
+        '
+      dest: /tmp/molecule_test/proc/cpuinfo
+      mode: '0644'
+  - name: Create mock memory info file
+    ansible.builtin.copy:
+      content: 'MemTotal:       16777216 kB
+
+        MemFree:         8388608 kB
+
+        '
+      dest: /tmp/molecule_test/proc/meminfo
+      mode: '0644'
+  - name: Create mock disk space info
+    ansible.builtin.copy:
+      content: 'Filesystem      Size  Used Avail Use% Mounted on
+
+        /dev/sda1       100G   20G   80G  20% /
+
+        '
+      dest: /tmp/molecule_test/df_output
+      mode: '0644'
