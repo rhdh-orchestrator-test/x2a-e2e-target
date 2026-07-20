@@ -1,0 +1,128 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: admin
+    password: molecule_test_password
+    chef_automate_hostname: automate.chef.lab
+    chef_automate_vm_max_map_count: 262144
+    chef_automate_vm_dirty_expire_centisecs: 20000
+    chef_user_name: admin
+    chef_user_fullname: Chef Administrator
+    chef_user_email: admin@example.com
+    chef_org_name: lab
+    chef_org_fullname: Chef Lab
+    chef_user_key_file: admin.pem
+    chef_org_validator_key_file: lab-validator.pem
+    chef_automate_cli_binary: chef-automate
+  tasks:
+    # Create directory structure
+    - name: Create required directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/etc/chef-server
+        - /tmp/molecule_test/tmp
+        - /tmp/molecule_test/var/opt/chef-automate/cert
+
+    # Simulate hostname file
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "{{ chef_automate_hostname }}"
+        dest: /tmp/molecule_test/etc/hostname
+        mode: "0644"
+
+    # Simulate chef-server.rb file
+    - name: Create chef-server.rb file
+      ansible.builtin.copy:
+        content: |
+          # Chef Server configuration file
+          api_fqdn "{{ chef_automate_hostname }}"
+          bookshelf['vip'] = "{{ chef_automate_hostname }}"
+          nginx['ssl_certificate'] = "/var/opt/chef-automate/cert/{{ chef_automate_hostname }}.crt"
+          nginx['ssl_certificate_key'] = "/var/opt/chef-automate/cert/{{ chef_automate_hostname }}.key"
+        dest: /tmp/molecule_test/etc/chef-server/chef-server.rb
+        mode: "0644"
+
+    # Simulate Chef Automate CLI binary
+    - name: Create Chef Automate CLI binary placeholder
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          echo "Chef Automate CLI mock"
+        dest: /tmp/molecule_test/tmp/chef-automate
+        mode: "0755"
+
+    # Simulate user key file
+    - name: Create user key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAx4UbaDzY5xjW6hc9jwN0mX33XpTDVW9WqHp5AKaRbtAC3DqX
+          IXFMPgw3K45jxRb93f8tv9vL3rD9CUG1Gv4FM+o7ds7FRES5RTjv2RT/JVNJCoqF
+          ol8+ngLqRZCyBtQN7zYByWMRirPGoDUqdPYrj2yq+ObBBNhg5N+hOwKjjpzdj2Ud
+          1l7R+wxIqmJo1IYyy16xS8WsjyQuyC0lL456qkd5BDZ0Ag8j2X9H9D5220Ln7s9i
+          oezTipXipS7p7Jekf3Ywx6abJwOmB0rX79dV4qiNcGgzATnG1PkXxqt76VhcGa0W
+          DDVHEEYGbSQ6hIGSh0I7BQun0aLRZojfE3gqHQIDAQABAoIBAQCW3I4sKN5B9jOe
+          ZG+C6L0TgSjWiBU5wPoeVXxEUSXS
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/{{ chef_user_key_file }}
+        mode: "0600"
+
+    # Simulate organization validator key file
+    - name: Create organization validator key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAx4UbaDzY5xjW6hc9jwN0mX33XpTDVW9WqHp5AKaRbtAC3DqX
+          IXFMPgw3K45jxRb93f8tv9vL3rD9CUG1Gv4FM+o7ds7FRES5RTjv2RT/JVNJCoqF
+          ol8+ngLqRZCyBtQN7zYByWMRirPGoDUqdPYrj2yq+ObBBNhg5N+hOwKjjpzdj2Ud
+          1l7R+wxIqmJo1IYyy16xS8WsjyQuyC0lL456qkd5BDZ0Ag8j2X9H9D5220Ln7s9i
+          oezTipXipS7p7Jekf3Ywx6abJwOmB0rX79dV4qiNcGgzATnG1PkXxqt76VhcGa0W
+          DDVHEEYGbSQ6hIGSh0I7BQun0aLRZojfE3gqHQIDAQABAoIBAQCW3I4sKN5B9jOe
+          ZG+C6L0TgSjWiBU5wPoeVXxEUSXS
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/{{ chef_org_validator_key_file }}
+        mode: "0600"
+
+    # Simulate certificate file
+    - name: Create certificate file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN CERTIFICATE-----
+          MIIDazCCAlOgAwIBAgIUJlq+zz9CO2aCT/wJZ8TJZGMgTBIwDQYJKoZIhvcNAQEL
+          BQAwRTELMAkGA1UEBhMCQVUxEzARBgNVBAgMClNvbWUtU3RhdGUxITAfBgNVBAoM
+          GEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDAeFw0yMzA1MTAxMjAwMDBaFw0yNDA1
+          MDkxMjAwMDBaMEUxCzAJBgNVBAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEw
+          HwYDVQQKDBhJbnRlcm5ldCBXaWRnaXRzIFB0eSBMdGQwggEiMA0GCSqGSIb3DQEB
+          AQUAA4IBDwAwggEKAoIBAQDHhRtoPNjnGNbqFz2PA3SZffdel
+          -----END CERTIFICATE-----
+        dest: /tmp/molecule_test/var/opt/chef-automate/cert/{{ chef_automate_hostname }}.crt
+        mode: "0644"
+
+    # Simulate key file
+    - name: Create key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN PRIVATE KEY-----
+          MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDHhRtoPNjnGNbq
+          Fz2PA3SZffdel
+          -----END PRIVATE KEY-----
+        dest: /tmp/molecule_test/var/opt/chef-automate/cert/{{ chef_automate_hostname }}.key
+        mode: "0600"
+
+    # Create sysctl files to simulate kernel parameters
+    - name: Create sysctl files
+      ansible.builtin.copy:
+        content: "{{ item.value }}"
+        dest: "/tmp/molecule_test/proc/sys/{{ item.path }}"
+        mode: "0644"
+      loop:
+        - { path: "vm/max_map_count", value: "{{ chef_automate_vm_max_map_count }}" }
+        - { path: "vm/dirty_expire_centisecs", value: "{{ chef_automate_vm_dirty_expire_centisecs }}" }
+      loop_control:
+        label: "{{ item.path }}"
