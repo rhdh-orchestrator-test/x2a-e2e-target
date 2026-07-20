@@ -1,0 +1,20 @@
+---
+argument_specs:
+  main:
+    short_description: Role for setting up a secure HTTPS website with Apache and InSpec tests
+    description:
+      - This role installs and configures Apache web server with HTTPS support
+      - Generates self-signed SSL certificates
+      - Configures a virtual host for a "Hello World" website
+      - Hardens SSL configuration to prevent POODLE vulnerability
+      - Includes Chef InSpec tests for compliance verification
+    options:
+      conftext:
+        type: str
+        description: Apache virtual host configuration
+        default: "<VirtualHost *:443>\n DocumentRoot \"/var/www/helloworld\"\n SSLEngine on\n SSLCertificateFile /etc/apache2/certs/apache.crt\n SSLCertificateKeyFile
+          /etc/apache2/certs/apache.key\n  <Directory \"/var/www/helloworld\">\n    allow from all\n    Options None\n    Require all granted\n  </Directory>\n</VirtualHost>\n"
+      webtext:
+        type: str
+        description: Website HTML content
+        default: "<html>\n  <head><title>Test Site</title>/head>\n  <body>\n   <h1>Hello, world!</h1>\n   <p>The site is up and running</p>\n  </body>\n</html>"

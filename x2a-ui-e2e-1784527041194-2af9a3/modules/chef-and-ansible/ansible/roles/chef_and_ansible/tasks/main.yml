@@ -1,0 +1,7 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Set up HTTPS website
+  ansible.builtin.include_tasks: website_https.yml
+- name: Apply POODLE vulnerability fix
+  ansible.builtin.include_tasks: poodle_fix.yml
