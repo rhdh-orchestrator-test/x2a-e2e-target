@@ -1,0 +1,23 @@
+---
+- name: Check if Chef Infra Server is already deployed
+  ansible.builtin.stat:
+    path: /hab
+  register: hab_dir
+  become: true
+- name: Ensure /etc/chef directory exists
+  ansible.builtin.file:
+    path: /etc/chef
+    state: directory
+    mode: "0755"
+  become: true
+  when: not hab_dir.stat.exists
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy  --product infra-server  --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }} "
+  args:
+    creates: /hab
+  become: true
+  when: not hab_dir.stat.exists
+  register: chef_server_deploy
+  failed_when: chef_server_deploy.rc != 0
+  notify: Wait for Chef Infra Server services

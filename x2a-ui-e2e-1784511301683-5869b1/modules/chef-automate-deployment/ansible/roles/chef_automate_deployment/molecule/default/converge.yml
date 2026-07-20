@@ -1,0 +1,93 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/etc/chef
+    - /tmp/molecule_test/etc/hosts
+    - /tmp/molecule_test/usr/local/bin
+    - /tmp/molecule_test/hab
+  - name: Create mock /etc/hosts file
+    ansible.builtin.copy:
+      content: '127.0.0.1 localhost
+
+        127.0.1.1 automate.chef.lab
+
+        '
+      dest: /tmp/molecule_test/etc/hosts
+      mode: '0644'
+  - name: Create mock procps package status
+    ansible.builtin.file:
+      path: /tmp/molecule_test/var/lib/dpkg/info/procps.list
+      state: touch
+      mode: '0644'
+  - name: Create mock Chef Automate CLI
+    ansible.builtin.copy:
+      content: '#!/bin/bash
+
+        echo "Chef Automate CLI mock"
+
+        exit 0
+
+        '
+      dest: /tmp/molecule_test/usr/local/bin/chef-automate
+      mode: '0755'
+  - name: Create mock Chef user PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEowIBAAKCAQEAwU1RpGV5pA9Z...
+
+        (mock PEM content)
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/etc/chef/admin.pem
+      mode: '0600'
+  - name: Create mock Chef organization validator PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEowIBAAKCAQEAwU1RpGV5pA9Z...
+
+        (mock PEM content)
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/etc/chef/default-validator.pem
+      mode: '0600'
+  - name: Create mock sysctl configuration
+    ansible.builtin.copy:
+      content: '# Kernel sysctl configuration file
+
+        vm.max_map_count = 262144
+
+        vm.dirty_expire_centisecs = 20000
+
+        '
+      dest: /tmp/molecule_test/etc/sysctl.conf
+      mode: '0644'
+  - name: Create mock Chef Automate deployment files
+    ansible.builtin.file:
+      path: /tmp/molecule_test/hab/sup
+      state: directory
+      mode: '0755'
+  - name: Create mock Chef Automate status file
+    ansible.builtin.copy:
+      content: "{\n  \"status\": \"running\",\n  \"services\": [\"automate\", \"infra-server\"]\n}\n"
+      dest: /tmp/molecule_test/hab/sup/status.json
+      mode: '0644'
+  - name: Create mock chef-server-ctl command
+    ansible.builtin.copy:
+      content: "#!/bin/bash\necho \"Chef Server Control mock\"\nif [[ \"$1\" == \"user-list\" ]]; then\n  echo \"admin\"\nelif [[ \"$1\" == \"org-list\" ]]; then\n
+        \ echo \"default\"\nelif [[ \"$1\" == \"status\" ]]; then\n  echo \"All services running\"\nfi\nexit 0\n"
+      dest: /tmp/molecule_test/usr/local/bin/chef-server-ctl
+      mode: '0755'
