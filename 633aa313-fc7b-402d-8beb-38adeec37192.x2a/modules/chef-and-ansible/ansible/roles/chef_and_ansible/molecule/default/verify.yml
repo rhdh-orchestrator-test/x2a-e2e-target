@@ -1,0 +1,125 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Check Apache virtual host configuration
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+    register: vhost_config
+  - name: Assert virtual host config exists
+    ansible.builtin.assert:
+      that:
+      - vhost_config.stat.exists
+      - vhost_config.stat.size > 0
+      fail_msg: Virtual host configuration file not found
+      success_msg: Virtual host configuration file exists
+  - name: Get virtual host config content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+    register: vhost_content
+    when: vhost_config.stat.exists
+  - name: Assert virtual host config content
+    ansible.builtin.assert:
+      that:
+      - decoded_content is search('DocumentRoot "/var/www/helloworld"')
+      - decoded_content is search('SSLEngine on')
+      - decoded_content is search('SSLCertificateFile /etc/apache2/certs/apache.crt')
+      - decoded_content is search('SSLCertificateKeyFile /etc/apache2/certs/apache.key')
+      fail_msg: Virtual host configuration content is incorrect
+      success_msg: Virtual host configuration content is correct
+    vars:
+      decoded_content: '{{ vhost_content.content | b64decode }}'
+    when: vhost_content is defined
+  - name: Check SSL configuration
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_config
+  - name: Assert SSL config exists
+    ansible.builtin.assert:
+      that:
+      - ssl_config.stat.exists
+      - ssl_config.stat.size > 0
+      fail_msg: SSL configuration file not found
+      success_msg: SSL configuration file exists
+  - name: Get SSL config content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_content
+    when: ssl_config.stat.exists
+  - name: Assert SSL config content (POODLE fix)
+    ansible.builtin.assert:
+      that:
+      - decoded_content is search('SSLProtocol -all \+TLSv1.2')
+      fail_msg: SSL configuration does not have POODLE fix
+      success_msg: SSL configuration has POODLE fix
+    vars:
+      decoded_content: '{{ ssl_content.content | b64decode }}'
+    when: ssl_content is defined
+  - name: Check website index file
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/var/www/helloworld/index.html
+    register: index_file
+  - name: Assert index file exists
+    ansible.builtin.assert:
+      that:
+      - index_file.stat.exists
+      - index_file.stat.size > 0
+      fail_msg: Website index file not found
+      success_msg: Website index file exists
+  - name: Get index file content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/var/www/helloworld/index.html
+    register: index_content
+    when: index_file.stat.exists
+  - name: Assert index file content
+    ansible.builtin.assert:
+      that:
+      - decoded_content is search('Hello, world!')
+      fail_msg: Website index content is incorrect
+      success_msg: Website index content is correct
+    vars:
+      decoded_content: '{{ index_content.content | b64decode }}'
+    when: index_content is defined
+  - name: Check SSL certificate files
+    ansible.builtin.stat:
+      path: '{{ item }}'
+    register: cert_files
+    loop:
+    - /tmp/molecule_test/etc/apache2/certs/apache.key
+    - /tmp/molecule_test/etc/apache2/certs/apache.csr
+    - /tmp/molecule_test/etc/apache2/certs/apache.crt
+  - name: Assert SSL certificate files exist
+    ansible.builtin.assert:
+      that:
+      - item.stat.exists
+      fail_msg: SSL certificate file {{ item.item }} not found
+      success_msg: SSL certificate file {{ item.item }} exists
+    loop: '{{ cert_files.results }}'
+  - name: Check enabled site
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/apache2/sites-enabled/helloworld.conf
+    register: enabled_site
+  - name: Assert site is enabled
+    ansible.builtin.assert:
+      that:
+      - enabled_site.stat.exists
+      fail_msg: Site is not enabled
+      success_msg: Site is enabled
+  - name: Check SSH configuration
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/ssh/sshd_config
+    register: ssh_config
+  - name: Get SSH config content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/ssh/sshd_config
+    register: ssh_content
+    when: ssh_config.stat.exists
+  - name: Assert SSH root login is disabled
+    ansible.builtin.assert:
+      that:
+      - decoded_content is search('PermitRootLogin no')
+      fail_msg: SSH root login is not disabled
+      success_msg: SSH root login is disabled
+    vars:
+      decoded_content: '{{ ssh_content.content | b64decode }}'
+    when: ssh_content is defined
