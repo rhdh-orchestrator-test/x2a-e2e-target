@@ -1,0 +1,175 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Apache configuration verification
+    - name: Check Apache virtual host configuration exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+      register: vhost_config
+
+    - name: Assert virtual host config exists
+      ansible.builtin.assert:
+        that:
+          - vhost_config.stat.exists
+          - vhost_config.stat.size > 0
+        fail_msg: "Virtual host configuration file not found"
+        success_msg: "Virtual host configuration file exists"
+
+    - name: Get virtual host config content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+      register: vhost_content
+      when: vhost_config.stat.exists
+
+    - name: Assert virtual host config has correct settings
+      ansible.builtin.assert:
+        that:
+          - vhost_content.content | b64decode is search('DocumentRoot')
+          - vhost_content.content | b64decode is search('SSLEngine on')
+        fail_msg: "Virtual host configuration is missing required settings"
+        success_msg: "Virtual host configuration has correct settings"
+      when: vhost_config.stat.exists
+
+    # SSL configuration verification
+    - name: Check SSL configuration exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_config
+
+    - name: Assert SSL config exists
+      ansible.builtin.assert:
+        that:
+          - ssl_config.stat.exists
+          - ssl_config.stat.size > 0
+        fail_msg: "SSL configuration file not found"
+        success_msg: "SSL configuration file exists"
+
+    - name: Get SSL config content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_content
+      when: ssl_config.stat.exists
+
+    - name: Assert SSL config has POODLE fix
+      ansible.builtin.assert:
+        that:
+          - ssl_content.content | b64decode is search('SSLProtocol -all \+TLSv1.2')
+        fail_msg: "SSL configuration is missing POODLE fix"
+        success_msg: "SSL configuration has POODLE fix applied"
+      when: ssl_config.stat.exists
+
+    # Certificate verification
+    - name: Check certificate files exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: cert_files
+      loop:
+        - /tmp/molecule_test/etc/apache2/certs/apache.key
+        - /tmp/molecule_test/etc/apache2/certs/apache.csr
+        - /tmp/molecule_test/etc/apache2/certs/apache.crt
+
+    - name: Assert certificate files exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+        fail_msg: "Certificate file {{ item.item }} not found"
+        success_msg: "Certificate file {{ item.item }} exists"
+      loop: "{{ cert_files.results }}"
+
+    # Website content verification
+    - name: Check website content exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/www/helloworld/index.html
+      register: website_content
+
+    - name: Assert website content exists
+      ansible.builtin.assert:
+        that:
+          - website_content.stat.exists
+          - website_content.stat.size > 0
+        fail_msg: "Website content file not found"
+        success_msg: "Website content file exists"
+
+    - name: Get website content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/var/www/helloworld/index.html
+      register: html_content
+      when: website_content.stat.exists
+
+    - name: Assert website content has expected text
+      ansible.builtin.assert:
+        that:
+          - html_content.content | b64decode is search('Hello, world!')
+        fail_msg: "Website content is missing expected text"
+        success_msg: "Website content has expected text"
+      when: website_content.stat.exists
+
+    # SSH configuration verification
+    - name: Check SSH config exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/ssh/sshd_config
+      register: ssh_config
+
+    - name: Assert SSH config exists
+      ansible.builtin.assert:
+        that:
+          - ssh_config.stat.exists
+          - ssh_config.stat.size > 0
+        fail_msg: "SSH configuration file not found"
+        success_msg: "SSH configuration file exists"
+
+    - name: Get SSH config content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/ssh/sshd_config
+      register: ssh_content
+      when: ssh_config.stat.exists
+
+    - name: Assert SSH config has root login disabled
+      ansible.builtin.assert:
+        that:
+          - ssh_content.content | b64decode is search('PermitRootLogin no')
+        fail_msg: "SSH configuration does not have root login disabled"
+        success_msg: "SSH configuration has root login disabled"
+      when: ssh_config.stat.exists
+
+    # Service status checks (tagged to skip in container)
+    - name: Check Apache service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Apache service is running
+      ansible.builtin.assert:
+        that:
+          - "'apache2.service' in ansible_facts.services"
+          - "ansible_facts.services['apache2.service'].state == 'running'"
+        fail_msg: "Apache service is not running"
+        success_msg: "Apache service is running"
+      tags: molecule-notest
+
+    # Port listening check (tagged to skip in container)
+    - name: Check if port 443 is listening
+      ansible.builtin.wait_for:
+        port: 443
+        state: started
+        timeout: 5
+      tags: molecule-notest
+
+    # HTTPS response check (tagged to skip in container)
+    - name: Check HTTPS response
+      ansible.builtin.uri:
+        url: https://localhost/
+        validate_certs: false
+        return_content: true
+      register: https_response
+      tags: molecule-notest
+
+    - name: Assert HTTPS response is correct
+      ansible.builtin.assert:
+        that:
+          - https_response.status == 200
+          - "'Hello, world!' in https_response.content"
+        fail_msg: "HTTPS response is not as expected"
+        success_msg: "HTTPS response is correct"
+      tags: molecule-notest
