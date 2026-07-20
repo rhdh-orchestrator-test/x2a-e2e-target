@@ -1,0 +1,73 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+- name: Install necessary packages
+  ansible.builtin.apt:
+    name: apache2=2.4.41-4ubuntu3.10
+- name: Install curl, openssl, PyOpenSSL
+  ansible.builtin.apt:
+    pkg:
+      - curl
+      - openssl
+      - python3-openssl
+- name: Create a directory for certs
+  ansible.builtin.file:
+    path: /etc/apache2/certs
+    state: directory
+    mode: "0640"
+- name: Generate an openssl key
+  community.crypto.openssl_privatekey:
+    path: /etc/apache2/certs/apache.key
+    mode: "0600"
+- name: Generate an openssl csr
+  community.crypto.openssl_csr:
+    path: /etc/apache2/certs/apache.csr
+    privatekey_path: /etc/apache2/certs/apache.key
+    common_name: myhost
+    mode: "0644"
+- name: Generate a self-signed openssl certificate
+  community.crypto.openssl_certificate:
+    path: /etc/apache2/certs/apache.crt
+    privatekey_path: /etc/apache2/certs/apache.key
+    csr_path: /etc/apache2/certs/apache.csr
+    provider: selfsigned
+    mode: "0644"
+- name: Configure Hello World virtual host
+  ansible.builtin.template:
+    src: helloworld.conf.j2
+    dest: /etc/apache2/sites-available/helloworld.conf
+    mode: "0640"
+    force: true
+- name: Create the helloworld directory
+  ansible.builtin.file:
+    path: /var/www/helloworld
+    state: directory
+    mode: "0755"
+- name: Deploy the Hello World website
+  ansible.builtin.copy:
+    src: index.html
+    dest: /var/www/helloworld/index.html
+    owner: root
+    group: root
+    mode: "0644"
+    force: true
+- name: Deactivate the default virtualhost
+  ansible.builtin.command:
+    cmd: a2dissite 000-default
+    creates: /etc/apache2/sites-enabled/.000-default.conf.disabled
+  changed_when: true
+- name: Activate the virtualhost
+  ansible.builtin.command:
+    cmd: a2ensite helloworld
+    creates: /etc/apache2/sites-enabled/helloworld.conf
+  notify:
+    - Restart apache
+  changed_when: true
+- name: Activate SSL on Apache
+  ansible.builtin.command:
+    cmd: a2enmod ssl
+    creates: /etc/apache2/mods-enabled/ssl.conf
+  notify:
+    - Restart apache
+  changed_when: true

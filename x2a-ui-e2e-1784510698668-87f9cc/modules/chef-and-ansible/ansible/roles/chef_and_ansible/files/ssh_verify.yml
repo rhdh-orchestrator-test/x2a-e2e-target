@@ -1,0 +1,50 @@
+- name: Ensure SSH root login is disabled
+  hosts: all
+  become: true
+  tasks:
+  - name: Check if SSH root login is disabled
+    ansible.builtin.lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: ^PermitRootLogin\s+
+      line: PermitRootLogin no
+      state: present
+    check_mode: true
+    register: ssh_root_login
+    failed_when: ssh_root_login.changed
+    ignore_errors: true
+    tags:
+    - SRG-OS-000112
+    - V-38607
+    - SV-50408r1_rule
+    - CAT_I
+    - RHEL-08-000227
+    - CCI-000774
+  - name: Check if openssh-server is installed
+    ansible.builtin.package:
+      name: openssh-server
+      state: present
+    check_mode: true
+    register: openssh_installed
+    failed_when: openssh_installed.changed == false
+    ignore_errors: true
+    when: ssh_root_login.failed | default(true)
+    tags:
+    - SRG-OS-000112
+    - V-38607
+    - SV-50408r1_rule
+    - CAT_I
+    - RHEL-08-000227
+    - CCI-000774
+  - name: Fail if both checks failed
+    ansible.builtin.fail:
+      msg: SSH root login is enabled and openssh-server is installed
+    when:
+    - ssh_root_login.failed | default(true)
+    - openssh_installed.failed | default(true)
+    tags:
+    - SRG-OS-000112
+    - V-38607
+    - SV-50408r1_rule
+    - CAT_I
+    - RHEL-08-000227
+    - CCI-000774
