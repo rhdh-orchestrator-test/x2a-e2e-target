@@ -1,0 +1,11 @@
+<VirtualHost *:{{ website_port }}>
+ DocumentRoot "{{ website_doc_root }}"
+ SSLEngine on
+ SSLCertificateFile {{ apache_certs_dir }}/apache.crt
+ SSLCertificateKeyFile {{ apache_certs_dir }}/apache.key
+  <Directory "{{ website_doc_root }}">
+    allow from all
+    Options None
+    Require all granted
+  </Directory>
+</VirtualHost>
