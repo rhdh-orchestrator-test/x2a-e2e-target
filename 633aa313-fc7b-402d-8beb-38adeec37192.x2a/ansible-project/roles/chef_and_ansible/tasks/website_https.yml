@@ -1,0 +1,82 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+- name: Install Apache with specific version
+  ansible.builtin.apt:
+    name: apache2={{ apache_version }}
+    state: present
+- name: Install curl, openssl, PyOpenSSL
+  ansible.builtin.apt:
+    pkg:
+      - curl
+      - openssl
+      - python3-openssl
+    state: present
+- name: Create a directory for certificates
+  ansible.builtin.file:
+    path: "{{ apache_ssl_cert_dir }}"
+    state: directory
+    mode: "0640"
+- name: Generate an OpenSSL private key
+  community.crypto.openssl_privatekey:
+    path: "{{ apache_ssl_key_path }}"
+- name: Generate an OpenSSL CSR
+  community.crypto.openssl_csr:
+    path: "{{ apache_ssl_csr_path }}"
+    privatekey_path: "{{ apache_ssl_key_path }}"
+    common_name: "{{ ssl_common_name }}"
+- name: Generate a self-signed OpenSSL certificate
+  community.crypto.openssl_certificate:
+    path: "{{ apache_ssl_cert_path }}"
+    privatekey_path: "{{ apache_ssl_key_path }}"
+    csr_path: "{{ apache_ssl_csr_path }}"
+    provider: selfsigned
+- name: Configure Hello World virtual host
+  ansible.builtin.template:
+    src: helloworld.conf.j2
+    dest: /etc/apache2/sites-available/{{ apache_vhost_name }}.conf
+    mode: "0640"
+    force: true
+- name: Create the helloworld directory
+  ansible.builtin.file:
+    path: "{{ apache_document_root }}"
+    state: directory
+    mode: "0755"
+- name: Deploy the Hello World website
+  ansible.builtin.copy:
+    src: index.html
+    dest: "{{ apache_document_root }}/index.html"
+    owner: root
+    group: root
+    mode: "0644"
+    force: true
+- name: Check if default site is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/sites-enabled/000-default.conf
+  register: default_site
+- name: Deactivate the default virtualhost
+  ansible.builtin.command: a2dissite 000-default
+  when: default_site.stat.exists
+  changed_when: default_site.stat.exists
+- name: Check if virtualhost is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/sites-enabled/{{ apache_vhost_name }}.conf
+  register: vhost_enabled
+- name: Activate the virtualhost
+  ansible.builtin.command: a2ensite {{ apache_vhost_name }}
+  notify:
+    - Restart apache
+  when: not vhost_enabled.stat.exists
+  changed_when: not vhost_enabled.stat.exists
+- name: Check if SSL module is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/mods-enabled/ssl.load
+  register: ssl_enabled
+- name: Activate SSL on Apache
+  ansible.builtin.command: a2enmod ssl
+  notify:
+    - Restart sshd
+    - Restart apache
+  when: not ssl_enabled.stat.exists
+  changed_when: not ssl_enabled.stat.exists

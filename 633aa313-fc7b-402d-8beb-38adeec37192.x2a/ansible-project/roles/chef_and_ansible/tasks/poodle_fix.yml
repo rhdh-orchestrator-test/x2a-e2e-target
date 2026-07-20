@@ -1,0 +1,13 @@
+---
+- name: Ensure SSH server is installed
+  ansible.builtin.apt:
+    name: openssh-server
+    state: present
+- name: Fix SSL in Apache to mitigate POODLE vulnerability
+  ansible.builtin.template:
+    src: ssl.conf.j2
+    dest: /etc/apache2/mods-available/ssl.conf
+    mode: "0644"
+  notify:
+    - Restart apache
+    - Restart sshd
