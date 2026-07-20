@@ -1,0 +1,122 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Verify Apache configuration files
+    - name: Check if Apache virtual host config exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+      register: vhost_config
+
+    - name: Assert virtual host config exists
+      ansible.builtin.assert:
+        that:
+          - vhost_config.stat.exists
+          - vhost_config.stat.isreg
+        fail_msg: "Virtual host configuration file not found"
+        success_msg: "Virtual host configuration file exists"
+
+    # Verify SSL certificates
+    - name: Check if SSL certificates exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: ssl_files
+      loop:
+        - /tmp/molecule_test/etc/apache2/certs/apache.key
+        - /tmp/molecule_test/etc/apache2/certs/apache.csr
+        - /tmp/molecule_test/etc/apache2/certs/apache.crt
+
+    - name: Assert SSL certificates exist
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+        fail_msg: "SSL certificate file not found"
+        success_msg: "SSL certificate file exists"
+      loop: "{{ ssl_files.results }}"
+
+    # Verify website content
+    - name: Check if website content exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/www/helloworld/index.html
+      register: website_content
+
+    - name: Assert website content exists
+      ansible.builtin.assert:
+        that:
+          - website_content.stat.exists
+          - website_content.stat.isreg
+        fail_msg: "Website content file not found"
+        success_msg: "Website content file exists"
+
+    # Verify website content has expected text
+    - name: Get website content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/var/www/helloworld/index.html
+      register: website_content_data
+
+    - name: Assert website content has expected text
+      ansible.builtin.assert:
+        that:
+          - "'Hello, world!' in (website_content_data.content | b64decode)"
+        fail_msg: "Website content does not contain expected text"
+        success_msg: "Website content contains expected text"
+
+    # Verify SSL configuration (POODLE fix)
+    - name: Get SSL configuration
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_conf_data
+
+    - name: Assert SSL configuration has POODLE fix
+      ansible.builtin.assert:
+        that:
+          - "'SSLProtocol -all +TLSv1.2' in (ssl_conf_data.content | b64decode)"
+        fail_msg: "SSL configuration does not contain POODLE fix"
+        success_msg: "SSL configuration contains POODLE fix"
+
+    # Verify site is enabled (symlink exists)
+    - name: Check if site is enabled
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/sites-enabled/helloworld.conf
+      register: site_enabled
+
+    - name: Assert site is enabled
+      ansible.builtin.assert:
+        that:
+          - site_enabled.stat.exists
+          - site_enabled.stat.islnk
+        fail_msg: "Site is not enabled"
+        success_msg: "Site is enabled"
+
+    # The following checks can't run in a container, so they're tagged with molecule-notest
+    - name: Check if Apache service is running
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Apache service is running
+      ansible.builtin.assert:
+        that:
+          - "'apache2.service' in ansible_facts.services"
+          - "ansible_facts.services['apache2.service'].state == 'running'"
+        fail_msg: "Apache service is not running"
+        success_msg: "Apache service is running"
+      tags: molecule-notest
+
+    # Check HTTPS connectivity
+    - name: Check HTTPS connectivity
+      ansible.builtin.uri:
+        url: https://localhost/
+        validate_certs: false
+        return_content: true
+      register: https_result
+      tags: molecule-notest
+
+    - name: Assert HTTPS connectivity
+      ansible.builtin.assert:
+        that:
+          - https_result.status == 200
+          - "'Hello, world!' in https_result.content"
+        fail_msg: "HTTPS connectivity check failed"
+        success_msg: "HTTPS connectivity check passed"
+      tags: molecule-notest
