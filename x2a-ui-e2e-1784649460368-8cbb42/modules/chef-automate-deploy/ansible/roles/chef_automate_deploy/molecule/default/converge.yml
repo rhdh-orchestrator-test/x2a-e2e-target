@@ -1,0 +1,67 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/proc/sys/vm
+    - /tmp/molecule_test/hab
+    - /tmp/molecule_test/keys
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: '{{ chef_automate_hostname }}'
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create kernel parameter files
+    ansible.builtin.copy:
+      content: '{{ item.value }}'
+      dest: /tmp/molecule_test/proc/sys/vm/{{ item.key | regex_replace('^vm\.', '') }}
+      mode: '0644'
+    loop:
+    - key: vm.max_map_count
+      value: '262144'
+    - key: vm.dirty_expire_centisecs
+      value: '20000'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/bash echo ''Chef Automate CLI mock'' '
+      dest: /tmp/molecule_test/chef-automate
+      mode: '0755'
+  - name: Create hab directory to simulate successful deployment
+    ansible.builtin.file:
+      path: /tmp/molecule_test/hab
+      state: directory
+      mode: '0755'
+  - name: Create user key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- MOCK USER KEY CONTENT -----END RSA PRIVATE KEY----- '
+      dest: /tmp/molecule_test/keys/jtonello.pem
+      mode: '0600'
+  - name: Create organization key file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY----- MOCK ORG VALIDATOR KEY CONTENT -----END RSA PRIVATE KEY----- '
+      dest: /tmp/molecule_test/keys/lab-validator.pem
+      mode: '0600'
+  - name: Create Chef server status files
+    ansible.builtin.copy:
+      content: running
+      dest: /tmp/molecule_test/{{ item }}
+      mode: '0644'
+    loop:
+    - chef-automate-status
+    - chef-server-status
+  - name: Create user list file
+    ansible.builtin.copy:
+      content: jtonello
+      dest: /tmp/molecule_test/chef-server-user-list
+      mode: '0644'
+  - name: Create org list file
+    ansible.builtin.copy:
+      content: lab
+      dest: /tmp/molecule_test/chef-server-org-list
+      mode: '0644'
