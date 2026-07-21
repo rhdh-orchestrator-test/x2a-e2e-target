@@ -1,0 +1,50 @@
+---
+- name: Check if user key file exists
+  ansible.builtin.stat:
+    path: "{{ deploy_automate_user_key_path }}"
+  register: user_key_file
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create {{ deploy_automate_username }} {{ deploy_automate_full_name }} {{ deploy_automate_email }} "{{ deploy_automate_password }}"
+      --filename {{ deploy_automate_user_key_path }}
+
+      '
+  args:
+    creates: "{{ deploy_automate_user_key_path }}"
+  register: create_user
+  changed_when: create_user.rc == 0
+  when: not user_key_file.stat.exists
+  no_log: true
+  tags:
+    - molecule-notest
+- name: Check if organization key file exists
+  ansible.builtin.stat:
+    path: "{{ deploy_automate_org_key_path }}"
+  register: org_key_file
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create {{ deploy_automate_org_name }} "{{ deploy_automate_org_full_name }}" --association_user {{ deploy_automate_username }} --filename
+      {{ deploy_automate_org_key_path }}
+
+      '
+  args:
+    creates: "{{ deploy_automate_org_key_path }}"
+  register: create_org
+  changed_when: create_org.rc == 0
+  when: not org_key_file.stat.exists
+  tags:
+    - molecule-notest
+- name: Set permissions on user key file
+  ansible.builtin.file:
+    path: "{{ deploy_automate_user_key_path }}"
+    mode: "0600"
+    owner: root
+    group: root
+  when: not user_key_file.stat.exists and create_user is changed
+- name: Set permissions on organization key file
+  ansible.builtin.file:
+    path: "{{ deploy_automate_org_key_path }}"
+    mode: "0600"
+    owner: root
+    group: root
+  when: not org_key_file.stat.exists and create_org is changed
