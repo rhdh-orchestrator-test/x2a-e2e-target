@@ -1,0 +1,28 @@
+---
+- name: Wait for Chef Server to be fully operational
+  ansible.builtin.wait_for:
+    path: /hab/svc/chef-server/hooks/run
+    state: present
+    timeout: 300
+  become: true
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ username }} "{{ email | default('John Doe') }}" {{ email }} "{{ password }}" --filename {{ chef_automate_key_dir }}/{{
+      username }}.pem
+  become: true
+  args:
+    creates: "{{ chef_automate_key_dir }}/{{ username }}.pem"
+  register: chef_user_create
+  changed_when: chef_user_create.rc == 0
+  no_log: true
+  notify: Set user key permissions
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ org_name }} "{{ org_full_name }}" --association_user {{ username }} --filename {{ chef_automate_key_dir }}/{{ org_name
+      }}-validator.pem
+  become: true
+  args:
+    creates: "{{ chef_automate_key_dir }}/{{ org_name }}-validator.pem"
+  register: chef_org_create
+  changed_when: chef_org_create.rc == 0
+  notify: Set organization validator key permissions

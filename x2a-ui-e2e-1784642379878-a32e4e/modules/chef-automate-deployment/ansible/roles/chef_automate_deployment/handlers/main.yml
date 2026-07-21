@@ -1,0 +1,13 @@
+---
+- name: Set user key permissions
+  ansible.builtin.file:
+    path: "{{ chef_automate_key_dir }}/{{ username }}.pem"
+    mode: "0600"
+    owner: "{{ ansible_user }}"
+  become: true
+- name: Set organization validator key permissions
+  ansible.builtin.file:
+    path: "{{ chef_automate_key_dir }}/{{ org_name }}-validator.pem"
+    mode: "0600"
+    owner: "{{ ansible_user }}"
+  become: true
