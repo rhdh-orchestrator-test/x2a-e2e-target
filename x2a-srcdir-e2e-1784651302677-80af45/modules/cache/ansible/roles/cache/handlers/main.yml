@@ -1,0 +1,5 @@
+- name: Restart redis
+  ansible.builtin.service:
+    name: '{{ ''redis-server'' if ansible_os_family == ''Debian'' else ''redis'' }}'
+    state: restarted
+  listen: restart redis
