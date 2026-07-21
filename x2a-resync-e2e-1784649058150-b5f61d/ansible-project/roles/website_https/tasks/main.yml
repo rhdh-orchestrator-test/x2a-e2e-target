@@ -1,0 +1,75 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+- name: Install Apache web server
+  ansible.builtin.apt:
+    name: apache2={{ apache_version }}
+    state: present
+- name: Install dependencies
+  ansible.builtin.apt:
+    pkg:
+      - curl
+      - openssl
+      - python3-openssl
+    state: present
+- name: Create a directory for SSL certificates
+  ansible.builtin.file:
+    path: "{{ ssl_cert_dir }}"
+    state: directory
+    mode: "0640"
+- name: Generate an OpenSSL private key
+  community.crypto.openssl_privatekey:
+    path: "{{ ssl_key_path }}"
+    mode: "0600"
+- name: Generate an OpenSSL CSR
+  community.crypto.openssl_csr:
+    path: "{{ ssl_csr_path }}"
+    privatekey_path: "{{ ssl_key_path }}"
+    common_name: "{{ server_name }}"
+    mode: "0640"
+- name: Generate a self-signed OpenSSL certificate
+  community.crypto.openssl_certificate:
+    path: "{{ ssl_cert_path }}"
+    privatekey_path: "{{ ssl_key_path }}"
+    csr_path: "{{ ssl_csr_path }}"
+    provider: selfsigned
+    mode: "0640"
+- name: Configure Hello World virtual host
+  ansible.builtin.template:
+    src: helloworld_vhost.conf.j2
+    dest: "{{ vhost_path }}"
+    mode: "0640"
+- name: Create the website directory
+  ansible.builtin.file:
+    path: "{{ website_root }}"
+    state: directory
+    mode: "0755"
+- name: Deploy the Hello World website
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: "{{ website_root }}/index.html"
+    owner: root
+    group: root
+    mode: "0644"
+- name: Deactivate the default virtualhost
+  ansible.builtin.command:
+    cmd: a2dissite 000-default
+  register: dissite_result
+  changed_when: "'already disabled' not in dissite_result.stdout"
+- name: Activate the virtualhost
+  ansible.builtin.command:
+    cmd: a2ensite {{ vhost_file | basename }}
+  register: ensite_result
+  changed_when: "'already enabled' not in ensite_result.stdout"
+  notify:
+    - Restart apache
+- name: Activate SSL on Apache
+  ansible.builtin.command:
+    cmd: a2enmod ssl
+  register: enmod_result
+  changed_when: "'already enabled' not in enmod_result.stdout"
+  notify:
+    - Restart apache

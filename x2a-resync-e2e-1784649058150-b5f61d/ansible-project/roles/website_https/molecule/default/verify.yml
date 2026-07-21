@@ -1,0 +1,187 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Check SSL certificate files
+    - name: Check SSL certificate directory exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/certs
+      register: ssl_dir
+
+    - name: Assert SSL directory was created
+      ansible.builtin.assert:
+        that:
+          - ssl_dir.stat.exists
+          - ssl_dir.stat.isdir
+        fail_msg: "SSL certificate directory not found"
+        success_msg: "SSL certificate directory exists"
+
+    - name: Check SSL key file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/certs/apache.key
+      register: ssl_key
+
+    - name: Assert SSL key file was created
+      ansible.builtin.assert:
+        that:
+          - ssl_key.stat.exists
+          - ssl_key.stat.size > 0
+        fail_msg: "SSL key file not found"
+        success_msg: "SSL key file exists"
+
+    - name: Check SSL CSR file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/certs/apache.csr
+      register: ssl_csr
+
+    - name: Assert SSL CSR file was created
+      ansible.builtin.assert:
+        that:
+          - ssl_csr.stat.exists
+          - ssl_csr.stat.size > 0
+        fail_msg: "SSL CSR file not found"
+        success_msg: "SSL CSR file exists"
+
+    - name: Check SSL certificate file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/certs/apache.crt
+      register: ssl_cert
+
+    - name: Assert SSL certificate file was created
+      ansible.builtin.assert:
+        that:
+          - ssl_cert.stat.exists
+          - ssl_cert.stat.size > 0
+        fail_msg: "SSL certificate file not found"
+        success_msg: "SSL certificate file exists"
+
+    # Check virtual host configuration
+    - name: Check virtual host file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+      register: vhost_file
+
+    - name: Assert virtual host file was created
+      ansible.builtin.assert:
+        that:
+          - vhost_file.stat.exists
+          - vhost_file.stat.size > 0
+        fail_msg: "Virtual host file not found"
+        success_msg: "Virtual host file exists"
+
+    - name: Get virtual host file content
+      ansible.builtin.slurp:
+        path: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+      register: vhost_content
+
+    - name: Assert virtual host file has correct content
+      ansible.builtin.assert:
+        that:
+          - (vhost_content.content | b64decode) is search('SSLEngine on')
+          - (vhost_content.content | b64decode) is search('SSLCertificateFile')
+          - (vhost_content.content | b64decode) is search('SSLCertificateKeyFile')
+        fail_msg: "Virtual host file does not have correct SSL configuration"
+        success_msg: "Virtual host file has correct SSL configuration"
+
+    # Check website content
+    - name: Check website directory exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/www/helloworld
+      register: website_dir
+
+    - name: Assert website directory was created
+      ansible.builtin.assert:
+        that:
+          - website_dir.stat.exists
+          - website_dir.stat.isdir
+        fail_msg: "Website directory not found"
+        success_msg: "Website directory exists"
+
+    - name: Check index.html file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/www/helloworld/index.html
+      register: index_file
+
+    - name: Assert index.html file was created
+      ansible.builtin.assert:
+        that:
+          - index_file.stat.exists
+          - index_file.stat.size > 0
+        fail_msg: "index.html file not found"
+        success_msg: "index.html file exists"
+
+    - name: Get index.html file content
+      ansible.builtin.slurp:
+        path: /tmp/molecule_test/var/www/helloworld/index.html
+      register: index_content
+
+    - name: Assert index.html file has correct content
+      ansible.builtin.assert:
+        that:
+          - (index_content.content | b64decode) is search('Hello, world!')
+          - (index_content.content | b64decode) is search('The site is up and running')
+        fail_msg: "index.html file does not have correct content"
+        success_msg: "index.html file has correct content"
+
+    # Check virtual host is enabled
+    - name: Check enabled site file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/sites-enabled/helloworld.conf
+      register: enabled_site
+
+    - name: Assert site is enabled
+      ansible.builtin.assert:
+        that:
+          - enabled_site.stat.exists
+        fail_msg: "Virtual host is not enabled"
+        success_msg: "Virtual host is enabled"
+
+    # Check SSL module is enabled
+    - name: Check SSL module file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/mods-enabled/ssl.load
+      register: ssl_module
+
+    - name: Assert SSL module is enabled
+      ansible.builtin.assert:
+        that:
+          - ssl_module.stat.exists
+        fail_msg: "SSL module is not enabled"
+        success_msg: "SSL module is enabled"
+
+    # The following tests would normally be run but can't in a container
+    # They are tagged with molecule-notest
+    
+    - name: Check Apache configuration
+      ansible.builtin.command:
+        cmd: apache2ctl configtest
+      tags: molecule-notest
+
+    - name: Check SSL certificate
+      ansible.builtin.command:
+        cmd: openssl x509 -in /etc/apache2/certs/apache.crt -text -noout
+      tags: molecule-notest
+
+    - name: Verify SSL module is enabled
+      ansible.builtin.command:
+        cmd: apache2ctl -M | grep ssl
+      tags: molecule-notest
+
+    - name: Test HTTPS connection
+      ansible.builtin.uri:
+        url: https://localhost/
+        validate_certs: false
+      tags: molecule-notest
+
+    - name: Check Apache service is running
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Apache service is active
+      ansible.builtin.assert:
+        that:
+          - "'apache2.service' in ansible_facts.services"
+          - "ansible_facts.services['apache2.service'].state == 'running'"
+        fail_msg: "Apache service is not running"
+      tags: molecule-notest

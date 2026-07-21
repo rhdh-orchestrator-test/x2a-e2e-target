@@ -1,0 +1,38 @@
+---
+argument_specs:
+  main:
+    short_description: Role for setting up an Apache web server with HTTPS
+    description: 'This role installs and configures an Apache web server with HTTPS using a self-signed certificate. It creates a simple "Hello World" website and
+      configures a virtual host for HTTPS.
+
+      '
+    author: x2a
+    options:
+      apache_version:
+        type: str
+        default: 2.4.41-4ubuntu3.10
+        description: Version of Apache to install
+      server_name:
+        type: str
+        default: myhost
+        description: Server name for SSL certificate
+      website_root:
+        type: str
+        default: /var/www/helloworld
+        description: Document root for the website
+      ssl_cert_dir:
+        type: str
+        default: /etc/apache2/certs
+        description: Directory for SSL certificates
+      ssl_key_path:
+        type: str
+        default: /etc/apache2/certs/apache.key
+        description: Path to SSL private key
+      ssl_csr_path:
+        type: str
+        default: /etc/apache2/certs/apache.csr
+        description: Path to SSL CSR
+      ssl_cert_path:
+        type: str
+        default: /etc/apache2/certs/apache.crt
+        description: Path to SSL certificate

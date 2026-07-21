@@ -37,6 +37,48 @@ ansible-playbook run_poodle_fix.yml -i inventory/hosts.yml
 
 
 
+### website_https
+
+
+Migrated to modern Ansible
+
+
+**Target platforms:** Ubuntu, EL
+
+
+Run this role:
+
+```bash
+ansible-playbook run_website_https.yml -i inventory/hosts.yml
+```
+
+
+**Default variables** (override in inventory or extra vars):
+
+| Variable | Default |
+|----------|---------|
+
+| `apache_version` | `2.4.41-4ubuntu3.10` |
+
+| `server_name` | `myhost` |
+
+| `website_root` | `/var/www/helloworld` |
+
+| `ssl_cert_dir` | `/etc/apache2/certs` |
+
+| `ssl_key_path` | `/etc/apache2/certs/apache.key` |
+
+| `ssl_csr_path` | `/etc/apache2/certs/apache.csr` |
+
+| `ssl_cert_path` | `/etc/apache2/certs/apache.crt` |
+
+| `vhost_file` | `helloworld.conf` |
+
+| `vhost_path` | `/etc/apache2/sites-available/{{ vhost_file }}` |
+
+
+
+
 ## Prerequisites
 
 ### Collections

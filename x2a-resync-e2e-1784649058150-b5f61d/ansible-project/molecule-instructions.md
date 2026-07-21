@@ -70,6 +70,7 @@ Without this, project syncs will fail with:
 ## Available Molecule Job Templates
 
 - **Molecule — poodle_fix** — tests the `poodle_fix` role
+- **Molecule — website_https** — tests the `website_https` role
 
 ## How to Launch from the AAP UI
 
