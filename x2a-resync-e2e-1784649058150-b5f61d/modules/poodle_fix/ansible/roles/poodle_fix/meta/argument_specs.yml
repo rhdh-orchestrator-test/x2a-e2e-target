@@ -1,0 +1,25 @@
+---
+argument_specs:
+  main:
+    short_description: Role to fix POODLE vulnerability in Apache SSL configuration
+    description:
+      - This role mitigates the POODLE vulnerability by updating Apache SSL configuration
+      - It disables vulnerable SSL protocols and enables only TLSv1.2
+      - It can restart Apache and SSH services after configuration changes
+    options:
+      apache_ssl_config_path:
+        type: str
+        default: /etc/apache2/mods-available/ssl.conf
+        description: Path to Apache SSL configuration file
+      ssl_protocol_setting:
+        type: str
+        default: -all +TLSv1.2
+        description: SSL protocol configuration string
+      restart_apache:
+        type: bool
+        default: true
+        description: Whether to restart Apache after configuration changes
+      restart_ssh:
+        type: bool
+        default: true
+        description: Whether to restart SSH after configuration changes
