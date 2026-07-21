@@ -1,0 +1,12 @@
+---
+- name: Reload sysctl
+  ansible.builtin.command:
+    cmd: sysctl -p
+  changed_when: true
+  tags:
+    - molecule-notest
+- name: Update hosts file
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: ^127.0.1.1
+    line: 127.0.1.1 {{ deploy_automate_hostname }}
