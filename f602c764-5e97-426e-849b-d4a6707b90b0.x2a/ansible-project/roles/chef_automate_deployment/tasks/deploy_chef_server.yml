@@ -1,0 +1,16 @@
+---
+- name: Ensure hab directory exists
+  ansible.builtin.file:
+    path: /hab
+    state: directory
+    mode: "0755"
+  become: true
+- name: Deploy Chef Infra Server only
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy --product infra-server --accept-terms-and-mlsa={{ chef_automate_accept_terms | lower }} "
+  become: true
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
+  failed_when: deploy_result.rc != 0
+  args:
+    creates: /hab/sup/default/data
