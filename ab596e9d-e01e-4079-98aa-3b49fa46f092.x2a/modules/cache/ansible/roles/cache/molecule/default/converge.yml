@@ -1,0 +1,43 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc/redis
+    - /tmp/molecule_test/var/lib/redis
+    - /tmp/molecule_test/var/log/redis
+    - /tmp/molecule_test/var/run/redis
+  - name: Create Redis configuration file
+    ansible.builtin.copy:
+      content: '# Redis configuration file
+
+        port 6379
+
+        bind 127.0.0.1
+
+        dir /var/lib/redis
+
+        logfile /var/log/redis/redis-server.log
+
+        pidfile /var/run/redis/redis-server.pid
+
+        maxmemory-policy noeviction
+
+        '
+      dest: /tmp/molecule_test/etc/redis/redis.conf
+      mode: '0644'
+  - name: Create Redis log file
+    ansible.builtin.copy:
+      content: '# Redis server log file '
+      dest: /tmp/molecule_test/var/log/redis/redis-server.log
+      mode: '0644'
+  - name: Create Redis socket file placeholder
+    ansible.builtin.copy:
+      content: ''
+      dest: /tmp/molecule_test/var/run/redis/redis-server.sock
+      mode: '0644'
