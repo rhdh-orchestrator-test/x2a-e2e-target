@@ -1,0 +1,46 @@
+---
+- name: Ensure directory for PEM files exists
+  ansible.builtin.file:
+    path: "{{ item | dirname }}"
+    state: directory
+    mode: "0755"
+  become: true
+  loop:
+    - "{{ chef_automate_user_pem_file }}"
+    - "{{ chef_automate_org_validator_pem }}"
+- name: Check if chef-server-ctl is available
+  ansible.builtin.command:
+    cmd: which {{ chef_server_ctl_path }}
+  register: chef_server_ctl_check
+  changed_when: false
+  failed_when: false
+  become: true
+- name: Fail if chef-server-ctl is not available
+  ansible.builtin.fail:
+    msg: chef-server-ctl is not available. Ensure Chef Infra Server is installed.
+  when: chef_server_ctl_check.rc != 0
+  become: true
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: '{{ chef_server_ctl_path }} user-create {{ chef_automate_user.name }} "{{ chef_automate_user.full_name }}" {{ chef_automate_user.email }} "{{ password }}"
+      --filename {{ chef_automate_user_pem_file }}
+
+      '
+  become: true
+  register: create_user_result
+  changed_when: create_user_result.rc == 0
+  failed_when: create_user_result.rc != 0 and "already exists" not in create_user_result.stderr
+  args:
+    creates: "{{ chef_automate_user_pem_file }}"
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: '{{ chef_server_ctl_path }} org-create {{ chef_automate_org.name }} "{{ chef_automate_org.full_name }}" --association_user {{ chef_automate_user.name }}
+      --filename {{ chef_automate_org_validator_pem }}
+
+      '
+  become: true
+  register: create_org_result
+  changed_when: create_org_result.rc == 0
+  failed_when: create_org_result.rc != 0 and "already exists" not in create_org_result.stderr
+  args:
+    creates: "{{ chef_automate_org_validator_pem }}"
