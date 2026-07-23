@@ -1,0 +1,81 @@
+---
+- name: Create a directory for certs
+  ansible.builtin.file:
+    path: "{{ ssl_cert_path }}"
+    state: directory
+    mode: "0640"
+  become: true
+- name: Generate an openssl key
+  community.crypto.openssl_privatekey:
+    path: "{{ ssl_cert_path }}/apache.key"
+  become: true
+- name: Generate an openssl csr
+  community.crypto.openssl_csr:
+    path: "{{ ssl_cert_path }}/apache.csr"
+    privatekey_path: "{{ ssl_cert_path }}/apache.key"
+    common_name: "{{ ansible_hostname }}"
+  become: true
+- name: Generate a self-signed openssl certificate
+  community.crypto.openssl_certificate:
+    path: "{{ ssl_cert_path }}/apache.crt"
+    privatekey_path: "{{ ssl_cert_path }}/apache.key"
+    csr_path: "{{ ssl_cert_path }}/apache.csr"
+    provider: selfsigned
+  become: true
+- name: Configure Hello World virtual host
+  ansible.builtin.template:
+    src: apache_vhost.j2
+    dest: /etc/apache2/sites-available/helloworld.conf
+    mode: "0640"
+  become: true
+- name: Create the helloworld directory
+  ansible.builtin.file:
+    path: "{{ website_root }}"
+    state: directory
+    mode: "0755"
+  become: true
+- name: Deploy the Hello World website
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: "{{ website_root }}/index.html"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+- name: Check if default site is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/sites-enabled/000-default.conf
+  register: default_site
+  become: true
+- name: Deactivate the default virtualhost
+  ansible.builtin.command:
+    cmd: a2dissite 000-default
+  when: default_site.stat.exists
+  changed_when: default_site.stat.exists
+  become: true
+- name: Check if helloworld site is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/sites-enabled/helloworld.conf
+  register: helloworld_site
+  become: true
+- name: Activate the virtualhost
+  ansible.builtin.command:
+    cmd: a2ensite helloworld
+  notify:
+    - Restart apache
+  when: not helloworld_site.stat.exists
+  changed_when: not helloworld_site.stat.exists
+  become: true
+- name: Check if SSL module is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/mods-enabled/ssl.load
+  register: ssl_module
+  become: true
+- name: Activate SSL on Apache
+  ansible.builtin.command:
+    cmd: a2enmod ssl
+  notify:
+    - Restart apache
+  when: not ssl_module.stat.exists
+  changed_when: not ssl_module.stat.exists
+  become: true
