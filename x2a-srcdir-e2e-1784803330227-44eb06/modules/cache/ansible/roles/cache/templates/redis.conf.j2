@@ -1,0 +1,21 @@
+# Redis configuration file
+
+# Network
+port {{ redis_port }}
+bind {{ redis_bind }}
+
+# General
+daemonize yes
+pidfile /var/run/redis/redis-server.pid
+logfile /var/log/redis/redis-server.log
+
+# Memory management
+maxmemory 256mb
+maxmemory-policy allkeys-lru
+
+# Persistence
+dir /var/lib/redis
+dbfilename dump.rdb
+save 900 1
+save 300 10
+save 60 10000
