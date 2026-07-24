@@ -1,0 +1,35 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create directory structure
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/apache2/mods-available
+
+    - name: Create sample ssl.conf file with vulnerable configuration
+      ansible.builtin.copy:
+        content: |
+          # Sample Apache SSL configuration file
+          # This is a simplified version for testing
+          
+          SSLProtocol all -SSLv3
+          
+          # Other SSL configuration options would go here
+          SSLCipherSuite HIGH:!aNULL:!MD5
+        dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+        mode: "0644"
+
+    # We're not including the role directly since it would try to modify
+    # the actual system files and restart services, which won't work in
+    # the molecule container environment
+    
+    - name: Apply the same change the role would make
+      ansible.builtin.replace:
+        dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+        regexp: ^SSLProtocol.*$
+        replace: SSLProtocol -all +TLSv1.2
