@@ -1,0 +1,16 @@
+---
+- name: Ensure Apache is installed
+  ansible.builtin.package:
+    name: apache2
+    state: present
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    path: "{{ poodle_fix_apache_ssl_config_path }}"
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol {{ poodle_fix_ssl_protocol }}
+    validate: apache2ctl -t -f %s
+    mode: "0644"
+    backup: "{{ poodle_fix_create_backup }}"
+  notify:
+    - Restart apache
+    - Restart sshd

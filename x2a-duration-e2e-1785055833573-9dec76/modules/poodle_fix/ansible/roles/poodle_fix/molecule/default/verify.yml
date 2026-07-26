@@ -1,0 +1,81 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Check if the Apache SSL config file exists
+    - name: Check if Apache SSL config file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_conf
+
+    - name: Assert SSL config file exists
+      ansible.builtin.assert:
+        that:
+          - ssl_conf.stat.exists
+          - ssl_conf.stat.isreg
+        fail_msg: "Apache SSL config file does not exist"
+        success_msg: "Apache SSL config file exists"
+
+    # Check if the backup file was created
+    - name: Check if backup file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf.bak
+      register: backup_file
+
+    - name: Assert backup file exists
+      ansible.builtin.assert:
+        that: backup_file.stat.exists
+        fail_msg: "Backup file was not created"
+        success_msg: "Backup file was created"
+
+    # Check if the SSL protocol line was updated correctly
+    - name: Get SSL config file content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_conf_content
+
+    - name: Assert SSL protocol is set to TLSv1.2 only
+      ansible.builtin.assert:
+        that: "'SSLProtocol -all +TLSv1.2' in (ssl_conf_content.content | b64decode)"
+        fail_msg: "SSL protocol was not updated correctly"
+        success_msg: "SSL protocol was updated correctly to TLSv1.2 only"
+
+    # Verify Apache configuration syntax (would be done in real environment)
+    - name: Verify Apache configuration syntax
+      ansible.builtin.command: apache2ctl -t -f /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      changed_when: false
+      tags: molecule-notest
+
+    # Check if Apache service would be restarted (can't test in container)
+    - name: Check if Apache service is running
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Apache service is active
+      ansible.builtin.assert:
+        that: "'apache2.service' in ansible_facts.services"
+        fail_msg: "Apache service is not running"
+        success_msg: "Apache service is running"
+      tags: molecule-notest
+
+    # Check if SSH service would be restarted (can't test in container)
+    - name: Assert SSH service is active
+      ansible.builtin.assert:
+        that: "'sshd.service' in ansible_facts.services"
+        fail_msg: "SSH service is not running"
+        success_msg: "SSH service is running"
+      tags: molecule-notest
+
+    # Verify POODLE vulnerability is mitigated (would be done in real environment)
+    - name: Test SSL configuration with TLSv1.2
+      ansible.builtin.command: openssl s_client -connect localhost:443 -tls1_2
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Verify POODLE vulnerability is mitigated
+      ansible.builtin.command: openssl s_client -connect localhost:443 -ssl3
+      register: ssl3_test
+      failed_when: ssl3_test.rc == 0
+      changed_when: false
+      tags: molecule-notest

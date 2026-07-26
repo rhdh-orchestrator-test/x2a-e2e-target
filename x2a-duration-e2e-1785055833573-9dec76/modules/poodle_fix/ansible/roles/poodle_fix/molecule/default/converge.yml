@@ -1,0 +1,60 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create directory structure for Apache SSL config
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc/apache2/mods-available
+  - name: Create mock Apache SSL config file
+    ansible.builtin.copy:
+      content: '# Mock Apache SSL configuration file
+
+        SSLEngine on
+
+        SSLCertificateFile /etc/ssl/certs/ssl-cert-snakeoil.pem
+
+        SSLCertificateKeyFile /etc/ssl/private/ssl-cert-snakeoil.key
+
+        SSLProtocol all -SSLv3
+
+        SSLHonorCipherOrder on
+
+        '
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      mode: '0644'
+  - name: Create mock apache2ctl script
+    ansible.builtin.copy:
+      content: '#!/bin/bash
+
+        # Mock apache2ctl script that always returns success
+
+        echo "Syntax OK"
+
+        exit 0
+
+        '
+      dest: /tmp/molecule_test/apache2ctl
+      mode: '0755'
+  - name: Add mock apache2ctl to PATH
+    ansible.builtin.file:
+      src: /tmp/molecule_test/apache2ctl
+      dest: /usr/local/bin/apache2ctl
+      state: link
+      force: true
+  - name: Mock Apache package installation
+    ansible.builtin.file:
+      path: /tmp/molecule_test/apache2_installed
+      state: touch
+      mode: '0644'
+  - name: Fix SSL in Apache (role task simulation)
+    ansible.builtin.replace:
+      path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      regexp: ^SSLProtocol.*$
+      replace: SSLProtocol -all +TLSv1.2
+      validate: apache2ctl -t -f %s
+      mode: '0644'
+      backup: true

@@ -1,0 +1,11 @@
+---
+- name: Restart apache
+  ansible.builtin.service:
+    name: "{{ poodle_fix_apache_service_name }}"
+    state: restarted
+  become: true
+- name: Restart sshd
+  ansible.builtin.service:
+    name: "{{ poodle_fix_ssh_service_name }}"
+    state: restarted
+  become: true
