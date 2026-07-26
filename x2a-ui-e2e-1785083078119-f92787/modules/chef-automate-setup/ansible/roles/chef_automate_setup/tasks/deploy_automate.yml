@@ -1,0 +1,65 @@
+---
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ chef_automate_hostname }}"
+  become: true
+- name: Set vm.max_map_count
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "{{ chef_automate_vm_max_map_count }}"
+    state: present
+    sysctl_set: true
+  become: true
+- name: Set vm.dirty_expire_centisecs
+  ansible.posix.sysctl:
+    name: vm.dirty_expire_centisecs
+    value: "{{ chef_automate_vm_dirty_expire_centisecs }}"
+    state: present
+    sysctl_set: true
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ chef_automate_cli_url }}"
+    dest: "{{ chef_automate_cli_path }}.gz"
+    mode: "0644"
+  become: true
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip -c {{ chef_automate_cli_path }}.gz > {{ chef_automate_cli_path }}
+    creates: "{{ chef_automate_cli_path }}"
+  become: true
+- name: Set execute permissions on Chef Automate CLI
+  ansible.builtin.file:
+    path: "{{ chef_automate_cli_path }}"
+    mode: "0755"
+  become: true
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command:
+    cmd: "{{ chef_automate_cli_path }} deploy --product automate --product infra-server --accept-terms-and-mlsa={{ 'true' if chef_automate_accept_terms else 'false'
+      }}"
+    creates: /hab
+  become: true
+- name: Ensure directory exists for PEM files
+  ansible.builtin.file:
+    path: "{{ item | dirname }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ chef_automate_user_file }}"
+    - "{{ chef_automate_org_file }}"
+  become: true
+- name: Wait for chef-server-ctl to be available
+  ansible.builtin.wait_for:
+    path: /usr/bin/chef-server-ctl
+    timeout: 300
+  become: true
+- name: Create user in Chef Server
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ username }} {{ email }} {{ email }} {{ password }} --filename {{ chef_automate_user_file }}
+    creates: "{{ chef_automate_user_file }}"
+  become: true
+- name: Create organization in Chef Server
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ org_name }} "{{ org_full_name }}" --association_user {{ username }} --filename {{ chef_automate_org_file }}
+    creates: "{{ chef_automate_org_file }}"
+  become: true

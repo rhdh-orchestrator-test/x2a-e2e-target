@@ -1,0 +1,80 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: molecule_test_user
+    password: molecule_test_password
+    email: molecule@test.com
+    org_name: molecule_org
+    org_full_name: Molecule Test Organization
+    chef_automate_hostname: molecule-test.chef.lab
+    chef_automate_cli_path: /tmp/molecule_test/chef-automate
+    chef_automate_user_file: /tmp/molecule_test/molecule_test_user.pem
+    chef_automate_org_file: /tmp/molecule_test/molecule_org-validator.pem
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/hab
+    - /tmp/molecule_test/etc/sysctl.d
+    - /tmp/molecule_test/usr/bin
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: '{{ chef_automate_hostname }}'
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create sysctl settings file
+    ansible.builtin.copy:
+      content: 'vm.max_map_count = 262144
+
+        vm.dirty_expire_centisecs = 20000
+
+        '
+      dest: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      mode: '0644'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/sh echo ''Chef Automate CLI Mock'''
+      dest: '{{ chef_automate_cli_path }}'
+      mode: '0755'
+  - name: Create hab directory to simulate deployment
+    ansible.builtin.file:
+      path: /tmp/molecule_test/hab
+      state: directory
+      mode: '0755'
+  - name: Create chef-server-ctl binary
+    ansible.builtin.copy:
+      content: '#!/bin/sh echo ''Chef Server Control Mock'''
+      dest: /tmp/molecule_test/usr/bin/chef-server-ctl
+      mode: '0755'
+  - name: Create user PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEowIBAAKCAQEAwZ5UJULAjWr7p6FVwGRQRjFN2s8tZ/6LC3X82fajpVsYqF1x
+
+        qEuUDndDXVD09E4u83MS6HO6a3bIVQDp6/klnYldiE6Vp8HH5BSKaCWKVg8lGWg1
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: '{{ chef_automate_user_file }}'
+      mode: '0600'
+  - name: Create organization validator PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEowIBAAKCAQEAwZ5UJULAjWr7p6FVwGRQRjFN2s8tZ/6LC3X82fajpVsYqF1x
+
+        qEuUDndDXVD09E4u83MS6HO6a3bIVQDp6/klnYldiE6Vp8HH5BSKaCWKVg8lGWg1
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: '{{ chef_automate_org_file }}'
+      mode: '0600'
