@@ -1,0 +1,18 @@
+---
+- name: Check if eloy.redis collection is installed
+  ansible.builtin.command: ansible-galaxy collection list eloy.redis
+  register: collection_check
+  changed_when: false
+  failed_when: false
+  check_mode: false
+- name: Install eloy.redis collection if not present
+  ansible.builtin.command: ansible-galaxy collection install eloy.redis:1.0.0
+  when: "'eloy.redis' not in collection_check.stdout"
+  changed_when: true
+  check_mode: false
+- name: Include Redis role from eloy.redis collection
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  vars:
+    redis_install_method: package
+    redis_port: 6379

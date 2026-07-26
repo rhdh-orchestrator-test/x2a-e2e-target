@@ -1,0 +1,93 @@
+{
+  "module_name": "cache",
+  "items": [
+    {
+      "category": "structure",
+      "source_path": "cookbooks/cache/metadata.rb",
+      "target_path": "./ansible/roles/cache/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata file with dependencies and platform support",
+      "notes": "Created meta/main.yml from Chef metadata.rb"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/cache/defaults/main.yml",
+      "status": "complete",
+      "description": "Main defaults file for role variables",
+      "notes": "Created defaults/main.yml with minimal variables"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/cache/handlers/main.yml",
+      "status": "complete",
+      "description": "Main handlers file",
+      "notes": "Created handlers/main.yml with restart handler"
+    },
+    {
+      "category": "recipes",
+      "source_path": "cookbooks/cache/recipes/default.rb",
+      "target_path": "./ansible/roles/cache/tasks/main.yml",
+      "status": "complete",
+      "description": "Main recipe that installs and enables Redis server",
+      "notes": "Converted Chef recipe to Ansible task using eloy.redis collection"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:eloy.redis",
+      "target_path": "./ansible/roles/cache/requirements.yml",
+      "status": "complete",
+      "description": "Redis collection for installing and managing Redis server",
+      "notes": "Created requirements.yml with eloy.redis collection"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/cache/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule scenario configuration with delegated driver",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/cache/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook that creates expected filesystem state",
+      "notes": "Created converge.yml that sets up the expected filesystem structure under /tmp/molecule_test/ for Redis"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/cache/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification tasks to check Redis installation and service",
+      "notes": "Created verify.yml that checks for Redis configuration files, directories, and service status with container-safe tests"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/cache/molecule/default/create.yml",
+      "status": "complete",
+      "description": "No-op instance creation for molecule testing",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "./ansible/roles/cache/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "No-op instance destruction for molecule testing",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/meta/main.yml",
+      "status": "complete",
+      "description": "Created standard meta/main.yml",
+      "notes": "Meta file already created from metadata.rb"
+    }
+  ]
+}
