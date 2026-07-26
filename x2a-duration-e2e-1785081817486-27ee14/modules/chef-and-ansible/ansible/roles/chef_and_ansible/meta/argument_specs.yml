@@ -1,0 +1,30 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Apache web server with HTTPS support and SSL security hardening
+    description:
+      - Installs Apache web server
+      - Configures HTTPS with self-signed certificates
+      - Deploys a simple "Hello World" website
+      - Hardens SSL/TLS configuration to prevent POODLE vulnerability
+    options:
+      apache_version:
+        type: str
+        default: 2.4.41-4ubuntu3.10
+        description: Version of Apache to install
+      ssl_cert_path:
+        type: str
+        default: /etc/apache2/certs
+        description: Path to store SSL certificates
+      website_name:
+        type: str
+        default: helloworld
+        description: Name of the website
+      website_path:
+        type: str
+        default: /var/www/helloworld
+        description: Path to the website files
+      ssl_protocol:
+        type: str
+        default: -all +TLSv1.2
+        description: SSL protocol configuration to prevent POODLE vulnerability

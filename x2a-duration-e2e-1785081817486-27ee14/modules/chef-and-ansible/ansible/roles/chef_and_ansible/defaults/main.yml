@@ -1,0 +1,15 @@
+---
+apache_version: 2.4.41-4ubuntu3.10
+apache_packages:
+  - apache2
+  - curl
+  - openssl
+  - python3-openssl
+ssl_cert_path: /etc/apache2/certs
+ssl_cert_file: "{{ ssl_cert_path }}/apache.crt"
+ssl_key_file: "{{ ssl_cert_path }}/apache.key"
+ssl_csr_file: "{{ ssl_cert_path }}/apache.csr"
+website_name: helloworld
+website_path: /var/www/helloworld
+website_conf: /etc/apache2/sites-available/helloworld.conf
+ssl_protocol: -all +TLSv1.2
