@@ -1,0 +1,6 @@
+- name: Include Redis role from eloy.redis collection
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  vars:
+    redis_port: '{{ redis_port }}'
+    redis_bind: '{{ redis_bind }}'
