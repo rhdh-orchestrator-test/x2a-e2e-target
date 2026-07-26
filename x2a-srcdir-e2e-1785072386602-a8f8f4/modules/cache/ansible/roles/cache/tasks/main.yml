@@ -1,0 +1,9 @@
+- name: Install and configure Redis cache
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  vars:
+    redis_port: '{{ redis_port }}'
+    redis_requirepass: '{{ redis_requirepass }}'
+    redis_maxmemory: '{{ redis_maxmemory }}'
+    redis_cluster_enabled: '{{ redis_cluster_enabled }}'
+    redis_sentinel_enabled: '{{ redis_sentinel_enabled }}'
