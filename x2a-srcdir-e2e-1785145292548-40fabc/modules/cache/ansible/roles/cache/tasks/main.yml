@@ -1,0 +1,7 @@
+---
+- name: Include eloy.redis role to install and configure Redis
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  vars:
+    redis_install_method: package
+    redis_port: 6379
