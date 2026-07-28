@@ -2,7 +2,7 @@
   {
     "name": "website_https",
     "path": "chef-and-ansible/website_https.yml",
-    "description": "Ansible playbook that configures Apache with HTTPS using self-signed certificates.",
+    "description": "Ansible playbook that configures an Apache web server with HTTPS support using self-signed certificates.",
     "technology": "Ansible"
   },
   {
@@ -12,15 +12,27 @@
     "technology": "Ansible"
   },
   {
-    "name": "chef-automate-deploy",
-    "path": "setup-automate/deploy-automate.sh",
-    "description": "Bash script for deploying Chef Automate and Chef Infra Server.",
+    "name": "ssh_profile",
+    "path": "chef-and-ansible/tests/ssh_profile.rb",
+    "description": "Chef InSpec test that verifies SSH root login is disabled.",
     "technology": "Chef"
   },
   {
-    "name": "chef-server-deploy",
+    "name": "website_https_verify",
+    "path": "chef-and-ansible/tests/website_https_verify.rb",
+    "description": "Chef InSpec test that verifies HTTPS website functionality and security.",
+    "technology": "Chef"
+  },
+  {
+    "name": "chef-automate-setup",
+    "path": "setup-automate/deploy-automate.sh",
+    "description": "Bash script to deploy Chef Automate and Chef Infra Server.",
+    "technology": "Chef"
+  },
+  {
+    "name": "chef-server-setup",
     "path": "setup-automate/deploy-chef-server.sh",
-    "description": "Bash script for deploying Chef Infra Server without Automate.",
+    "description": "Bash script to deploy Chef Infra Server without Automate.",
     "technology": "Chef"
   }
 ]
