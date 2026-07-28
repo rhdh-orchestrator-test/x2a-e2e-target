@@ -1,0 +1,91 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/hab
+        - /tmp/molecule_test/home/ansible
+
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: "/tmp/molecule_test/etc/hostname"
+        mode: "0644"
+
+    - name: Create mock Chef Automate CLI
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          echo "Chef Automate CLI mock"
+          exit 0
+        dest: "/tmp/molecule_test/chef-automate"
+        mode: "0755"
+
+    - name: Create mock user PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAu5NhYunPHQfSQvgpLtUYkOO3/KzGLFt8kYUwOcRrLKbZ0xIH
+          YFfvLdGiUBJRZnKgLjfmEf/QvKjQHYb8Adkm9xGR7GkPGl+h8c4A3EP5qgm+tDOC
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/home/ansible/jtonello.pem"
+        mode: "0600"
+
+    - name: Create mock organization validator PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAu5NhYunPHQfSQvgpLtUYkOO3/KzGLFt8kYUwOcRrLKbZ0xIH
+          YFfvLdGiUBJRZnKgLjfmEf/QvKjQHYb8Adkm9xGR7GkPGl+h8c4A3EP5qgm+tDOC
+          -----END RSA PRIVATE KEY-----
+        dest: "/tmp/molecule_test/home/ansible/lab-validator.pem"
+        mode: "0600"
+
+    - name: Create mock sysctl files
+      ansible.builtin.copy:
+        content: "{{ item.value }}"
+        dest: "/tmp/molecule_test/proc/sys/{{ item.path }}"
+        mode: "0644"
+      loop:
+        - { path: "vm/max_map_count", value: "262144" }
+        - { path: "vm/dirty_expire_centisecs", value: "20000" }
+      loop_control:
+        label: "{{ item.path }}"
+
+    - name: Create mock Chef Automate status file
+      ansible.builtin.copy:
+        content: |
+          Service: automate-cs-bookshelf - running
+          Service: automate-cs-oc-bifrost - running
+          Service: automate-cs-oc-erchef - running
+          Service: automate-cs-nginx - running
+          Service: automate-cs-postgresql - running
+          Service: automate-gateway - running
+          Service: automate-postgresql - running
+          Service: automate-elasticsearch - running
+          Service: automate-ui - running
+          Service: automate-load-balancer - running
+        dest: "/tmp/molecule_test/chef-automate-status"
+        mode: "0644"
+
+    - name: Create mock Chef Server user list
+      ansible.builtin.copy:
+        content: |
+          jtonello
+          pivotal
+        dest: "/tmp/molecule_test/chef-server-users"
+        mode: "0644"
+
+    - name: Create mock Chef Server org list
+      ansible.builtin.copy:
+        content: |
+          lab
+        dest: "/tmp/molecule_test/chef-server-orgs"
+        mode: "0644"
