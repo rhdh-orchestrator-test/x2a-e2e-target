@@ -1,0 +1,10 @@
+---
+redis_package_name: redis-server
+redis_service_name: redis-server
+redis_port: 6379
+redis_config_dir: "{{ ansible_os_family == 'Debian' | ternary('/etc/redis', '/etc/') }}"
+redis_config_file: "{{ redis_config_dir }}/redis.conf"
+redis_log_dir: "{{ ansible_os_family == 'Debian' | ternary('/var/log/redis', '/var/log') }}"
+redis_data_dir: "{{ ansible_os_family == 'Debian' | ternary('/var/lib/redis', '/var/lib/redis') }}"
+redis_service_enabled: true
+redis_service_state: started
