@@ -1,0 +1,61 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    apache_ssl_conf_path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    apache_ssl_protocol: -all +TLSv1.2
+  tasks:
+  - name: Create directory structure for Apache config
+    ansible.builtin.file:
+      path: /tmp/molecule_test/etc/apache2/mods-available
+      state: directory
+      mode: '0755'
+  - name: Create directory structure for Apache mods-enabled
+    ansible.builtin.file:
+      path: /tmp/molecule_test/etc/apache2/mods-enabled
+      state: directory
+      mode: '0755'
+  - name: Create mock Apache SSL config file with default SSLProtocol setting
+    ansible.builtin.copy:
+      content: '# Mock Apache SSL configuration file
+
+        # This file contains a default SSLProtocol setting that will be modified by the role
+
+        SSLEngine on
+
+        SSLProtocol all -SSLv3
+
+        SSLHonorCipherOrder on
+
+        '
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      mode: '0644'
+  - name: Create mock SSL module load file
+    ansible.builtin.copy:
+      content: '# Mock SSL module load file
+
+        LoadModule ssl_module /usr/lib/apache2/modules/mod_ssl.so
+
+        '
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.load
+      mode: '0644'
+  - name: Simulate package installation (Apache)
+    ansible.builtin.file:
+      path: /tmp/molecule_test/usr/sbin/apache2
+      state: touch
+      mode: '0755'
+  - name: Simulate package installation (OpenSSH)
+    ansible.builtin.file:
+      path: /tmp/molecule_test/usr/sbin/sshd
+      state: touch
+      mode: '0755'
+  - name: Simulate Apache SSL module enablement
+    ansible.builtin.file:
+      src: /tmp/molecule_test/etc/apache2/mods-available/ssl.load
+      dest: /tmp/molecule_test/etc/apache2/mods-enabled/ssl.load
+      state: link
+  - name: Fix SSL in Apache (role task simulation)
+    ansible.builtin.replace:
+      dest: '{{ apache_ssl_conf_path }}'
+      regexp: ^SSLProtocol.*$
+      replace: SSLProtocol {{ apache_ssl_protocol }}

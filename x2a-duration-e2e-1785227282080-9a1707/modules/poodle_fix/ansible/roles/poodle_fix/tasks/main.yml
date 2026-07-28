@@ -1,0 +1,23 @@
+---
+- name: Ensure Apache is installed
+  ansible.builtin.package:
+    name: apache2
+    state: present
+- name: Ensure OpenSSH server is installed
+  ansible.builtin.package:
+    name: openssh-server
+    state: present
+- name: Ensure Apache SSL module is enabled
+  ansible.builtin.command: a2enmod ssl
+  args:
+    creates: /etc/apache2/mods-enabled/ssl.load
+  notify:
+    - Restart apache2
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    dest: "{{ apache_ssl_conf_path }}"
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol {{ apache_ssl_protocol }}
+  notify:
+    - Restart apache2
+    - Restart sshd
