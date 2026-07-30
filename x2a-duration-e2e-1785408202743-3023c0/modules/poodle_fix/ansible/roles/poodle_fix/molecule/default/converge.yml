@@ -1,0 +1,33 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create directory structure for Apache config
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/apache2/mods-available
+
+    - name: Create mock Apache SSL config file
+      ansible.builtin.copy:
+        content: |
+          # Mock Apache SSL configuration file
+          SSLProtocol all -SSLv3
+          SSLHonorCipherOrder on
+          SSLCipherSuite HIGH:!aNULL:!MD5
+        dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+        mode: "0644"
+
+    # We don't include_role here as per constraints
+    # Instead we'll manually run the tasks with modified paths
+
+    - name: Fix SSL in Apache (test version)
+      ansible.builtin.replace:
+        dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+        regexp: ^SSLProtocol.*$
+        replace: "SSLProtocol -all +TLSv1.2"
+        mode: "0644"
+      # We don't notify handlers in molecule tests
