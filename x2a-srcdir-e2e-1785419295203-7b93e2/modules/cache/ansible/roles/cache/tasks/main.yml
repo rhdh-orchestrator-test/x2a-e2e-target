@@ -1,0 +1,11 @@
+- name: Install and configure Redis server
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  vars:
+    redis_port: 6379
+    redis_install_method: package
+  when: not molecule_test | default(false)
+- name: Mock Redis installation for molecule tests
+  ansible.builtin.debug:
+    msg: Redis would be installed via eloy.redis.redis role
+  when: molecule_test | default(false)
