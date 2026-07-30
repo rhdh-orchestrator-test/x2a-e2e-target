@@ -1,0 +1,22 @@
+---
+- name: Ensure Apache is installed
+  ansible.builtin.package:
+    name: apache2
+    state: present
+  tags: molecule-notest
+- name: Ensure SSH server is installed
+  ansible.builtin.package:
+    name: openssh-server
+    state: present
+  tags: molecule-notest
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    dest: "{{ apache2_ssl_conf_path | default('/etc/apache2/mods-available/ssl.conf') }}"
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol -all +TLSv1.2
+    mode: "0644"
+  notify:
+    - Restart apache2
+    - Restart sshd
+  register: ssl_config_update
+  changed_when: ssl_config_update.changed

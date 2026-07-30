@@ -1,0 +1,29 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create directory structure for Apache mods-available
+    ansible.builtin.file:
+      path: /tmp/molecule_test/etc/apache2/mods-available
+      state: directory
+      mode: '0755'
+  - name: Create mock ssl.conf file with vulnerable configuration
+    ansible.builtin.copy:
+      content: '# This is a mock Apache SSL configuration file for testing
+
+        # Original vulnerable configuration
+
+        SSLProtocol all -SSLv2
+
+        SSLHonorCipherOrder on
+
+        SSLCipherSuite HIGH:!aNULL:!MD5
+
+        '
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      mode: '0644'
+  - name: Apply poodle_fix role
+    include_role:
+      name: poodle_fix
+    vars:
+      apache2_ssl_conf_path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
