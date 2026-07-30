@@ -1,0 +1,16 @@
+---
+- name: Check if Apache SSL module is installed
+  ansible.builtin.stat:
+    path: /etc/apache2/mods-available/ssl.conf
+  register: ssl_conf_file
+  become: true
+- name: Fix POODLE vulnerability by disabling SSLv3
+  ansible.builtin.replace:
+    path: /etc/apache2/mods-available/ssl.conf
+    regexp: "^[ \t]*SSLProtocol.*"
+    replace: SSLProtocol {{ ssl_protocols }}
+    mode: "0644"
+  notify:
+    - Restart apache2
+  become: true
+  when: ssl_conf_file.stat.exists

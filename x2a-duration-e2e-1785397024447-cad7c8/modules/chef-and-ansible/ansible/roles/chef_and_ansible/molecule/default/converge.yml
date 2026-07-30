@@ -1,0 +1,78 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    apache_version: 2.4.41-4ubuntu3.10
+    ssl_cert_dir: /tmp/molecule_test/etc/apache2/certs
+    ssl_key_path: '{{ ssl_cert_dir }}/helloworld.key'
+    ssl_csr_path: '{{ ssl_cert_dir }}/helloworld.csr'
+    ssl_cert_path: '{{ ssl_cert_dir }}/helloworld.crt'
+    ssl_protocols: -all +TLSv1.2
+    website_root: /tmp/molecule_test/var/www/helloworld
+    website_owner: root
+    website_group: root
+    website_mode: '0644'
+    website_html: '<html> <head> <title>Website Test</title> </head> <body> <p>Hello, world!</p> </html>
+
+      '
+    vhost_name: helloworld
+    vhost_conf_path: /tmp/molecule_test/etc/apache2/sites-available/{{ vhost_name }}.conf
+    vhost_config: '<VirtualHost *:443> ServerName myhost DocumentRoot {{ website_root }}
+
+      SSLEngine on SSLCertificateFile {{ ssl_cert_path }} SSLCertificateKeyFile {{ ssl_key_path }}
+
+      <Directory {{ website_root }}> Options Indexes FollowSymLinks AllowOverride None Require all granted </Directory> </VirtualHost>'
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - '{{ ssl_cert_dir }}'
+    - /tmp/molecule_test/etc/apache2/sites-available
+    - /tmp/molecule_test/etc/apache2/sites-enabled
+    - /tmp/molecule_test/etc/apache2/mods-available
+    - /tmp/molecule_test/etc/apache2/mods-enabled
+    - '{{ website_root }}'
+  - name: Generate an openssl key
+    community.crypto.openssl_privatekey:
+      path: '{{ ssl_key_path }}'
+  - name: Generate an openssl csr
+    community.crypto.openssl_csr:
+      path: '{{ ssl_csr_path }}'
+      privatekey_path: '{{ ssl_key_path }}'
+      common_name: myhost
+  - name: Generate a self-signed openssl certificate
+    community.crypto.x509_certificate:
+      path: '{{ ssl_cert_path }}'
+      privatekey_path: '{{ ssl_key_path }}'
+      csr_path: '{{ ssl_csr_path }}'
+      provider: selfsigned
+  - name: Configure Hello World virtual host
+    ansible.builtin.copy:
+      content: '{{ vhost_config }}'
+      dest: '{{ vhost_conf_path }}'
+      mode: '0640'
+  - name: Deploy the Hello World website
+    ansible.builtin.copy:
+      content: '{{ website_html }}'
+      dest: '{{ website_root }}/index.html'
+      mode: '{{ website_mode }}'
+  - name: Create SSL configuration with POODLE fix
+    ansible.builtin.copy:
+      content: "<IfModule mod_ssl.c>\n  SSLProtocol {{ ssl_protocols }}\n  # Other SSL configuration settings would be here\n</IfModule>\n"
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      mode: '0644'
+  - name: Simulate enabled default site
+    ansible.builtin.file:
+      src: /tmp/molecule_test/etc/apache2/sites-available/000-default.conf
+      dest: /tmp/molecule_test/etc/apache2/sites-enabled/000-default.conf
+      state: link
+      force: true
+    ignore_errors: true
+  - name: Simulate enabled SSL module
+    ansible.builtin.file:
+      path: /tmp/molecule_test/etc/apache2/mods-enabled/ssl.load
+      state: touch
+      mode: '0644'

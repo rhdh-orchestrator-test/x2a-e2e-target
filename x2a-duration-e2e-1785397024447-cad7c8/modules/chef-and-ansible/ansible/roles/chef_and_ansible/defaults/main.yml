@@ -1,0 +1,17 @@
+---
+apache_version: 2.4.41-4ubuntu3.10
+ssl_cert_dir: /etc/apache2/certs
+ssl_key_path: "{{ ssl_cert_dir }}/helloworld.key"
+ssl_csr_path: "{{ ssl_cert_dir }}/helloworld.csr"
+ssl_cert_path: "{{ ssl_cert_dir }}/helloworld.crt"
+ssl_protocols: -all +TLSv1.2
+website_root: /var/www/helloworld
+website_owner: www-data
+website_group: www-data
+website_mode: "0644"
+website_html: "<html>\n  <head>\n    <title>Website Test</title>\n  </head>\n  <body>\n    <p>Hello, world!</p>\n</html>\n  \n"
+vhost_name: helloworld
+vhost_conf_path: /etc/apache2/sites-available/{{ vhost_name }}.conf
+vhost_config: "<VirtualHost *:443>\n  ServerName myhost\n  DocumentRoot {{ website_root }}\n  \n  SSLEngine on\n  SSLCertificateFile {{ ssl_cert_path }}\n  SSLCertificateKeyFile
+  {{ ssl_key_path }}\n  \n  <Directory {{ website_root }}>\n    Options Indexes FollowSymLinks\n    AllowOverride None\n    Require all granted\n  </Directory>\n\
+  </VirtualHost>"
