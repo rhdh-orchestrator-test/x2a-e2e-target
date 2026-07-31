@@ -1,0 +1,81 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check if Apache SSL config file exists
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/etc/apache2/mods-available/ssl.conf"
+      register: ssl_config_file
+
+    - name: Assert SSL config file exists
+      ansible.builtin.assert:
+        that:
+          - ssl_config_file.stat.exists
+          - ssl_config_file.stat.isreg
+        fail_msg: "Apache SSL config file does not exist"
+        success_msg: "Apache SSL config file exists"
+
+    - name: Get SSL config file content
+      ansible.builtin.slurp:
+        src: "/tmp/molecule_test/etc/apache2/mods-available/ssl.conf"
+      register: ssl_config_content
+
+    - name: Decode SSL config content
+      ansible.builtin.set_fact:
+        ssl_config_decoded: "{{ ssl_config_content.content | b64decode }}"
+
+    - name: Assert SSLProtocol is correctly set
+      ansible.builtin.assert:
+        that:
+          - "'SSLProtocol -all +TLSv1.2' in ssl_config_decoded"
+        fail_msg: "SSLProtocol setting was not updated correctly"
+        success_msg: "SSLProtocol setting was updated correctly"
+
+    # The following checks cannot run in a container environment
+    # but are included for documentation purposes
+    
+    - name: Check if Apache service is running
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Apache service is running
+      ansible.builtin.assert:
+        that:
+          - "'apache2' in ansible_facts.services"
+          - "ansible_facts.services['apache2'].state == 'running'"
+        fail_msg: "Apache service is not running"
+        success_msg: "Apache service is running"
+      tags: molecule-notest
+
+    - name: Check if SSH service is running
+      ansible.builtin.assert:
+        that:
+          - "'sshd' in ansible_facts.services"
+          - "ansible_facts.services['sshd'].state == 'running'"
+        fail_msg: "SSH service is not running"
+        success_msg: "SSH service is running"
+      tags: molecule-notest
+
+    - name: Test TLS 1.2 connection (would be run on actual server)
+      ansible.builtin.command: openssl s_client -connect localhost:443 -tls1_2
+      register: tls_check
+      failed_when: false
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Test SSL3 connection (should fail on actual server)
+      ansible.builtin.command: openssl s_client -connect localhost:443 -ssl3
+      register: ssl3_check
+      failed_when: false
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert TLS 1.2 works but SSL3 fails
+      ansible.builtin.assert:
+        that:
+          - "tls_check.rc == 0"
+          - "ssl3_check.rc != 0"
+        fail_msg: "TLS/SSL configuration is not correct"
+        success_msg: "TLS/SSL configuration is correct"
+      tags: molecule-notest
