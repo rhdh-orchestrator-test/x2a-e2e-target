@@ -1,0 +1,46 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: molecule_test_user
+    password: molecule_test_password
+    apache_ssl_conf_path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    ssl_protocol: -all +TLSv1.2
+    apache_service_name: apache2
+    ssh_service_name: sshd
+  tasks:
+  - name: Create directory structure for Apache SSL config
+    ansible.builtin.file:
+      path: /tmp/molecule_test/etc/apache2/mods-available
+      state: directory
+      mode: '0755'
+  - name: Create mock Apache SSL config file with vulnerable configuration
+    ansible.builtin.copy:
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      content: "# Mock Apache SSL configuration file for molecule testing\n# This file contains a vulnerable SSLProtocol line that will be fixed by the role\n\n<IfModule
+        mod_ssl.c>\n    SSLProtocol all -SSLv3\n    SSLCipherSuite HIGH:!aNULL:!MD5\n    SSLHonorCipherOrder on\n</IfModule>\n"
+      mode: '0644'
+  - name: Create mock apache2ctl script
+    ansible.builtin.copy:
+      dest: /tmp/molecule_test/usr/sbin/apache2ctl
+      content: '#!/bin/sh
+
+        # Mock apache2ctl that always returns success
+
+        exit 0
+
+        '
+      mode: '0755'
+  - name: Create directory for mock binaries
+    ansible.builtin.file:
+      path: /tmp/molecule_test/usr/sbin
+      state: directory
+      mode: '0755'
+  - name: Add mock binary directory to PATH
+    ansible.builtin.set_fact:
+      ansible_env: '{{ ansible_env | combine({''PATH'': ''/tmp/molecule_test/usr/sbin:'' + ansible_env.PATH}) }}'
+  - name: Include poodle_fix role
+    ansible.builtin.include_role:
+      name: poodle_fix
+    vars:
+      apache_ssl_conf_path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
