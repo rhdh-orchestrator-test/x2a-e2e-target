@@ -1,0 +1,17 @@
+---
+- name: Ensure Apache is installed
+  ansible.builtin.package:
+    name: "{{ apache_package_name }}"
+    state: present
+- name: Ensure SSH server is installed
+  ansible.builtin.package:
+    name: "{{ ssh_package_name }}"
+    state: present
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    dest: "{{ apache_ssl_conf_path }}"
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol {{ ssl_protocol_setting }}
+  notify:
+    - Restart apache2
+    - Restart sshd
