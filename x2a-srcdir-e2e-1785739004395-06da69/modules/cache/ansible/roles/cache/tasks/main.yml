@@ -1,0 +1,10 @@
+---
+- name: Install and configure Redis server
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  vars:
+    redis_install_method: "{{ redis_install_method }}"
+    redis_port: "{{ redis_port }}"
+    redis_bind: "{{ redis_bind }}"
+    redis_maxmemory: "{{ redis_maxmemory }}"
+    redis_maxmemory_policy: "{{ redis_maxmemory_policy }}"
