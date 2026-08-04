@@ -1,0 +1,73 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Check if Apache SSL config file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_config_file
+  - name: Assert SSL config file exists
+    ansible.builtin.assert:
+      that:
+      - ssl_config_file.stat.exists
+      - ssl_config_file.stat.isreg
+      fail_msg: Apache SSL config file not found
+      success_msg: Apache SSL config file exists
+  - name: Get SSL config file content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_config_content
+  - name: Decode SSL config content
+    ansible.builtin.set_fact:
+      ssl_config_decoded: '{{ ssl_config_content.content | b64decode }}'
+  - name: Assert SSL protocol is set correctly
+    ansible.builtin.assert:
+      that:
+      - '''SSLProtocol -all +TLSv1.2'' in ssl_config_decoded'
+      fail_msg: SSL protocol not configured correctly to mitigate POODLE vulnerability
+      success_msg: SSL protocol correctly configured to mitigate POODLE vulnerability
+  - name: Check Apache service status
+    ansible.builtin.service_facts: null
+    tags: molecule-notest
+  - name: Assert Apache service is running
+    ansible.builtin.assert:
+      that:
+      - '''apache2.service'' in ansible_facts.services'
+      - ansible_facts.services['apache2.service'].state == 'running'
+      fail_msg: Apache service is not running
+      success_msg: Apache service is running
+    tags: molecule-notest
+  - name: Assert SSH service is running
+    ansible.builtin.assert:
+      that:
+      - '''sshd.service'' in ansible_facts.services'
+      - ansible_facts.services['sshd.service'].state == 'running'
+      fail_msg: SSH service is not running
+      success_msg: SSH service is running
+    tags: molecule-notest
+  - name: Test TLSv1.2 connection
+    ansible.builtin.command: openssl s_client -connect localhost:443 -tls1_2
+    register: tls_test
+    failed_when: false
+    changed_when: false
+    tags: molecule-notest
+  - name: Test SSLv3 connection (should fail)
+    ansible.builtin.command: openssl s_client -connect localhost:443 -ssl3
+    register: ssl3_test
+    failed_when: false
+    changed_when: false
+    tags: molecule-notest
+  - name: Assert TLSv1.2 is supported
+    ansible.builtin.assert:
+      that:
+      - tls_test.rc == 0
+      fail_msg: TLSv1.2 connection failed
+      success_msg: TLSv1.2 connection successful
+    tags: molecule-notest
+  - name: Assert SSLv3 is disabled
+    ansible.builtin.assert:
+      that:
+      - ssl3_test.rc != 0
+      fail_msg: SSLv3 connection succeeded (POODLE vulnerability still present)
+      success_msg: SSLv3 connection failed (POODLE vulnerability mitigated)
+    tags: molecule-notest
