@@ -1,0 +1,11 @@
+---
+- name: Install and configure Redis cache server
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  vars:
+    redis_install_method: "{{ redis_install_method }}"
+    redis_port: "{{ redis_port }}"
+    redis_bind_interface: "{{ redis_bind_interface }}"
+    redis_service_name: "{{ redis_service_name }}"
+    redis_service_enabled: "{{ redis_service_enabled }}"
+    redis_service_state: "{{ redis_service_state }}"
