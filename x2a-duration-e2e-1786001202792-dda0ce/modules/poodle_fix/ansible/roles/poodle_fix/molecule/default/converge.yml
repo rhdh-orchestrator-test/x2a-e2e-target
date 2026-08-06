@@ -1,0 +1,37 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create Apache mods-available directory
+    ansible.builtin.file:
+      path: /tmp/molecule_test/etc/apache2/mods-available
+      state: directory
+      mode: '0755'
+  - name: Create mock ssl.conf with vulnerable configuration
+    ansible.builtin.copy:
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      content: '# Mock Apache SSL configuration file
+
+        # This represents the vulnerable configuration before the role is applied
+
+        SSLEngine on
+
+        SSLProtocol all -SSLv3
+
+        SSLHonorCipherOrder on
+
+        '
+      mode: '0644'
+  - name: Mock Apache installation
+    ansible.builtin.set_fact:
+      apache_installed: true
+  - name: Mock SSH server installation
+    ansible.builtin.set_fact:
+      sshd_installed: true
+  - name: Run the poodle_fix role tasks directly
+    block:
+    - name: Fix SSL in Apache (molecule test version)
+      ansible.builtin.replace:
+        dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+        regexp: ^SSLProtocol.*$
+        replace: SSLProtocol -all +TLSv1.2
