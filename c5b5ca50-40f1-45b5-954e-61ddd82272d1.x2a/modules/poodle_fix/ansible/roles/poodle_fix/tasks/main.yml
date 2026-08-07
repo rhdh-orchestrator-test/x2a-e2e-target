@@ -1,0 +1,33 @@
+---
+- name: Set paths for molecule testing
+  ansible.builtin.set_fact:
+    apache_ssl_conf_path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+  when: molecule_testing is defined and molecule_testing | bool
+- name: Ensure Apache is installed
+  ansible.builtin.package:
+    name: apache2
+    state: present
+  when: not (molecule_testing is defined and molecule_testing | bool)
+  tags: molecule-notest
+- name: Ensure OpenSSH server is installed
+  ansible.builtin.package:
+    name: openssh-server
+    state: present
+  when: not (molecule_testing is defined and molecule_testing | bool)
+  tags: molecule-notest
+- name: Check if Apache SSL configuration file exists
+  ansible.builtin.stat:
+    path: "{{ apache_ssl_conf_path }}"
+  register: ssl_conf_stat
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    dest: "{{ apache_ssl_conf_path }}"
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol -all +TLSv1.2
+    mode: "0644"
+  notify:
+    - Restart apache2
+    - Restart sshd
+  register: ssl_fix
+  changed_when: ssl_fix.changed
+  when: ssl_conf_stat.stat.exists

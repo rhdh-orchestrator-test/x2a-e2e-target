@@ -1,0 +1,67 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check if ssl.conf file exists
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/etc/apache2/mods-available/ssl.conf"
+      register: ssl_conf_file
+
+    - name: Assert ssl.conf file exists
+      ansible.builtin.assert:
+        that:
+          - ssl_conf_file.stat.exists
+          - ssl_conf_file.stat.isreg
+        fail_msg: "ssl.conf file not found"
+        success_msg: "ssl.conf file exists"
+
+    - name: Get ssl.conf content
+      ansible.builtin.slurp:
+        src: "/tmp/molecule_test/etc/apache2/mods-available/ssl.conf"
+      register: ssl_conf_content
+
+    - name: Assert SSLProtocol setting has been fixed
+      ansible.builtin.assert:
+        that:
+          - "'SSLProtocol -all +TLSv1.2' in (ssl_conf_content.content | b64decode)"
+          - "'SSLProtocol all -SSLv3' not in (ssl_conf_content.content | b64decode)"
+        fail_msg: "SSLProtocol setting was not properly updated"
+        success_msg: "SSLProtocol setting was correctly updated to disable vulnerable protocols"
+
+    # The following checks would be performed in a real environment but can't run in the molecule container
+    # They are tagged with molecule-notest to be skipped during molecule testing
+
+    - name: Verify Apache configuration syntax
+      ansible.builtin.command: apache2ctl configtest
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Check Apache service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Apache service is running
+      ansible.builtin.assert:
+        that:
+          - "'apache2.service' in ansible_facts.services"
+          - "ansible_facts.services['apache2.service'].state == 'running'"
+        fail_msg: "Apache service is not running"
+        success_msg: "Apache service is running"
+      tags: molecule-notest
+
+    - name: Assert SSH service is running
+      ansible.builtin.assert:
+        that:
+          - "'sshd.service' in ansible_facts.services"
+          - "ansible_facts.services['sshd.service'].state == 'running'"
+        fail_msg: "SSH service is not running"
+        success_msg: "SSH service is running"
+      tags: molecule-notest
+
+    - name: Test SSL vulnerability (should fail with handshake failure)
+      ansible.builtin.command: openssl s_client -connect localhost:443 -ssl3
+      register: ssl_test
+      failed_when: ssl_test.rc == 0
+      changed_when: false
+      tags: molecule-notest

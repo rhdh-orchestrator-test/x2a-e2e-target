@@ -1,0 +1,34 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    molecule_testing: true
+    apache_ssl_conf_path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+  tasks:
+  - name: Create directory structure
+    ansible.builtin.file:
+      path: /tmp/molecule_test/etc/apache2/mods-available
+      state: directory
+      mode: '0755'
+  - name: Create mock ssl.conf file with vulnerable configuration
+    ansible.builtin.copy:
+      content: "# Mock Apache SSL configuration file for testing\n# This file contains a vulnerable SSLProtocol setting that should be fixed by the role\n\n<IfModule
+        mod_ssl.c>\n    SSLProtocol all -SSLv3\n    SSLCipherSuite HIGH:!aNULL:!MD5\n    SSLHonorCipherOrder on\n</IfModule>\n"
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      mode: '0644'
+  - name: Set paths for molecule testing
+    ansible.builtin.set_fact:
+      apache_ssl_conf_path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+  - name: Check if Apache SSL configuration file exists
+    ansible.builtin.stat:
+      path: '{{ apache_ssl_conf_path }}'
+    register: ssl_conf_stat
+  - name: Fix SSL in Apache
+    ansible.builtin.replace:
+      dest: '{{ apache_ssl_conf_path }}'
+      regexp: ^SSLProtocol.*$
+      replace: SSLProtocol -all +TLSv1.2
+      mode: '0644'
+    register: ssl_fix
+    changed_when: ssl_fix.changed
+    when: ssl_conf_stat.stat.exists
