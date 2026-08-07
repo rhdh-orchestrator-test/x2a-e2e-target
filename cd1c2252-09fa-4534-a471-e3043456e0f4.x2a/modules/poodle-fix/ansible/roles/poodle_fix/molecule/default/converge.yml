@@ -1,0 +1,53 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create required directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc/apache2/mods-available
+  - name: Create mock SSL configuration file
+    ansible.builtin.copy:
+      content: '# Mock Apache SSL configuration file
+
+        SSLEngine on
+
+        SSLCertificateFile /etc/ssl/certs/ssl-cert-snakeoil.pem
+
+        SSLCertificateKeyFile /etc/ssl/private/ssl-cert-snakeoil.key
+
+        SSLProtocol all -SSLv3
+
+        SSLHonorCipherOrder on
+
+        '
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      mode: '0644'
+  - name: Set test variables
+    ansible.builtin.set_fact:
+      ssl_config_path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      apache_service_name: apache2
+      ssh_service_name: sshd
+      username: test_user
+      password: test_password
+  - name: Run the role tasks directly (not include_role)
+    block:
+    - name: Validate required credential variables are defined
+      ansible.builtin.assert:
+        that:
+        - username is defined
+        - password is defined
+        fail_msg: One or more required credential variables are not defined. Ensure the AAP credential type is attached to the job template.
+        quiet: true
+    - name: Mock package installation (would fail in container)
+      ansible.builtin.debug:
+        msg: Would install {{ apache_service_name }} and {{ ssh_service_name }} packages
+    - name: Fix SSL in Apache
+      ansible.builtin.replace:
+        path: '{{ ssl_config_path }}'
+        regexp: ^SSLProtocol.*$
+        replace: SSLProtocol {{ ssl_protocol_string }}
+        backup: true

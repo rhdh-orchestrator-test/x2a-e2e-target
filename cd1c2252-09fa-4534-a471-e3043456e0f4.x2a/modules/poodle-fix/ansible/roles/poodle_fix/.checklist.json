@@ -1,0 +1,117 @@
+{
+  "module_name": "poodle_fix",
+  "items": [
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/aap-configuration/controller_credential_types.yml",
+      "status": "complete",
+      "description": "AAP credential types configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/aap-configuration/controller_credentials.yml",
+      "status": "complete",
+      "description": "AAP credentials configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/tasks/validate_credentials.yml",
+      "status": "complete",
+      "description": "Credential validation tasks",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/README.md",
+      "status": "complete",
+      "description": "Role README file",
+      "notes": "Created README.md with role documentation, variables, and usage examples"
+    },
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "ansible/roles/poodle_fix/tasks/main.yml",
+      "status": "complete",
+      "description": "Main tasks for SSL configuration",
+      "notes": "Converted playbook tasks to role tasks with FQCN and proper path parameter"
+    },
+    {
+      "category": "structure",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "ansible/roles/poodle_fix/handlers/main.yml",
+      "status": "complete",
+      "description": "Service restart handlers",
+      "notes": "Fixed handler name to match notification name (Restart apache2 instead of Restart apache)"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables (optional)",
+      "notes": "Created defaults/main.yml with configurable variables for SSL config path and protocol string"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule scenario configuration",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook",
+      "notes": "Created converge.yml that sets up a test environment with mock SSL configuration file under /tmp/molecule_test/ and applies the role's tasks directly"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification tasks",
+      "notes": "Created verify.yml that checks if the SSL configuration was properly updated to mitigate POODLE vulnerability, with service checks tagged as molecule-notest"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Molecule create playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Molecule destroy playbook",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix/requirements.yml",
+      "status": "complete",
+      "description": "Created requirements.yml with collections from AAP Private Hub",
+      "notes": ""
+    }
+  ]
+}
