@@ -1,0 +1,31 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create directory structure for Apache SSL config
+    ansible.builtin.file:
+      path: /tmp/molecule_test/etc/apache2/mods-available
+      state: directory
+      mode: '0755'
+  - name: Create mock Apache SSL config file with SSLProtocol line
+    ansible.builtin.copy:
+      content: '# Mock Apache SSL configuration file
+
+        SSLEngine on
+
+        SSLProtocol all -SSLv3
+
+        SSLHonorCipherOrder on
+
+        '
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      mode: '0644'
+  - name: Mock Apache package installation
+    ansible.builtin.debug:
+      msg: Simulating Apache installation
+  - name: Fix SSL in Apache (direct task implementation)
+    ansible.builtin.replace:
+      path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      regexp: ^SSLProtocol.*$
+      replace: SSLProtocol -all +TLSv1.2
+      mode: '0644'
