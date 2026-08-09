@@ -1,0 +1,26 @@
+---
+- name: Ensure Apache is installed
+  ansible.builtin.package:
+    name: "{{ poodle_fix_apache_service }}"
+    state: present
+  become: true
+- name: Ensure SSH server is installed
+  ansible.builtin.package:
+    name: openssh-server
+    state: present
+  become: true
+- name: Check if Apache SSL config file exists
+  ansible.builtin.stat:
+    path: "{{ poodle_fix_apache_ssl_conf }}"
+  register: ssl_conf_file
+  become: true
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    dest: "{{ poodle_fix_apache_ssl_conf }}"
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol {{ poodle_fix_ssl_protocol }}
+  notify:
+    - Restart apache
+    - Restart sshd
+  become: true
+  when: ssl_conf_file.stat.exists
