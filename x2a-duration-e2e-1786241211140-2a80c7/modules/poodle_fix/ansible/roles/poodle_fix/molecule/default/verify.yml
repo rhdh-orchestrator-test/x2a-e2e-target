@@ -1,0 +1,93 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Check if Apache SSL configuration file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_conf_file
+  - name: Assert SSL configuration file exists
+    ansible.builtin.assert:
+      that:
+      - ssl_conf_file.stat.exists
+      - ssl_conf_file.stat.isreg
+      fail_msg: Apache SSL configuration file not found
+      success_msg: Apache SSL configuration file exists
+  - name: Get SSL configuration file content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_conf_content
+  - name: Assert SSL configuration has been properly updated
+    ansible.builtin.assert:
+      that:
+      - '''SSLProtocol -all +TLSv1.2'' in ssl_conf_content.content | b64decode'
+      - '''SSLProtocol all -SSLv3'' not in ssl_conf_content.content | b64decode'
+      fail_msg: SSL configuration was not properly updated to fix POODLE vulnerability
+      success_msg: SSL configuration was properly updated to fix POODLE vulnerability
+  - name: Check if SSH configuration file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/ssh/sshd_config
+    register: ssh_conf_file
+  - name: Assert SSH configuration file exists
+    ansible.builtin.assert:
+      that:
+      - ssh_conf_file.stat.exists
+      - ssh_conf_file.stat.isreg
+      fail_msg: SSH configuration file not found
+      success_msg: SSH configuration file exists
+  - name: Get SSH configuration file content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/ssh/sshd_config
+    register: ssh_conf_content
+  - name: Assert SSH configuration has been properly updated
+    ansible.builtin.assert:
+      that:
+      - '''Protocol 2'' in ssh_conf_content.content | b64decode'
+      - '''Protocol 1,2'' not in ssh_conf_content.content | b64decode'
+      fail_msg: SSH configuration was not properly updated to fix POODLE vulnerability
+      success_msg: SSH configuration was properly updated to fix POODLE vulnerability
+  - name: Check Apache configuration syntax
+    ansible.builtin.command: apache2ctl configtest
+    changed_when: false
+    tags: molecule-notest
+  - name: Check SSL/TLS configuration with nmap
+    ansible.builtin.command: nmap --script ssl-enum-ciphers -p 443 localhost
+    changed_when: false
+    register: nmap_result
+    tags: molecule-notest
+  - name: Assert TLSv1.2 is enabled and SSLv3 is disabled
+    ansible.builtin.assert:
+      that:
+      - '''TLSv1.2'' in nmap_result.stdout'
+      - '''SSLv3'' not in nmap_result.stdout'
+    tags: molecule-notest
+  - name: Verify SSH configuration
+    ansible.builtin.command: sshd -t
+    changed_when: false
+    tags: molecule-notest
+  - name: Check for POODLE vulnerability (should fail after fix)
+    ansible.builtin.command: openssl s_client -connect localhost:443 -ssl3
+    register: openssl_result
+    failed_when: false
+    changed_when: false
+    tags: molecule-notest
+  - name: Assert SSLv3 connection fails (POODLE fix working)
+    ansible.builtin.assert:
+      that:
+      - openssl_result.rc != 0
+    tags: molecule-notest
+  - name: Check if Apache service is running
+    ansible.builtin.service_facts: null
+    tags: molecule-notest
+  - name: Assert Apache service is active
+    ansible.builtin.assert:
+      that:
+      - '''apache2.service'' in ansible_facts.services'
+      - ansible_facts.services['apache2.service'].state == 'running'
+    tags: molecule-notest
+  - name: Assert SSH service is active
+    ansible.builtin.assert:
+      that:
+      - '''sshd.service'' in ansible_facts.services'
+      - ansible_facts.services['sshd.service'].state == 'running'
+    tags: molecule-notest
