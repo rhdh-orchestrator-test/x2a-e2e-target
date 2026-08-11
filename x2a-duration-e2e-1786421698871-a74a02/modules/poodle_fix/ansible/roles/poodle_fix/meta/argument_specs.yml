@@ -1,0 +1,15 @@
+---
+argument_specs:
+  main:
+    short_description: Role to fix POODLE vulnerability in Apache SSL configuration
+    description: "This role updates Apache SSL configuration to mitigate the POODLE vulnerability by disabling vulnerable SSL protocols and enabling only TLSv1.2.\n"
+    author: x2a migration tool
+    options:
+      apache_config_path:
+        type: str
+        default: /etc/apache2/mods-available/ssl.conf
+        description: Path to Apache SSL configuration file
+      ssl_protocol_setting:
+        type: str
+        default: SSLProtocol -all +TLSv1.2
+        description: SSL protocol configuration string
