@@ -1,0 +1,43 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    poodle_fix_apache_config_path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    poodle_fix_ssl_protocol: -all +TLSv1.2
+    user_password: molecule_test_password
+  tasks:
+  - name: Create directory structure for Apache config
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc/apache2/mods-available
+  - name: Create mock Apache SSL config file
+    ansible.builtin.copy:
+      content: '# Mock Apache SSL configuration file
+
+        SSLEngine on
+
+        SSLCertificateFile /etc/ssl/certs/ssl-cert-snakeoil.pem
+
+        SSLCertificateKeyFile /etc/ssl/private/ssl-cert-snakeoil.key
+
+        SSLProtocol all -SSLv3
+
+        '
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      mode: '0644'
+  - name: Validate credential variables
+    ansible.builtin.assert:
+      that:
+      - user_password is defined
+      fail_msg: One or more required credential variables are not defined. Ensure the AAP credential type is attached to the job template.
+      quiet: true
+  - name: Fix SSL in Apache
+    ansible.builtin.replace:
+      path: '{{ poodle_fix_apache_config_path }}'
+      regexp: ^SSLProtocol.*$
+      replace: SSLProtocol {{ poodle_fix_ssl_protocol }}
+      mode: '0644'
+      backup: true
