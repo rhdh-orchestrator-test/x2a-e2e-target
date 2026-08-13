@@ -1,0 +1,17 @@
+---
+- name: Ensure Apache is installed
+  ansible.builtin.package:
+    name: apache2
+    state: present
+- name: Check if Apache SSL module is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/mods-available/ssl.conf
+  register: ssl_conf_file
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    dest: /etc/apache2/mods-available/ssl.conf
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol -all +TLSv1.2
+  when: ssl_conf_file.stat.exists
+  notify:
+    - Restart apache
