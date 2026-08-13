@@ -1,0 +1,9 @@
+- name: Install redis server package
+  ansible.builtin.package:
+    name: '{{ redis_package_name }}'
+    state: present
+- name: Enable and start redis server
+  ansible.builtin.service:
+    name: '{{ redis_service_name }}'
+    state: started
+    enabled: true
