@@ -1,0 +1,78 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Check if Apache SSL config file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_conf_file
+  - name: Assert SSL config file exists
+    ansible.builtin.assert:
+      that:
+      - ssl_conf_file.stat.exists
+      - ssl_conf_file.stat.isreg
+      fail_msg: Apache SSL configuration file not found
+      success_msg: Apache SSL configuration file exists
+  - name: Get SSL config file content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_conf_content
+    when: ssl_conf_file.stat.exists
+  - name: Assert SSL protocol is properly configured
+    ansible.builtin.assert:
+      that:
+      - ssl_conf_content.content | b64decode | regex_search('SSLProtocol -all \+TLSv1\.2')
+      fail_msg: SSL protocol configuration not properly updated
+      success_msg: SSL protocol configuration correctly updated to disable vulnerable protocols
+    when: ssl_conf_file.stat.exists
+  - name: Check if SSH config file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/ssh/sshd_config
+    register: ssh_conf_file
+  - name: Assert SSH config file exists
+    ansible.builtin.assert:
+      that:
+      - ssh_conf_file.stat.exists
+      - ssh_conf_file.stat.isreg
+      fail_msg: SSH configuration file not found
+      success_msg: SSH configuration file exists
+  - name: Get SSH config file content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/ssh/sshd_config
+    register: ssh_conf_content
+    when: ssh_conf_file.stat.exists
+  - name: Assert SSH protocol is properly configured
+    ansible.builtin.assert:
+      that:
+      - ssh_conf_content.content | b64decode | regex_search('Protocol 2')
+      fail_msg: SSH protocol configuration not properly updated
+      success_msg: SSH protocol configuration correctly updated to disable vulnerable protocols
+    when: ssh_conf_file.stat.exists
+  - name: Verify Apache configuration syntax
+    ansible.builtin.command: apache2ctl -t
+    changed_when: false
+    tags: molecule-notest
+  - name: Check Apache service status
+    ansible.builtin.service_facts: null
+    tags: molecule-notest
+  - name: Assert Apache service is running
+    ansible.builtin.assert:
+      that:
+      - '''apache2.service'' in ansible_facts.services'
+      - ansible_facts.services['apache2.service'].state == 'running'
+      fail_msg: Apache service is not running
+      success_msg: Apache service is running
+    tags: molecule-notest
+  - name: Assert SSH service is running
+    ansible.builtin.assert:
+      that:
+      - '''sshd.service'' in ansible_facts.services'
+      - ansible_facts.services['sshd.service'].state == 'running'
+      fail_msg: SSH service is not running
+      success_msg: SSH service is running
+    tags: molecule-notest
+  - name: Test SSL/TLS configuration
+    ansible.builtin.command: nmap --script ssl-enum-ciphers -p 443 localhost
+    register: nmap_result
+    changed_when: false
+    tags: molecule-notest
