@@ -1,0 +1,22 @@
+---
+- name: Install redis-server package
+  ansible.builtin.package:
+    name: "{{ redis_package_name }}"
+    state: present
+- name: Ensure Redis configuration directory exists
+  ansible.builtin.file:
+    path: /etc/redis
+    state: directory
+    mode: "0755"
+- name: Deploy Redis configuration file
+  ansible.builtin.copy:
+    content: "# Redis configuration file\nport 6379\nbind 127.0.0.1\ndaemonize yes\npidfile /var/run/redis/redis-server.pid\nlogfile /var/log/redis/redis-server.log\n\
+      dir /var/lib/redis\n"
+    dest: /etc/redis/redis.conf
+    mode: "0644"
+  notify: Restart redis
+- name: Enable and start redis-server service
+  ansible.builtin.service:
+    name: "{{ redis_service_name }}"
+    state: started
+    enabled: true
