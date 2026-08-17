@@ -1,0 +1,31 @@
+# Redis configuration file
+
+# Network
+port 6379
+bind 127.0.0.1
+
+# General
+daemonize yes
+pidfile /var/run/redis/redis-server.pid
+loglevel notice
+logfile /var/log/redis/redis-server.log
+
+# Memory management
+maxmemory {{ redis_max_memory | default('128mb') }}
+maxmemory-policy {{ redis_max_memory_policy | default('allkeys-lru') }}
+
+# Persistence
+dir /var/lib/redis
+dbfilename dump.rdb
+save 900 1
+save 300 10
+save 60 10000
+
+# Advanced
+tcp-keepalive 300
+timeout 0
+tcp-backlog 511
+
+# Unix socket
+unixsocket /var/run/redis/redis-server.sock
+unixsocketperm 700
