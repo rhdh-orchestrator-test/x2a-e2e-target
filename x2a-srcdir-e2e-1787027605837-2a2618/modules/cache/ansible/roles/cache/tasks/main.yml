@@ -1,0 +1,24 @@
+---
+- name: Install redis server
+  ansible.builtin.package:
+    name: "{{ redis_package }}"
+    state: present
+- name: Ensure Redis configuration directory exists
+  ansible.builtin.file:
+    path: /etc/redis
+    state: directory
+    mode: "0755"
+  when: ansible_os_family != "RedHat"
+- name: Ensure Redis data directory exists
+  ansible.builtin.file:
+    path: /var/lib/redis
+    state: directory
+    mode: "0755"
+    owner: redis
+    group: redis
+  ignore_errors: true
+- name: Enable and start redis server
+  ansible.builtin.service:
+    name: "{{ redis_service }}"
+    state: started
+    enabled: true
