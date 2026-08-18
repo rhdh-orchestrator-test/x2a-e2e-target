@@ -1,95 +1,130 @@
-# MIGRATION FROM CHEF/ANSIBLE TO ANSIBLE
+# MIGRATION FROM CHEF INSPEC AND ANSIBLE TO ANSIBLE
 
 ## Executive Summary
 
-This repository contains a mix of Chef Automate/Infra Server setup scripts and Ansible playbooks that are used for demonstration and educational purposes. The repository appears to be focused on showing how Chef InSpec can be used alongside Ansible for compliance automation, rather than being a production infrastructure codebase.
+This repository contains a combination of Chef InSpec tests and Ansible playbooks that are used together to demonstrate compliance automation. The primary focus is on using Chef InSpec for compliance testing alongside Ansible for configuration management. The migration will involve consolidating these technologies into a pure Ansible solution, leveraging Ansible's native testing capabilities or integrating with other testing frameworks.
 
-The migration scope is relatively small, as most of the Ansible code is already in place. The main migration effort will involve:
+The repository is relatively small and focused, containing:
+- 2 Ansible playbooks for configuring web servers with HTTPS
+- 2 Chef InSpec test files for verifying compliance
+- 2 Shell scripts for deploying Chef Automate and Chef Infra Server
 
-1. Converting the Chef Automate and Chef Infra Server setup scripts to Ansible playbooks
-2. Ensuring the existing Ansible playbooks follow best practices
-3. Organizing the codebase into a proper Ansible project structure
-
-Given the limited scope, this migration could be completed in approximately 1-2 days by a single engineer familiar with both Chef and Ansible.
+Estimated migration complexity: **Low to Medium**
+Estimated timeline: **1-2 weeks**
 
 ## Module Migration Plan
 
-This repository contains a mix of Ansible playbooks and Chef setup scripts that need individual migration planning:
+This repository contains a mix of Ansible playbooks and Chef InSpec tests that need individual migration planning:
 
 ### MODULE INVENTORY
 
 - **website_https**:
-    - Description: Ansible playbook that sets up an Apache web server with HTTPS enabled using self-signed certificates
+    - Description: Ansible playbook that configures an Apache web server with HTTPS using self-signed certificates
     - Path: chef-and-ansible/website_https.yml
     - Technology: Ansible
-    - Key Features: Apache configuration, SSL certificate generation, virtual host setup
+    - Key Features: Apache installation, SSL certificate generation, virtual host configuration
 
 - **poodle_fix**:
-    - Description: Ansible playbook that fixes SSL configuration in Apache to address the POODLE vulnerability
+    - Description: Ansible playbook that remediates SSL POODLE vulnerability by disabling SSLv3 and enabling only TLSv1.2
     - Path: chef-and-ansible/poodle_fix.yml
     - Technology: Ansible
-    - Key Features: Disables SSLv3, enables TLSv1.2 only
+    - Key Features: Apache SSL configuration hardening
 
-- **chef-automate-setup**:
-    - Description: Bash script that deploys Chef Automate and Chef Infra Server
+- **website_https_verify**:
+    - Description: Chef InSpec test that verifies HTTPS is properly configured on port 443
+    - Path: chef-and-ansible/tests/website_https_verify.rb
+    - Technology: Chef InSpec
+    - Key Features: Port listening check, HTTPS response verification, SSL protocol verification
+
+- **ssh_profile**:
+    - Description: Chef InSpec profile that verifies SSH root login is disabled for security compliance
+    - Path: chef-and-ansible/tests/ssh_profile.rb
+    - Technology: Chef InSpec
+    - Key Features: SSH configuration verification, security compliance check
+
+- **chef-automate-deployment**:
+    - Description: Shell script to deploy Chef Automate and Chef Infra Server
     - Path: setup-automate/deploy-automate.sh
     - Technology: Bash/Chef
-    - Key Features: Chef Automate installation, Chef Infra Server setup, user and organization creation
+    - Key Features: Chef Automate installation, user and organization creation
 
-- **chef-server-setup**:
-    - Description: Bash script that deploys Chef Infra Server without Automate
+- **chef-server-deployment**:
+    - Description: Shell script to deploy Chef Infra Server without Automate
     - Path: setup-automate/deploy-chef-server.sh
     - Technology: Bash/Chef
-    - Key Features: Chef Infra Server installation, user and organization creation
+    - Key Features: Chef Server installation, user and organization creation
 
 ### Infrastructure Files
 
-- `kitchen.yml`: Test Kitchen configuration for testing Ansible playbooks with Vagrant
-- `tests/website_https_verify.rb`: Chef InSpec test file for verifying the HTTPS website deployment
-- `index.html`: Sample HTML file for testing
+- `kitchen.yml`: Test Kitchen configuration for running Ansible playbooks and InSpec tests. Will need to be replaced with Ansible-native testing framework.
+- `index.html`: Static HTML content for the web server. Can be directly used in Ansible.
 
 ### Target Details
 
-Based on the source configuration files:
+Based on the source repository analysis:
 
 - **Operating System**: Ubuntu 20.04 (explicitly specified in kitchen.yml)
-- **Virtual Machine Technology**: Vagrant (used in Test Kitchen configuration)
-- **Cloud Platform**: Not specified, appears to be designed for on-premises or generic cloud VMs
+- **Virtual Machine Technology**: Vagrant (specified in kitchen.yml driver)
+- **Cloud Platform**: Not specified, appears to be targeting on-premises or generic cloud VMs
 
 ## Migration Approach
 
 ### Key Dependencies to Address
 
-- **Chef Automate CLI**: Replace with Ansible roles for configuration management
-- **Chef Server CLI**: Replace with Ansible roles for configuration management
-- **Test Kitchen with Vagrant**: Can be retained but updated to use Ansible-native testing approaches
-- **Chef InSpec**: Can be retained as a compliance testing tool alongside Ansible
+- **Chef InSpec**: Replace with Ansible-native testing solutions:
+  - Option 1: Use Ansible's `assert` module for basic compliance checks
+  - Option 2: Integrate with Molecule for more comprehensive testing
+  - Option 3: Use ansible-lint for static analysis of playbooks
+  - Option 4: Consider migrating to OpenSCAP or DISA STIG tools that integrate with Ansible
+
+- **Test Kitchen**: Replace with:
+  - Molecule for Ansible role testing
+  - Ansible Tower/AWX for orchestration and testing
+
+- **Chef Automate/Infra Server**: Replace deployment scripts with:
+  - Ansible playbooks for deploying alternative compliance platforms
+  - Consider migrating to Ansible Tower/AWX for centralized management
 
 ### Security Considerations
 
-- **SSL/TLS Configuration**: The poodle_fix.yml playbook addresses the POODLE vulnerability by enforcing TLSv1.2. This security practice should be maintained in the migrated solution.
-- **Self-signed Certificates**: The website_https.yml playbook generates self-signed certificates. In a production environment, consider using Let's Encrypt or another trusted CA.
-- **Vault/secrets management**: 
-  - Hardcoded credentials in setup scripts (username, password) should be moved to Ansible Vault
-  - SSL certificate handling should follow Ansible best practices for secure key management
+- **SSL Configuration**: The playbooks configure Apache with SSL. Migration must maintain:
+  - Self-signed certificate generation
+  - Proper SSL protocol configuration (TLSv1.2 only)
+  - Virtual host SSL configuration
+
+- **SSH Hardening**: The InSpec tests verify SSH security. Migration must:
+  - Implement equivalent checks for SSH root login
+  - Maintain compliance with security standards referenced (SRG-OS-000112, V-38607)
+
+- **Vault/secrets management**:
+  - Hardcoded credentials in setup scripts (username, password) should be migrated to Ansible Vault
+  - Count: 2 credential sets in deployment scripts
 
 ### Technical Challenges
 
-- **Chef Automate Deployment**: Converting the Chef Automate deployment script to Ansible will require careful handling of the installation process, which may involve multiple steps and dependencies.
-- **InSpec Integration**: Ensuring that Chef InSpec tests continue to work with the Ansible-managed infrastructure will require proper test integration.
+- **InSpec to Ansible Testing**: Converting InSpec tests to Ansible assertions or other testing frameworks will require:
+  - Understanding the compliance requirements being tested
+  - Implementing equivalent checks using Ansible modules
+  - Ensuring the same level of reporting and documentation
+
+- **Deployment Script Migration**: The Chef deployment scripts need to be converted to:
+  - Ansible playbooks that can deploy alternative compliance platforms
+  - Or documentation on how to use Ansible Tower/AWX instead
 
 ### Migration Order
 
-1. Create proper Ansible project structure (roles, playbooks, inventory)
-2. Migrate Chef server setup scripts to Ansible playbooks (moderate complexity)
-3. Refactor existing Ansible playbooks to follow best practices (low complexity)
-4. Update testing framework to work with the new structure (low complexity)
+1. **website_https.yml** (Priority 1): Already an Ansible playbook, requires minimal changes
+2. **poodle_fix.yml** (Priority 1): Already an Ansible playbook, requires minimal changes
+3. **InSpec Tests** (Priority 2): Convert to Ansible-native testing solutions
+4. **Deployment Scripts** (Priority 3): Replace with Ansible playbooks or documentation
 
 ### Assumptions
 
-1. The repository is primarily for demonstration purposes and not a production codebase
-2. The existing Ansible playbooks (website_https.yml, poodle_fix.yml) are working correctly
-3. Chef InSpec will continue to be used for compliance testing alongside Ansible
-4. The target environment will remain Ubuntu 20.04 on Vagrant VMs
-5. No external dependencies or integrations beyond what's visible in the codebase
-6. The hardcoded credentials in the setup scripts are for demonstration only and not used in production
+1. The primary goal is to consolidate on Ansible and remove Chef InSpec dependencies
+2. The compliance requirements in the InSpec tests must be maintained in the Ansible solution
+3. The deployment scripts for Chef Automate/Infra Server are not critical to the application functionality but are used for setting up the management platform
+4. Test Kitchen is only used for development/testing and not in production
+5. No external Chef cookbooks or recipes are being used beyond what's visible in the repository
+6. The target environment will continue to be Ubuntu 20.04 or compatible systems
+7. The self-signed certificates are acceptable for the environment (not production)
+8. No external dependencies or integrations beyond what's visible in the code
