@@ -1,0 +1,73 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create expected directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc/chef-automate
+    - /tmp/molecule_test/etc/hostname
+    - /tmp/molecule_test/proc/sys/vm
+    - /tmp/molecule_test/root
+    - /tmp/molecule_test/tmp
+    - /tmp/molecule_test/usr/bin
+  - name: Create hostname file
+    ansible.builtin.copy:
+      content: '{{ deploy_automate_hostname | default(''automate.chef.lab'') }}'
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+  - name: Create sysctl files
+    ansible.builtin.copy:
+      content: '{{ item.value }}'
+      dest: /tmp/molecule_test/proc/sys/vm/{{ item.name }}
+      mode: '0644'
+    loop:
+    - name: max_map_count
+      value: '{{ deploy_automate_vm_max_map_count | default(''262144'') }}'
+    - name: dirty_expire_centisecs
+      value: '{{ deploy_automate_vm_dirty_expire_centisecs | default(''20000'') }}'
+  - name: Create Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/sh echo ''Chef Automate CLI Mock'' '
+      dest: /tmp/molecule_test/root/chef-automate
+      mode: '0755'
+  - name: Create Chef Server CLI file
+    ansible.builtin.copy:
+      content: "#!/bin/sh\nif [ \"$1\" = \"user-list\" ]; then\n  echo \"admin\"\n  echo \"{{ username | default('admin') }}\"\nelif [ \"$1\" = \"org-list\" ]; then\n
+        \ echo \"chef\"\n  echo \"{{ organization_name | default('chef') }}\"\nelse\n  echo \"Chef Server CLI Mock\"\nfi\n"
+      dest: /tmp/molecule_test/usr/bin/chef-server-ctl
+      mode: '0755'
+  - name: Create Chef Automate config file
+    ansible.builtin.copy:
+      content: "# Mock Chef Automate config file\n[global]\n  v1 = true\n[deployment]\n  products = [\"automate\", \"infra-server\"]\n"
+      dest: /tmp/molecule_test/etc/chef-automate/config.toml
+      mode: '0644'
+  - name: Create user PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEAx4UbaDzY5xjW6hc9jwN0mX33XpTDVW9WqHp5AKaRbtAC3DqX
+
+        IXFMPgw3K57SLQX2XWQEuU+qaYja9gA3BQ==
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/tmp/{{ username | default('admin') }}.pem
+      mode: '0600'
+  - name: Create organization validator PEM file
+    ansible.builtin.copy:
+      content: '-----BEGIN RSA PRIVATE KEY-----
+
+        MIIEpAIBAAKCAQEAx4UbaDzY5xjW6hc9jwN0mX33XpTDVW9WqHp5AKaRbtAC3DqX
+
+        IXFMPgw3K57SLQX2XWQEuU+qaYja9gA3BQ==
+
+        -----END RSA PRIVATE KEY-----
+
+        '
+      dest: /tmp/molecule_test/tmp/{{ organization_name | default('chef') }}-validator.pem
+      mode: '0600'
