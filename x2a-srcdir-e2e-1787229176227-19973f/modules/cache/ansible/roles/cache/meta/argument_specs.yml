@@ -1,0 +1,27 @@
+---
+argument_specs:
+  main:
+    short_description: Simple cache cookbook - local dependency for testing
+    description:
+      - Installs and configures Redis server as a simple caching service.
+    options:
+      cache_redis_package:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis server package name.
+      cache_redis_service:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis service name.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port the Redis server listens on.
+      cache_redis_bind:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: IP address Redis server binds to.
