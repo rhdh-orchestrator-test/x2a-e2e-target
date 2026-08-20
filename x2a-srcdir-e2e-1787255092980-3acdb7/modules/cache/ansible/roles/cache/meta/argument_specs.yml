@@ -1,0 +1,28 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis server as a caching solution
+    description:
+      - Installs and configures Redis server for use as a caching solution
+      - Sets up a single Redis instance with default configuration
+    options:
+      cache_redis_package:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis server package name to install
+      cache_redis_service:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis server service name
+      cache_redis_service_state:
+        type: str
+        required: false
+        default: started
+        description: Desired state of the Redis service (started, stopped)
+      cache_redis_service_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether the Redis service should be enabled at boot time
