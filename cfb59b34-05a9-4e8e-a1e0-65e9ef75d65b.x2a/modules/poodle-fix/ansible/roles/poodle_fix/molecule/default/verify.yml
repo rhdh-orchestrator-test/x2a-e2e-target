@@ -1,0 +1,55 @@
+- name: Verify
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Check if Apache SSL config file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_config_file
+  - name: Assert SSL config file exists
+    ansible.builtin.assert:
+      that:
+      - ssl_config_file.stat.exists
+      - ssl_config_file.stat.isreg
+      fail_msg: Apache SSL config file not found
+      success_msg: Apache SSL config file exists
+  - name: Get SSL config file content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_config_content
+  - name: Assert SSLProtocol line has been updated correctly
+    ansible.builtin.assert:
+      that:
+      - (ssl_config_content.content | b64decode) is regex('SSLProtocol -all \+TLSv1\.2')
+      - (ssl_config_content.content | b64decode) is not regex('SSLProtocol all -SSLv3')
+      fail_msg: SSLProtocol line was not updated correctly
+      success_msg: SSLProtocol line was updated correctly to disable vulnerable protocols
+  - name: Verify Apache configuration syntax
+    ansible.builtin.command: apache2ctl configtest
+    changed_when: false
+    tags: molecule-notest
+  - name: Check Apache service status
+    ansible.builtin.service_facts: null
+    tags: molecule-notest
+  - name: Assert Apache service is running
+    ansible.builtin.assert:
+      that:
+      - '''apache2.service'' in ansible_facts.services'
+      - ansible_facts.services['apache2.service'].state == 'running'
+      fail_msg: Apache service is not running
+      success_msg: Apache service is running
+    tags: molecule-notest
+  - name: Assert SSH service is running
+    ansible.builtin.assert:
+      that:
+      - '''sshd.service'' in ansible_facts.services'
+      - ansible_facts.services['sshd.service'].state == 'running'
+      fail_msg: SSH service is not running
+      success_msg: SSH service is running
+    tags: molecule-notest
+  - name: Test SSL/TLS security with OpenSSL
+    ansible.builtin.command: openssl s_client -connect localhost:443 -tls1_2
+    changed_when: false
+    register: openssl_result
+    failed_when: openssl_result.rc != 0
+    tags: molecule-notest

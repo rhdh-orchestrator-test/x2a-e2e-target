@@ -1,0 +1,16 @@
+---
+- name: Check services
+  ansible.builtin.service_facts:
+  listen: Check services
+- name: Restart apache
+  ansible.builtin.service:
+    name: apache2
+    state: restarted
+  when: "'apache2.service' in ansible_facts.services"
+  listen: Restart apache
+- name: Restart sshd
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
+  when: "'sshd.service' in ansible_facts.services"
+  listen: Restart sshd
