@@ -1,0 +1,20 @@
+# Redis configuration file
+
+# Accept connections on the specified port
+port {{ cache_redis_port }}
+
+# Bind to the specified IP address
+bind {{ cache_redis_bind }}
+
+# Specify the path for the Unix socket
+unixsocket /var/run/redis/redis-server.sock
+unixsocketperm 700
+
+# Specify the log file name
+logfile /var/log/redis/redis-server.log
+
+# The working directory
+dir /var/lib/redis
+
+# Run as a daemon
+daemonize yes
