@@ -1,0 +1,29 @@
+- name: Check if user PEM file exists
+  ansible.builtin.stat:
+    path: '{{ ansible_env.PWD }}/{{ automate_user_pem_filename }}'
+  register: user_pem_file
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create {{ username | default('jtonello') }} "{{ full_name | default('John Tonello') }}" {{ email | default('jtonello@chef.lab') }} "{{
+      password | default('password') }}" --filename {{ automate_user_pem_filename }}
+  args:
+    creates: '{{ ansible_env.PWD }}/{{ automate_user_pem_filename }}'
+  become: true
+  register: create_user_result
+  changed_when: create_user_result.rc == 0
+  no_log: true
+  when: not user_pem_file.stat.exists
+- name: Check if organization validator PEM file exists
+  ansible.builtin.stat:
+    path: '{{ ansible_env.PWD }}/{{ automate_org_validator_pem_filename }}'
+  register: org_validator_pem_file
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create {{ automate_org_name }} "{{ automate_org_full_name }}" --association_user {{ username | default('jtonello') }} --filename {{ automate_org_validator_pem_filename
+      }}
+  args:
+    creates: '{{ ansible_env.PWD }}/{{ automate_org_validator_pem_filename }}'
+  become: true
+  register: create_org_result
+  changed_when: create_org_result.rc == 0
+  when: not org_validator_pem_file.stat.exists
