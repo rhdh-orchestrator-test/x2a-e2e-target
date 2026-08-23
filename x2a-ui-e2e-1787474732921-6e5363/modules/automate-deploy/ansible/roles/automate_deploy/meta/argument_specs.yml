@@ -1,0 +1,68 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy Chef Automate and Chef Infra Server
+    description:
+      - Deploys Chef Automate and Chef Infra Server on a target system
+      - Configures system settings, downloads Chef Automate CLI, deploys products
+      - Creates initial users and organizations
+    options:
+      automate_hostname:
+        type: str
+        required: false
+        default: automate.chef.lab
+        description: Hostname to set for the Chef Automate server
+      automate_vm_max_map_count:
+        type: int
+        required: false
+        default: 262144
+        description: Value for vm.max_map_count kernel parameter
+      automate_vm_dirty_expire_centisecs:
+        type: int
+        required: false
+        default: 20000
+        description: Value for vm.dirty_expire_centisecs kernel parameter
+      automate_cli_url:
+        type: str
+        required: false
+        default: https://packages.chef.io/files/current/latest/chef-automate-cli/chef-automate_linux_amd64.zip
+        description: URL to download Chef Automate CLI
+      automate_accept_terms_and_mlsa:
+        type: bool
+        required: false
+        default: true
+        description: Whether to accept Chef's terms and MLSA agreement
+      automate_products:
+        type: list
+        elements: str
+        required: false
+        default:
+          - automate
+          - infra-server
+        description: List of Chef products to deploy
+      automate_org_name:
+        type: str
+        required: false
+        default: lab
+        description: Short name for the Chef organization
+      automate_org_full_name:
+        type: str
+        required: false
+        default: Chef Lab
+        description: Full name for the Chef organization
+      username:
+        type: str
+        required: true
+        description: Username for the Chef user. Injected by AAP credential type.
+      full_name:
+        type: str
+        required: true
+        description: Full name for the Chef user. Injected by AAP credential type.
+      email:
+        type: str
+        required: true
+        description: Email for the Chef user. Injected by AAP credential type.
+      password:
+        type: str
+        required: true
+        description: Password for the Chef user. Injected by AAP credential type.
