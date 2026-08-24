@@ -1,0 +1,14 @@
+- name: Install redis server
+  ansible.builtin.package:
+    name: '{{ cache_package_name }}'
+    state: present
+- name: Ensure Redis configuration directory exists
+  ansible.builtin.file:
+    path: /etc/redis
+    state: directory
+    mode: '0755'
+- name: Enable and start redis server
+  ansible.builtin.service:
+    name: '{{ cache_service_name }}'
+    state: started
+    enabled: true
