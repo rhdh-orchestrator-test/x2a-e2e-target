@@ -1,0 +1,37 @@
+- name: Install redis as a simple cache
+  ansible.builtin.package:
+    name: '{{ cache_redis_package }}'
+    state: present
+- name: Backup original Redis configuration
+  ansible.builtin.copy:
+    src: /etc/redis/redis.conf
+    dest: /etc/redis/redis.conf.default
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0644'
+    force: false
+  when: ansible_os_family != "RedHat"
+- name: Backup original Redis configuration (RedHat)
+  ansible.builtin.copy:
+    src: /etc/redis.conf
+    dest: /etc/redis.conf.default
+    remote_src: true
+    owner: root
+    group: root
+    mode: '0644'
+    force: false
+  when: ansible_os_family == "RedHat"
+- name: Configure Redis
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: '{{ ''/etc/redis.conf'' if ansible_os_family == ''RedHat'' else ''/etc/redis/redis.conf'' }}'
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart redis service
+- name: Enable and start redis service
+  ansible.builtin.service:
+    name: '{{ cache_redis_service }}'
+    state: started
+    enabled: true
