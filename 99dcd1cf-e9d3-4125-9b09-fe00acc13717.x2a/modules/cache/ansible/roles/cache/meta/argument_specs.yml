@@ -1,0 +1,38 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis server for caching
+    description:
+      - Installs and configures a Redis server instance for use as a cache
+      - Manages the Redis service and ensures it is running
+    options:
+      cache_redis_package:
+        type: str
+        required: false
+        default: redis-server
+        description: Package name for Redis server
+      cache_redis_service:
+        type: str
+        required: false
+        default: redis-server
+        description: Service name for Redis server
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port Redis server listens on
+      cache_redis_bind_address:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: IP address Redis server binds to
+      cache_redis_enable_service:
+        type: bool
+        required: false
+        default: true
+        description: Whether to enable the Redis service
+      cache_redis_start_service:
+        type: bool
+        required: false
+        default: true
+        description: Whether to start the Redis service
