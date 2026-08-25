@@ -1,0 +1,98 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ automate_deploy_hostname }}"
+  become: true
+- name: Configure kernel parameters for Chef Automate
+  ansible.posix.sysctl:
+    name: "{{ item_param['key'] }}"
+    value: "{{ item_param['value'] }}"
+    state: present
+    reload: true
+  loop: "{{ automate_deploy_kernel_params | dict2items }}"
+  loop_control:
+    loop_var: item_param
+  become: true
+- name: Ensure gzip package is installed
+  ansible.builtin.package:
+    name: gzip
+    state: present
+  become: true
+- name: Ensure directory for PEM files exists
+  ansible.builtin.file:
+    path: "{{ item.split('/')|reverse|rest|reverse|join('/') }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ automate_deploy_user_pem_path }}"
+    - "{{ automate_deploy_org_validator_pem_path }}"
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ automate_deploy_cli_url }}"
+    dest: "{{ automate_deploy_cli_path }}.gz"
+    mode: "0644"
+  become: true
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell: "gunzip -c {{ automate_deploy_cli_path }}.gz > {{ automate_deploy_cli_path }} "
+  args:
+    creates: "{{ automate_deploy_cli_path }}"
+  become: true
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ automate_deploy_cli_path }}"
+    mode: "0755"
+    state: file
+  become: true
+- name: Deploy Chef Automate and Chef Infra Server
+  ansible.builtin.command: "{{ automate_deploy_cli_path }} deploy --product automate --product infra-server --accept-terms-and-mlsa=true"
+  args:
+    creates: /hab
+  become: true
+  register: automate_deploy_result
+  async: 3600
+  poll: 30
+- name: Create Chef user
+  ansible.builtin.command: 'chef-server-ctl user-create {{ username }} {{ long_username }} {{ user_email }} "{{ user_password }}" --filename {{ automate_deploy_user_pem_path
+    }}
+
+    '
+  args:
+    creates: "{{ automate_deploy_user_pem_path }}"
+  become: true
+  register: user_create_result
+  notify: Save user PEM file
+- name: Set secure permissions on user PEM file
+  ansible.builtin.file:
+    path: "{{ automate_deploy_user_pem_path }}"
+    mode: "0600"
+    state: file
+  become: true
+  when: user_create_result.changed
+- name: Create Chef organization
+  ansible.builtin.command: 'chef-server-ctl org-create {{ org_name }} "{{ long_org_name }}" --association_user {{ username }} --filename {{ automate_deploy_org_validator_pem_path
+    }}
+
+    '
+  args:
+    creates: "{{ automate_deploy_org_validator_pem_path }}"
+  become: true
+  register: org_create_result
+  notify: Save org validator PEM file
+- name: Set secure permissions on organization validator PEM file
+  ansible.builtin.file:
+    path: "{{ automate_deploy_org_validator_pem_path }}"
+    mode: "0600"
+    state: file
+  become: true
+  when: org_create_result.changed
+- name: Save user PEM file content
+  ansible.builtin.set_fact:
+    user_pem_file: "{{ lookup('ansible.builtin.file', automate_deploy_user_pem_path) }}"
+  when: user_create_result.changed
+- name: Save organization validator PEM file content
+  ansible.builtin.set_fact:
+    org_validator_pem: "{{ lookup('ansible.builtin.file', automate_deploy_org_validator_pem_path) }}"
+  when: org_create_result.changed

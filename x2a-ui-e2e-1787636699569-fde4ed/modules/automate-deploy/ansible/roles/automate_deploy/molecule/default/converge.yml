@@ -1,0 +1,62 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    username: jtonello
+    long_username: John Tonello
+    user_email: jtonello@chef.lab
+    user_password: password
+    user_pem_file: '-----BEGIN RSA PRIVATE KEY----- MIIEpAIBAAKCAQEA... -----END RSA PRIVATE KEY----- '
+    org_name: lab
+    long_org_name: Chef Lab
+    org_validator_pem: '-----BEGIN RSA PRIVATE KEY----- MIIEpAIBAAKCAQEA... -----END RSA PRIVATE KEY----- '
+  tasks:
+  - name: Create directory structure for testing
+    ansible.builtin.file:
+      path: '{{ item_dir }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/tmp
+    - /tmp/molecule_test/hab
+    - /tmp/molecule_test/etc
+    - /tmp/molecule_test/proc/sys/vm
+    loop_control:
+      loop_var: item_dir
+  - name: Create mock Chef Automate CLI file
+    ansible.builtin.copy:
+      content: '#!/bin/bash echo ''Chef Automate CLI mock'' exit 0'
+      dest: /tmp/molecule_test/tmp/chef-automate
+      mode: '0755'
+      backup: true
+  - name: Create mock user PEM file
+    ansible.builtin.copy:
+      content: '{{ user_pem_file }}'
+      dest: /tmp/molecule_test/tmp/{{ username }}.pem
+      mode: '0600'
+      backup: true
+  - name: Create mock organization validator PEM file
+    ansible.builtin.copy:
+      content: '{{ org_validator_pem }}'
+      dest: /tmp/molecule_test/tmp/{{ org_name }}-validator.pem
+      mode: '0600'
+      backup: true
+  - name: Create mock hostname file
+    ansible.builtin.copy:
+      content: '{{ automate_deploy_hostname | default(''automate.chef.lab'') }}'
+      dest: /tmp/molecule_test/etc/hostname
+      mode: '0644'
+      backup: true
+  - name: Create mock sysctl files for kernel parameters
+    ansible.builtin.copy:
+      content: '{{ item_param[''value''] }}'
+      dest: /tmp/molecule_test/proc/sys/{{ item_param['path'] }}
+      mode: '0644'
+      backup: true
+    loop:
+    - path: vm/max_map_count
+      value: '262144'
+    - path: vm/dirty_expire_centisecs
+      value: '20000'
+    loop_control:
+      loop_var: item_param

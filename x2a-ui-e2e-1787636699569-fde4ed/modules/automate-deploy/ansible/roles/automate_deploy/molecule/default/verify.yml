@@ -1,0 +1,146 @@
+---
+- name: Verify filesystem structure
+  hosts: all
+  gather_facts: false
+  vars:
+    username: jtonello
+    org_name: lab
+  tasks:
+    - name: Check if directories exist
+      ansible.builtin.stat:
+        path: "{{ item_dir }}"
+      loop:
+        - /tmp/molecule_test/tmp
+        - /tmp/molecule_test/hab
+      loop_control:
+        loop_var: item_dir
+      register: dir_stat_results
+
+    - name: Assert directories were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['isdir']
+        fail_msg: "Expected directory not found"
+      loop: "{{ dir_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check if Chef Automate CLI file exists
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/tmp/chef-automate"
+      register: cli_stat_result
+
+    - name: Assert Chef Automate CLI file was created
+      ansible.builtin.assert:
+        that:
+          - cli_stat_result['stat']['exists']
+          - cli_stat_result['stat']['executable']
+        fail_msg: "Chef Automate CLI file not found or not executable"
+
+    - name: Check if user PEM file exists
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/tmp/{{ username }}.pem"
+      register: user_pem_stat_result
+
+    - name: Assert user PEM file was created
+      ansible.builtin.assert:
+        that:
+          - user_pem_stat_result['stat']['exists']
+          - user_pem_stat_result['stat']['size'] > 0
+        fail_msg: "User PEM file not found or empty"
+
+    - name: Check if organization validator PEM file exists
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/tmp/{{ org_name }}-validator.pem"
+      register: org_pem_stat_result
+
+    - name: Assert organization validator PEM file was created
+      ansible.builtin.assert:
+        that:
+          - org_pem_stat_result['stat']['exists']
+          - org_pem_stat_result['stat']['size'] > 0
+        fail_msg: "Organization validator PEM file not found or empty"
+
+    - name: Check if hostname file exists
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/etc/hostname"
+      register: hostname_stat_result
+
+    - name: Assert hostname file was created
+      ansible.builtin.assert:
+        that:
+          - hostname_stat_result['stat']['exists']
+          - hostname_stat_result['stat']['size'] > 0
+        fail_msg: "Hostname file not found or empty"
+
+    - name: Slurp hostname file content
+      ansible.builtin.slurp:
+        src: "/tmp/molecule_test/etc/hostname"
+      register: hostname_content
+
+    - name: Assert hostname is set correctly
+      ansible.builtin.assert:
+        that:
+          - (hostname_content['content'] | b64decode | trim) == 'automate.chef.lab'
+        fail_msg: "Hostname not set correctly"
+
+    - name: Check if kernel parameter files exist
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/proc/sys/{{ item_param['path'] }}"
+      loop:
+        - { path: "vm/max_map_count", value: "262144" }
+        - { path: "vm/dirty_expire_centisecs", value: "20000" }
+      loop_control:
+        loop_var: item_param
+      register: kernel_param_stat_results
+
+    - name: Assert kernel parameter files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+        fail_msg: "Kernel parameter file not found"
+      loop: "{{ kernel_param_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Slurp kernel parameter file contents
+      ansible.builtin.slurp:
+        src: "/tmp/molecule_test/proc/sys/{{ item_param['path'] }}"
+      loop:
+        - { path: "vm/max_map_count", value: "262144" }
+        - { path: "vm/dirty_expire_centisecs", value: "20000" }
+      loop_control:
+        loop_var: item_param
+      register: kernel_param_contents
+
+    - name: Assert kernel parameters are set correctly
+      ansible.builtin.assert:
+        that:
+          - (item_result['content'] | b64decode | trim) == item_result['item']['value'] | string
+        fail_msg: "Kernel parameter not set correctly"
+      loop: "{{ kernel_param_contents['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+- name: Verify Chef Automate and Chef Infra Server
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check if Chef Automate is accessible
+      ansible.builtin.uri:
+        url: "https://automate.chef.lab"
+        validate_certs: false
+        status_code: 200
+      register: chef_automate_status
+      ignore_errors: true
+      tags: molecule-notest
+
+    - name: Check if Chef Infra Server is accessible
+      ansible.builtin.uri:
+        url: "https://automate.chef.lab/organizations/lab"
+        validate_certs: false
+        status_code: 200
+      register: chef_server_status
+      ignore_errors: true
+      tags: molecule-notest

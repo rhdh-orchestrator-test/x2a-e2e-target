@@ -1,0 +1,65 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy Chef Automate and Chef Infra Server
+    description:
+      - Deploys Chef Automate and Chef Infra Server on a Linux system
+      - Sets system hostname and kernel parameters
+      - Creates initial user and organization
+    options:
+      automate_deploy_hostname:
+        type: str
+        required: false
+        default: automate.chef.lab
+        description: Hostname to set for the Chef Automate server
+      username:
+        type: str
+        required: true
+        description: Username for the Chef admin user (injected by AAP credential)
+      long_username:
+        type: str
+        required: true
+        description: Full name for the Chef admin user (injected by AAP credential)
+      user_email:
+        type: str
+        required: true
+        description: Email address for the Chef admin user (injected by AAP credential)
+      user_password:
+        type: str
+        required: true
+        description: Password for the Chef admin user (injected by AAP credential)
+      org_name:
+        type: str
+        required: true
+        description: Short name for the Chef organization (injected by AAP credential)
+      long_org_name:
+        type: str
+        required: true
+        description: Full name for the Chef organization (injected by AAP credential)
+      automate_deploy_kernel_params:
+        type: dict
+        required: false
+        default:
+          vm.max_map_count: 262144
+          vm.dirty_expire_centisecs: 20000
+        description: Kernel parameters required for Chef Automate
+      automate_deploy_cli_url:
+        type: str
+        required: false
+        default: https://packages.chef.io/files/current/latest/chef-automate-cli/chef-automate_linux_amd64.zip
+        description: URL to download the Chef Automate CLI
+      automate_deploy_cli_path:
+        type: str
+        required: false
+        default: /tmp/chef-automate
+        description: Path where the Chef Automate CLI will be saved
+      automate_deploy_user_pem_path:
+        type: str
+        required: false
+        default: /tmp/{{ username }}.pem
+        description: Path where the user PEM file will be saved
+      automate_deploy_org_validator_pem_path:
+        type: str
+        required: false
+        default: /tmp/{{ org_name }}-validator.pem
+        description: Path where the organization validator PEM file will be saved
