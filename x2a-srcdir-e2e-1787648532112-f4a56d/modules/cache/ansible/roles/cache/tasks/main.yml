@@ -1,0 +1,17 @@
+- name: Install Redis server package
+  ansible.builtin.package:
+    name: '{{ cache_redis_package }}'
+    state: present
+- name: Configure Redis server
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: /etc/redis/redis.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Redis service
+- name: Enable and start Redis server
+  ansible.builtin.service:
+    name: '{{ cache_redis_service }}'
+    state: '{{ ''started'' if cache_redis_started else ''stopped'' }}'
+    enabled: '{{ cache_redis_enabled }}'
