@@ -1,0 +1,43 @@
+---
+argument_specs:
+  main:
+    short_description: Simple cache role that installs and configures Redis server
+    description:
+      - Installs Redis server as a caching solution
+      - Enables and starts the Redis service with default configuration
+    options:
+      cache_redis_package:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis server package name
+      cache_redis_service:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis service name
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: Redis port
+      cache_redis_bind:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: Redis bind address (default is localhost only)
+      cache_redis_conf_dir:
+        type: str
+        required: false
+        default: /etc/redis
+        description: Redis configuration directory
+      cache_redis_data_dir:
+        type: str
+        required: false
+        default: /var/lib/redis
+        description: Redis data directory
+      cache_redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Redis log directory

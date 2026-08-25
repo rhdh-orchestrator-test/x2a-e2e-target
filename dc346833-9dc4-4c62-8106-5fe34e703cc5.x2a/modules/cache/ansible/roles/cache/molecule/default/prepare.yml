@@ -1,0 +1,23 @@
+- name: Prepare
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Create Redis user and group
+    ansible.builtin.user:
+      name: redis
+      group: redis
+      system: true
+      create_home: false
+      shell: /sbin/nologin
+  - name: Create Redis directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+      owner: redis
+      group: redis
+    loop:
+    - /tmp/molecule_test/etc/redis
+    - /tmp/molecule_test/var/lib/redis
+    - /tmp/molecule_test/var/log/redis
+    - /tmp/molecule_test/var/run/redis

@@ -1,0 +1,43 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    cache_redis_conf_dir: /tmp/molecule_test/etc/redis
+    cache_redis_data_dir: /tmp/molecule_test/var/lib/redis
+    cache_redis_log_dir: /tmp/molecule_test/var/log/redis
+  tasks:
+  - name: Create Redis configuration file
+    ansible.builtin.copy:
+      content: '# Redis configuration file
+
+        port 6379
+
+        bind 127.0.0.1
+
+        daemonize yes
+
+        pidfile /var/run/redis/redis-server.pid
+
+        logfile /var/log/redis/redis-server.log
+
+        dir /var/lib/redis
+
+        '
+      dest: /tmp/molecule_test/etc/redis/redis.conf
+      mode: '0644'
+      backup: true
+  - name: Create Redis log file
+    ansible.builtin.copy:
+      content: '# Redis server log file '
+      dest: /tmp/molecule_test/var/log/redis/redis-server.log
+      mode: '0644'
+      backup: true
+  - name: Include cache role
+    ansible.builtin.include_role:
+      name: cache
+    vars:
+      cache_redis_package: redis-server
+      cache_redis_service: redis-server
+      cache_redis_conf_dir: /tmp/molecule_test/etc/redis
+      cache_redis_data_dir: /tmp/molecule_test/var/lib/redis
+      cache_redis_log_dir: /tmp/molecule_test/var/log/redis
