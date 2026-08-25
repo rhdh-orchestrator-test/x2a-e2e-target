@@ -1,0 +1,44 @@
+---
+- name: Ensure directories for key files exist
+  ansible.builtin.file:
+    path: "{{ item | dirname }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ chef_automate_user_key_path }}"
+    - "{{ chef_automate_validator_key_path }}"
+- name: Create admin user
+  ansible.builtin.command:
+    cmd: chef-server-ctl user-create  {{ chef_automate_username }}  {{ chef_automate_longusername }}  {{ chef_automate_useremail }}  "{{ admin_password }}"
+      --filename {{ chef_automate_user_key_path }}
+  become: true
+  args:
+    creates: "{{ chef_automate_user_key_path }}"
+  register: create_user_result
+  changed_when: create_user_result.rc == 0
+  failed_when: create_user_result.rc != 0
+  no_log: true
+- name: Create organization and associate admin user
+  ansible.builtin.command:
+    cmd: chef-server-ctl org-create  {{ chef_automate_orgname }}  "{{ chef_automate_longorgname }}"  --association_user {{ chef_automate_username }}  --filename
+      {{ chef_automate_validator_key_path }}
+  become: true
+  args:
+    creates: "{{ chef_automate_validator_key_path }}"
+  register: create_org_result
+  changed_when: create_org_result.rc == 0
+  failed_when: create_org_result.rc != 0
+- name: Save user key content to AAP credential
+  ansible.builtin.copy:
+    content: "{{ user_key | default('') }}"
+    dest: "{{ chef_automate_user_key_path }}"
+    mode: "0600"
+    backup: true
+  when: user_key is defined and user_key | length > 0
+- name: Save validator key content to AAP credential
+  ansible.builtin.copy:
+    content: "{{ validator_key | default('') }}"
+    dest: "{{ chef_automate_validator_key_path }}"
+    mode: "0600"
+    backup: true
+  when: validator_key is defined and validator_key | length > 0

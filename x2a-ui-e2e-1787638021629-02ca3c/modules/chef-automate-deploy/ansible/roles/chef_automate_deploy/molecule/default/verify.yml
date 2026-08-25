@@ -1,0 +1,215 @@
+---
+- name: Verify system configuration
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check hostname file
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/etc/hostname"
+      register: hostname_file
+
+    - name: Assert hostname file exists
+      ansible.builtin.assert:
+        that:
+          - hostname_file.stat.exists
+          - hostname_file.stat.size > 0
+        fail_msg: "Hostname file not found or empty"
+
+    - name: Check kernel parameter files
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/proc/sys/vm/{{ item_param['name'] | regex_replace('^vm\\.', '') }}"
+      loop:
+        - name: vm.max_map_count
+        - name: vm.dirty_expire_centisecs
+      loop_control:
+        loop_var: item_param
+      register: kernel_param_files
+
+    - name: Assert kernel parameter files exist
+      ansible.builtin.assert:
+        that:
+          - item_result.stat.exists
+          - item_result.stat.size > 0
+        fail_msg: "Kernel parameter file not found or empty"
+      loop: "{{ kernel_param_files.results }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Read kernel parameter values
+      ansible.builtin.slurp:
+        path: "/tmp/molecule_test/proc/sys/vm/{{ item_param['name'] | regex_replace('^vm\\.', '') }}"
+      loop:
+        - name: vm.max_map_count
+          expected: "262144"
+        - name: vm.dirty_expire_centisecs
+          expected: "20000"
+      loop_control:
+        loop_var: item_param
+      register: kernel_param_values
+
+    - name: Assert kernel parameter values are correct
+      ansible.builtin.assert:
+        that:
+          - (item_result.content | b64decode | trim) == item_param['expected']
+        fail_msg: "Kernel parameter value is incorrect"
+      loop: "{{ kernel_param_values.results }}"
+      loop_control:
+        loop_var: item_result
+      vars:
+        item_param: "{{ item_result.item }}"
+
+- name: Verify Chef Automate installation
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Chef Automate CLI file
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/home/molecule/chef-automate"
+      register: chef_automate_cli
+
+    - name: Assert Chef Automate CLI file exists and is executable
+      ansible.builtin.assert:
+        that:
+          - chef_automate_cli.stat.exists
+          - chef_automate_cli.stat.executable
+        fail_msg: "Chef Automate CLI file not found or not executable"
+
+    - name: Check Chef Automate installation directory
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/hab"
+      register: hab_dir
+
+    - name: Assert Chef Automate installation directory exists
+      ansible.builtin.assert:
+        that:
+          - hab_dir.stat.exists
+          - hab_dir.stat.isdir
+        fail_msg: "Chef Automate installation directory not found"
+
+    - name: Check Chef Automate service status
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/etc/systemd/system/chef-automate.service"
+      register: chef_automate_service
+
+    - name: Assert Chef Automate service file exists
+      ansible.builtin.assert:
+        that:
+          - chef_automate_service.stat.exists
+        fail_msg: "Chef Automate service file not found"
+
+    # Service status check (would fail in container)
+    - name: Check Chef Automate service is running
+      ansible.builtin.command:
+        cmd: systemctl status chef-automate
+      register: service_status
+      failed_when: false
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert Chef Automate service is running
+      ansible.builtin.assert:
+        that:
+          - service_status.rc == 0
+        fail_msg: "Chef Automate service is not running"
+      tags: molecule-notest
+
+    # Port check (would fail in container)
+    - name: Check Chef Automate port is listening
+      ansible.builtin.wait_for:
+        port: 443
+        state: started
+        timeout: 5
+      register: port_check
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Assert Chef Automate port is listening
+      ansible.builtin.assert:
+        that:
+          - port_check is succeeded
+        fail_msg: "Chef Automate port 443 is not listening"
+      tags: molecule-notest
+
+- name: Verify user and organization setup
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check chef-server-ctl mock
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/usr/bin/chef-server-ctl"
+      register: chef_server_ctl
+
+    - name: Assert chef-server-ctl mock exists and is executable
+      ansible.builtin.assert:
+        that:
+          - chef_server_ctl.stat.exists
+          - chef_server_ctl.stat.executable
+        fail_msg: "chef-server-ctl mock not found or not executable"
+
+    - name: Check user key file
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/jtonello.pem"
+      register: user_key_file
+
+    - name: Assert user key file exists
+      ansible.builtin.assert:
+        that:
+          - user_key_file.stat.exists
+          - user_key_file.stat.size > 0
+          - user_key_file.stat.mode == "0600"
+        fail_msg: "User key file not found, empty, or has incorrect permissions"
+
+    - name: Check validator key file
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/lab-validator.pem"
+      register: validator_key_file
+
+    - name: Assert validator key file exists
+      ansible.builtin.assert:
+        that:
+          - validator_key_file.stat.exists
+          - validator_key_file.stat.size > 0
+          - validator_key_file.stat.mode == "0600"
+        fail_msg: "Validator key file not found, empty, or has incorrect permissions"
+
+    - name: Read user key content
+      ansible.builtin.slurp:
+        path: "/tmp/molecule_test/jtonello.pem"
+      register: user_key_content
+
+    - name: Assert user key content is valid
+      ansible.builtin.assert:
+        that:
+          - (user_key_content.content | b64decode) is search("BEGIN RSA PRIVATE KEY")
+          - (user_key_content.content | b64decode) is search("END RSA PRIVATE KEY")
+        fail_msg: "User key content is not valid"
+
+    - name: Read validator key content
+      ansible.builtin.slurp:
+        path: "/tmp/molecule_test/lab-validator.pem"
+      register: validator_key_content
+
+    - name: Assert validator key content is valid
+      ansible.builtin.assert:
+        that:
+          - (validator_key_content.content | b64decode) is search("BEGIN RSA PRIVATE KEY")
+          - (validator_key_content.content | b64decode) is search("END RSA PRIVATE KEY")
+        fail_msg: "Validator key content is not valid"
+
+    # API functionality check (would fail in container)
+    - name: Check Chef Infra Server API
+      ansible.builtin.uri:
+        url: https://localhost/organizations
+        method: GET
+        validate_certs: false
+        status_code: 200
+      register: api_check
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Assert Chef Infra Server API is accessible
+      ansible.builtin.assert:
+        that:
+          - api_check is succeeded
+        fail_msg: "Chef Infra Server API is not accessible"
+      tags: molecule-notest
