@@ -1,0 +1,89 @@
+---
+argument_specs:
+  main:
+    short_description: Simple cache role for Redis server
+    description:
+      - Installs and configures Redis server as a simple caching solution.
+      - Provides basic Redis server installation and service management.
+    options:
+      cache_redis_package:
+        type: str
+        required: false
+        default: redis-server
+        description: Package name for Redis server.
+      cache_redis_service:
+        type: str
+        required: false
+        default: redis-server
+        description: Service name for Redis server.
+      cache_redis_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether to enable the Redis service at boot.
+      cache_redis_state:
+        type: str
+        required: false
+        default: started
+        choices:
+          - started
+          - stopped
+          - restarted
+        description: Desired state of the Redis service.
+      cache_redis_user:
+        type: str
+        required: false
+        default: redis
+        description: User that owns Redis files.
+      cache_redis_group:
+        type: str
+        required: false
+        default: redis
+        description: Group that owns Redis files.
+      cache_redis_conf_dir:
+        type: str
+        required: false
+        default: /etc/redis
+        description: Directory for Redis configuration files.
+      cache_redis_data_dir:
+        type: str
+        required: false
+        default: /var/lib/redis
+        description: Directory for Redis data files.
+      cache_redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory for Redis log files.
+      cache_redis_run_dir:
+        type: str
+        required: false
+        default: /var/run/redis
+        description: Directory for Redis runtime files.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: Port Redis listens on.
+      cache_redis_bind:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: IP address Redis binds to.
+      cache_redis_daemonize:
+        type: str
+        required: false
+        default: "yes"
+        description: Whether Redis should run as a daemon.
+      cache_redis_maxmemory:
+        type: str
+        required: false
+        description: Maximum memory Redis can use.
+      cache_redis_maxmemory_policy:
+        type: str
+        required: false
+        description: Policy for Redis to use when maximum memory is reached.
+      cache_redis_additional_config:
+        type: str
+        required: false
+        description: Additional Redis configuration options.

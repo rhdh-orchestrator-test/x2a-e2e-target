@@ -1,0 +1,16 @@
+# Redis configuration file
+port {{ cache_redis_port | default(6379) }}
+bind {{ cache_redis_bind | default('127.0.0.1') }}
+daemonize {{ cache_redis_daemonize | default('yes') }}
+logfile {{ cache_redis_log_dir | default('/var/log/redis') }}/redis-server.log
+dir {{ cache_redis_data_dir | default('/var/lib/redis') }}
+unixsocket {{ cache_redis_run_dir | default('/var/run/redis') }}/redis-server.sock
+{% if cache_redis_maxmemory is defined %}
+maxmemory {{ cache_redis_maxmemory }}
+{% endif %}
+{% if cache_redis_maxmemory_policy is defined %}
+maxmemory-policy {{ cache_redis_maxmemory_policy }}
+{% endif %}
+{% if cache_redis_additional_config is defined %}
+{{ cache_redis_additional_config }}
+{% endif %}

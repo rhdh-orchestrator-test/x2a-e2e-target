@@ -1,0 +1,51 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    cache_redis_conf_dir: /tmp/molecule_test/etc/redis
+    cache_redis_data_dir: /tmp/molecule_test/var/lib/redis
+    cache_redis_log_dir: /tmp/molecule_test/var/log/redis
+    cache_redis_run_dir: /tmp/molecule_test/var/run/redis
+    cache_redis_user: root
+    cache_redis_group: root
+  tasks:
+  - name: Install Redis server package
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - '{{ cache_redis_conf_dir }}'
+    - '{{ cache_redis_data_dir }}'
+    - '{{ cache_redis_log_dir }}'
+    - '{{ cache_redis_run_dir }}'
+  - name: Configure Redis server
+    ansible.builtin.copy:
+      content: '# Redis configuration file example
+
+        port 6379
+
+        bind 127.0.0.1
+
+        daemonize yes
+
+        logfile {{ cache_redis_log_dir }}/redis-server.log
+
+        dir {{ cache_redis_data_dir }}
+
+        unixsocket {{ cache_redis_run_dir }}/redis-server.sock
+
+        '
+      dest: '{{ cache_redis_conf_dir }}/redis.conf'
+      mode: '0644'
+  - name: Create log file
+    ansible.builtin.copy:
+      content: '# Redis server log file
+
+        1:M 01 Jan 2023 00:00:00.000 # Server initialized
+
+        1:M 01 Jan 2023 00:00:00.000 * Ready to accept connections
+
+        '
+      dest: '{{ cache_redis_log_dir }}/redis-server.log'
+      mode: '0644'
