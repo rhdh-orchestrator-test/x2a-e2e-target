@@ -1,0 +1,226 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Check hostname file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/hostname
+    register: hostname_file_stat
+  - name: Assert hostname file exists
+    ansible.builtin.assert:
+      that:
+      - hostname_file_stat['stat']['exists']
+      - hostname_file_stat['stat']['size'] > 0
+      fail_msg: Hostname file not found or empty
+  - name: Get hostname file content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/hostname
+    register: hostname_content
+    when: hostname_file_stat['stat']['exists']
+  - name: Assert hostname is set correctly
+    ansible.builtin.assert:
+      that:
+      - (hostname_content['content'] | b64decode | trim) == "automate.chef.lab"
+      fail_msg: Hostname not set correctly
+    when: hostname_file_stat['stat']['exists']
+  - name: Check sysctl file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+    register: sysctl_file_stat
+  - name: Assert sysctl file exists
+    ansible.builtin.assert:
+      that:
+      - sysctl_file_stat['stat']['exists']
+      - sysctl_file_stat['stat']['size'] > 0
+      fail_msg: Sysctl configuration file not found or empty
+  - name: Get sysctl file content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+    register: sysctl_content
+    when: sysctl_file_stat['stat']['exists']
+  - name: Assert sysctl settings are correct
+    ansible.builtin.assert:
+      that:
+      - (sysctl_content['content'] | b64decode) is search('vm.max_map_count = 262144')
+      - (sysctl_content['content'] | b64decode) is search('vm.dirty_expire_centisecs = 20000')
+      fail_msg: Sysctl settings not configured correctly
+    when: sysctl_file_stat['stat']['exists']
+  - name: Check Chef Automate CLI exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/usr/bin/chef-automate
+    register: chef_automate_cli_stat
+  - name: Assert Chef Automate CLI exists and is executable
+    ansible.builtin.assert:
+      that:
+      - chef_automate_cli_stat['stat']['exists']
+      - chef_automate_cli_stat['stat']['executable']
+      fail_msg: Chef Automate CLI not found or not executable
+  - name: Check Chef Server CTL exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/usr/bin/chef-server-ctl
+    register: chef_server_ctl_stat
+  - name: Assert Chef Server CTL exists and is executable
+    ansible.builtin.assert:
+      that:
+      - chef_server_ctl_stat['stat']['exists']
+      - chef_server_ctl_stat['stat']['executable']
+      fail_msg: Chef Server CTL not found or not executable
+  - name: Check user PEM file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/admin.pem
+    register: user_pem_stat
+  - name: Assert user PEM file exists
+    ansible.builtin.assert:
+      that:
+      - user_pem_stat['stat']['exists']
+      - user_pem_stat['stat']['size'] > 0
+      - user_pem_stat['stat']['mode'] == "0600"
+      fail_msg: User PEM file not found, empty, or has incorrect permissions
+  - name: Check organization validator PEM file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/default-validator.pem
+    register: validator_pem_stat
+  - name: Assert organization validator PEM file exists
+    ansible.builtin.assert:
+      that:
+      - validator_pem_stat['stat']['exists']
+      - validator_pem_stat['stat']['size'] > 0
+      - validator_pem_stat['stat']['mode'] == "0600"
+      fail_msg: Organization validator PEM file not found, empty, or has incorrect permissions
+  - name: Check Chef Automate status file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/automate-status.txt
+    register: automate_status_stat
+    tags: molecule-notest
+  - name: Assert Chef Automate status file exists
+    ansible.builtin.assert:
+      that:
+      - automate_status_stat['stat']['exists']
+      - automate_status_stat['stat']['size'] > 0
+      fail_msg: Chef Automate status file not found or empty
+    tags: molecule-notest
+  - name: Get Chef Automate status content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/automate-status.txt
+    register: automate_status_content
+    when: automate_status_stat['stat']['exists']
+    tags: molecule-notest
+  - name: Assert Chef Automate services are running
+    ansible.builtin.assert:
+      that:
+      - (automate_status_content['content'] | b64decode) is search('Status: running')
+      fail_msg: Chef Automate services not running
+    when: automate_status_stat['stat']['exists']
+    tags: molecule-notest
+  - name: Check Chef Server status file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/chef-server-status.txt
+    register: chef_server_status_stat
+    tags: molecule-notest
+  - name: Assert Chef Server status file exists
+    ansible.builtin.assert:
+      that:
+      - chef_server_status_stat['stat']['exists']
+      - chef_server_status_stat['stat']['size'] > 0
+      fail_msg: Chef Server status file not found or empty
+    tags: molecule-notest
+  - name: Check user list file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/chef-users.txt
+    register: user_list_stat
+    tags: molecule-notest
+  - name: Assert user list file exists
+    ansible.builtin.assert:
+      that:
+      - user_list_stat['stat']['exists']
+      - user_list_stat['stat']['size'] > 0
+      fail_msg: User list file not found or empty
+    tags: molecule-notest
+  - name: Get user list content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/chef-users.txt
+    register: user_list_content
+    when: user_list_stat['stat']['exists']
+    tags: molecule-notest
+  - name: Assert admin user exists
+    ansible.builtin.assert:
+      that:
+      - (user_list_content['content'] | b64decode) is search('admin')
+      fail_msg: Admin user not found in user list
+    when: user_list_stat['stat']['exists']
+    tags: molecule-notest
+  - name: Check organization list file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/chef-orgs.txt
+    register: org_list_stat
+    tags: molecule-notest
+  - name: Assert organization list file exists
+    ansible.builtin.assert:
+      that:
+      - org_list_stat['stat']['exists']
+      - org_list_stat['stat']['size'] > 0
+      fail_msg: Organization list file not found or empty
+    tags: molecule-notest
+  - name: Get organization list content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/chef-orgs.txt
+    register: org_list_content
+    when: org_list_stat['stat']['exists']
+    tags: molecule-notest
+  - name: Assert default organization exists
+    ansible.builtin.assert:
+      that:
+      - (org_list_content['content'] | b64decode) is search('default')
+      fail_msg: Default organization not found in organization list
+    when: org_list_stat['stat']['exists']
+    tags: molecule-notest
+  - name: Check health API response file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/health-api-response.json
+    register: health_api_stat
+    tags: molecule-notest
+  - name: Assert health API response file exists
+    ansible.builtin.assert:
+      that:
+      - health_api_stat['stat']['exists']
+      - health_api_stat['stat']['size'] > 0
+      fail_msg: Health API response file not found or empty
+    tags: molecule-notest
+  - name: Get health API response content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/health-api-response.json
+    register: health_api_content
+    when: health_api_stat['stat']['exists']
+    tags: molecule-notest
+  - name: Assert health API status is ok
+    ansible.builtin.assert:
+      that:
+      - (health_api_content['content'] | b64decode | from_json)['status'] == "ok"
+      fail_msg: Health API status is not ok
+    when: health_api_stat['stat']['exists']
+    tags: molecule-notest
+  - name: Check network listening file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/network-listening.txt
+    register: network_listening_stat
+    tags: molecule-notest
+  - name: Assert network listening file exists
+    ansible.builtin.assert:
+      that:
+      - network_listening_stat['stat']['exists']
+      - network_listening_stat['stat']['size'] > 0
+      fail_msg: Network listening file not found or empty
+    tags: molecule-notest
+  - name: Get network listening content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/network-listening.txt
+    register: network_listening_content
+    when: network_listening_stat['stat']['exists']
+    tags: molecule-notest
+  - name: Assert port 443 is listening
+    ansible.builtin.assert:
+      that:
+      - (network_listening_content['content'] | b64decode) is search(':443')
+      fail_msg: Port 443 is not listening
+    when: network_listening_stat['stat']['exists']
+    tags: molecule-notest
