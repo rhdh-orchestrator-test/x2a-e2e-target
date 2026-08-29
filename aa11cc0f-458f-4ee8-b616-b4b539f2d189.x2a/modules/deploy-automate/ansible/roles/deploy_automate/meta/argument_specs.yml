@@ -1,0 +1,74 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy Chef Automate and Chef Infra Server
+    description:
+      - Deploys Chef Automate and Chef Infra Server on a VM
+      - Sets system parameters, downloads the Chef Automate CLI
+      - Creates a Chef user and organization
+    options:
+      deploy_automate_hostname:
+        type: str
+        required: false
+        default: automate.chef.lab
+        description: System hostname for Chef Automate server
+      deploy_automate_max_map_count:
+        type: int
+        required: false
+        default: 262144
+        description: Value for vm.max_map_count required by Elasticsearch
+      deploy_automate_dirty_expire_centisecs:
+        type: int
+        required: false
+        default: 20000
+        description: Value for vm.dirty_expire_centisecs for disk performance
+      deploy_automate_cli_url:
+        type: str
+        required: false
+        default: https://packages.chef.io/files/current/latest/chef-automate-cli/chef-automate_linux_amd64.zip
+        description: URL to download Chef Automate CLI
+      deploy_automate_accept_terms:
+        type: bool
+        required: false
+        default: true
+        description: Whether to accept Chef Automate terms and MLSA
+      deploy_automate_products:
+        type: list
+        elements: str
+        required: false
+        default:
+          - automate
+          - infra-server
+        description: List of Chef products to deploy
+      username:
+        type: str
+        required: true
+        description: Chef user username (injected by AAP credential)
+      password:
+        type: str
+        required: true
+        description: Chef user password (injected by AAP credential)
+      longusername:
+        type: str
+        required: false
+        description: Chef user's full name (injected by AAP credential)
+      useremail:
+        type: str
+        required: false
+        description: Chef user's email address (injected by AAP credential)
+      organization_name:
+        type: str
+        required: true
+        description: Chef organization short name (injected by AAP credential)
+      organization_full_name:
+        type: str
+        required: true
+        description: Chef organization full name (injected by AAP credential)
+      user_key_path:
+        type: str
+        required: false
+        description: Path to save the user's private key (injected by AAP credential)
+      validator_key_path:
+        type: str
+        required: false
+        description: Path to save the organization validator key (injected by AAP credential)

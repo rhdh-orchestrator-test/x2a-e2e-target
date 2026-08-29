@@ -1,0 +1,126 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    # Create directory structure for testing
+    - name: Create required directories
+      ansible.builtin.file:
+        path: "{{ item_dir }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc
+        - /tmp/molecule_test/hab
+        - /tmp/molecule_test/tmp
+        - /tmp/molecule_test/usr/bin
+      loop_control:
+        loop_var: item_dir
+
+    # Simulate hostname file
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: "/tmp/molecule_test/etc/hostname"
+        mode: "0644"
+        backup: true
+
+    # Simulate sysctl settings
+    - name: Create sysctl settings file
+      ansible.builtin.copy:
+        content: |
+          vm.max_map_count = 262144
+          vm.dirty_expire_centisecs = 20000
+        dest: "/tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf"
+        mode: "0644"
+        backup: true
+
+    # Simulate Chef Automate CLI
+    - name: Create Chef Automate CLI file
+      ansible.builtin.copy:
+        content: "#!/bin/bash\necho 'Chef Automate CLI Simulator'"
+        dest: "/tmp/molecule_test/usr/bin/chef-automate"
+        mode: "0755"
+        backup: true
+
+    # Simulate Chef Server CTL
+    - name: Create Chef Server CTL file
+      ansible.builtin.copy:
+        content: "#!/bin/bash\necho 'Chef Server CTL Simulator'"
+        dest: "/tmp/molecule_test/usr/bin/chef-server-ctl"
+        mode: "0755"
+        backup: true
+
+    # Simulate user PEM file
+    - name: Create user PEM file
+      ansible.builtin.copy:
+        content: "-----BEGIN RSA PRIVATE KEY-----\nSIMULATED USER KEY CONTENT\n-----END RSA PRIVATE KEY-----"
+        dest: "/tmp/molecule_test/admin.pem"
+        mode: "0600"
+        backup: true
+
+    # Simulate organization validator PEM file
+    - name: Create organization validator PEM file
+      ansible.builtin.copy:
+        content: "-----BEGIN RSA PRIVATE KEY-----\nSIMULATED VALIDATOR KEY CONTENT\n-----END RSA PRIVATE KEY-----"
+        dest: "/tmp/molecule_test/default-validator.pem"
+        mode: "0600"
+        backup: true
+
+    # Simulate Chef Automate status output
+    - name: Create Chef Automate status file
+      ansible.builtin.copy:
+        content: |
+          Service: automate-postgresql       Status: running
+          Service: automate-elasticsearch    Status: running
+          Service: automate-es-gateway       Status: running
+          Service: automate-ui               Status: running
+          Service: automate-load-balancer    Status: running
+        dest: "/tmp/molecule_test/automate-status.txt"
+        mode: "0644"
+        backup: true
+
+    # Simulate Chef Server status output
+    - name: Create Chef Server status file
+      ansible.builtin.copy:
+        content: |
+          run: postgresql: (pid 12345) 300s; run: log: (pid 12346) 300s
+          run: bookshelf: (pid 12347) 300s; run: log: (pid 12348) 300s
+          run: oc_bifrost: (pid 12349) 300s; run: log: (pid 12350) 300s
+          run: oc_id: (pid 12351) 300s; run: log: (pid 12352) 300s
+          run: opscode-erchef: (pid 12353) 300s; run: log: (pid 12354) 300s
+        dest: "/tmp/molecule_test/chef-server-status.txt"
+        mode: "0644"
+        backup: true
+
+    # Simulate user list output
+    - name: Create user list file
+      ansible.builtin.copy:
+        content: "admin\npivotal"
+        dest: "/tmp/molecule_test/chef-users.txt"
+        mode: "0644"
+        backup: true
+
+    # Simulate organization list output
+    - name: Create organization list file
+      ansible.builtin.copy:
+        content: "default"
+        dest: "/tmp/molecule_test/chef-orgs.txt"
+        mode: "0644"
+        backup: true
+
+    # Simulate health API response
+    - name: Create health API response file
+      ansible.builtin.copy:
+        content: '{"status":"ok"}'
+        dest: "/tmp/molecule_test/health-api-response.json"
+        mode: "0644"
+        backup: true
+
+    # Simulate network listening output
+    - name: Create network listening output file
+      ansible.builtin.copy:
+        content: "tcp   LISTEN 0      128                  *:443              *:*    users:(('nginx',pid=12345,fd=6))"
+        dest: "/tmp/molecule_test/network-listening.txt"
+        mode: "0644"
+        backup: true

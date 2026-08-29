@@ -1,0 +1,67 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Set hostname for Chef Automate server
+  ansible.posix.hostname:
+    name: "{{ deploy_automate_hostname }}"
+  become: true
+- name: Set vm.max_map_count for Elasticsearch
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "{{ deploy_automate_max_map_count }}"
+    state: present
+    reload: true
+  become: true
+- name: Set vm.dirty_expire_centisecs for disk performance
+  ansible.posix.sysctl:
+    name: vm.dirty_expire_centisecs
+    value: "{{ deploy_automate_dirty_expire_centisecs }}"
+    state: present
+    reload: true
+  become: true
+- name: Download Chef Automate CLI
+  ansible.builtin.get_url:
+    url: "{{ deploy_automate_cli_url }}"
+    dest: /tmp/chef-automate_linux_amd64.zip
+    mode: "0644"
+- name: Extract Chef Automate CLI
+  ansible.builtin.shell:
+    cmd: gunzip -c /tmp/chef-automate_linux_amd64.zip > chef-automate
+    creates: "{{ ansible_env.PWD }}/chef-automate"
+  args:
+    chdir: "{{ ansible_env.PWD }}"
+    executable: /bin/bash
+- name: Make Chef Automate CLI executable
+  ansible.builtin.file:
+    path: "{{ ansible_env.PWD }}/chef-automate"
+    mode: "0755"
+    state: file
+- name: Deploy Chef Automate and Infra Server
+  ansible.builtin.command:
+    cmd: "./chef-automate deploy {% for product in deploy_automate_products %} --product {{ product }} {% endfor %} --accept-terms-and-mlsa={{ deploy_automate_accept_terms
+      | lower }} "
+    creates: /hab
+  args:
+    chdir: "{{ ansible_env.PWD }}"
+  become: true
+  register: deploy_result
+  changed_when: deploy_result.rc == 0
+- name: Create Chef user
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl user-create {{ deploy_automate_username }} {{ deploy_automate_longusername }} {{ deploy_automate_useremail }} "{{ password }}" --filename
+      {{ deploy_automate_user_key_path }}
+
+      '
+  args:
+    creates: "{{ deploy_automate_user_key_path }}"
+  become: true
+  no_log: true
+- name: Create Chef organization
+  ansible.builtin.command:
+    cmd: 'chef-server-ctl org-create {{ deploy_automate_orgname }} "{{ deploy_automate_longorgname }}" --association_user {{ deploy_automate_username }} --filename
+      {{ deploy_automate_validator_key_path }}
+
+      '
+  args:
+    creates: "{{ deploy_automate_validator_key_path }}"
+  become: true
