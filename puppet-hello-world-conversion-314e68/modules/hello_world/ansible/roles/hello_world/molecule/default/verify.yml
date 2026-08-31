@@ -1,0 +1,23 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Check if test file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/hello_message.txt
+    register: hello_file_stat
+  - name: Assert test file exists
+    ansible.builtin.assert:
+      that:
+      - hello_file_stat['stat']['exists']
+      - hello_file_stat['stat']['size'] > 0
+      fail_msg: Hello message file not found or empty
+  - name: Get content of hello message file
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/hello_message.txt
+    register: hello_file_content
+  - name: Assert hello message is correct
+    ansible.builtin.assert:
+      that:
+      - (hello_file_content['content'] | b64decode) == "Hello, world!"
+      fail_msg: Hello message content is not as expected
