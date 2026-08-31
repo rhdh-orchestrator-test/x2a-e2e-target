@@ -1,9 +1,0 @@
----
-- name: Install and configure Redis for caching
-  ansible.builtin.include_role:
-    name: eloy.redis.redis
-  vars:
-    redis_port: 6379
-    redis_bind: 127.0.0.1
-    redis_maxmemory: 256mb
-    redis_maxmemory_policy: allkeys-lru

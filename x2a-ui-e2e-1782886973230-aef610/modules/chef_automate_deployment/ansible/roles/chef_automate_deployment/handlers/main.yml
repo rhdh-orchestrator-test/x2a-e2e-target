@@ -1,9 +1,0 @@
----
-- name: reload sysctl
-  ansible.builtin.command:
-    cmd: sysctl -p
-  changed_when: false
-  become: true
-- name: display deployment result
-  ansible.builtin.debug:
-    var: deploy_result.stdout_lines

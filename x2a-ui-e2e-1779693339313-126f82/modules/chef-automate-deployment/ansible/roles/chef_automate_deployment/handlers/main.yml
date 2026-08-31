@@ -1,8 +1,0 @@
----
-- name: Restart Chef Automate
-  ansible.builtin.shell:
-    cmd: "if chef-automate status | grep -q \"not running\"; then\n  chef-automate restart\nelse\n  echo \"Chef Automate is already running, no restart needed\"\n\
-      fi\n"
-  become: true
-  listen: restart chef-automate
-  changed_when: true

@@ -1,9 +1,0 @@
----
-- name: Restart Chef Automate
-  ansible.builtin.command:
-    cmd: chef-automate restart
-  become: true
-  listen: restart chef-automate
-  changed_when: true
-  register: restart_result
-  failed_when: restart_result.rc != 0 and "command not found" not in restart_result.stderr

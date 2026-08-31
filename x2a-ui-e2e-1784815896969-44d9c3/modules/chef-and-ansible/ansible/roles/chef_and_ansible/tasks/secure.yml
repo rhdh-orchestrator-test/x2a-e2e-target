@@ -1,9 +1,0 @@
----
-- name: Fix SSL in Apache (POODLE vulnerability)
-  ansible.builtin.replace:
-    path: /etc/apache2/mods-available/ssl.conf
-    regexp: ^SSLProtocol.*$
-    replace: SSLProtocol {{ ssl_protocols }}
-  notify:
-    - Restart apache
-  become: true
