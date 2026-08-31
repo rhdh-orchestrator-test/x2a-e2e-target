@@ -1,8 +1,0 @@
----
-- name: Reload sysctl
-  ansible.posix.sysctl:
-    name: "{{ item.key }}"
-    value: "{{ item.value }}"
-    sysctl_set: true
-  loop: "{{ chef_automate_sysctl_params | dict2items }}"
-  become: true

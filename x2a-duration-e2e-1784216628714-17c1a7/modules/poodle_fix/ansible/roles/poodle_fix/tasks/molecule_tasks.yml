@@ -1,6 +1,0 @@
----
-- name: Fix SSL in Apache (molecule version)
-  ansible.builtin.replace:
-    dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
-    regexp: ^SSLProtocol.*$
-    replace: SSLProtocol -all +TLSv1.2
