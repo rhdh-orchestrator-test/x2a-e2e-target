@@ -1,0 +1,15 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Verify test directory exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test
+    register: test_dir_stat
+  - name: Assert test directory was created
+    ansible.builtin.assert:
+      that:
+      - test_dir_stat['stat']['exists']
+      - test_dir_stat['stat']['isdir']
+      fail_msg: Test directory not found
+      success_msg: Test directory exists
