@@ -1,0 +1,29 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check if hello_world message file exists
+      ansible.builtin.stat:
+        path: "/tmp/molecule_test/hello_world_message.txt"
+      register: hello_world_file_stat
+
+    - name: Assert hello_world message file exists
+      ansible.builtin.assert:
+        that:
+          - hello_world_file_stat['stat']['exists']
+          - hello_world_file_stat['stat']['size'] > 0
+        fail_msg: "Hello world message file not found"
+
+    - name: Get content of hello_world message file
+      ansible.builtin.slurp:
+        src: "/tmp/molecule_test/hello_world_message.txt"
+      register: hello_world_file_content
+      when: hello_world_file_stat['stat']['exists']
+
+    - name: Assert hello_world message content is correct
+      ansible.builtin.assert:
+        that:
+          - (hello_world_file_content['content'] | b64decode) == "Hello, world!"
+        fail_msg: "Hello world message content is incorrect"
+      when: hello_world_file_stat['stat']['exists']
