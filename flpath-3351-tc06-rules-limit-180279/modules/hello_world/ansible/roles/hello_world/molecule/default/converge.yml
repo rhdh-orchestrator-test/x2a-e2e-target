@@ -1,0 +1,12 @@
+- name: Converge
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Create test directory
+    ansible.builtin.file:
+      path: /tmp/molecule_test
+      state: directory
+      mode: '0755'
+  - name: Include hello_world role
+    ansible.builtin.include_role:
+      name: hello_world
