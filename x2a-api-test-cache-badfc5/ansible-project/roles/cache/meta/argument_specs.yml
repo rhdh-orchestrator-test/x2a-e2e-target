@@ -1,0 +1,65 @@
+---
+argument_specs:
+  main:
+    short_description: Configure dual-cache setup with memcached and Redis services
+    description:
+      - Installs and configures memcached and Redis cache services
+      - Creates Redis user, group, and necessary directories
+      - Sets up Redis with authentication and removes problematic replica settings
+      - Creates proper log directories and service configurations
+    options:
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port for Redis server to listen on
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Path to Redis configuration file
+      cache_redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory for Redis log files
+      cache_redis_user:
+        type: str
+        required: false
+        default: redis
+        description: System user for Redis service (will be created if not exists)
+      cache_redis_group:
+        type: str
+        required: false
+        default: redis
+        description: System group for Redis service (will be created if not exists)
+      cache_memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: TCP port for memcached server to listen on
+      cache_redis_service_name:
+        type: str
+        required: false
+        default: redis_6379
+        description: Name of the Redis systemd service
+      cache_memcached_service_name:
+        type: str
+        required: false
+        default: memcached
+        description: Name of the memcached systemd service
+      cache_redis_cleanup_patterns:
+        type: list
+        elements: str
+        required: false
+        default:
+          - ^replica-serve-stale-data.*$
+          - ^replica-read-only.*$
+          - ^repl-ping-replica-period.*$
+          - ^client-output-buffer-limit.*$
+          - ^replica-priority.*$
+        description: Regex patterns for Redis configuration lines to remove
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password (injected by AAP credential type)

@@ -1,0 +1,85 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Install memcached
+  ansible.builtin.package:
+    name: memcached
+    state: present
+- name: Install Redis
+  ansible.builtin.package:
+    name: redis-server
+    state: present
+- name: Ensure Redis user exists
+  ansible.builtin.user:
+    name: "{{ cache_redis_user }}"
+    system: true
+    shell: /bin/false
+    home: /var/lib/redis
+    create_home: false
+    state: present
+- name: Ensure Redis group exists
+  ansible.builtin.group:
+    name: "{{ cache_redis_group }}"
+    system: true
+    state: present
+- name: Ensure Redis configuration file exists
+  ansible.builtin.copy:
+    content: "# Redis configuration\nport {{ cache_redis_port }}\nbind 127.0.0.1\ntimeout 0\ntcp-keepalive 0\nloglevel notice\nlogfile {{ cache_redis_log_dir }}/redis_{{
+      cache_redis_port }}.log\ndatabases 16\nsave 900 1\nsave 300 10\nsave 60 10000\nstop-writes-on-bgsave-error yes\nrdbcompression yes\nrdbchecksum yes\ndbfilename
+      dump.rdb\ndir /var/lib/redis/{{ cache_redis_port }}\nmaxmemory-policy noeviction\n"
+    dest: "{{ cache_redis_config_file }}"
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0640"
+    backup: true
+    force: false
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_dir }}"
+    state: directory
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+    recurse: true
+- name: Create Redis data directory
+  ansible.builtin.file:
+    path: /var/lib/redis/{{ cache_redis_port }}
+    state: directory
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+    recurse: true
+- name: Configure Redis server
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}"
+    regexp: "{{ item_cache.regexp }}"
+    line: "{{ item_cache.line }}"
+    backup: true
+  loop:
+    - regexp: ^port\s+
+      line: port {{ cache_redis_port }}
+    - regexp: ^requirepass\s+
+      line: requirepass {{ redis_password }}
+  loop_control:
+    loop_var: item_cache
+  notify: restart redis
+- name: Remove problematic Redis replica configuration lines
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}"
+    regexp: "{{ item_cleanup }}"
+    state: absent
+    backup: true
+  loop: "{{ cache_redis_cleanup_patterns }}"
+  loop_control:
+    loop_var: item_cleanup
+  notify: restart redis
+- name: Start and enable memcached service
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service_name }}"
+    state: started
+    enabled: true
+- name: Start and enable Redis service
+  ansible.builtin.service:
+    name: "{{ cache_redis_service_name }}"
+    state: started
+    enabled: true

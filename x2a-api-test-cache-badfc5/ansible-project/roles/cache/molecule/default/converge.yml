@@ -1,0 +1,95 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item_dir }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/redis
+        - /tmp/molecule_test/var/log/redis
+        - /tmp/molecule_test/etc/memcached
+      loop_control:
+        loop_var: item_dir
+
+    - name: Create Redis configuration file
+      ansible.builtin.copy:
+        content: |
+          # Redis configuration for port 6379
+          port 6379
+          requirepass redis_secure_password_123
+          bind 127.0.0.1
+          timeout 0
+          tcp-keepalive 0
+          loglevel notice
+          logfile /var/log/redis/redis_6379.log
+          databases 16
+          save 900 1
+          save 300 10
+          save 60 10000
+          stop-writes-on-bgsave-error yes
+          rdbcompression yes
+          rdbchecksum yes
+          dbfilename dump.rdb
+          dir /var/lib/redis/6379
+          maxmemory-policy noeviction
+        dest: /tmp/molecule_test/etc/redis/6379.conf
+        mode: "0644"
+        backup: true
+
+    - name: Create memcached configuration file
+      ansible.builtin.copy:
+        content: |
+          # memcached default configuration
+          -d
+          -m 64
+          -p 11211
+          -u memcache
+          -l 127.0.0.1
+          -c 1024
+          -P /var/run/memcached/memcached.pid
+        dest: /tmp/molecule_test/etc/memcached/memcached.conf
+        mode: "0644"
+        backup: true
+
+    - name: Create Redis log file
+      ansible.builtin.copy:
+        content: |
+          # Redis log file placeholder
+          [1] 01 Jan 00:00:00.000 # Server started, Redis version 6.0.16
+          [1] 01 Jan 00:00:00.000 # Ready to accept connections
+        dest: /tmp/molecule_test/var/log/redis/redis_6379.log
+        mode: "0644"
+        backup: true
+
+    - name: Create memcached log file
+      ansible.builtin.copy:
+        content: |
+          # Memcached log file placeholder
+          <1 server listening (auto-negotiate)
+          <2 send buffer was 212992, now 268435456
+          <3 recv buffer was 212992, now 268435456
+        dest: /tmp/molecule_test/var/log/memcached.log
+        mode: "0644"
+        backup: true
+
+    - name: Create Redis data directory
+      ansible.builtin.file:
+        path: /tmp/molecule_test/var/lib/redis/6379
+        state: directory
+        mode: "0755"
+
+    - name: Create Redis PID directory
+      ansible.builtin.file:
+        path: /tmp/molecule_test/var/run/redis
+        state: directory
+        mode: "0755"
+
+    - name: Create memcached PID directory
+      ansible.builtin.file:
+        path: /tmp/molecule_test/var/run/memcached
+        state: directory
+        mode: "0755"
