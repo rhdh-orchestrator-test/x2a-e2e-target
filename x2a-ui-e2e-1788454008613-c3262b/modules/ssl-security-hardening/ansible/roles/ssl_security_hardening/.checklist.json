@@ -1,0 +1,69 @@
+{
+  "module_name": "ssl_security_hardening",
+  "items": [
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "ansible/roles/ssl_security_hardening/tasks/main.yml",
+      "status": "complete",
+      "description": "Convert legacy SSL hardening playbook to modern Ansible tasks with FQCN modules",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ssl_security_hardening/handlers/main.yml",
+      "status": "complete",
+      "description": "Service restart handlers for Apache2 and SSH with consistent naming",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ssl_security_hardening/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables for SSL protocols, cipher suites, and configuration paths",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ssl_security_hardening/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ssl_security_hardening/meta/argument_specs.yml",
+      "status": "complete",
+      "description": "Role argument specs for fail-fast parameter validation (generate after defaults/main.yml)",
+      "notes": ""
+    },
+    {
+      "category": "templates",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ssl_security_hardening/templates/ssl.conf.j2",
+      "status": "complete",
+      "description": "Comprehensive SSL/TLS configuration template to replace inline regex replacement",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ssl_security_hardening/vars/main.yml",
+      "status": "complete",
+      "description": "Role variables",
+      "notes": ""
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.posix",
+      "target_path": "ansible/roles/ssl_security_hardening/requirements.yml",
+      "status": "complete",
+      "description": "Enhanced file operations for SSL configuration management",
+      "notes": ""
+    }
+  ]
+}
