@@ -1,0 +1,123 @@
+---
+argument_specs:
+  main:
+    short_description: Configures FastAPI tutorial application with PostgreSQL
+    description:
+      - Deploys a FastAPI tutorial web application with PostgreSQL database backend.
+      - Installs Python 3, clones the FastAPI tutorial from GitHub, sets up a virtual environment.
+      - Configures PostgreSQL with a dedicated database and user.
+      - Runs the application as a systemd service on port 8000.
+    options:
+      fastapi_tutorial_app_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Directory where the FastAPI application will be installed.
+      fastapi_tutorial_repo_url:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository URL for the FastAPI tutorial application.
+      fastapi_tutorial_repo_branch:
+        type: str
+        required: false
+        default: main
+        description: Git branch to checkout for the FastAPI tutorial application.
+      fastapi_tutorial_venv_path:
+        type: str
+        required: false
+        default: "{{ fastapi_tutorial_app_dir }}/venv"
+        description: Path to the Python virtual environment.
+      fastapi_tutorial_project_name:
+        type: str
+        required: false
+        default: FastAPI Tutorial
+        description: Name of the FastAPI project.
+      fastapi_tutorial_api_version:
+        type: str
+        required: false
+        default: 1.0.0
+        description: Version of the FastAPI application.
+      fastapi_tutorial_host:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: Host address for the FastAPI application to bind to.
+      fastapi_tutorial_port:
+        type: int
+        required: false
+        default: 8000
+        description: Port number for the FastAPI application to listen on.
+      fastapi_tutorial_service_name:
+        type: str
+        required: false
+        default: fastapi-tutorial
+        description: Name of the systemd service for the FastAPI application.
+      fastapi_tutorial_service_user:
+        type: str
+        required: false
+        default: fastapi
+        description: User account to run the FastAPI service as.
+      fastapi_tutorial_service_group:
+        type: str
+        required: false
+        default: fastapi
+        description: Group account to run the FastAPI service as.
+      fastapi_tutorial_dir_mode:
+        type: str
+        required: false
+        default: "0755"
+        description: File permissions for directories created by the role.
+      fastapi_tutorial_file_mode:
+        type: str
+        required: false
+        default: "0644"
+        description: File permissions for files created by the role.
+      fastapi_tutorial_system_packages:
+        type: list
+        elements: str
+        required: false
+        default:
+          - python3
+          - python3-pip
+          - python3-venv
+          - git
+          - postgresql
+          - postgresql-contrib
+        description: List of system packages required for the FastAPI application.
+      fastapi_tutorial_db_host:
+        type: str
+        required: false
+        default: "{{ db_host | default('localhost') }}"
+        description: PostgreSQL database host (injected by AAP credential type).
+      fastapi_tutorial_db_name:
+        type: str
+        required: false
+        default: "{{ db_name | default('fastapi_db') }}"
+        description: PostgreSQL database name (injected by AAP credential type).
+      fastapi_tutorial_db_user:
+        type: str
+        required: false
+        default: "{{ db_username | default('fastapi') }}"
+        description: PostgreSQL database username (injected by AAP credential type).
+      fastapi_tutorial_db_password:
+        type: str
+        required: false
+        default: "{{ db_password | default('fastapi_password') }}"
+        description: PostgreSQL database password (injected by AAP credential type).
+      db_host:
+        type: str
+        required: true
+        description: Database host address injected by AAP credential type.
+      db_name:
+        type: str
+        required: true
+        description: Database name injected by AAP credential type.
+      db_username:
+        type: str
+        required: true
+        description: Database username injected by AAP credential type.
+      db_password:
+        type: str
+        required: true
+        description: Database password injected by AAP credential type.
