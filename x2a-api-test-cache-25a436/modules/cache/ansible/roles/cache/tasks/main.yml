@@ -1,0 +1,66 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Install cache packages
+  ansible.builtin.package:
+    name:
+      - memcached
+      - redis-server
+    state: present
+- name: Ensure redis user exists
+  ansible.builtin.user:
+    name: redis
+    system: true
+    shell: /bin/false
+    home: /var/lib/redis
+    create_home: false
+    state: present
+- name: Ensure redis group exists
+  ansible.builtin.group:
+    name: redis
+    system: true
+    state: present
+- name: Create Redis configuration directory
+  ansible.builtin.file:
+    path: /etc/redis
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_dir }}"
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+- name: Configure Redis server
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: "{{ cache_redis_config_file }}"
+    owner: redis
+    group: redis
+    mode: "0640"
+    backup: true
+  notify: Restart Redis
+- name: Remove replica settings from Redis config
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}"
+    regexp: ^{{ item_replica }}.*$
+    state: absent
+    backup: true
+  loop: "{{ cache_redis_replica_settings_to_remove }}"
+  loop_control:
+    loop_var: item_replica
+  notify: Restart Redis
+- name: Start and enable Redis service
+  ansible.builtin.service:
+    name: redis-server
+    state: started
+    enabled: true
+- name: Start and enable memcached service
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true
