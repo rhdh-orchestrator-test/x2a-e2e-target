@@ -1,0 +1,80 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Apache with SSL/HTTPS support
+    description:
+      - Installs Apache2 web server with SSL/TLS support
+      - Generates self-signed SSL certificates
+      - Configures SSL-enabled virtual host
+      - Deploys a simple website with customizable content
+    options:
+      apache_version:
+        type: str
+        required: false
+        default: 2.4.41-4ubuntu3.10
+        description: Apache version to install with apt pinning
+      site_name:
+        type: str
+        required: false
+        default: helloworld
+        description: Name of the site/virtual host
+      document_root:
+        type: str
+        required: false
+        default: /var/www/helloworld
+        description: Web document root directory
+      ssl_cert_path:
+        type: str
+        required: false
+        default: /etc/apache2/certs/apache.crt
+        description: Path to SSL certificate file
+      ssl_key_path:
+        type: str
+        required: false
+        default: /etc/apache2/certs/apache.key
+        description: Path to SSL private key file
+      ssl_csr_path:
+        type: str
+        required: false
+        default: /etc/apache2/certs/apache.csr
+        description: Path to SSL certificate signing request file
+      common_name:
+        type: str
+        required: false
+        default: "{{ ansible_facts['fqdn'] }}"
+        description: SSL certificate common name (CN)
+      website_title:
+        type: str
+        required: false
+        default: Test Site
+        description: HTML page title for the website
+      website_content:
+        type: str
+        required: false
+        default: Hello, world!
+        description: Main content heading for the website
+      cert_directory_mode:
+        type: str
+        required: false
+        default: "0640"
+        description: File permissions for certificate directory
+      web_directory_mode:
+        type: str
+        required: false
+        default: "0755"
+        description: File permissions for web directory
+      cert_file_mode:
+        type: str
+        required: false
+        default: "0640"
+        description: File permissions for certificate files
+      html_file_mode:
+        type: str
+        required: false
+        default: "0644"
+        description: File permissions for HTML files
+      cert_directory:
+        type: str
+        required: false
+        default: /etc/apache2/certs
+        description: Directory to store SSL certificates

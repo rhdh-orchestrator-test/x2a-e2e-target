@@ -1,0 +1,92 @@
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+- name: Install Apache2 with specific version
+  ansible.builtin.apt:
+    name: apache2={{ apache_version }}
+    state: present
+- name: Install SSL dependencies
+  ansible.builtin.package:
+    name: '{{ ssl_packages }}'
+    state: present
+- name: Create certificate directory
+  ansible.builtin.file:
+    path: '{{ cert_directory }}'
+    state: directory
+    owner: root
+    group: root
+    mode: '{{ cert_directory_mode }}'
+- name: Generate private key
+  community.crypto.openssl_privatekey:
+    path: '{{ ssl_key_path }}'
+    owner: root
+    group: root
+    mode: '{{ cert_file_mode }}'
+    state: present
+- name: Generate certificate signing request
+  community.crypto.openssl_csr:
+    path: '{{ ssl_csr_path }}'
+    privatekey_path: '{{ ssl_key_path }}'
+    common_name: '{{ common_name }}'
+    owner: root
+    group: root
+    mode: '{{ cert_file_mode }}'
+    state: present
+- name: Generate self-signed certificate
+  community.crypto.x509_certificate:
+    path: '{{ ssl_cert_path }}'
+    privatekey_path: '{{ ssl_key_path }}'
+    csr_path: '{{ ssl_csr_path }}'
+    provider: selfsigned
+    owner: root
+    group: root
+    mode: '{{ cert_file_mode }}'
+    state: present
+- name: Configure virtual host
+  ansible.builtin.template:
+    src: virtualhost.conf.j2
+    dest: '{{ custom_site_config }}'
+    owner: root
+    group: root
+    mode: '{{ cert_file_mode }}'
+    backup: true
+  notify: Restart apache
+- name: Create web directory
+  ansible.builtin.file:
+    path: '{{ document_root }}'
+    state: directory
+    owner: root
+    group: root
+    mode: '{{ web_directory_mode }}'
+- name: Deploy website content
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: '{{ document_root }}/index.html'
+    owner: root
+    group: root
+    mode: '{{ html_file_mode }}'
+    backup: true
+- name: Check if default site is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/sites-enabled/{{ default_site }}.conf
+  register: default_site_enabled
+- name: Disable default Apache site
+  ansible.builtin.command:
+    cmd: a2dissite {{ default_site }}
+  when: default_site_enabled.stat.exists
+  notify: Restart apache
+- name: Check if custom site is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/sites-enabled/{{ site_name }}.conf
+  register: custom_site_enabled
+- name: Enable custom site
+  ansible.builtin.command:
+    cmd: a2ensite {{ site_name }}
+  when: not custom_site_enabled.stat.exists
+  notify: Restart apache
+- name: Enable SSL module
+  community.general.apache2_module:
+    name: ssl
+    state: present
+  notify: Restart apache

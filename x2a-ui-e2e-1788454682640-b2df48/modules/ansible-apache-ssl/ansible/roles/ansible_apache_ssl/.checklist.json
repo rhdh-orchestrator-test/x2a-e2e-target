@@ -1,0 +1,133 @@
+{
+  "module_name": "ansible_apache_ssl",
+  "items": [
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ansible_apache_ssl/tasks/main.yml",
+      "status": "complete",
+      "description": "Main tasks file - convert playbook tasks to role tasks",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ansible_apache_ssl/handlers/main.yml",
+      "status": "complete",
+      "description": "Handlers file - convert playbook handlers to role handlers",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ansible_apache_ssl/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ansible_apache_ssl/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables - extract configurable parameters from playbook",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ansible_apache_ssl/meta/argument_specs.yml",
+      "status": "complete",
+      "description": "Role argument specs for fail-fast parameter validation (generate after defaults/main.yml)",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ansible_apache_ssl/vars/main.yml",
+      "status": "complete",
+      "description": "Role variables file",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ansible_apache_ssl/files/.gitkeep",
+      "status": "complete",
+      "description": "Files directory placeholder",
+      "notes": ""
+    },
+    {
+      "category": "templates",
+      "source_path": "chef-and-ansible/website_https.yml",
+      "target_path": "ansible/roles/ansible_apache_ssl/templates/virtualhost.conf.j2",
+      "status": "complete",
+      "description": "Apache virtual host configuration template - convert inline conftext variable to Jinja2 template",
+      "notes": ""
+    },
+    {
+      "category": "templates",
+      "source_path": "chef-and-ansible/website_https.yml",
+      "target_path": "ansible/roles/ansible_apache_ssl/templates/index.html.j2",
+      "status": "complete",
+      "description": "HTML index page template - convert inline webtext variable to Jinja2 template",
+      "notes": ""
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:community.crypto",
+      "target_path": "ansible/roles/ansible_apache_ssl/requirements.yml",
+      "status": "complete",
+      "description": "Community crypto collection for SSL certificate management (openssl_privatekey, openssl_csr, openssl_certificate)",
+      "notes": ""
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:community.general",
+      "target_path": "ansible/roles/ansible_apache_ssl/requirements.yml",
+      "status": "complete",
+      "description": "Community general collection for Apache module management (apache2_module)",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ansible_apache_ssl/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule scenario configuration for AAP testing (delegated driver, local connection)",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ansible_apache_ssl/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook - creates expected filesystem state under /tmp/molecule_test/",
+      "notes": "Generated converge.yml that recreates expected filesystem state under /tmp/molecule_test/ including SSL certificates, Apache configuration, and web content"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ansible_apache_ssl/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification tasks checking /tmp/molecule_test/ paths",
+      "notes": "Generated verify.yml with comprehensive tests for SSL certificates, Apache configuration, web content, and service checks (with molecule-notest tags for container-incompatible tests)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ansible_apache_ssl/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Molecule create playbook (no-op instance create)",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/ansible_apache_ssl/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Molecule destroy playbook (no-op instance destroy)",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    }
+  ]
+}

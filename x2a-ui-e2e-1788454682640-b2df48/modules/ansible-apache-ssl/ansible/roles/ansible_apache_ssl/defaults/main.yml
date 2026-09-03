@@ -1,0 +1,15 @@
+---
+apache_version: 2.4.41-4ubuntu3.10
+site_name: helloworld
+document_root: /var/www/helloworld
+ssl_cert_path: /etc/apache2/certs/apache.crt
+ssl_key_path: /etc/apache2/certs/apache.key
+ssl_csr_path: /etc/apache2/certs/apache.csr
+common_name: "{{ ansible_facts['fqdn'] }}"
+website_title: Test Site
+website_content: Hello, world!
+cert_directory_mode: "0640"
+web_directory_mode: "0755"
+cert_file_mode: "0640"
+html_file_mode: "0644"
+cert_directory: /etc/apache2/certs

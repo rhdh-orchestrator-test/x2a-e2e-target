@@ -1,0 +1,215 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check SSL certificate files exist
+      ansible.builtin.stat:
+        path: "{{ item_cert }}"
+      loop:
+        - /tmp/molecule_test/etc/apache2/certs/apache.crt
+        - /tmp/molecule_test/etc/apache2/certs/apache.key
+        - /tmp/molecule_test/etc/apache2/certs/apache.csr
+      loop_control:
+        loop_var: item_cert
+      register: cert_stat_results
+
+    - name: Assert SSL certificate files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Expected SSL certificate file not found"
+      loop: "{{ cert_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check Apache configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_config }}"
+      loop:
+        - /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+      loop_control:
+        loop_var: item_config
+      register: config_stat_results
+
+    - name: Assert Apache configuration files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Expected Apache configuration file not found"
+      loop: "{{ config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check web content files exist
+      ansible.builtin.stat:
+        path: "{{ item_web }}"
+      loop:
+        - /tmp/molecule_test/var/www/helloworld/index.html
+      loop_control:
+        loop_var: item_web
+      register: web_stat_results
+
+    - name: Assert web content files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Expected web content file not found"
+      loop: "{{ web_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Read SSL certificate content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/certs/apache.crt
+      register: cert_content
+
+    - name: Assert SSL certificate has valid format
+      ansible.builtin.assert:
+        that:
+          - "'BEGIN CERTIFICATE' in cert_content['content'] | b64decode"
+          - "'END CERTIFICATE' in cert_content['content'] | b64decode"
+        fail_msg: "SSL certificate does not have valid format"
+
+    - name: Read SSL private key content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/certs/apache.key
+      register: key_content
+
+    - name: Assert SSL private key has valid format
+      ansible.builtin.assert:
+        that:
+          - "'BEGIN PRIVATE KEY' in key_content['content'] | b64decode"
+          - "'END PRIVATE KEY' in key_content['content'] | b64decode"
+        fail_msg: "SSL private key does not have valid format"
+
+    - name: Read Apache virtual host configuration
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+      register: vhost_content
+
+    - name: Assert virtual host configuration contains required directives
+      ansible.builtin.assert:
+        that:
+          - "'VirtualHost *:443' in vhost_content['content'] | b64decode"
+          - "'SSLEngine on' in vhost_content['content'] | b64decode"
+          - "'SSLCertificateFile' in vhost_content['content'] | b64decode"
+          - "'SSLCertificateKeyFile' in vhost_content['content'] | b64decode"
+          - "'DocumentRoot' in vhost_content['content'] | b64decode"
+        fail_msg: "Virtual host configuration missing required SSL directives"
+
+    - name: Read website index content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/var/www/helloworld/index.html
+      register: index_content
+
+    - name: Assert website content is valid HTML
+      ansible.builtin.assert:
+        that:
+          - "'<html>' in index_content['content'] | b64decode"
+          - "'Test Site' in index_content['content'] | b64decode"
+          - "'Hello, world!' in index_content['content'] | b64decode"
+          - "'The site is up and running' in index_content['content'] | b64decode"
+        fail_msg: "Website index.html does not contain expected content"
+
+    - name: Check certificate directory permissions
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/certs
+      register: cert_dir_stat
+
+    - name: Assert certificate directory has correct permissions
+      ansible.builtin.assert:
+        that:
+          - cert_dir_stat['stat']['isdir']
+          - cert_dir_stat['stat']['mode'] == '0755'
+        fail_msg: "Certificate directory does not have expected permissions"
+
+    - name: Check web directory permissions
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/www/helloworld
+      register: web_dir_stat
+
+    - name: Assert web directory has correct permissions
+      ansible.builtin.assert:
+        that:
+          - web_dir_stat['stat']['isdir']
+          - web_dir_stat['stat']['mode'] == '0755'
+        fail_msg: "Web directory does not have expected permissions"
+
+- name: Verify service and network checks (container-incompatible)
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Apache service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Apache service is running
+      ansible.builtin.assert:
+        that:
+          - "'apache2.service' in ansible_facts.services"
+          - "ansible_facts.services['apache2.service']['state'] == 'running'"
+        fail_msg: "Apache service is not running"
+      tags: molecule-notest
+
+    - name: Check SSL module is loaded
+      ansible.builtin.command:
+        cmd: apache2ctl -M
+      register: apache_modules
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert SSL module is enabled
+      ansible.builtin.assert:
+        that:
+          - "'ssl_module' in apache_modules['stdout']"
+        fail_msg: "SSL module is not loaded in Apache"
+      tags: molecule-notest
+
+    - name: Test HTTPS connectivity
+      ansible.builtin.uri:
+        url: https://localhost/
+        validate_certs: false
+        method: GET
+      register: https_response
+      tags: molecule-notest
+
+    - name: Assert HTTPS site is accessible
+      ansible.builtin.assert:
+        that:
+          - https_response['status'] == 200
+          - "'Hello, world!' in https_response['content']"
+        fail_msg: "HTTPS site is not accessible or content is incorrect"
+      tags: molecule-notest
+
+    - name: Check Apache virtual host configuration
+      ansible.builtin.command:
+        cmd: apache2ctl -S
+      register: apache_vhosts
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert virtual host is configured
+      ansible.builtin.assert:
+        that:
+          - "'*:443' in apache_vhosts['stdout']"
+        fail_msg: "SSL virtual host is not properly configured"
+      tags: molecule-notest
+
+    - name: Check if custom site is enabled
+      ansible.builtin.command:
+        cmd: a2ensite -q helloworld
+      register: site_enabled_check
+      changed_when: false
+      failed_when: false
+      tags: molecule-notest
+
+    - name: Assert custom site is enabled
+      ansible.builtin.assert:
+        that:
+          - site_enabled_check['rc'] == 0
+        fail_msg: "Custom site helloworld is not enabled"
+      tags: molecule-notest

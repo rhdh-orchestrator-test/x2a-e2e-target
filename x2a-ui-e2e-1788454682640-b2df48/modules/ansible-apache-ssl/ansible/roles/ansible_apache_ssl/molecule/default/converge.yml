@@ -1,0 +1,98 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item_dir }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/apache2/certs
+        - /tmp/molecule_test/etc/apache2/sites-available
+        - /tmp/molecule_test/var/www/helloworld
+      loop_control:
+        loop_var: item_dir
+
+    - name: Create SSL certificate files
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN CERTIFICATE-----
+          MIICljCCAX4CCQDMockup1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJ
+          KLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN
+          OPQRSTUVWXYZ1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQR
+          STUVWXYZ1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV
+          WXYZ1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+          1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234
+          567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890
+          -----END CERTIFICATE-----
+        dest: /tmp/molecule_test/etc/apache2/certs/apache.crt
+        mode: "0640"
+        backup: true
+
+    - name: Create SSL private key file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN PRIVATE KEY-----
+          MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDMockupPrivateKey
+          1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234
+          567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890
+          abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdef
+          ghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijk
+          lmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnop
+          qrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopqrstu
+          vwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopqrstuvwxyz
+          -----END PRIVATE KEY-----
+        dest: /tmp/molecule_test/etc/apache2/certs/apache.key
+        mode: "0640"
+        backup: true
+
+    - name: Create SSL CSR file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN CERTIFICATE REQUEST-----
+          MIICWjCCAUICAQAwFTETMBEGA1UEAwwKbG9jYWxob3N0LmNvbTCCASIwDQYJKoZI
+          hvcNAQEBBQADggEPADCCAQoCggEBAMockupCSRContent1234567890abcdefghij
+          klmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmn
+          opqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopqr
+          stuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopqrstuv
+          wxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopqrstuvwxyz
+          ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopqrstuvwxyzABCD
+          EFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopqrstuvwxyzABCDEFGH
+          -----END CERTIFICATE REQUEST-----
+        dest: /tmp/molecule_test/etc/apache2/certs/apache.csr
+        mode: "0640"
+        backup: true
+
+    - name: Create Apache virtual host configuration
+      ansible.builtin.copy:
+        content: |
+          <VirtualHost *:443>
+           DocumentRoot "/tmp/molecule_test/var/www/helloworld"
+           SSLEngine on
+           SSLCertificateFile /tmp/molecule_test/etc/apache2/certs/apache.crt
+           SSLCertificateKeyFile /tmp/molecule_test/etc/apache2/certs/apache.key
+            <Directory "/tmp/molecule_test/var/www/helloworld">
+              allow from all
+              Options None
+              Require all granted
+            </Directory>
+          </VirtualHost>
+        dest: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+        mode: "0640"
+        backup: true
+
+    - name: Create website index file
+      ansible.builtin.copy:
+        content: |
+          <html>
+            <head><title>Test Site</title></head>
+            <body>
+             <h1>Hello, world!</h1>
+             <p>The site is up and running</p>
+            </body>
+          </html>
+        dest: /tmp/molecule_test/var/www/helloworld/index.html
+        mode: "0644"
+        backup: true
