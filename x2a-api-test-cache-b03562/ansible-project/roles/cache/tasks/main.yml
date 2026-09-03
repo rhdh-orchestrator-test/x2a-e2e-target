@@ -1,0 +1,45 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Install memcached package
+  ansible.builtin.package:
+    name: memcached
+    state: present
+- name: Install Redis packages
+  ansible.builtin.package:
+    name:
+      - redis-server
+      - redis-tools
+    state: present
+- name: Create Redis configuration directory
+  ansible.builtin.file:
+    path: /etc/redis
+    state: directory
+    mode: "0755"
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    owner: redis
+    group: redis
+    mode: "0755"
+    state: directory
+    recurse: true
+- name: Configure Redis server
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: /etc/redis/6379.conf
+    owner: redis
+    group: redis
+    mode: "0640"
+    backup: true
+  notify: Restart Redis
+- name: Start and enable memcached service
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true
+- name: Start and enable Redis service
+  ansible.builtin.service:
+    name: redis-server
+    state: started
+    enabled: true
