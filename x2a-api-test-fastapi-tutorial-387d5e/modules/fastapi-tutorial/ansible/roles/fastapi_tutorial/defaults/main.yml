@@ -1,0 +1,25 @@
+---
+fastapi_tutorial_app_dir: /opt/fastapi-tutorial
+fastapi_tutorial_repo_url: https://github.com/dibanez/fastapi_tutorial.git
+fastapi_tutorial_repo_branch: main
+fastapi_tutorial_venv_path: "{{ fastapi_tutorial_app_dir }}/venv"
+fastapi_tutorial_project_name: FastAPI Tutorial
+fastapi_tutorial_api_version: 1.0.0
+fastapi_tutorial_host: 0.0.0.0
+fastapi_tutorial_port: 8000
+fastapi_tutorial_service_name: fastapi-tutorial
+fastapi_tutorial_service_user: fastapi
+fastapi_tutorial_service_group: fastapi
+fastapi_tutorial_dir_mode: "0755"
+fastapi_tutorial_file_mode: "0644"
+fastapi_tutorial_system_packages:
+  - python3
+  - python3-pip
+  - python3-venv
+  - git
+  - postgresql
+  - postgresql-contrib
+fastapi_tutorial_db_host: "{{ db_host | default('localhost') }}"
+fastapi_tutorial_db_name: "{{ db_name | default('fastapi_db') }}"
+fastapi_tutorial_db_user: "{{ db_username | default('fastapi') }}"
+fastapi_tutorial_db_password: "{{ db_password | default('fastapi_password') }}"
