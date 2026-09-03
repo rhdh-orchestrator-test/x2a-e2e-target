@@ -1,0 +1,117 @@
+{
+  "module_name": "cache",
+  "items": [
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/aap-configuration/controller_credential_types.yml",
+      "status": "complete",
+      "description": "AAP credential types configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/aap-configuration/controller_credentials.yml",
+      "status": "complete",
+      "description": "AAP credentials configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/tasks/validate_credentials.yml",
+      "status": "complete",
+      "description": "Credential validation tasks",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/handlers/main.yml",
+      "status": "complete",
+      "description": "Role handlers for service management",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "cookbooks/cache/recipes/default.rb",
+      "target_path": "ansible/roles/cache/tasks/main.yml",
+      "status": "complete",
+      "description": "Main recipe converting memcached and Redis setup with configuration cleanup",
+      "notes": ""
+    },
+    {
+      "category": "attributes",
+      "source_path": "cookbooks/cache/recipes/default.rb",
+      "target_path": "ansible/roles/cache/defaults/main.yml",
+      "status": "complete",
+      "description": "Redis configuration variables including port, password, and directory settings",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "ansible/roles/cache/defaults/main.yml",
+      "target_path": "ansible/roles/cache/meta/argument_specs.yml",
+      "status": "complete",
+      "description": "Role argument specs for fail-fast parameter validation (generate after defaults/main.yml)",
+      "notes": ""
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.posix",
+      "target_path": "requirements.yml",
+      "status": "complete",
+      "description": "Ansible POSIX collection for advanced system modules",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "molecule/default/molecule.yml",
+      "status": "pending",
+      "description": "Molecule scenario configuration for AAP testing with delegated driver",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook creating expected filesystem state under /tmp/molecule_test/",
+      "notes": "Generated converge.yml that creates expected filesystem state under /tmp/molecule_test/ including Redis and memcached configuration files"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification tasks checking /tmp/molecule_test/ paths",
+      "notes": "Generated verify.yml that translates pre-flight checks into Ansible assertions, including file existence, content validation, and service checks (tagged for container safety)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "molecule/default/create.yml",
+      "status": "pending",
+      "description": "Molecule create playbook (no-op for delegated driver)",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "molecule/default/destroy.yml",
+      "status": "pending",
+      "description": "Molecule destroy playbook (no-op for delegated driver)",
+      "notes": ""
+    }
+  ]
+}
