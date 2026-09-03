@@ -1,0 +1,45 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis and memcached caching services
+    description:
+      - Installs and configures Redis server with authentication
+      - Installs and configures memcached service
+      - Creates Redis log directory with proper permissions
+      - Removes replica-related settings from Redis configuration
+    options:
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port for Redis server to listen on
+      cache_redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory path for Redis log files
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Path to Redis configuration file
+      cache_memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: TCP port for memcached service to listen on
+      cache_redis_replica_settings_to_remove:
+        type: list
+        elements: str
+        required: false
+        default:
+          - replica-serve-stale-data
+          - replica-read-only
+          - repl-ping-replica-period
+          - client-output-buffer-limit
+          - replica-priority
+        description: List of Redis replica configuration settings to remove from config file
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password (injected by AAP credential type)
