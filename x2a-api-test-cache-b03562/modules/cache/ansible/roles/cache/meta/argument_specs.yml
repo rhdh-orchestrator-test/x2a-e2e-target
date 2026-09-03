@@ -1,0 +1,14 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis and Memcached caching services
+    description:
+      - Installs and configures Redis server with authentication
+      - Installs and configures Memcached service
+      - Creates Redis log directory with proper permissions
+      - Applies Redis configuration without problematic replica settings
+    options:
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password for client connections. This variable is injected by AAP credential types at runtime.
