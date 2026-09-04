@@ -1,0 +1,23 @@
+---
+- name: Restart haproxy
+  ansible.builtin.systemd:
+    name: "{{ profile_haproxy_service_name }}"
+    state: restarted
+- name: restart haproxy
+  ansible.builtin.systemd:
+    name: "{{ profile_haproxy_service_name }}"
+    state: restarted
+- name: Reload haproxy
+  ansible.builtin.systemd:
+    name: "{{ profile_haproxy_service_name }}"
+    state: reloaded
+- name: reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+- name: Validate haproxy config
+  ansible.builtin.command:
+    cmd: haproxy -f {{ profile_haproxy_config_file }} -c
+  changed_when: false
+- name: Systemd daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true

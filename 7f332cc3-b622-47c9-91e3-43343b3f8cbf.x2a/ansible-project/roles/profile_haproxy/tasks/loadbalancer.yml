@@ -1,0 +1,7 @@
+---
+- name: Set environment name from facts
+  ansible.builtin.set_fact:
+    profile_haproxy_environment_name: "{{ ansible_env.ENVIRONMENT | default(inventory_hostname.split('.')[1] | default('production')) }}"
+  when: profile_haproxy_environment_name is not defined
+- name: Include main HAProxy profile tasks
+  ansible.builtin.include_tasks: main.yml

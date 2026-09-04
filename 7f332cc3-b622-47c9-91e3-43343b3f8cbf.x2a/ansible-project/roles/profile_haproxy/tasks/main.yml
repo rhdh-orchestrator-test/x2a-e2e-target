@@ -1,0 +1,14 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Install HAProxy packages
+  ansible.builtin.include_tasks: install.yml
+- name: Configure HAProxy
+  ansible.builtin.include_tasks: config.yml
+- name: Configure HAProxy service discovery
+  ansible.builtin.include_tasks: discover.yml
+  when: profile_haproxy_discovery_enabled | default(false)
+- name: Configure HAProxy service
+  ansible.builtin.include_tasks: service.yml
+- name: Configure HAProxy firewall
+  ansible.builtin.include_tasks: firewall.yml

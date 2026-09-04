@@ -1,0 +1,214 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check HAProxy configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_config }}"
+      loop:
+        - /tmp/molecule_test/etc/haproxy/haproxy.cfg
+        - /tmp/molecule_test/etc/haproxy/conf.d/webservers.cfg
+        - /tmp/molecule_test/etc/haproxy/errors/503.http
+        - /tmp/molecule_test/etc/haproxy/errors/408.http
+        - /tmp/molecule_test/etc/systemd/system/haproxy.service.d/override.conf
+        - /tmp/molecule_test/etc/logrotate.d/haproxy
+      loop_control:
+        loop_var: item_config
+      register: config_stat_results
+
+    - name: Assert configuration files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Expected configuration file not found"
+      loop: "{{ config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check HAProxy directories exist
+      ansible.builtin.stat:
+        path: "{{ item_dir }}"
+      loop:
+        - /tmp/molecule_test/etc/haproxy
+        - /tmp/molecule_test/etc/haproxy/conf.d
+        - /tmp/molecule_test/etc/haproxy/errors
+        - /tmp/molecule_test/var/lib/haproxy
+        - /tmp/molecule_test/etc/systemd/system/haproxy.service.d
+      loop_control:
+        loop_var: item_dir
+      register: dir_stat_results
+
+    - name: Assert directories were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['isdir']
+        fail_msg: "Expected directory not found"
+      loop: "{{ dir_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Read HAProxy main configuration content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/haproxy/haproxy.cfg
+      register: haproxy_config_content
+
+    - name: Assert HAProxy configuration contains expected sections
+      ansible.builtin.assert:
+        that:
+          - "'global' in haproxy_config_decoded"
+          - "'defaults' in haproxy_config_decoded"
+          - "'frontend main' in haproxy_config_decoded"
+          - "'backend servers' in haproxy_config_decoded"
+          - "'listen stats' in haproxy_config_decoded"
+          - "'maxconn     4000' in haproxy_config_decoded"
+          - "'timeout client          50000ms' in haproxy_config_decoded"
+          - "'timeout server          50000ms' in haproxy_config_decoded"
+          - "'bind *:80' in haproxy_config_decoded"
+          - "'bind *:9000' in haproxy_config_decoded"
+        fail_msg: "HAProxy configuration missing expected sections"
+      vars:
+        haproxy_config_decoded: "{{ haproxy_config_content['content'] | b64decode }}"
+
+    - name: Read HAProxy error page content
+      ansible.builtin.slurp:
+        src: "{{ item_error_file }}"
+      loop:
+        - /tmp/molecule_test/etc/haproxy/errors/503.http
+        - /tmp/molecule_test/etc/haproxy/errors/408.http
+      loop_control:
+        loop_var: item_error_file
+      register: error_page_results
+
+    - name: Assert error pages contain expected content
+      ansible.builtin.assert:
+        that:
+          - "'HTTP/1.0' in item_result['content'] | b64decode"
+          - "'<html><body>' in item_result['content'] | b64decode"
+          - "'temporarily unavailable' in item_result['content'] | b64decode"
+        fail_msg: "Error page missing expected content"
+      loop: "{{ error_page_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Read systemd override configuration
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/systemd/system/haproxy.service.d/override.conf
+      register: systemd_override_content
+
+    - name: Assert systemd override contains expected configuration
+      ansible.builtin.assert:
+        that:
+          - "'[Service]' in systemd_override_decoded"
+          - "'ExecStart=' in systemd_override_decoded"
+          - "'/usr/sbin/haproxy -Ws' in systemd_override_decoded"
+          - "'-f /etc/haproxy/haproxy.cfg' in systemd_override_decoded"
+          - "'-f /etc/haproxy/conf.d/' in systemd_override_decoded"
+        fail_msg: "Systemd override missing expected configuration"
+      vars:
+        systemd_override_decoded: "{{ systemd_override_content['content'] | b64decode }}"
+
+    - name: Read logrotate configuration
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/logrotate.d/haproxy
+      register: logrotate_content
+
+    - name: Assert logrotate configuration contains expected settings
+      ansible.builtin.assert:
+        that:
+          - "'/var/log/haproxy/*.log' in logrotate_decoded"
+          - "'daily' in logrotate_decoded"
+          - "'rotate 14' in logrotate_decoded"
+          - "'compress' in logrotate_decoded"
+          - "'postrotate' in logrotate_decoded"
+        fail_msg: "Logrotate configuration missing expected settings"
+      vars:
+        logrotate_decoded: "{{ logrotate_content['content'] | b64decode }}"
+
+    - name: Read backend configuration
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/haproxy/conf.d/webservers.cfg
+      register: backend_config_content
+
+    - name: Assert backend configuration contains expected settings
+      ansible.builtin.assert:
+        that:
+          - "'backend webservers' in backend_config_decoded"
+          - "'balance roundrobin' in backend_config_decoded"
+          - "'option httpchk' in backend_config_decoded"
+          - "'server web1' in backend_config_decoded"
+          - "'check inter 10s' in backend_config_decoded"
+        fail_msg: "Backend configuration missing expected settings"
+      vars:
+        backend_config_decoded: "{{ backend_config_content['content'] | b64decode }}"
+
+# Service and network checks that cannot run in container environment
+- name: Verify service and network configuration (container-incompatible)
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check HAProxy service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert HAProxy service is configured
+      ansible.builtin.assert:
+        that:
+          - "'haproxy.service' in ansible_facts.services"
+          - "ansible_facts.services['haproxy.service']['state'] == 'running'"
+          - "ansible_facts.services['haproxy.service']['status'] == 'enabled'"
+        fail_msg: "HAProxy service not properly configured"
+      tags: molecule-notest
+
+    - name: Check HTTP port availability
+      ansible.builtin.wait_for:
+        port: 80
+        host: localhost
+        timeout: 5
+      tags: molecule-notest
+
+    - name: Check HTTPS port availability (when SSL enabled)
+      ansible.builtin.wait_for:
+        port: 443
+        host: localhost
+        timeout: 5
+      tags: molecule-notest
+      when: profile_haproxy_ssl_enabled | default(false)
+
+    - name: Check stats port availability
+      ansible.builtin.wait_for:
+        port: 9000
+        host: localhost
+        timeout: 5
+      tags: molecule-notest
+
+    - name: Test HTTP frontend response
+      ansible.builtin.uri:
+        url: http://localhost:80
+        method: GET
+        status_code: [200, 503]
+      tags: molecule-notest
+
+    - name: Test HTTPS frontend response (when SSL enabled)
+      ansible.builtin.uri:
+        url: https://localhost:443
+        method: GET
+        status_code: [200, 503]
+        validate_certs: false
+      tags: molecule-notest
+      when: profile_haproxy_ssl_enabled | default(false)
+
+    - name: Test stats interface
+      ansible.builtin.uri:
+        url: http://localhost:9000/stats
+        method: GET
+        status_code: [200, 401]
+      tags: molecule-notest
+
+    - name: Validate HAProxy configuration syntax
+      ansible.builtin.command:
+        cmd: haproxy -c -f /etc/haproxy/haproxy.cfg -f /etc/haproxy/conf.d/
+      changed_when: false
+      tags: molecule-notest

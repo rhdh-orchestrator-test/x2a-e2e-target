@@ -1,0 +1,66 @@
+---
+- name: Deploy main HAProxy configuration
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: "{{ profile_haproxy_config_file }}"
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0640"
+    backup: true
+  notify: Restart haproxy
+- name: Create HAProxy errors directory
+  ansible.builtin.file:
+    path: "{{ profile_haproxy_config_dir }}/errors"
+    state: directory
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0755"
+- name: Deploy backend configurations
+  ansible.builtin.template:
+    src: backend.conf.j2
+    dest: "{{ profile_haproxy_config_dir }}/conf.d/{{ item_backend['key'] }}.cfg"
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0640"
+    backup: true
+  vars:
+    backend_name: "{{ item_backend['key'] }}"
+    balance: "{{ item_backend['value']['balance'] | default('roundrobin') }}"
+    backend_port_number: "{{ item_backend['value']['port'] | default(80) }}"
+    servers: "{{ item_backend['value']['servers'] | default([]) }}"
+    health_check: "{{ item_backend['value']['health_check'] | default('httpchk') }}"
+    health_interval: "{{ item_backend['value']['health_interval'] | default('10s') }}"
+    ssl_enabled: "{{ item_backend['value']['ssl_enabled'] | default(false) }}"
+  loop: "{{ profile_haproxy_backends | dict2items }}"
+  loop_control:
+    loop_var: item_backend
+  when: profile_haproxy_backends | length > 0
+  notify: Restart haproxy
+- name: Create HTTP error pages
+  ansible.builtin.copy:
+    content: "HTTP/1.0 {{ item_error }} {{ error_messages[item_error] }}\nCache-Control: no-cache\nConnection: close\nContent-Type: text/html\n\n<html><body><h1>{{
+      item_error }} {{ error_messages[item_error] }}</h1>\n<p>The server is temporarily unavailable. Please try again later.</p>\n</body></html>\n"
+    dest: "{{ profile_haproxy_config_dir }}/errors/{{ item_error }}.http"
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0644"
+    backup: true
+  vars:
+    error_messages:
+      "503": Service Unavailable
+      "408": Request Timeout
+  loop:
+    - "503"
+    - "408"
+  loop_control:
+    loop_var: item_error
+- name: Configure stick table (when enabled)
+  ansible.builtin.template:
+    src: stick_table.conf.j2
+    dest: "{{ profile_haproxy_config_dir }}/conf.d/stick_table.cfg"
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0640"
+    backup: true
+  when: profile_haproxy_stick_table_enabled | default(false)
+  notify: Restart haproxy

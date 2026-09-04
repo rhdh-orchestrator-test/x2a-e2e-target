@@ -1,0 +1,15 @@
+---
+- name: Set default PATH for commands (Linux only)
+  ansible.builtin.set_fact:
+    ansible_env_path: /usr/bin:/bin:/usr/sbin:/sbin
+  when: ansible_kernel | lower == 'linux'
+- name: Include base profile tasks
+  ansible.builtin.include_role:
+    name: profile_base
+    tasks_from: base
+  when:
+    - profile_haproxy_include_base | default(true)
+    - "'profile_base' in ansible_play_role_names or 'profile_base' in ansible_role_names"
+  ignore_errors: true
+- name: Include HAProxy loadbalancer profile tasks
+  ansible.builtin.include_tasks: loadbalancer.yml
