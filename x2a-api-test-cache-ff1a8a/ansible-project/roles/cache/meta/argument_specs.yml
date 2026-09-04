@@ -1,0 +1,75 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis and Memcached caching services
+    description:
+      - Installs and configures Redis server with authentication on port 6379
+      - Installs and configures Memcached service on port 11211
+      - Creates necessary directories and users for Redis operation
+      - Cleans up Redis configuration to remove replica-related settings
+    options:
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port for Redis server to listen on
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Path to Redis configuration file
+      cache_redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory for Redis log files
+      cache_redis_user:
+        type: str
+        required: false
+        default: redis
+        description: System user for Redis service
+      cache_redis_group:
+        type: str
+        required: false
+        default: redis
+        description: System group for Redis service
+      cache_memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: TCP port for Memcached server to listen on
+      cache_redis_package:
+        type: str
+        required: false
+        default: redis-server (Debian) or redis (RedHat)
+        description: Package name for Redis server (OS-dependent)
+      cache_memcached_package:
+        type: str
+        required: false
+        default: memcached
+        description: Package name for Memcached server
+      cache_redis_service:
+        type: str
+        required: false
+        default: redis-server (Debian) or redis (RedHat)
+        description: Service name for Redis (OS-dependent)
+      cache_memcached_service:
+        type: str
+        required: false
+        default: memcached
+        description: Service name for Memcached
+      cache_redis_cleanup_patterns:
+        type: list
+        elements: str
+        required: false
+        default:
+          - ^replica-serve-stale-data.*$
+          - ^replica-read-only.*$
+          - ^repl-ping-replica-period.*$
+          - ^client-output-buffer-limit.*$
+          - ^replica-priority.*$
+        description: Regex patterns for Redis configuration lines to remove
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password (injected by AAP credential type)
