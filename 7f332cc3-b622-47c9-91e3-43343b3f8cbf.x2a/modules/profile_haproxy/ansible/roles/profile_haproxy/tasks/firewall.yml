@@ -1,0 +1,72 @@
+---
+- name: Configure firewall for HAProxy (firewalld)
+  when: profile_haproxy_firewall_provider == 'firewalld'
+  block:
+    - name: Open HTTP port in firewalld
+      ansible.posix.firewalld:
+        port: 80/tcp
+        permanent: true
+        immediate: true
+        state: enabled
+        zone: "{{ profile_haproxy_firewall_zone | default('public') }}"
+    - name: Open HTTPS port in firewalld
+      ansible.posix.firewalld:
+        port: 443/tcp
+        permanent: true
+        immediate: true
+        state: enabled
+        zone: "{{ profile_haproxy_firewall_zone | default('public') }}"
+    - name: Open HAProxy stats port in firewalld
+      ansible.posix.firewalld:
+        port: "{{ profile_haproxy_stats_port }}/tcp"
+        permanent: true
+        immediate: true
+        state: enabled
+        zone: "{{ profile_haproxy_firewall_zone | default('public') }}"
+      when: profile_haproxy_stats_enabled | default(true)
+- name: Configure firewall for HAProxy (ufw)
+  when: profile_haproxy_firewall_provider == 'ufw'
+  block:
+    - name: Install ufw package
+      ansible.builtin.package:
+        name: ufw
+        state: present
+    - name: Check if HTTP port is already allowed in ufw
+      ansible.builtin.command:
+        cmd: ufw status numbered
+      register: ufw_status_http
+      changed_when: false
+    - name: Allow HTTP traffic through ufw
+      ansible.builtin.command:
+        cmd: ufw allow 80/tcp
+      when: "'80/tcp' not in ufw_status_http.stdout"
+    - name: Check if HTTPS port is already allowed in ufw
+      ansible.builtin.command:
+        cmd: ufw status numbered
+      register: ufw_status_https
+      changed_when: false
+    - name: Allow HTTPS traffic through ufw
+      ansible.builtin.command:
+        cmd: ufw allow 443/tcp
+      when: "'443/tcp' not in ufw_status_https.stdout"
+    - name: Check if HAProxy stats port is already allowed in ufw
+      ansible.builtin.command:
+        cmd: ufw status numbered
+      register: ufw_status_stats
+      changed_when: false
+      when: profile_haproxy_stats_enabled | default(true)
+    - name: Allow HAProxy stats port through ufw
+      ansible.builtin.command:
+        cmd: ufw allow {{ profile_haproxy_stats_port }}/tcp
+      when:
+        - profile_haproxy_stats_enabled | default(true)
+        - profile_haproxy_stats_port ~ '/tcp' not in ufw_status_stats.stdout
+    - name: Check if ufw is already enabled
+      ansible.builtin.command:
+        cmd: ufw status
+      register: ufw_status_check
+      changed_when: false
+    - name: Enable ufw firewall
+      ansible.builtin.command:
+        cmd: ufw --force enable
+      when: "'Status: active' not in ufw_status_check.stdout"

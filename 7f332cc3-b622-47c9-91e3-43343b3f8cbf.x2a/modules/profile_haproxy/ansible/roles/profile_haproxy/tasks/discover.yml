@@ -1,0 +1,78 @@
+---
+- name: Discover web servers from inventory
+  ansible.builtin.set_fact:
+    discovered_webservers: "{{ groups['webservers'] | default([]) }}"
+  when: "'webservers' in groups"
+- name: Discover application servers from inventory
+  ansible.builtin.set_fact:
+    discovered_app_servers: "{{ groups['app_servers'] | default([]) }}"
+  when: "'app_servers' in groups"
+- name: Build webserver list for backend configuration
+  ansible.builtin.set_fact:
+    webserver_backend_list: "{{ webserver_backend_list | default([]) + [{'name': item, 'address': hostvars[item]['ansible_default_ipv4']['address']}] }}"
+  loop: "{{ discovered_webservers | default([]) }}"
+  when:
+    - discovered_webservers is defined
+    - discovered_webservers | length > 0
+    - hostvars[item]['ansible_default_ipv4'] is defined
+- name: Generate dynamic backend configuration for webservers
+  ansible.builtin.template:
+    src: backend.conf.j2
+    dest: "{{ profile_haproxy_config_dir }}/conf.d/dynamic-webservers.cfg"
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0640"
+    backup: true
+  vars:
+    backend_name: webservers
+    balance: roundrobin
+    backend_port_number: 8080
+    servers: "{{ webserver_backend_list | default([]) }}"
+    health_check: httpchk
+    health_interval: 10s
+    ssl_enabled: false
+  when:
+    - webserver_backend_list is defined
+    - webserver_backend_list | length > 0
+  notify: Restart haproxy
+- name: Build app server list for backend configuration
+  ansible.builtin.set_fact:
+    appserver_backend_list: "{{ appserver_backend_list | default([]) + [{'name': item, 'address': hostvars[item]['ansible_default_ipv4']['address']}] }}"
+  loop: "{{ discovered_app_servers | default([]) }}"
+  when:
+    - discovered_app_servers is defined
+    - discovered_app_servers | length > 0
+    - hostvars[item]['ansible_default_ipv4'] is defined
+- name: Generate dynamic backend configuration for app servers
+  ansible.builtin.template:
+    src: backend.conf.j2
+    dest: "{{ profile_haproxy_config_dir }}/conf.d/dynamic-api.cfg"
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0640"
+    backup: true
+  vars:
+    backend_name: api
+    balance: roundrobin
+    backend_port_number: 8080
+    servers: "{{ appserver_backend_list | default([]) }}"
+    health_check: httpchk
+    health_interval: 10s
+    ssl_enabled: false
+  when:
+    - appserver_backend_list is defined
+    - appserver_backend_list | length > 0
+  notify: Restart haproxy
+- name: Remove dynamic backend configurations when no servers found
+  ansible.builtin.file:
+    path: "{{ item_config }}"
+    state: absent
+  loop:
+    - "{{ profile_haproxy_config_dir }}/conf.d/dynamic-webservers.cfg"
+    - "{{ profile_haproxy_config_dir }}/conf.d/dynamic-api.cfg"
+  loop_control:
+    loop_var: item_config
+  when:
+    - (webserver_backend_list is not defined or webserver_backend_list | length == 0)
+    - (appserver_backend_list is not defined or appserver_backend_list | length == 0)
+  notify: Restart haproxy
