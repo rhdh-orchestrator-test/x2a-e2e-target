@@ -1,0 +1,19 @@
+---
+argument_specs:
+  main:
+    short_description: Simple cache cookbook - local dependency for testing
+    description:
+      - Installs and configures Redis server as a simple cache service
+      - Uses default system configuration without custom templates
+      - Enables and starts the Redis service
+    options:
+      cache_redis_package:
+        type: str
+        required: false
+        default: redis-server
+        description: Package name for Redis server installation
+      cache_redis_service:
+        type: str
+        required: false
+        default: redis-server
+        description: Service name for Redis server management

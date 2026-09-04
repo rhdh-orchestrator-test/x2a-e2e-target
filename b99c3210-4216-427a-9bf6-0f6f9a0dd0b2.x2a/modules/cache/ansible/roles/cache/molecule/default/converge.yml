@@ -1,0 +1,69 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create Redis directories
+      ansible.builtin.file:
+        path: "{{ item_dir }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/redis
+        - /tmp/molecule_test/var/lib/redis
+        - /tmp/molecule_test/var/log/redis
+        - /tmp/molecule_test/var/run/redis
+      loop_control:
+        loop_var: item_dir
+
+    - name: Create Redis configuration file
+      ansible.builtin.copy:
+        content: |
+          # Redis configuration file
+          port 6379
+          bind 127.0.0.1
+          dir /var/lib/redis
+          logfile /var/log/redis/redis-server.log
+          pidfile /var/run/redis/redis-server.pid
+          daemonize yes
+          save 900 1
+          save 300 10
+          save 60 10000
+          maxmemory-policy allkeys-lru
+        dest: /tmp/molecule_test/etc/redis/redis.conf
+        mode: "0644"
+        backup: true
+
+    - name: Create Redis log file
+      ansible.builtin.copy:
+        content: |
+          [1] 01 Jan 00:00:00.000 # Redis server started
+          [1] 01 Jan 00:00:00.001 * Ready to accept connections
+          [1] 01 Jan 00:00:00.002 * The server is now ready to accept connections on port 6379
+        dest: /tmp/molecule_test/var/log/redis/redis-server.log
+        mode: "0644"
+        backup: true
+
+    - name: Create Redis PID file
+      ansible.builtin.copy:
+        content: "12345"
+        dest: /tmp/molecule_test/var/run/redis/redis-server.pid
+        mode: "0644"
+        backup: true
+
+    - name: Create Redis data directory structure
+      ansible.builtin.file:
+        path: "{{ item_data_dir }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/var/lib/redis/data
+      loop_control:
+        loop_var: item_data_dir
+
+    - name: Create Redis dump file (simulated)
+      ansible.builtin.copy:
+        content: "REDIS0009"
+        dest: /tmp/molecule_test/var/lib/redis/dump.rdb
+        mode: "0644"
+        backup: true
