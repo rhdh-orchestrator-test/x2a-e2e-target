@@ -1,0 +1,56 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Check Apache SSL configuration file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_config_stat
+  - name: Assert SSL configuration file exists
+    ansible.builtin.assert:
+      that:
+      - ssl_config_stat['stat']['exists']
+      - ssl_config_stat['stat']['isreg']
+      - ssl_config_stat['stat']['size'] > 0
+      fail_msg: Apache SSL configuration file not found
+  - name: Read SSL configuration file content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_config_content
+  - name: Decode SSL configuration content
+    ansible.builtin.set_fact:
+      ssl_config_text: '{{ ssl_config_content[''content''] | b64decode }}'
+  - name: Assert SSL protocol configuration was updated correctly
+    ansible.builtin.assert:
+      that:
+      - '''SSLProtocol -all +TLSv1.2'' in ssl_config_text'
+      - '''SSLProtocol all -SSLv2 -SSLv3'' not in ssl_config_text'
+      fail_msg: SSL protocol configuration not updated correctly
+  - name: Check for backup files in backup directory
+    ansible.builtin.find:
+      paths: /tmp/molecule_test/etc/apache2/backups
+      patterns: ssl.conf.*
+    register: backup_files
+    failed_when: false
+  - name: Check for backup files in same directory (default backup behavior)
+    ansible.builtin.find:
+      paths: /tmp/molecule_test/etc/apache2/mods-available
+      patterns: ssl.conf.*
+    register: backup_files_same_dir
+    failed_when: false
+  - name: Assert backup was created
+    ansible.builtin.assert:
+      that:
+      - (backup_files['matched'] > 0) or (backup_files_same_dir['matched'] > 0)
+      fail_msg: No backup file found for SSL configuration
+  - name: Verify SSL configuration syntax is valid
+    ansible.builtin.assert:
+      that:
+      - '''<IfModule mod_ssl.c>'' in ssl_config_text'
+      - '''</IfModule>'' in ssl_config_text'
+      - '''SSLEngine on'' in ssl_config_text'
+      fail_msg: SSL configuration file appears to be malformed
+  - name: Check Apache service would be restarted (simulation)
+    ansible.builtin.debug:
+      msg: Apache service restart would be triggered by handler
+    tags: molecule-notest
