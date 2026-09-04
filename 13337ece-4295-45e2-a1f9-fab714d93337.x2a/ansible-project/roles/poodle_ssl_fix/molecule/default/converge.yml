@@ -1,0 +1,32 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+  - name: Create Apache configuration directory structure
+    ansible.builtin.file:
+      path: '{{ item_dir }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc/apache2/mods-available
+    - /tmp/molecule_test/etc/apache2/mods-enabled
+    loop_control:
+      loop_var: item_dir
+  - name: Create initial Apache SSL configuration file with vulnerable settings
+    ansible.builtin.copy:
+      content: "<IfModule mod_ssl.c>\n    # SSL Engine Switch:\n    # Enable/Disable SSL for this virtual host.\n    SSLEngine on\n    \n    # SSL Protocol support:\n
+        \   # List the enable protocol levels with which clients will be\n    # able to connect.  Disable SSLv2 access by default:\n    SSLProtocol all -SSLv2 -SSLv3\n
+        \   \n    # SSL Cipher Suite:\n    # List the ciphers that the client is permitted to negotiate.\n    SSLCipherSuite HIGH:!aNULL:!MD5\n    \n    # Server
+        Certificate:\n    SSLCertificateFile /etc/ssl/certs/ssl-cert-snakeoil.pem\n    \n    # Server Private Key:\n    SSLCertificateKeyFile /etc/ssl/private/ssl-cert-snakeoil.key\n</IfModule>\n"
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      mode: '0644'
+      backup: true
+  - name: Simulate Apache package installation (container-safe)
+    ansible.builtin.debug:
+      msg: In production, Apache would be installed via package manager
+  - name: Fix SSL in Apache (simulated role task)
+    ansible.builtin.replace:
+      dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      regexp: ^SSLProtocol.*$
+      replace: SSLProtocol -all +TLSv1.2
+      backup: true

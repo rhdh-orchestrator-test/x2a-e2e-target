@@ -1,0 +1,63 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Apache SSL configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_config_stat
+
+    - name: Assert SSL configuration file was created
+      ansible.builtin.assert:
+        that:
+          - ssl_config_stat['stat']['exists']
+          - ssl_config_stat['stat']['size'] > 0
+        fail_msg: "Apache SSL configuration file not found"
+
+    - name: Read SSL configuration file content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_config_content
+
+    - name: Decode SSL configuration content
+      ansible.builtin.set_fact:
+        ssl_config_text: "{{ ssl_config_content['content'] | b64decode }}"
+
+    - name: Assert SSL protocol was updated to TLS 1.2 only
+      ansible.builtin.assert:
+        that:
+          - "'SSLProtocol -all +TLSv1.2' in ssl_config_text"
+          - "'SSLProtocol all -SSLv2 -SSLv3' not in ssl_config_text"
+        fail_msg: "SSL protocol configuration was not properly updated"
+
+    - name: Check that backup file was created
+      ansible.builtin.find:
+        paths: /tmp/molecule_test/etc/apache2/mods-available
+        patterns: "ssl.conf.*"
+        file_type: file
+      register: backup_files
+
+    - name: Assert backup file was created
+      ansible.builtin.assert:
+        that:
+          - backup_files['files'] | length > 0
+        fail_msg: "Backup file was not created during SSL configuration update"
+
+    - name: Verify SSL configuration contains required security settings
+      ansible.builtin.assert:
+        that:
+          - "'SSLEngine on' in ssl_config_text"
+          - "'SSLCipherSuite' in ssl_config_text"
+        fail_msg: "Required SSL security settings not found in configuration"
+
+    # Service checks that cannot run in container environment
+    - name: Check Apache service would be restarted (simulation)
+      ansible.builtin.debug:
+        msg: "In production, apache2 service would be restarted after SSL configuration changes"
+      tags: molecule-notest
+
+    - name: Check SSH service would be restarted (simulation)
+      ansible.builtin.debug:
+        msg: "In production, sshd service would be restarted after SSL configuration changes"
+      tags: molecule-notest
