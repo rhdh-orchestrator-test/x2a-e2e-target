@@ -1,0 +1,198 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check application directory exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/opt/fastapi-tutorial
+      register: app_dir_stat
+
+    - name: Assert application directory was created
+      ansible.builtin.assert:
+        that:
+          - app_dir_stat['stat']['exists']
+          - app_dir_stat['stat']['isdir']
+        fail_msg: "Application directory not found"
+
+    - name: Check Python virtual environment exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/opt/fastapi-tutorial/venv
+      register: venv_dir_stat
+
+    - name: Assert virtual environment was created
+      ansible.builtin.assert:
+        that:
+          - venv_dir_stat['stat']['exists']
+          - venv_dir_stat['stat']['isdir']
+        fail_msg: "Virtual environment directory not found"
+
+    - name: Check virtual environment binaries exist
+      ansible.builtin.stat:
+        path: "{{ item_venv_bin }}"
+      loop:
+        - /tmp/molecule_test/opt/fastapi-tutorial/venv/bin/python
+        - /tmp/molecule_test/opt/fastapi-tutorial/venv/bin/pip
+        - /tmp/molecule_test/opt/fastapi-tutorial/venv/bin/uvicorn
+      loop_control:
+        loop_var: item_venv_bin
+      register: venv_bin_stat_results
+
+    - name: Assert virtual environment binaries exist
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['executable']
+        fail_msg: "Virtual environment binary not found or not executable"
+      loop: "{{ venv_bin_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check environment configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/opt/fastapi-tutorial/.env
+      register: env_file_stat
+
+    - name: Assert environment file was created
+      ansible.builtin.assert:
+        that:
+          - env_file_stat['stat']['exists']
+          - env_file_stat['stat']['size'] > 0
+        fail_msg: "Environment configuration file not found"
+
+    - name: Read environment configuration content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/opt/fastapi-tutorial/.env
+      register: env_file_content
+
+    - name: Assert environment configuration contains required variables
+      ansible.builtin.assert:
+        that:
+          - "'PROJECT_NAME' in env_file_content['content'] | b64decode"
+          - "'API_VERSION' in env_file_content['content'] | b64decode"
+          - "'DATABASE_URL' in env_file_content['content'] | b64decode"
+          - "'postgresql://' in env_file_content['content'] | b64decode"
+        fail_msg: "Environment file missing required configuration"
+
+    - name: Check systemd service file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/systemd/system/fastapi-tutorial.service
+      register: service_file_stat
+
+    - name: Assert systemd service file was created
+      ansible.builtin.assert:
+        that:
+          - service_file_stat['stat']['exists']
+          - service_file_stat['stat']['size'] > 0
+        fail_msg: "Systemd service file not found"
+
+    - name: Read systemd service file content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/systemd/system/fastapi-tutorial.service
+      register: service_file_content
+
+    - name: Assert systemd service file contains required configuration
+      ansible.builtin.assert:
+        that:
+          - "'ExecStart' in service_file_content['content'] | b64decode"
+          - "'WorkingDirectory' in service_file_content['content'] | b64decode"
+          - "'uvicorn' in service_file_content['content'] | b64decode"
+          - "'--port 8000' in service_file_content['content'] | b64decode"
+        fail_msg: "Service file missing required configuration"
+
+    - name: Check requirements.txt file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/opt/fastapi-tutorial/requirements.txt
+      register: requirements_file_stat
+
+    - name: Assert requirements file was created
+      ansible.builtin.assert:
+        that:
+          - requirements_file_stat['stat']['exists']
+          - requirements_file_stat['stat']['size'] > 0
+        fail_msg: "Requirements file not found"
+
+    - name: Read requirements.txt content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/opt/fastapi-tutorial/requirements.txt
+      register: requirements_content
+
+    - name: Assert requirements contains expected packages
+      ansible.builtin.assert:
+        that:
+          - "'fastapi' in requirements_content['content'] | b64decode"
+          - "'uvicorn' in requirements_content['content'] | b64decode"
+          - "'psycopg' in requirements_content['content'] | b64decode"
+        fail_msg: "Requirements file missing expected packages"
+
+    - name: Check FastAPI application file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/opt/fastapi-tutorial/app/main.py
+      register: app_file_stat
+
+    - name: Assert application file was created
+      ansible.builtin.assert:
+        that:
+          - app_file_stat['stat']['exists']
+          - app_file_stat['stat']['size'] > 0
+        fail_msg: "FastAPI application file not found"
+
+    - name: Check Git repository structure exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/opt/fastapi-tutorial/.git
+      register: git_dir_stat
+
+    - name: Assert Git repository was cloned
+      ansible.builtin.assert:
+        that:
+          - git_dir_stat['stat']['exists']
+          - git_dir_stat['stat']['isdir']
+        fail_msg: "Git repository directory not found"
+
+# Service and network checks that cannot run in container environment
+- name: Verify services (container-incompatible)
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check PostgreSQL service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert PostgreSQL service is available
+      ansible.builtin.assert:
+        that:
+          - "'postgresql.service' in ansible_facts.services or 'postgresql' in ansible_facts.services"
+        fail_msg: "PostgreSQL service not found"
+      tags: molecule-notest
+
+    - name: Check FastAPI service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert FastAPI service is configured
+      ansible.builtin.assert:
+        that:
+          - "'fastapi-tutorial.service' in ansible_facts.services"
+        fail_msg: "FastAPI tutorial service not found"
+      tags: molecule-notest
+
+    - name: Check application health endpoint
+      ansible.builtin.uri:
+        url: http://localhost:8000/health
+        method: GET
+        status_code: 200
+      tags: molecule-notest
+
+    - name: Check FastAPI docs endpoint
+      ansible.builtin.uri:
+        url: http://localhost:8000/docs
+        method: GET
+        status_code: 200
+      tags: molecule-notest
+
+    - name: Check port 8000 is listening
+      ansible.builtin.wait_for:
+        port: 8000
+        host: localhost
+        timeout: 5
+      tags: molecule-notest

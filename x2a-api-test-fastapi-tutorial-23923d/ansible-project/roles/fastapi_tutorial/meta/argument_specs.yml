@@ -1,0 +1,97 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure FastAPI tutorial application
+    description:
+      - Deploys a FastAPI tutorial application with PostgreSQL database backend.
+      - Sets up Python virtual environment, installs dependencies, and configures systemd service.
+      - Creates database user and database with proper permissions.
+    options:
+      fastapi_tutorial_app_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Directory where the FastAPI application will be installed.
+      fastapi_tutorial_app_user:
+        type: str
+        required: false
+        default: root
+        description: User that owns the application files.
+      fastapi_tutorial_app_group:
+        type: str
+        required: false
+        default: root
+        description: Group that owns the application files.
+      fastapi_tutorial_app_port:
+        type: int
+        required: false
+        default: 8000
+        description: Port on which the FastAPI application listens.
+      fastapi_tutorial_git_repo:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository URL for the FastAPI tutorial application.
+      fastapi_tutorial_git_branch:
+        type: str
+        required: false
+        default: main
+        description: Git branch to checkout from the repository.
+      fastapi_tutorial_project_name:
+        type: str
+        required: false
+        default: FastAPI Tutorial
+        description: Project name used in the application configuration.
+      fastapi_tutorial_api_version:
+        type: str
+        required: false
+        default: 1.0.0
+        description: API version used in the application configuration.
+      fastapi_tutorial_service_name:
+        type: str
+        required: false
+        default: fastapi-tutorial
+        description: Name of the systemd service for the FastAPI application.
+      fastapi_tutorial_service_user:
+        type: str
+        required: false
+        default: root
+        description: User under which the systemd service runs.
+      fastapi_tutorial_system_packages:
+        type: list
+        elements: str
+        required: false
+        default:
+          - python3
+          - python3-pip
+          - python3-venv
+          - git
+          - postgresql
+          - postgresql-contrib
+          - libpq-dev
+        description: List of system packages required for the FastAPI application.
+      fastapi_tutorial_postgresql_service:
+        type: str
+        required: false
+        default: postgresql
+        description: Name of the PostgreSQL service (may vary by OS distribution).
+      db_username:
+        type: str
+        required: true
+        description: Database username injected by AAP credential type.
+      db_password:
+        type: str
+        required: true
+        description: Database password injected by AAP credential type.
+      db_name:
+        type: str
+        required: true
+        description: Database name injected by AAP credential type.
+      db_host:
+        type: str
+        required: true
+        description: Database host injected by AAP credential type.
+      db_port:
+        type: str
+        required: true
+        description: Database port injected by AAP credential type.
