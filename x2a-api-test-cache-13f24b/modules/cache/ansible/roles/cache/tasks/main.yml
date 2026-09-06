@@ -1,0 +1,84 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Install cache packages
+  ansible.builtin.package:
+    name:
+      - "{{ cache_redis_package }}"
+      - "{{ cache_memcached_package }}"
+    state: present
+- name: Create Redis group
+  ansible.builtin.group:
+    name: "{{ cache_redis_group }}"
+    system: true
+    state: present
+- name: Create Redis user
+  ansible.builtin.user:
+    name: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    system: true
+    shell: /bin/false
+    home: /var/lib/redis
+    create_home: false
+    state: present
+- name: Create Redis configuration directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_config_file | dirname }}"
+    owner: root
+    group: root
+    mode: "0755"
+    state: directory
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_dir }}"
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+    state: directory
+- name: Create Redis data directory
+  ansible.builtin.file:
+    path: /var/lib/redis
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+    state: directory
+- name: Create Redis PID directory
+  ansible.builtin.file:
+    path: /var/run/redis
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+    state: directory
+- name: Configure Redis server
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: "{{ cache_redis_config_file }}"
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0640"
+    backup: true
+  notify: Restart Redis
+- name: Remove deprecated Redis replica settings
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}"
+    regexp: "{{ item_cache }}"
+    state: absent
+  loop:
+    - ^replica-serve-stale-data.*$
+    - ^replica-read-only.*$
+    - ^repl-ping-replica-period.*$
+    - ^client-output-buffer-limit.*$
+    - ^replica-priority.*$
+  loop_control:
+    loop_var: item_cache
+  notify: Restart Redis
+- name: Start and enable Redis service
+  ansible.builtin.service:
+    name: "{{ cache_redis_service_name }}"
+    state: started
+    enabled: true
+- name: Start and enable Memcached service
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service_name }}"
+    state: started
+    enabled: true
