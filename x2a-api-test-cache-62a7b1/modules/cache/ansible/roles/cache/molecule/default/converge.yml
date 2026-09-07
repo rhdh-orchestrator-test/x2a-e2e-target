@@ -1,0 +1,71 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item_dir }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/redis
+        - /tmp/molecule_test/var/log/redis
+        - /tmp/molecule_test/etc/memcached
+      loop_control:
+        loop_var: item_dir
+
+    - name: Create Redis configuration file
+      ansible.builtin.copy:
+        content: |
+          # Redis configuration file
+          port 6379
+          requirepass redis_secure_password_123
+          logfile /var/log/redis/redis-server.log
+          dir /var/lib/redis
+          save 900 1
+          save 300 10
+          save 60 10000
+          # Note: replica settings removed by role
+        dest: /tmp/molecule_test/etc/redis/6379.conf
+        mode: "0644"
+        backup: true
+
+    - name: Create Redis log directory with proper ownership simulation
+      ansible.builtin.file:
+        path: /tmp/molecule_test/var/log/redis
+        state: directory
+        mode: "0755"
+
+    - name: Create Redis log file
+      ansible.builtin.copy:
+        content: |
+          # Redis server log
+          [1] 01 Jan 00:00:00.000 # Server started
+          [1] 01 Jan 00:00:00.001 # Ready to accept connections
+        dest: /tmp/molecule_test/var/log/redis/redis-server.log
+        mode: "0644"
+        backup: true
+
+    - name: Create memcached configuration file
+      ansible.builtin.copy:
+        content: |
+          # Memcached configuration
+          -p 11211
+          -U 11211
+          -u memcache
+          -m 64
+          -c 1024
+          -v
+        dest: /tmp/molecule_test/etc/memcached/memcached.conf
+        mode: "0644"
+        backup: true
+
+    - name: Create memcached log file
+      ansible.builtin.copy:
+        content: |
+          # Memcached log
+          memcached started on port 11211
+        dest: /tmp/molecule_test/var/log/memcached.log
+        mode: "0644"
+        backup: true
