@@ -1,0 +1,29 @@
+---
+argument_specs:
+  main:
+    short_description: Simple Redis cache server role that installs and manages redis-server
+    description:
+      - Installs Redis server package and manages the Redis service
+      - Provides a basic in-memory data store service with default configuration
+      - Supports cross-platform package and service name customization
+    options:
+      cache_redis_package:
+        type: str
+        required: false
+        default: redis-server
+        description: Name of the Redis package to install (may vary across distributions)
+      cache_redis_service:
+        type: str
+        required: false
+        default: redis-server
+        description: Name of the Redis service to manage (may vary across distributions)
+      cache_redis_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether to enable Redis service to start on boot
+      cache_redis_started:
+        type: bool
+        required: false
+        default: true
+        description: Whether to start Redis service immediately after installation
