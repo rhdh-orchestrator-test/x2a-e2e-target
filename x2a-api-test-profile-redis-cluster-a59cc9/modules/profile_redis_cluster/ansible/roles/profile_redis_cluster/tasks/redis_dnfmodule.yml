@@ -1,0 +1,9 @@
+---
+- name: Enable Redis DNF module stream
+  ansible.builtin.dnf:
+    name: redis:{{ redis_dnf_module_stream }}
+    state: present
+  when:
+    - redis_dnf_module_stream | default("") != ""
+    - ansible_os_family == "RedHat"
+    - ansible_pkg_mgr == "dnf"

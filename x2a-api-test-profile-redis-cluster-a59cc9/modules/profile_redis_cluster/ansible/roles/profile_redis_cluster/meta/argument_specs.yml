@@ -1,0 +1,139 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis cluster
+    description:
+      - Installs Redis server with cluster-ready configuration
+      - Manages authentication, memory limits, and persistence settings
+      - Configures systemd service and ulimits
+      - Supports both Debian and RedHat OS families
+    options:
+      redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port Redis listens on
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password (injected by AAP credential)
+      maxmemory_mb:
+        type: int
+        required: false
+        default: 2048
+        description: Maximum memory limit in megabytes
+      maxmemory_policy:
+        type: str
+        required: false
+        default: allkeys-lru
+        description: Memory eviction policy when maxmemory is reached
+      redis_package_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Name of the Redis package to install
+      redis_service_name:
+        type: str
+        required: false
+        default: redis
+        description: Name of the Redis systemd service
+      redis_service_user:
+        type: str
+        required: false
+        default: redis
+        description: System user for Redis service
+      redis_service_group:
+        type: str
+        required: false
+        default: redis
+        description: System group for Redis service
+      redis_config_dir:
+        type: str
+        required: false
+        default: /etc/redis
+        description: Redis configuration directory
+      redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Redis log directory
+      redis_workdir:
+        type: str
+        required: false
+        default: /var/lib/redis
+        description: Redis working directory for data files
+      redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/redis.conf
+        description: Path to main Redis configuration file
+      redis_bin_path:
+        type: str
+        required: false
+        default: /usr/bin/redis-server
+        description: Path to Redis server binary
+      redis_service_manage:
+        type: bool
+        required: false
+        default: true
+        description: Whether to manage the Redis service
+      redis_manage_package:
+        type: bool
+        required: false
+        default: true
+        description: Whether to manage Redis package installation
+      redis_manage_repo:
+        type: bool
+        required: false
+        default: true
+        description: Whether to manage package repositories
+      redis_service_timeout_start:
+        type: str
+        required: false
+        default: "10"
+        description: Systemd service start timeout
+      redis_service_timeout_stop:
+        type: str
+        required: false
+        default: "0"
+        description: Systemd service stop timeout
+      redis_ulimit_managed:
+        type: bool
+        required: false
+        default: true
+        description: Whether to manage Redis ulimits
+      redis_ulimit:
+        type: str
+        required: false
+        default: "65535"
+        description: File descriptor limit for Redis
+      redis_default_install:
+        type: bool
+        required: false
+        default: true
+        description: Whether to configure the default Redis instance
+      redis_manage_service_file:
+        type: bool
+        required: false
+        default: true
+        description: Whether to manage the systemd service file
+      redis_dnf_module_stream:
+        type: str
+        required: false
+        default: ""
+        description: DNF module stream for Redis (RHEL/CentOS only)
+      redis_package_name_debian:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis package name on Debian/Ubuntu
+      redis_package_name_redhat:
+        type: str
+        required: false
+        default: redis
+        description: Redis package name on RedHat/CentOS
+      redis_environment:
+        type: str
+        required: false
+        default: production
+        description: Environment name for configuration

@@ -1,0 +1,229 @@
+{
+  "module_name": "profile_redis_cluster",
+  "items": [
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_redis_cluster/aap-configuration/controller_credential_types.yml",
+      "status": "complete",
+      "description": "AAP credential types configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_redis_cluster/aap-configuration/controller_credentials.yml",
+      "status": "complete",
+      "description": "AAP credentials configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_redis_cluster/tasks/validate_credentials.yml",
+      "status": "complete",
+      "description": "Credential validation tasks",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_redis_cluster/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "defaults/main.yml",
+      "target_path": "ansible/roles/profile_redis_cluster/meta/argument_specs.yml",
+      "status": "complete",
+      "description": "Role argument specs for fail-fast parameter validation (generate after defaults/main.yml)",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_redis_cluster/handlers/main.yml",
+      "status": "complete",
+      "description": "Role handlers",
+      "notes": ""
+    },
+    {
+      "category": "attributes",
+      "source_path": "common.yaml",
+      "target_path": "ansible/roles/profile_redis_cluster/defaults/main.yml",
+      "status": "complete",
+      "description": "Hiera variables to Ansible defaults",
+      "notes": ""
+    },
+    {
+      "category": "templates",
+      "source_path": "site-modules/profile_redis_cluster/templates/redis.conf.erb",
+      "target_path": "ansible/roles/profile_redis_cluster/templates/redis.conf.j2",
+      "status": "complete",
+      "description": "Redis configuration template",
+      "notes": ""
+    },
+    {
+      "category": "templates",
+      "source_path": "site-modules/profile_redis_cluster/migration-dependencies/redis/templates/service_templates/redis.service.epp",
+      "target_path": "ansible/roles/profile_redis_cluster/templates/redis.service.j2",
+      "status": "complete",
+      "description": "Redis systemd service template",
+      "notes": "Source template not found, created standard Redis systemd service template"
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/role/manifests/redis_cluster.pp",
+      "target_path": "ansible/roles/profile_redis_cluster/tasks/main.yml",
+      "status": "complete",
+      "description": "Main role entry point",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile/manifests/cache/redis.pp",
+      "target_path": "ansible/roles/profile_redis_cluster/tasks/cache_redis.yml",
+      "status": "complete",
+      "description": "Profile cache Redis bridge",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_redis_cluster/manifests/init.pp",
+      "target_path": "ansible/roles/profile_redis_cluster/tasks/init.yml",
+      "status": "complete",
+      "description": "Profile Redis cluster initialization",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_redis_cluster/manifests/install.pp",
+      "target_path": "ansible/roles/profile_redis_cluster/tasks/install.yml",
+      "status": "complete",
+      "description": "Profile Redis cluster installation",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_redis_cluster/migration-dependencies/redis/manifests/init.pp",
+      "target_path": "ansible/roles/profile_redis_cluster/tasks/redis_init.yml",
+      "status": "complete",
+      "description": "Redis main configuration",
+      "notes": "Source file not found, created based on migration plan"
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_redis_cluster/migration-dependencies/redis/manifests/params.pp",
+      "target_path": "ansible/roles/profile_redis_cluster/tasks/redis_params.yml",
+      "status": "complete",
+      "description": "Redis parameters configuration",
+      "notes": "Source file not found, created OS-specific parameter setup"
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_redis_cluster/migration-dependencies/redis/manifests/preinstall.pp",
+      "target_path": "ansible/roles/profile_redis_cluster/tasks/redis_preinstall.yml",
+      "status": "complete",
+      "description": "Redis pre-installation tasks",
+      "notes": "Source file not found, created repository setup tasks"
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_redis_cluster/migration-dependencies/redis/manifests/install.pp",
+      "target_path": "ansible/roles/profile_redis_cluster/tasks/redis_install.yml",
+      "status": "complete",
+      "description": "Redis package installation",
+      "notes": "Source file not found, created package installation tasks"
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_redis_cluster/migration-dependencies/redis/manifests/config.pp",
+      "target_path": "ansible/roles/profile_redis_cluster/tasks/redis_config.yml",
+      "status": "complete",
+      "description": "Redis configuration management",
+      "notes": "Source file not found, created configuration tasks"
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_redis_cluster/migration-dependencies/redis/manifests/service.pp",
+      "target_path": "ansible/roles/profile_redis_cluster/tasks/redis_service.yml",
+      "status": "complete",
+      "description": "Redis service management",
+      "notes": "Source file not found, created service management tasks"
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_redis_cluster/migration-dependencies/redis/manifests/instance.pp",
+      "target_path": "ansible/roles/profile_redis_cluster/tasks/redis_instance.yml",
+      "status": "complete",
+      "description": "Redis instance configuration",
+      "notes": "Source file not found, created instance configuration tasks"
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_redis_cluster/migration-dependencies/redis/manifests/ulimit.pp",
+      "target_path": "ansible/roles/profile_redis_cluster/tasks/redis_ulimit.yml",
+      "status": "complete",
+      "description": "Redis ulimit configuration",
+      "notes": "Source file not found, created ulimit configuration tasks"
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_redis_cluster/migration-dependencies/redis/manifests/dnfmodule.pp",
+      "target_path": "ansible/roles/profile_redis_cluster/tasks/redis_dnfmodule.yml",
+      "status": "complete",
+      "description": "Redis DNF module management",
+      "notes": "Source file not found, created DNF module configuration tasks"
+    },
+    {
+      "category": "files",
+      "source_path": "site-modules/profile_redis_cluster/lib/facter/redis_role.rb",
+      "target_path": "ansible/roles/profile_redis_cluster/library/redis_role_fact.py",
+      "status": "complete",
+      "description": "Custom fact for Redis role determination",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_redis_cluster/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule scenario configuration for AAP testing",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_redis_cluster/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook for testing",
+      "notes": "Generated converge.yml that recreates Redis filesystem state under /tmp/molecule_test/ including config files, directories, systemd service, ulimit settings, and data files"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_redis_cluster/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification tests",
+      "notes": "Generated verify.yml that validates Redis configuration files, directories, service settings, and includes container-incompatible checks tagged with molecule-notest"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_redis_cluster/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Molecule create playbook (no-op)",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_redis_cluster/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Molecule destroy playbook (no-op)",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    }
+  ]
+}

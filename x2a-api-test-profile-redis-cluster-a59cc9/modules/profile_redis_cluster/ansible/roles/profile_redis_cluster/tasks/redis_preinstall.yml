@@ -1,0 +1,16 @@
+---
+- name: Include Redis parameters
+  ansible.builtin.include_tasks: redis_params.yml
+- name: Update package cache (Debian/Ubuntu)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when:
+    - redis_manage_repo | default(true)
+    - ansible_os_family == "Debian"
+- name: Update package cache (RedHat/CentOS)
+  ansible.builtin.dnf:
+    update_cache: true
+  when:
+    - redis_manage_repo | default(true)
+    - ansible_os_family == "RedHat"

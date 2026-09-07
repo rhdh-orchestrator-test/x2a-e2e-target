@@ -1,0 +1,25 @@
+---
+- name: Include DNF module tasks (RedHat/CentOS)
+  ansible.builtin.include_tasks: redis_dnfmodule.yml
+  when:
+    - redis_dnf_module_stream | default("") != ""
+    - ansible_os_family == "RedHat"
+- name: Install Redis package
+  ansible.builtin.package:
+    name: "{{ redis_package_name }}"
+    state: present
+  when: redis_manage_package | default(true)
+- name: Create Redis group
+  ansible.builtin.group:
+    name: "{{ redis_service_group }}"
+    system: true
+    state: present
+- name: Create Redis user
+  ansible.builtin.user:
+    name: "{{ redis_service_user }}"
+    group: "{{ redis_service_group }}"
+    system: true
+    shell: /bin/false
+    home: "{{ redis_workdir }}"
+    create_home: false
+    state: present

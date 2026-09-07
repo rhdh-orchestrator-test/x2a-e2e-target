@@ -1,0 +1,13 @@
+---
+- name: Set Redis cluster parameters
+  ansible.builtin.set_fact:
+    redis_port: "{{ redis_port | default(6379) }}"
+    redis_password: "{{ redis_password }}"
+    maxmemory_mb: "{{ maxmemory_mb | default(2048) }}"
+    maxmemory_policy: "{{ maxmemory_policy | default('allkeys-lru') }}"
+- name: Discover Redis cluster nodes from inventory
+  ansible.builtin.set_fact:
+    redis_nodes: "{{ groups['redis_cluster'] | default([]) }}"
+  when: groups['redis_cluster'] is defined
+- name: Include Redis installation tasks
+  ansible.builtin.include_tasks: install.yml

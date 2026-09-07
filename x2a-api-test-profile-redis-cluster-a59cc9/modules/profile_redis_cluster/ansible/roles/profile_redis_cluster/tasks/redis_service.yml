@@ -1,0 +1,7 @@
+---
+- name: Start and enable Redis service
+  ansible.builtin.service:
+    name: "{{ redis_service_name }}"
+    state: started
+    enabled: true
+  when: redis_service_manage | default(true)

@@ -1,0 +1,38 @@
+---
+- name: Create Redis configuration directory
+  ansible.builtin.file:
+    path: "{{ redis_config_dir }}"
+    state: directory
+    owner: "{{ redis_service_user }}"
+    group: "{{ redis_service_group }}"
+    mode: "0755"
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ redis_log_dir }}"
+    state: directory
+    owner: "{{ redis_service_user }}"
+    group: "{{ redis_service_group }}"
+    mode: "0755"
+- name: Create Redis working directory
+  ansible.builtin.file:
+    path: "{{ redis_workdir }}"
+    state: directory
+    owner: "{{ redis_service_user }}"
+    group: "{{ redis_service_group }}"
+    mode: "0755"
+- name: Include Redis instance configuration
+  ansible.builtin.include_tasks: redis_instance.yml
+  when: redis_default_install | default(true)
+- name: Include Redis ulimit configuration
+  ansible.builtin.include_tasks: redis_ulimit.yml
+  when: redis_ulimit_managed | default(true)
+- name: Create Redis default configuration (Debian)
+  ansible.builtin.template:
+    src: redis-server.default.j2
+    dest: /etc/default/redis-server
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  when: ansible_os_family == "Debian"
+  notify: Restart redis
