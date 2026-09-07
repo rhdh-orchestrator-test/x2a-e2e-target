@@ -1,0 +1,11 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Get Redis role fact
+  redis_role_fact:
+  register: redis_role_result
+- name: Set Redis role fact
+  ansible.builtin.set_fact:
+    redis_role: "{{ redis_role_result.ansible_facts.redis_role }}"
+- name: Include cache Redis tasks
+  ansible.builtin.include_tasks: cache_redis.yml

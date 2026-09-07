@@ -1,0 +1,6 @@
+---
+- name: Set environment name
+  ansible.builtin.set_fact:
+    redis_environment_name: "{{ ansible_env.ENVIRONMENT | default('production') }}"
+- name: Include profile Redis cluster initialization
+  ansible.builtin.include_tasks: init.yml

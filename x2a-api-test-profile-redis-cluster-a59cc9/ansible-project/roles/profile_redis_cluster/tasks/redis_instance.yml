@@ -1,0 +1,32 @@
+---
+- name: Backup original Redis configuration
+  ansible.builtin.copy:
+    src: "{{ redis_config_file }}"
+    dest: "{{ redis_config_file }}.orig"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  failed_when: false
+- name: Deploy Redis configuration
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: "{{ redis_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Restart redis
+- name: Deploy Redis systemd service file
+  ansible.builtin.template:
+    src: redis.service.j2
+    dest: /etc/systemd/system/{{ redis_service_name }}.service
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  when: redis_manage_service_file | default(true)
+  notify:
+    - Reload systemd
+    - Restart redis

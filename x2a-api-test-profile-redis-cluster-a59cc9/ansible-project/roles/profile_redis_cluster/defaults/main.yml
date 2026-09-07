@@ -1,0 +1,26 @@
+---
+redis_port: 6379
+maxmemory_mb: 2048
+maxmemory_policy: allkeys-lru
+redis_package_name: redis-server
+redis_service_name: redis
+redis_service_user: redis
+redis_service_group: redis
+redis_config_dir: /etc/redis
+redis_log_dir: /var/log/redis
+redis_workdir: /var/lib/redis
+redis_config_file: /etc/redis/redis.conf
+redis_bin_path: /usr/bin/redis-server
+redis_service_manage: true
+redis_manage_package: true
+redis_manage_repo: true
+redis_service_timeout_start: "10"
+redis_service_timeout_stop: "0"
+redis_ulimit_managed: true
+redis_ulimit: "65535"
+redis_default_install: true
+redis_manage_service_file: true
+redis_dnf_module_stream: ""
+redis_package_name_debian: redis-server
+redis_package_name_redhat: redis
+redis_environment: "{{ ansible_env.ENVIRONMENT | default('production') }}"

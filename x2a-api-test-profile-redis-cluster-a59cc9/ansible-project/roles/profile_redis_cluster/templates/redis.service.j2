@@ -1,0 +1,21 @@
+[Unit]
+Description=Advanced key-value store
+After=network.target
+Documentation=http://redis.io/documentation, man:redis-server(1)
+
+[Service]
+Type=notify
+ExecStart={{ redis_bin_path | default('/usr/bin/redis-server') }} {{ redis_config_file | default('/etc/redis/redis.conf') }}
+ExecStop=/bin/kill -s QUIT $MAINPID
+TimeoutStopSec={{ redis_service_timeout_stop | default('0') }}
+TimeoutStartSec={{ redis_service_timeout_start | default('10') }}
+RuntimeDirectory=redis
+RuntimeDirectoryMode=0755
+User={{ redis_service_user | default('redis') }}
+Group={{ redis_service_group | default('redis') }}
+{% if redis_ulimit_managed | default(false) %}
+LimitNOFILE={{ redis_ulimit | default('65535') }}
+{% endif %}
+
+[Install]
+WantedBy=multi-user.target

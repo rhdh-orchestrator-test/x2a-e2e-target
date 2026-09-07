@@ -1,0 +1,27 @@
+---
+- name: Create Redis limits configuration
+  ansible.builtin.copy:
+    content: "{{ redis_service_user }} soft nofile {{ redis_ulimit }}\n{{ redis_service_user }} hard nofile {{ redis_ulimit }}\n"
+    dest: /etc/security/limits.d/redis.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+- name: Create systemd service override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/{{ redis_service_name }}.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+- name: Create systemd ulimit override
+  ansible.builtin.copy:
+    content: "[Service]\nLimitNOFILE={{ redis_ulimit }}\n"
+    dest: /etc/systemd/system/{{ redis_service_name }}.service.d/limit.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify:
+    - Reload systemd
+    - Restart redis

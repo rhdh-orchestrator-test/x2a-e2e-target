@@ -1,0 +1,158 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected Redis directories
+      ansible.builtin.file:
+        path: "{{ item_dir }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/redis
+        - /tmp/molecule_test/var/log/redis
+        - /tmp/molecule_test/var/lib/redis
+        - /tmp/molecule_test/var/run/redis
+        - /tmp/molecule_test/etc/systemd/system
+        - /tmp/molecule_test/etc/security/limits.d
+        - /tmp/molecule_test/etc/systemd/system/redis.service.d
+        - /tmp/molecule_test/etc/default
+      loop_control:
+        loop_var: item_dir
+
+    - name: Create Redis configuration file
+      ansible.builtin.copy:
+        content: |
+          # Redis configuration — Managed by Ansible
+          # Node: test.example.com
+
+          bind 0.0.0.0
+          port 6379
+          daemonize yes
+          pidfile /var/run/redis/redis-server.pid
+          logfile /var/log/redis/redis-server.log
+          loglevel notice
+
+          # Security
+          requirepass CHANGEME
+
+          # Persistence
+          appendonly yes
+          appendfilename "appendonly.aof"
+          appendfsync everysec
+          auto-aof-rewrite-percentage 100
+          auto-aof-rewrite-min-size 64mb
+
+          # RDB snapshots
+          save 900 1
+          save 300 10
+          save 60 10000
+          dbfilename dump.rdb
+          dir /var/lib/redis
+
+          # Memory
+          maxmemory 2048mb
+          maxmemory-policy allkeys-lru
+
+          # Network
+          tcp-backlog 511
+          timeout 0
+          tcp-keepalive 300
+        dest: /tmp/molecule_test/etc/redis/redis.conf
+        mode: "0644"
+        backup: true
+
+    - name: Create Redis configuration backup
+      ansible.builtin.copy:
+        content: |
+          # Original Redis configuration backup
+          # This file represents the original package configuration
+          port 6379
+          bind 127.0.0.1
+          daemonize no
+        dest: /tmp/molecule_test/etc/redis/redis.conf.orig
+        mode: "0644"
+        backup: true
+
+    - name: Create Redis systemd service file
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Advanced key-value store
+          After=network.target
+          Documentation=http://redis.io/documentation, man:redis-server(1)
+
+          [Service]
+          Type=notify
+          ExecStart=/usr/bin/redis-server /etc/redis/redis.conf
+          ExecStop=/bin/kill -s QUIT $MAINPID
+          TimeoutStartSec=10
+          TimeoutStopSec=0
+          Restart=always
+          User=redis
+          Group=redis
+          RuntimeDirectory=redis
+          RuntimeDirectoryMode=0755
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /tmp/molecule_test/etc/systemd/system/redis.service
+        mode: "0644"
+        backup: true
+
+    - name: Create Redis ulimit configuration
+      ansible.builtin.copy:
+        content: |
+          redis soft nofile 65535
+          redis hard nofile 65535
+        dest: /tmp/molecule_test/etc/security/limits.d/redis.conf
+        mode: "0644"
+        backup: true
+
+    - name: Create Redis systemd ulimit override
+      ansible.builtin.copy:
+        content: |
+          [Service]
+          LimitNOFILE=65535
+        dest: /tmp/molecule_test/etc/systemd/system/redis.service.d/limit.conf
+        mode: "0644"
+        backup: true
+
+    - name: Create Redis default configuration (Debian)
+      ansible.builtin.copy:
+        content: |
+          # Redis server default configuration
+          REDIS_USER=redis
+          REDIS_GROUP=redis
+          REDIS_CONFIG_FILE=/etc/redis/redis.conf
+          REDIS_PID_FILE=/var/run/redis/redis-server.pid
+        dest: /tmp/molecule_test/etc/default/redis-server
+        mode: "0644"
+        backup: true
+
+    - name: Create Redis log file
+      ansible.builtin.copy:
+        content: |
+          # Redis server log file placeholder
+          # This file would contain Redis server logs
+        dest: /tmp/molecule_test/var/log/redis/redis-server.log
+        mode: "0644"
+        backup: true
+
+    - name: Create Redis data files
+      ansible.builtin.copy:
+        content: "{{ item_data['content'] }}"
+        dest: "{{ item_data['path'] }}"
+        mode: "0644"
+        backup: true
+      loop:
+        - path: /tmp/molecule_test/var/lib/redis/dump.rdb
+          content: |
+            # Redis RDB dump file placeholder
+            # This file would contain Redis database snapshots
+        - path: /tmp/molecule_test/var/lib/redis/appendonly.aof
+          content: |
+            # Redis AOF file placeholder
+            # This file would contain Redis append-only log
+      loop_control:
+        loop_var: item_data
