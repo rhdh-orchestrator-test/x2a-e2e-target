@@ -1,0 +1,19 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Load OS-specific variables
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+  when: ansible_os_family in ['Debian', 'RedHat']
+- name: Initialize HAProxy role
+  ansible.builtin.include_tasks: init.yml
+- name: Include HAProxy installation tasks
+  ansible.builtin.include_tasks: install.yml
+- name: Include HAProxy configuration tasks
+  ansible.builtin.include_tasks: config.yml
+- name: Include HAProxy service tasks
+  ansible.builtin.include_tasks: service.yml
+- name: Include HAProxy firewall tasks
+  ansible.builtin.include_tasks: firewall.yml
+- name: Include HAProxy discovery tasks
+  ansible.builtin.include_tasks: discover.yml
+  when: profile_haproxy_discovery_enabled | default(false)

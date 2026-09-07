@@ -1,0 +1,44 @@
+---
+- name: Display discovery configuration
+  ansible.builtin.debug:
+    msg:
+      - HAProxy discovery is enabled
+      - "Current node: {{ ansible_fqdn }}"
+      - "Current IP: {{ ansible_default_ipv4.address }}"
+    verbosity: 1
+- name: Create dynamic backend configuration from inventory
+  ansible.builtin.template:
+    src: dynamic_backend.conf.j2
+    dest: "{{ profile_haproxy_config_dir }}/conf.d/dynamic_webservers.cfg"
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0640"
+    backup: true
+  vars:
+    backend_name: dynamic_webservers
+    balance: roundrobin
+    backend_port: 8080
+    servers: "{{ groups['webservers'] | default([]) | map('extract', hostvars, 'ansible_default_ipv4') | map(attribute='address') | list }}"
+  when: groups['webservers'] is defined
+  notify: Restart haproxy
+- name: Create dynamic API backend configuration from inventory
+  ansible.builtin.template:
+    src: dynamic_backend.conf.j2
+    dest: "{{ profile_haproxy_config_dir }}/conf.d/dynamic_api.cfg"
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0640"
+    backup: true
+  vars:
+    backend_name: dynamic_api
+    balance: leastconn
+    backend_port: 3000
+    servers: "{{ groups['api_servers'] | default([]) | map('extract', hostvars, 'ansible_default_ipv4') | map(attribute='address') | list }}"
+  when: groups['api_servers'] is defined
+  notify: Restart haproxy
+- name: Log discovered backend servers
+  ansible.builtin.debug:
+    msg:
+      - "Discovered webservers: {{ groups['webservers'] | default([]) }}"
+      - "Discovered API servers: {{ groups['api_servers'] | default([]) }}"
+    verbosity: 1

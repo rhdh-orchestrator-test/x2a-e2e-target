@@ -1,0 +1,7 @@
+---
+- name: Load environment-specific variables
+  ansible.builtin.include_vars: "{{ ansible_env.ENVIRONMENT | default('production') }}.yml"
+  when: ansible_env.ENVIRONMENT is defined and ansible_env.ENVIRONMENT in ['production', 'staging']
+  failed_when: false
+- name: Include main HAProxy tasks
+  ansible.builtin.include_tasks: main.yml

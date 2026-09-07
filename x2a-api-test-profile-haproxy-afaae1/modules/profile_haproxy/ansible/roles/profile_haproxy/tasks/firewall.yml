@@ -1,0 +1,77 @@
+---
+- name: Configure firewalld (RedHat family)
+  when: profile_haproxy_firewall_provider == 'firewalld'
+  block:
+    - name: Allow HTTP port in firewalld
+      ansible.posix.firewalld:
+        port: 80/tcp
+        permanent: true
+        state: enabled
+        zone: "{{ profile_haproxy_firewall_zone | default('public') }}"
+        immediate: true
+    - name: Allow HTTPS port in firewalld
+      ansible.posix.firewalld:
+        port: 443/tcp
+        permanent: true
+        state: enabled
+        zone: "{{ profile_haproxy_firewall_zone | default('public') }}"
+        immediate: true
+    - name: Allow HAProxy stats port in firewalld
+      ansible.posix.firewalld:
+        port: "{{ profile_haproxy_stats_port }}/tcp"
+        permanent: true
+        state: enabled
+        zone: "{{ profile_haproxy_firewall_zone | default('public') }}"
+        immediate: true
+      when: profile_haproxy_stats_enabled | default(false)
+- name: Configure UFW (Debian family)
+  when: profile_haproxy_firewall_provider == 'ufw'
+  block:
+    - name: Install UFW package
+      ansible.builtin.package:
+        name: ufw
+        state: present
+    - name: Check UFW HTTP rule status
+      ansible.builtin.command:
+        cmd: ufw status numbered
+      register: ufw_status_check
+      changed_when: false
+    - name: Allow HTTP port in UFW
+      ansible.builtin.command:
+        cmd: ufw allow 80/tcp
+      register: ufw_http_result
+      changed_when: "'Rule added' in ufw_http_result.stdout"
+      when: "'80/tcp' not in ufw_status_check.stdout"
+    - name: Allow HTTPS port in UFW
+      ansible.builtin.command:
+        cmd: ufw allow 443/tcp
+      register: ufw_https_result
+      changed_when: "'Rule added' in ufw_https_result.stdout"
+      when: "'443/tcp' not in ufw_status_check.stdout"
+    - name: Allow HAProxy stats port in UFW
+      ansible.builtin.command:
+        cmd: ufw allow {{ profile_haproxy_stats_port }}/tcp
+      register: ufw_stats_result
+      changed_when: "'Rule added' in ufw_stats_result.stdout"
+      when:
+        - profile_haproxy_stats_enabled | default(false)
+        - profile_haproxy_stats_port ~ '/tcp' not in ufw_status_check.stdout
+    - name: Check UFW status
+      ansible.builtin.command:
+        cmd: ufw status
+      register: ufw_current_status
+      changed_when: false
+    - name: Enable UFW
+      ansible.builtin.command:
+        cmd: ufw --force enable
+      register: ufw_enable_result
+      changed_when: "'Firewall is active' in ufw_enable_result.stdout"
+      when: "'Status: inactive' in ufw_current_status.stdout"
+- name: Display firewall configuration status
+  ansible.builtin.debug:
+    msg: Firewall management disabled via configuration
+  when: profile_haproxy_firewall_provider == 'none'
+- name: Warn about unknown firewall provider
+  ansible.builtin.debug:
+    msg: "Unknown firewall provider: {{ profile_haproxy_firewall_provider }}"
+  when: profile_haproxy_firewall_provider not in ['firewalld', 'ufw', 'none']

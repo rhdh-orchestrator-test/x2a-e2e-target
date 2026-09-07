@@ -1,0 +1,12 @@
+# Dynamic Backend: {{ backend_name }}
+# Managed by Ansible — do not edit manually
+
+backend {{ backend_name }}
+    balance {{ balance }}
+{% if servers | length > 0 %}
+{% for server_ip in servers %}
+    server {{ backend_name }}-{{ loop.index }} {{ server_ip }}:{{ backend_port }} check weight 100
+{% endfor %}
+{% else %}
+    # No servers available for backend {{ backend_name }}
+{% endif %}

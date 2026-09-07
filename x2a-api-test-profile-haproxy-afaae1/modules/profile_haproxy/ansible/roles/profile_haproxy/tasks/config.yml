@@ -1,0 +1,62 @@
+---
+- name: Create HAProxy errors directory
+  ansible.builtin.file:
+    path: "{{ profile_haproxy_config_dir }}/errors"
+    state: directory
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0755"
+- name: Deploy HAProxy main configuration
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: "{{ profile_haproxy_config_file }}"
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0640"
+    backup: true
+  notify: Restart haproxy
+- name: Deploy backend configuration files
+  ansible.builtin.template:
+    src: backend.conf.j2
+    dest: "{{ profile_haproxy_config_dir }}/conf.d/{{ item_backend['key'] }}.cfg"
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0640"
+    backup: true
+  vars:
+    backend_name: "{{ item_backend['key'] }}"
+    balance: "{{ item_backend['value']['balance'] }}"
+    backend_port: "{{ item_backend['value']['port'] }}"
+    servers: "{{ item_backend['value']['servers'] }}"
+    health_check: "{{ item_backend['value']['health_check'] | default(omit) }}"
+    health_interval: "{{ item_backend['value']['health_interval'] | default(omit) }}"
+    ssl_enabled: "{{ profile_haproxy_ssl_enabled }}"
+  loop: "{{ profile_haproxy_backends | dict2items }}"
+  loop_control:
+    loop_var: item_backend
+  notify: Restart haproxy
+- name: Deploy custom error pages
+  ansible.builtin.copy:
+    content: "HTTP/1.0 {{ item_error }} {{ 'Service Unavailable' if item_error == '503' else 'Request Timeout' }}\nCache-Control: no-cache\nConnection: close\nContent-Type:
+      text/html\n\n<html><body><h1>{{ item_error }} {{ 'Service Unavailable' if item_error == '503' else 'Request Timeout' }}</h1>\n<p>The service is temporarily
+      unavailable. Please try again later.</p>\n</body></html>\n"
+    dest: "{{ profile_haproxy_config_dir }}/errors/{{ item_error }}.http"
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0644"
+    backup: true
+  loop:
+    - "503"
+    - "408"
+  loop_control:
+    loop_var: item_error
+- name: Deploy stick-table configuration
+  ansible.builtin.copy:
+    content: "# Managed by Ansible\nstick-table type ip size {{ profile_haproxy_stick_table_size }} expire {{ profile_haproxy_stick_table_expire }}\n"
+    dest: "{{ profile_haproxy_config_dir }}/conf.d/stick-tables.cfg"
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0640"
+    backup: true
+  when: profile_haproxy_stick_table_enabled | default(false)
+  notify: Restart haproxy

@@ -1,0 +1,19 @@
+---
+- name: Validate required parameters
+  ansible.builtin.assert:
+    that:
+      - profile_haproxy_package_name is defined
+      - profile_haproxy_service_name is defined
+      - profile_haproxy_user is defined
+      - profile_haproxy_group is defined
+      - profile_haproxy_backends is defined
+    fail_msg: Required HAProxy parameters are not defined
+- name: Display HAProxy configuration summary
+  ansible.builtin.debug:
+    msg:
+      - "HAProxy Package: {{ profile_haproxy_package_name }}"
+      - "HAProxy Service: {{ profile_haproxy_service_name }}"
+      - "SSL Enabled: {{ profile_haproxy_ssl_enabled }}"
+      - "Stats Enabled: {{ profile_haproxy_stats_enabled }}"
+      - "Backend Count: {{ profile_haproxy_backends | length }}"
+    verbosity: 1

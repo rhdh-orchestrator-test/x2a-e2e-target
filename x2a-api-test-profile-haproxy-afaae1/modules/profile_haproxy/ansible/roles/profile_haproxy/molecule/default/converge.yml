@@ -1,0 +1,205 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected HAProxy directories
+      ansible.builtin.file:
+        path: "{{ item_dir }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/haproxy
+        - /tmp/molecule_test/etc/haproxy/conf.d
+        - /tmp/molecule_test/etc/haproxy/errors
+        - /tmp/molecule_test/var/lib/haproxy
+        - /tmp/molecule_test/etc/systemd/system/haproxy.service.d
+        - /tmp/molecule_test/etc/logrotate.d
+        - /tmp/molecule_test/etc/ssl/certs
+        - /tmp/molecule_test/etc/ssl/private
+      loop_control:
+        loop_var: item_dir
+
+    - name: Create HAProxy main configuration file
+      ansible.builtin.copy:
+        content: |
+          # Managed by Ansible — do not edit manually
+          # Role: profile_haproxy
+
+          global
+              log         127.0.0.1 local0 info
+              chroot      /var/lib/haproxy
+              maxconn     4096
+              user        haproxy
+              group       haproxy
+              daemon
+              stats socket /var/lib/haproxy/stats mode 660 level admin
+
+          defaults
+              log     global
+              mode    http
+              option  httplog
+              option  dontlognull
+              option  forwardfor
+              option  http-server-close
+              timeout connect 5s
+              timeout client  30s
+              timeout server  30s
+              retries 3
+              errorfile 503 /etc/haproxy/errors/503.http
+              errorfile 408 /etc/haproxy/errors/408.http
+
+          listen stats
+              bind *:9000
+              stats enable
+              stats uri /haproxy-stats
+              stats realm HAProxy\ Statistics
+              stats auth admin:password
+              stats admin if TRUE
+              stats refresh 30s
+
+          frontend http_front
+              bind *:80
+              default_backend webservers
+
+          # Backend configuration included from conf.d/webservers.cfg
+          # Backend configuration included from conf.d/api.cfg
+        dest: /tmp/molecule_test/etc/haproxy/haproxy.cfg
+        mode: "0640"
+        backup: true
+
+    - name: Create backend configuration files
+      ansible.builtin.copy:
+        content: |
+          # Backend: {{ item_backend['name'] }}
+          # Managed by Ansible — do not edit manually
+
+          backend {{ item_backend['name'] }}
+              balance {{ item_backend['balance'] }}
+              option  {{ item_backend['health_check'] }}
+              default-server inter {{ item_backend['health_interval'] }}
+          {% for server in item_backend['servers'] %}
+              server {{ server['name'] }} {{ server['address'] }}:{{ item_backend['port'] }} check weight {{ server['weight'] }}
+          {% endfor %}
+        dest: "/tmp/molecule_test/etc/haproxy/conf.d/{{ item_backend['name'] }}.cfg"
+        mode: "0640"
+        backup: true
+      loop:
+        - name: webservers
+          balance: roundrobin
+          port: 8080
+          health_check: httpchk GET /health
+          health_interval: 5s
+          servers:
+            - name: web1
+              address: 10.0.1.10
+              weight: 100
+            - name: web2
+              address: 10.0.1.11
+              weight: 100
+        - name: api
+          balance: leastconn
+          port: 3000
+          health_check: httpchk GET /api/health
+          health_interval: 10s
+          servers:
+            - name: api1
+              address: 10.0.2.10
+              weight: 100
+            - name: api2
+              address: 10.0.2.11
+              weight: 100
+      loop_control:
+        loop_var: item_backend
+
+    - name: Create HAProxy error pages
+      ansible.builtin.copy:
+        content: |
+          HTTP/1.0 {{ item_error }} {{ 'Service Unavailable' if item_error == '503' else 'Request Timeout' }}
+          Cache-Control: no-cache
+          Connection: close
+          Content-Type: text/html
+
+          <html><body><h1>{{ item_error }} {{ 'Service Unavailable' if item_error == '503' else 'Request Timeout' }}</h1>
+          <p>The service is temporarily unavailable. Please try again later.</p>
+          </body></html>
+        dest: "/tmp/molecule_test/etc/haproxy/errors/{{ item_error }}.http"
+        mode: "0644"
+        backup: true
+      loop:
+        - "503"
+        - "408"
+      loop_control:
+        loop_var: item_error
+
+    - name: Create systemd service override
+      ansible.builtin.copy:
+        content: |
+          [Service]
+          ExecStart=
+          ExecStart=/usr/sbin/haproxy -Ws -f /etc/haproxy/haproxy.cfg -f /etc/haproxy/conf.d/ -p /run/haproxy.pid -S /run/haproxy-master.sock
+        dest: /tmp/molecule_test/etc/systemd/system/haproxy.service.d/override.conf
+        mode: "0644"
+        backup: true
+
+    - name: Create HAProxy log rotation configuration
+      ansible.builtin.copy:
+        content: |
+          /var/log/haproxy/*.log {
+              daily
+              rotate 14
+              missingok
+              notifempty
+              compress
+              delaycompress
+              sharedscripts
+              postrotate
+                  /bin/kill -HUP $(cat /var/run/haproxy.pid 2>/dev/null) 2>/dev/null || true
+              endscript
+          }
+        dest: /tmp/molecule_test/etc/logrotate.d/haproxy
+        mode: "0644"
+        backup: true
+
+    - name: Create stick-table configuration (production environment)
+      ansible.builtin.copy:
+        content: |
+          # Managed by Ansible
+          stick-table type ip size 100k expire 30m
+        dest: /tmp/molecule_test/etc/haproxy/conf.d/stick-tables.cfg
+        mode: "0640"
+        backup: true
+
+    - name: Create SSL certificate files (for SSL-enabled environments)
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN CERTIFICATE-----
+          MIIDXTCCAkWgAwIBAgIJAKoK/heBjcOuMA0GCSqGSIb3DQEBBQUAMEUxCzAJBgNV
+          BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
+          aWRnaXRzIFB0eSBMdGQwHhcNMTMwODI3MjM1NDA3WhcNMTQwODI3MjM1NDA3WjBF
+          MQswCQYDVQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UECgwYSW50
+          ZXJuZXQgV2lkZ2l0cyBQdHkgTHRkMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB
+          CgKCAQEAwUdHPiehPP69WnOTXcwHVp0MwSsAVl2ofmOhOhg2/cF9pg5fVnAXpDjV
+          G0z5DmZnzDqHUoABHdc8/iVJ5rserfuI2B9k/QHVD9dHhITfNhG0xf8TPnuMpVMF
+          S1tBcW+BnqtXzhHApbMIXkBQMANmOlNJ3AQrK/yy0GfOtJzh4dqbwTZ3MHBcE1yo
+          IpceGd1lWPqjHcwGD0f7RnDDBLkqHY1Ps9yXbTQRn/WaIEIFWM1M2VuzBdPL9WSh
+          F0PrmvJHI/ZTpuNOz0YmMUWpglFv5HFSysFJTAb2jXCVdj4cjRqqVeQaXJ/b4X8H
+          -----END CERTIFICATE-----
+        dest: /tmp/molecule_test/etc/ssl/certs/haproxy.pem
+        mode: "0644"
+        backup: true
+
+    - name: Create SSL private key file (for SSL-enabled environments)
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN PRIVATE KEY-----
+          MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDBR0c+J6E8/r1a
+          c5NdzAdWnQzBKwBWXah+Y6E6GDb9wX2mDl9WcBekONUbTPkOZmfMOodSgAEd1zz+
+          JUnmux6t+4jYH2T9AdUP10eEhN82EbTF/xM+e4ylUwVLW0Fxb4Geq1fOEcClswhd
+          QFAwA2Y6U0ncBCsr/LLQZc60nOHh2pvBNncwcFwTXKgil54Z3WVY+qMdzAYPR/tG
+          cMMEuSodjU+z3JdtNBGf9ZogQgVYzUzZW7MF08v1ZKEXQOua8kcj9lOm407PRiYx
+          RamCUW/kcVLKwUlMBvaNcJV2PhyNGqpV5Bpcn9vhfwfAgMBAAECggEBALlkJu9I
+          -----END PRIVATE KEY-----
+        dest: /tmp/molecule_test/etc/ssl/private/haproxy.key
+        mode: "0600"
+        backup: true
