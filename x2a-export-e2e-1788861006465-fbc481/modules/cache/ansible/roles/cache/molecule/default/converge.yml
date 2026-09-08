@@ -1,0 +1,129 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item_dir }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/redis
+        - /tmp/molecule_test/var/log/redis
+      loop_control:
+        loop_var: item_dir
+
+    - name: Create Redis configuration file
+      ansible.builtin.copy:
+        content: |
+          # Redis configuration for port 6379
+          port 6379
+          bind 127.0.0.1
+          requirepass redis_secure_password_123
+          
+          # Log settings
+          logfile /var/log/redis/redis_6379.log
+          loglevel notice
+          
+          # Basic settings
+          daemonize yes
+          pidfile /var/run/redis/redis_6379.pid
+          timeout 0
+          tcp-keepalive 0
+          
+          # Memory settings
+          maxmemory-policy allkeys-lru
+          
+          # Persistence settings
+          save 900 1
+          save 300 10
+          save 60 10000
+          
+          # Directory settings
+          dir /var/lib/redis
+        dest: /tmp/molecule_test/etc/redis/6379.conf
+        mode: "0644"
+        backup: true
+
+    - name: Create Redis log file
+      ansible.builtin.copy:
+        content: |
+          # Redis log file placeholder
+          # This file would contain Redis server logs
+        dest: /tmp/molecule_test/var/log/redis/redis_6379.log
+        mode: "0644"
+        backup: true
+
+    - name: Create memcached configuration directory
+      ansible.builtin.file:
+        path: /tmp/molecule_test/etc/memcached
+        state: directory
+        mode: "0755"
+
+    - name: Create memcached configuration file
+      ansible.builtin.copy:
+        content: |
+          # memcached configuration
+          -p 11211
+          -U 11211
+          -u memcache
+          -m 64
+          -c 1024
+          -v
+        dest: /tmp/molecule_test/etc/memcached/memcached.conf
+        mode: "0644"
+        backup: true
+
+    - name: Create systemd service directories
+      ansible.builtin.file:
+        path: "{{ item_systemd }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/systemd/system
+        - /tmp/molecule_test/var/lib/redis
+      loop_control:
+        loop_var: item_systemd
+
+    - name: Create Redis systemd service file
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Advanced key-value store
+          After=network.target
+          
+          [Service]
+          Type=forking
+          User=redis
+          Group=redis
+          ExecStart=/usr/bin/redis-server /etc/redis/6379.conf
+          ExecStop=/bin/kill -s QUIT $MAINPID
+          TimeoutStopSec=0
+          Restart=always
+          
+          [Install]
+          WantedBy=multi-user.target
+        dest: /tmp/molecule_test/etc/systemd/system/redis-server.service
+        mode: "0644"
+        backup: true
+
+    - name: Create memcached systemd service file
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Memcached
+          After=network.target
+          
+          [Service]
+          Type=simple
+          User=memcache
+          Group=memcache
+          ExecStart=/usr/bin/memcached -p 11211 -u memcache -m 64 -c 1024
+          Restart=always
+          
+          [Install]
+          WantedBy=multi-user.target
+        dest: /tmp/molecule_test/etc/systemd/system/memcached.service
+        mode: "0644"
+        backup: true
