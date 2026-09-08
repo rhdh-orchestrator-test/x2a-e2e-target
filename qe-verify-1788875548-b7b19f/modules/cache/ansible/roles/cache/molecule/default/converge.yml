@@ -1,0 +1,46 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    cache_redis_port: 6379
+    cache_redis_log_dir: /tmp/molecule_test/var/log/redis
+    cache_redis_config_file: /tmp/molecule_test/etc/redis/6379.conf
+    cache_redis_user: redis
+    cache_redis_group: redis
+    cache_memcached_port: 11211
+    cache_redis_remove_directives:
+    - replica-serve-stale-data
+    - replica-read-only
+    - repl-ping-replica-period
+    - client-output-buffer-limit
+    - replica-priority
+    redis_password: test_password_123
+  tasks:
+  - name: Create test directories
+    ansible.builtin.file:
+      path: '{{ item }}'
+      state: directory
+      mode: '0755'
+    loop:
+    - /tmp/molecule_test/etc/redis
+    - /tmp/molecule_test/var/log/redis
+    - /tmp/molecule_test/var/lib/redis
+    - /tmp/molecule_test/var/run/redis
+  - name: Simulate Redis configuration template
+    ansible.builtin.template:
+      src: redis.conf.j2
+      dest: '{{ cache_redis_config_file }}'
+      mode: '0640'
+  - name: Simulate removing replica directives
+    ansible.builtin.lineinfile:
+      path: '{{ cache_redis_config_file }}'
+      regexp: ^{{ item_directive }}.*$
+      state: absent
+    loop: '{{ cache_redis_remove_directives }}'
+    loop_control:
+      loop_var: item_directive
+  - name: Create test log file
+    ansible.builtin.file:
+      path: '{{ cache_redis_log_dir }}/redis-server.log'
+      state: touch
+      mode: '0644'

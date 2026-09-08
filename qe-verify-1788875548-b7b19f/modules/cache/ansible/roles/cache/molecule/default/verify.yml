@@ -1,0 +1,48 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  vars:
+    cache_redis_config_file: /tmp/molecule_test/etc/redis/6379.conf
+    cache_redis_log_dir: /tmp/molecule_test/var/log/redis
+  tasks:
+  - name: Verify Redis configuration file exists
+    ansible.builtin.stat:
+      path: '{{ cache_redis_config_file }}'
+    register: redis_config_stat
+  - name: Assert Redis configuration file exists
+    ansible.builtin.assert:
+      that:
+      - redis_config_stat.stat.exists
+      fail_msg: Redis configuration file does not exist at {{ cache_redis_config_file }}
+  - name: Verify Redis log directory exists
+    ansible.builtin.stat:
+      path: '{{ cache_redis_log_dir }}'
+    register: redis_log_dir_stat
+  - name: Assert Redis log directory exists
+    ansible.builtin.assert:
+      that:
+      - redis_log_dir_stat.stat.exists
+      - redis_log_dir_stat.stat.isdir
+      fail_msg: Redis log directory does not exist at {{ cache_redis_log_dir }}
+  - name: Read Redis configuration file
+    ansible.builtin.slurp:
+      src: '{{ cache_redis_config_file }}'
+    register: redis_config_content
+  - name: Verify Redis configuration contains required settings
+    ansible.builtin.assert:
+      that:
+      - '''requirepass test_password_123'' in redis_config_decoded'
+      - '''port 6379'' in redis_config_decoded'
+      - '''bind 127.0.0.1'' in redis_config_decoded'
+      fail_msg: Redis configuration is missing required settings
+    vars:
+      redis_config_decoded: '{{ redis_config_content.content | b64decode }}'
+  - name: Verify replica directives are removed
+    ansible.builtin.assert:
+      that:
+      - '''replica-serve-stale-data'' not in redis_config_decoded'
+      - '''replica-read-only'' not in redis_config_decoded'
+      - '''repl-ping-replica-period'' not in redis_config_decoded'
+      fail_msg: Replica directives were not properly removed from Redis configuration
+    vars:
+      redis_config_decoded: '{{ redis_config_content.content | b64decode }}'
