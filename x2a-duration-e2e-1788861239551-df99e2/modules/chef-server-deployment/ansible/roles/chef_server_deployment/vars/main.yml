@@ -1,0 +1,11 @@
+---
+chef_user_pem_filename: "{{ chef_username }}.pem"
+chef_org_pem_filename: "{{ chef_org_name }}-validator.pem"
+apache_vhost_config: "<VirtualHost *:{{ apache_vhost_port }}>\n DocumentRoot \"{{ apache_document_root }}\"\n SSLEngine on\n SSLCertificateFile {{ apache_ssl_cert_path
+  }}\n SSLCertificateKeyFile {{ apache_ssl_key_path }}\n  <Directory \"{{ apache_document_root }}\">\n    allow from all\n    Options None\n    Require all granted\n\
+  \  </Directory>\n</VirtualHost>\n"
+default_web_content: "<html>\n  <head><title>Test Site</title></head>\n  <body>\n   <h1>Hello, world!</h1>\n   <p>The site is up and running</p>\n  </body>\n</html>\n"
+ssl_packages:
+  - curl
+  - openssl
+  - python3-openssl

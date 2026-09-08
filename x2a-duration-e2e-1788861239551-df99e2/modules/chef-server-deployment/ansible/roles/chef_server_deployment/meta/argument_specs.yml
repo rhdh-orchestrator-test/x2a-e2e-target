@@ -1,0 +1,123 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy and configure Chef Automate and Chef Infra Server
+    description:
+      - Deploys Chef Automate and Chef Infra Server on a target system
+      - Configures system parameters for optimal Chef performance
+      - Sets up SSL certificates and Apache virtual hosts
+      - Creates Chef Server users and organizations
+      - Applies security fixes for SSL vulnerabilities
+    options:
+      chef_hostname:
+        type: str
+        required: false
+        default: automate.chef.lab
+        description: Hostname for the Chef Automate server
+      chef_username:
+        type: str
+        required: false
+        default: admin
+        description: Chef server admin username
+      chef_user_fullname:
+        type: str
+        required: false
+        default: Chef Administrator
+        description: Full name for Chef admin user
+      chef_user_email:
+        type: str
+        required: false
+        default: admin@chef.lab
+        description: Email address for Chef admin user
+      chef_user_password:
+        type: str
+        required: false
+        default: changeme
+        description: Password for Chef admin user (should be changed in production)
+        no_log: true
+      chef_org_name:
+        type: str
+        required: false
+        default: lab
+        description: Chef organization short name
+      chef_org_fullname:
+        type: str
+        required: false
+        default: Chef Lab Organization
+        description: Chef organization full name
+      chef_products:
+        type: list
+        elements: str
+        required: false
+        default:
+          - automate
+          - infra-server
+        description: List of Chef products to deploy
+        choices:
+          - automate
+          - infra-server
+      chef_accept_license:
+        type: bool
+        required: false
+        default: false
+        description: Accept Chef license terms and MLSA
+      chef_vm_max_map_count:
+        type: int
+        required: false
+        default: 262144
+        description: Kernel parameter vm.max_map_count value
+      chef_vm_dirty_expire_centisecs:
+        type: int
+        required: false
+        default: 20000
+        description: Kernel parameter vm.dirty_expire_centisecs value
+      chef_automate_cli_url:
+        type: str
+        required: false
+        default: https://packages.chef.io/files/current/latest/chef-automate-cli/chef-automate_linux_amd64.zip
+        description: URL to download Chef Automate CLI
+      chef_automate_cli_path:
+        type: str
+        required: false
+        default: /usr/local/bin/chef-automate
+        description: Path where Chef Automate CLI will be installed
+      apache_ssl_cert_path:
+        type: str
+        required: false
+        default: /etc/apache2/certs/apache.crt
+        description: Path to Apache SSL certificate file
+      apache_ssl_key_path:
+        type: str
+        required: false
+        default: /etc/apache2/certs/apache.key
+        description: Path to Apache SSL private key file
+      apache_ssl_csr_path:
+        type: str
+        required: false
+        default: /etc/apache2/certs/apache.csr
+        description: Path to Apache SSL certificate signing request file
+      apache_certs_dir:
+        type: str
+        required: false
+        default: /etc/apache2/certs
+        description: Directory for Apache SSL certificates
+      apache_vhost_name:
+        type: str
+        required: false
+        default: helloworld
+        description: Name of the Apache virtual host
+      apache_document_root:
+        type: str
+        required: false
+        default: /var/www/helloworld
+        description: Document root for the Apache virtual host
+      apache_vhost_port:
+        type: int
+        required: false
+        default: 443
+        description: Port for the Apache virtual host
+      ssl_protocol:
+        type: str
+        required: false
+        default: -all +TLSv1.2
+        description: SSL protocol configuration for Apache

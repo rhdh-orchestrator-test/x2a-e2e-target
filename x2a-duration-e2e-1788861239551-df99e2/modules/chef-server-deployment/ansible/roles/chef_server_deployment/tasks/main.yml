@@ -1,0 +1,11 @@
+---
+- name: Include system setup tasks
+  ansible.builtin.include_tasks: system_setup.yml
+- name: Include Chef Automate installation tasks
+  ansible.builtin.include_tasks: install_automate.yml
+- name: Include SSL poodle fix tasks
+  ansible.builtin.include_tasks: poodle_fix.yml
+- name: Include HTTPS website configuration tasks
+  ansible.builtin.include_tasks: website_https.yml
+- name: Include user and organization configuration tasks
+  ansible.builtin.include_tasks: configure_users.yml

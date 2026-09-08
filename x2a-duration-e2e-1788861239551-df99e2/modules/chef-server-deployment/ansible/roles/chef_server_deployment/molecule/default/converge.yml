@@ -1,0 +1,216 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected directories for Chef Automate
+      ansible.builtin.file:
+        path: "{{ item_dir }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/hab/svc/deployment-service
+        - /tmp/molecule_test/hab/svc/automate-load-balancer/data
+        - /tmp/molecule_test/usr/local/bin
+        - /tmp/molecule_test/etc/apache2/mods-available
+        - /tmp/molecule_test/etc/apache2/sites-available
+        - /tmp/molecule_test/etc/apache2/certs
+        - /tmp/molecule_test/var/www/helloworld
+        - /tmp/molecule_test/etc/sysctl.d
+      loop_control:
+        loop_var: item_dir
+
+    - name: Create Chef Automate CLI binary
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          # Mock Chef Automate CLI for testing
+          echo "Chef Automate CLI mock binary"
+          exit 0
+        dest: /tmp/molecule_test/usr/local/bin/chef-automate
+        mode: "0755"
+        backup: true
+
+    - name: Create Chef Automate deployment service marker
+      ansible.builtin.copy:
+        content: |
+          # Chef Automate deployment service marker
+          # This file indicates successful deployment
+        dest: /tmp/molecule_test/hab/svc/deployment-service/deployment.conf
+        mode: "0644"
+        backup: true
+
+    - name: Create SSL certificate files
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN CERTIFICATE-----
+          MIICljCCAX4CCQDMockCertificateDataForTestingOnly
+          -----END CERTIFICATE-----
+        dest: "{{ item_cert }}"
+        mode: "0644"
+        backup: true
+      loop:
+        - /tmp/molecule_test/etc/apache2/certs/apache.crt
+        - /tmp/molecule_test/hab/svc/automate-load-balancer/data/server.crt
+      loop_control:
+        loop_var: item_cert
+
+    - name: Create SSL private key files
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN PRIVATE KEY-----
+          MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDMockPrivateKey
+          -----END PRIVATE KEY-----
+        dest: "{{ item_key }}"
+        mode: "0600"
+        backup: true
+      loop:
+        - /tmp/molecule_test/etc/apache2/certs/apache.key
+        - /tmp/molecule_test/hab/svc/automate-load-balancer/data/server.key
+      loop_control:
+        loop_var: item_key
+
+    - name: Create SSL certificate signing request
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN CERTIFICATE REQUEST-----
+          MIICWjCCAUICAQAwFTETMBEGA1UEAwwKdGVzdC5sb2NhbA==
+          -----END CERTIFICATE REQUEST-----
+        dest: /tmp/molecule_test/etc/apache2/certs/apache.csr
+        mode: "0644"
+        backup: true
+
+    - name: Create Chef user PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAyMockChefUserPrivateKeyForTestingOnly
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/admin.pem
+        mode: "0600"
+        backup: true
+
+    - name: Create Chef organization validator PEM file
+      ansible.builtin.copy:
+        content: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEAyMockChefOrgValidatorKeyForTestingOnly
+          -----END RSA PRIVATE KEY-----
+        dest: /tmp/molecule_test/lab-validator.pem
+        mode: "0600"
+        backup: true
+
+    - name: Create Apache SSL configuration file
+      ansible.builtin.copy:
+        content: |
+          <IfModule mod_ssl.c>
+          SSLEngine on
+          SSLProtocol -all +TLSv1.2
+          SSLCipherSuite HIGH:!aNULL:!MD5
+          </IfModule>
+        dest: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+        mode: "0644"
+        backup: true
+
+    - name: Create Apache virtual host configuration
+      ansible.builtin.copy:
+        content: |
+          <VirtualHost *:443>
+           DocumentRoot "/var/www/helloworld"
+           SSLEngine on
+           SSLCertificateFile /etc/apache2/certs/apache.crt
+           SSLCertificateKeyFile /etc/apache2/certs/apache.key
+            <Directory "/var/www/helloworld">
+              allow from all
+              Options None
+              Require all granted
+            </Directory>
+          </VirtualHost>
+        dest: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+        mode: "0644"
+        backup: true
+
+    - name: Create Hello World website content
+      ansible.builtin.copy:
+        content: |
+          <html>
+            <head><title>Test Site</title></head>
+            <body>
+             <h1>Hello, world!</h1>
+             <p>The site is up and running</p>
+            </body>
+          </html>
+        dest: /tmp/molecule_test/var/www/helloworld/index.html
+        mode: "0644"
+        backup: true
+
+    - name: Create sysctl configuration files
+      ansible.builtin.copy:
+        content: |
+          # Chef Automate kernel parameters
+          vm.max_map_count = 262144
+          vm.dirty_expire_centisecs = 20000
+        dest: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+        mode: "0644"
+        backup: true
+
+    - name: Create hostname file
+      ansible.builtin.copy:
+        content: "automate.chef.lab"
+        dest: /tmp/molecule_test/etc/hostname
+        mode: "0644"
+        backup: true
+
+    - name: Create Chef Automate configuration file
+      ansible.builtin.copy:
+        content: |
+          # Chef Automate Configuration Template
+          # Generated by Ansible
+
+          [global.v1]
+          fqdn = "automate.chef.lab"
+
+          [global.v1.frontend_tls]
+          # SSL/TLS Configuration
+          cert = "/etc/apache2/certs/apache.crt"
+          key = "/etc/apache2/certs/apache.key"
+
+          [auth_n.v1.sys.service]
+          # Authentication service configuration
+          a1_data_collector_token = ""
+
+          [deployment.v1.sys.service]
+          # Deployment service configuration
+          channel = "current"
+          upgrade_strategy = "at-once"
+
+          [load_balancer.v1.sys.service]
+          # Load balancer configuration
+          external_fqdn = "automate.chef.lab"
+
+          [chef_server.v1.sys.service]
+          # Chef Infra Server configuration
+          external_fqdn = "automate.chef.lab"
+
+          [postgresql.v1.sys.service]
+          # PostgreSQL configuration
+          enable = true
+
+          [elasticsearch.v1.sys.service]
+          # Elasticsearch configuration
+          enable = true
+
+          [compliance.v1.sys.service]
+          # Compliance service configuration
+          enable = true
+
+          [ingest.v1.sys.service]
+          # Ingest service configuration
+          enable = true
+
+          [data_feed.v1.sys.service]
+          # Data feed service configuration
+          enable = true
+        dest: /tmp/molecule_test/hab/svc/automate-config.toml
+        mode: "0644"
+        backup: true

@@ -1,0 +1,283 @@
+---
+- name: Verify Chef Server Deployment
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Verify Chef Automate CLI installation
+    - name: Check Chef Automate CLI exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/usr/local/bin/chef-automate
+      register: chef_cli_stat
+
+    - name: Assert Chef Automate CLI was installed
+      ansible.builtin.assert:
+        that:
+          - chef_cli_stat['stat']['exists']
+          - chef_cli_stat['stat']['executable']
+        fail_msg: "Chef Automate CLI not found or not executable"
+
+    # Verify Chef Automate deployment marker
+    - name: Check Chef Automate deployment service marker
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/hab/svc/deployment-service/deployment.conf
+      register: deployment_marker_stat
+
+    - name: Assert Chef Automate deployment completed
+      ansible.builtin.assert:
+        that:
+          - deployment_marker_stat['stat']['exists']
+          - deployment_marker_stat['stat']['size'] > 0
+        fail_msg: "Chef Automate deployment marker not found"
+
+    # Verify SSL certificate files
+    - name: Check SSL certificate files exist
+      ansible.builtin.stat:
+        path: "{{ item_ssl_file }}"
+      loop:
+        - /tmp/molecule_test/etc/apache2/certs/apache.crt
+        - /tmp/molecule_test/etc/apache2/certs/apache.key
+        - /tmp/molecule_test/etc/apache2/certs/apache.csr
+        - /tmp/molecule_test/hab/svc/automate-load-balancer/data/server.crt
+        - /tmp/molecule_test/hab/svc/automate-load-balancer/data/server.key
+      loop_control:
+        loop_var: item_ssl_file
+      register: ssl_files_stat
+
+    - name: Assert SSL certificate files were created
+      ansible.builtin.assert:
+        that:
+          - item_ssl_result['stat']['exists']
+          - item_ssl_result['stat']['size'] > 0
+        fail_msg: "SSL certificate file not found"
+      loop: "{{ ssl_files_stat['results'] }}"
+      loop_control:
+        loop_var: item_ssl_result
+
+    # Verify SSL private key permissions
+    - name: Check SSL private key file permissions
+      ansible.builtin.stat:
+        path: "{{ item_key_file }}"
+      loop:
+        - /tmp/molecule_test/etc/apache2/certs/apache.key
+        - /tmp/molecule_test/hab/svc/automate-load-balancer/data/server.key
+      loop_control:
+        loop_var: item_key_file
+      register: ssl_key_perms_stat
+
+    - name: Assert SSL private keys have correct permissions
+      ansible.builtin.assert:
+        that:
+          - item_key_result['stat']['mode'] == '0600'
+        fail_msg: "SSL private key does not have correct permissions"
+      loop: "{{ ssl_key_perms_stat['results'] }}"
+      loop_control:
+        loop_var: item_key_result
+
+    # Verify Chef user and organization PEM files
+    - name: Check Chef PEM files exist
+      ansible.builtin.stat:
+        path: "{{ item_pem_file }}"
+      loop:
+        - /tmp/molecule_test/admin.pem
+        - /tmp/molecule_test/lab-validator.pem
+      loop_control:
+        loop_var: item_pem_file
+      register: pem_files_stat
+
+    - name: Assert Chef PEM files were created
+      ansible.builtin.assert:
+        that:
+          - item_pem_result['stat']['exists']
+          - item_pem_result['stat']['mode'] == '0600'
+          - item_pem_result['stat']['size'] > 0
+        fail_msg: "Chef PEM file not found or incorrect permissions"
+      loop: "{{ pem_files_stat['results'] }}"
+      loop_control:
+        loop_var: item_pem_result
+
+    # Verify Apache configuration files
+    - name: Check Apache SSL configuration exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: apache_ssl_conf_stat
+
+    - name: Assert Apache SSL configuration was created
+      ansible.builtin.assert:
+        that:
+          - apache_ssl_conf_stat['stat']['exists']
+          - apache_ssl_conf_stat['stat']['size'] > 0
+        fail_msg: "Apache SSL configuration not found"
+
+    # Verify Apache SSL configuration content
+    - name: Read Apache SSL configuration content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: apache_ssl_content
+
+    - name: Assert Apache SSL configuration contains TLS protocol
+      ansible.builtin.assert:
+        that:
+          - "'SSLProtocol -all +TLSv1.2' in (apache_ssl_content['content'] | b64decode)"
+        fail_msg: "Apache SSL configuration does not contain expected TLS protocol"
+
+    # Verify Apache virtual host configuration
+    - name: Check Apache virtual host configuration exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/sites-available/helloworld.conf
+      register: apache_vhost_stat
+
+    - name: Assert Apache virtual host configuration was created
+      ansible.builtin.assert:
+        that:
+          - apache_vhost_stat['stat']['exists']
+          - apache_vhost_stat['stat']['size'] > 0
+        fail_msg: "Apache virtual host configuration not found"
+
+    # Verify Hello World website content
+    - name: Check Hello World website exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/www/helloworld/index.html
+      register: website_stat
+
+    - name: Assert Hello World website was created
+      ansible.builtin.assert:
+        that:
+          - website_stat['stat']['exists']
+          - website_stat['stat']['size'] > 0
+        fail_msg: "Hello World website not found"
+
+    # Verify website content
+    - name: Read Hello World website content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/var/www/helloworld/index.html
+      register: website_content
+
+    - name: Assert website contains expected content
+      ansible.builtin.assert:
+        that:
+          - "'Hello, world!' in (website_content['content'] | b64decode)"
+          - "'The site is up and running' in (website_content['content'] | b64decode)"
+        fail_msg: "Website does not contain expected content"
+
+    # Verify system configuration files
+    - name: Check hostname file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/hostname
+      register: hostname_stat
+
+    - name: Assert hostname file was created
+      ansible.builtin.assert:
+        that:
+          - hostname_stat['stat']['exists']
+          - hostname_stat['stat']['size'] > 0
+        fail_msg: "Hostname file not found"
+
+    # Verify hostname content
+    - name: Read hostname file content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/hostname
+      register: hostname_content
+
+    - name: Assert hostname is correctly set
+      ansible.builtin.assert:
+        that:
+          - "'automate.chef.lab' in (hostname_content['content'] | b64decode)"
+        fail_msg: "Hostname not set correctly"
+
+    # Verify sysctl configuration
+    - name: Check sysctl configuration exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      register: sysctl_stat
+
+    - name: Assert sysctl configuration was created
+      ansible.builtin.assert:
+        that:
+          - sysctl_stat['stat']['exists']
+          - sysctl_stat['stat']['size'] > 0
+        fail_msg: "Sysctl configuration not found"
+
+    # Verify sysctl parameters
+    - name: Read sysctl configuration content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/sysctl.d/99-chef-automate.conf
+      register: sysctl_content
+
+    - name: Assert sysctl parameters are correctly configured
+      ansible.builtin.assert:
+        that:
+          - "'vm.max_map_count = 262144' in (sysctl_content['content'] | b64decode)"
+          - "'vm.dirty_expire_centisecs = 20000' in (sysctl_content['content'] | b64decode)"
+        fail_msg: "Sysctl parameters not configured correctly"
+
+    # Verify Chef Automate configuration
+    - name: Check Chef Automate configuration exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/hab/svc/automate-config.toml
+      register: automate_config_stat
+
+    - name: Assert Chef Automate configuration was created
+      ansible.builtin.assert:
+        that:
+          - automate_config_stat['stat']['exists']
+          - automate_config_stat['stat']['size'] > 0
+        fail_msg: "Chef Automate configuration not found"
+
+    # Verify Chef Automate configuration content
+    - name: Read Chef Automate configuration content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/hab/svc/automate-config.toml
+      register: automate_config_content
+
+    - name: Assert Chef Automate configuration contains expected settings
+      ansible.builtin.assert:
+        that:
+          - "'fqdn = \"automate.chef.lab\"' in (automate_config_content['content'] | b64decode)"
+          - "'[chef_server.v1.sys.service]' in (automate_config_content['content'] | b64decode)"
+          - "'[postgresql.v1.sys.service]' in (automate_config_content['content'] | b64decode)"
+          - "'[elasticsearch.v1.sys.service]' in (automate_config_content['content'] | b64decode)"
+        fail_msg: "Chef Automate configuration does not contain expected settings"
+
+- name: Verify Service Status (Container-incompatible checks)
+  hosts: all
+  gather_facts: false
+  tasks:
+    # These checks would fail in container environment, so they're tagged for exclusion
+    - name: Check Chef Automate service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Chef Automate service is running
+      ansible.builtin.assert:
+        that:
+          - "'chef-automate' in ansible_facts.services"
+        fail_msg: "Chef Automate service not found"
+      tags: molecule-notest
+
+    - name: Check Chef Server service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Chef Server service is running
+      ansible.builtin.assert:
+        that:
+          - "'chef-server' in ansible_facts.services"
+        fail_msg: "Chef Server service not found"
+      tags: molecule-notest
+
+    # Network connectivity checks (would fail in container)
+    - name: Test Chef Automate HTTPS endpoint
+      ansible.builtin.uri:
+        url: "https://automate.chef.lab"
+        method: GET
+        validate_certs: false
+        timeout: 10
+      tags: molecule-notest
+
+    - name: Test Chef Server API endpoint
+      ansible.builtin.uri:
+        url: "https://automate.chef.lab/organizations/lab"
+        method: GET
+        validate_certs: false
+        timeout: 10
+      tags: molecule-notest

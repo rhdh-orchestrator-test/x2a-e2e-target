@@ -1,0 +1,14 @@
+---
+- name: Ensure Apache is installed before SSL configuration
+  ansible.builtin.package:
+    name: apache2
+    state: present
+- name: Fix SSL protocol configuration in Apache
+  ansible.builtin.replace:
+    dest: /etc/apache2/mods-available/ssl.conf
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol {{ ssl_protocol }}
+    backup: true
+  notify:
+    - Restart apache2
+    - Restart sshd
