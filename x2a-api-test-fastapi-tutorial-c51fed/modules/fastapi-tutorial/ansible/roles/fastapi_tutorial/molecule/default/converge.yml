@@ -1,0 +1,139 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item_dir }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/opt/fastapi-tutorial
+        - /tmp/molecule_test/opt/fastapi-tutorial/venv
+        - /tmp/molecule_test/opt/fastapi-tutorial/venv/bin
+        - /tmp/molecule_test/opt/fastapi-tutorial/app
+        - /tmp/molecule_test/etc/systemd/system
+      loop_control:
+        loop_var: item_dir
+
+    - name: Create FastAPI application entry point
+      ansible.builtin.copy:
+        content: |
+          from fastapi import FastAPI
+          
+          app = FastAPI(title="FastAPI Tutorial", version="1.0.0")
+          
+          @app.get("/")
+          def read_root():
+              return {"message": "Hello World"}
+          
+          @app.get("/health")
+          def health_check():
+              return {"status": "healthy"}
+        dest: /tmp/molecule_test/opt/fastapi-tutorial/app/main.py
+        mode: "0644"
+        backup: true
+
+    - name: Create requirements.txt file
+      ansible.builtin.copy:
+        content: |
+          fastapi==0.104.1
+          uvicorn[standard]==0.24.0
+          psycopg2-binary==2.9.7
+          python-dotenv==1.0.0
+        dest: /tmp/molecule_test/opt/fastapi-tutorial/requirements.txt
+        mode: "0644"
+        backup: true
+
+    - name: Create Python virtual environment executable
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          # Mock Python executable for testing
+          echo "Python 3.11.0"
+        dest: /tmp/molecule_test/opt/fastapi-tutorial/venv/bin/python
+        mode: "0755"
+        backup: true
+
+    - name: Create pip executable in venv
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          # Mock pip executable for testing
+          echo "pip 23.0.1"
+        dest: /tmp/molecule_test/opt/fastapi-tutorial/venv/bin/pip
+        mode: "0755"
+        backup: true
+
+    - name: Create uvicorn executable in venv
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          # Mock uvicorn executable for testing
+          echo "uvicorn 0.24.0"
+        dest: /tmp/molecule_test/opt/fastapi-tutorial/venv/bin/uvicorn
+        mode: "0755"
+        backup: true
+
+    - name: Create environment configuration file
+      ansible.builtin.copy:
+        content: |
+          PROJECT_NAME="FastAPI Tutorial"
+          API_VERSION=1.0.0
+          DATABASE_URL=postgresql://fastapi:fastapi_password@localhost/fastapi_db
+        dest: /tmp/molecule_test/opt/fastapi-tutorial/.env
+        mode: "0644"
+        backup: true
+
+    - name: Create systemd service file
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=FastAPI Tutorial Service
+          After=network.target postgresql.service
+          
+          [Service]
+          Type=simple
+          User=root
+          WorkingDirectory=/opt/fastapi-tutorial
+          Environment="PATH=/opt/fastapi-tutorial/venv/bin"
+          ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+          Restart=always
+          
+          [Install]
+          WantedBy=multi-user.target
+        dest: /tmp/molecule_test/etc/systemd/system/fastapi-tutorial.service
+        mode: "0644"
+        backup: true
+
+    - name: Create git repository metadata
+      ansible.builtin.file:
+        path: /tmp/molecule_test/opt/fastapi-tutorial/.git
+        state: directory
+        mode: "0755"
+
+    - name: Create git config file
+      ansible.builtin.copy:
+        content: |
+          [core]
+              repositoryformatversion = 0
+              filemode = true
+              bare = false
+              logallrefupdates = true
+          [remote "origin"]
+              url = https://github.com/dibanez/fastapi_tutorial.git
+              fetch = +refs/heads/*:refs/remotes/origin/*
+          [branch "main"]
+              remote = origin
+              merge = refs/heads/main
+        dest: /tmp/molecule_test/opt/fastapi-tutorial/.git/config
+        mode: "0644"
+        backup: true
+
+    - name: Create git HEAD reference
+      ansible.builtin.copy:
+        content: "ref: refs/heads/main"
+        dest: /tmp/molecule_test/opt/fastapi-tutorial/.git/HEAD
+        mode: "0644"
+        backup: true
