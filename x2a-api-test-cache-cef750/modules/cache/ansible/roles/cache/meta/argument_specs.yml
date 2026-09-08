@@ -1,0 +1,54 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure memcached and Redis caching services
+    description:
+      - Installs and configures dual caching services - memcached and Redis with authentication.
+      - Configures Redis on port 6379 with password authentication using AAP credential variables.
+      - Creates necessary directories and applies configuration fixes to remove deprecated Redis replica settings.
+      - Starts and enables both memcached and Redis services.
+    options:
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port for Redis server to listen on.
+      cache_redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory path for Redis log files.
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Path to Redis configuration file.
+      cache_redis_user:
+        type: str
+        required: false
+        default: redis
+        description: System user for Redis service.
+      cache_redis_group:
+        type: str
+        required: false
+        default: redis
+        description: System group for Redis service.
+      cache_memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: TCP port for memcached server to listen on.
+      cache_redis_service_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Name of the Redis systemd service.
+      cache_memcached_service_name:
+        type: str
+        required: false
+        default: memcached
+        description: Name of the memcached systemd service.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by AAP credential type at runtime.
