@@ -1,0 +1,60 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure memcached and Redis caching services
+    description:
+      - Installs and configures both memcached and Redis caching services
+      - Configures Redis with authentication and proper logging
+      - Removes deprecated Redis configuration settings
+      - Creates necessary directories with proper permissions
+    options:
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port for Redis server to listen on
+      cache_redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory path for Redis log files
+      cache_redis_log_dir_owner:
+        type: str
+        required: false
+        default: redis
+        description: Owner of the Redis log directory
+      cache_redis_log_dir_group:
+        type: str
+        required: false
+        default: redis
+        description: Group of the Redis log directory
+      cache_redis_log_dir_mode:
+        type: str
+        required: false
+        default: "0755"
+        description: File permissions for Redis log directory
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/{{ cache_redis_port }}.conf
+        description: Path to Redis configuration file
+      cache_memcached_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether to enable memcached service
+      cache_redis_deprecated_settings:
+        type: list
+        elements: str
+        required: false
+        default:
+          - replica-serve-stale-data
+          - replica-read-only
+          - repl-ping-replica-period
+          - client-output-buffer-limit
+          - replica-priority
+        description: List of deprecated Redis settings to remove from configuration
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password (injected by AAP credential type)
