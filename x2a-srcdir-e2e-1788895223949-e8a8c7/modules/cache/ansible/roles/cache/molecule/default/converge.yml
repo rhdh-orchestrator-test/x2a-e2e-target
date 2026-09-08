@@ -1,0 +1,70 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected Redis directories
+      ansible.builtin.file:
+        path: "{{ item_dir }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/etc/redis
+        - /tmp/molecule_test/var/lib/redis
+        - /tmp/molecule_test/var/log/redis
+        - /tmp/molecule_test/var/run/redis
+      loop_control:
+        loop_var: item_dir
+
+    - name: Create Redis configuration file
+      ansible.builtin.copy:
+        content: |
+          # Redis configuration file
+          port 6379
+          bind 127.0.0.1
+          timeout 0
+          tcp-keepalive 0
+          loglevel notice
+          logfile /var/log/redis/redis-server.log
+          databases 16
+          save 900 1
+          save 300 10
+          save 60 10000
+          stop-writes-on-bgsave-error yes
+          rdbcompression yes
+          rdbchecksum yes
+          dbfilename dump.rdb
+          dir /var/lib/redis/
+          maxmemory-policy noeviction
+          appendonly no
+          appendfilename "appendonly.aof"
+          appendfsync everysec
+          no-appendfsync-on-rewrite no
+          auto-aof-rewrite-percentage 100
+          auto-aof-rewrite-min-size 64mb
+        dest: /tmp/molecule_test/etc/redis/redis.conf
+        mode: "0644"
+        backup: true
+
+    - name: Create Redis log file
+      ansible.builtin.copy:
+        content: |
+          [1] 01 Jan 00:00:00.000 # Redis server v=6.0.16 sha=00000000:0 malloc=jemalloc-5.2.1 bits=64 build=a3fdef44459b3ad6
+          [1] 01 Jan 00:00:00.000 # Server initialized
+          [1] 01 Jan 00:00:00.000 * Ready to accept connections
+        dest: /tmp/molecule_test/var/log/redis/redis-server.log
+        mode: "0644"
+        backup: true
+
+    - name: Create Redis data directory files
+      ansible.builtin.copy:
+        content: "REDIS0009"
+        dest: /tmp/molecule_test/var/lib/redis/dump.rdb
+        mode: "0644"
+        backup: true
+
+    - name: Create Redis socket directory
+      ansible.builtin.file:
+        path: /tmp/molecule_test/var/run/redis
+        state: directory
+        mode: "0755"
