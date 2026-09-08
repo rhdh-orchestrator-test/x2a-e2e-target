@@ -1,0 +1,211 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Assert Redis configuration file was created
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat['stat']['exists']
+          - redis_config_stat['stat']['size'] > 0
+        fail_msg: "Redis configuration file not found"
+
+    - name: Check Redis log directory exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/log/redis
+      register: redis_log_dir_stat
+
+    - name: Assert Redis log directory was created
+      ansible.builtin.assert:
+        that:
+          - redis_log_dir_stat['stat']['exists']
+          - redis_log_dir_stat['stat']['isdir']
+        fail_msg: "Redis log directory not found"
+
+    - name: Check Redis log file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/log/redis/redis_6379.log
+      register: redis_log_file_stat
+
+    - name: Assert Redis log file was created
+      ansible.builtin.assert:
+        that:
+          - redis_log_file_stat['stat']['exists']
+          - redis_log_file_stat['stat']['size'] > 0
+        fail_msg: "Redis log file not found"
+
+    - name: Check memcached configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/memcached/memcached.conf
+      register: memcached_config_stat
+
+    - name: Assert memcached configuration file was created
+      ansible.builtin.assert:
+        that:
+          - memcached_config_stat['stat']['exists']
+          - memcached_config_stat['stat']['size'] > 0
+        fail_msg: "Memcached configuration file not found"
+
+    - name: Read Redis configuration content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert Redis configuration contains required settings
+      ansible.builtin.assert:
+        that:
+          - "'port 6379' in redis_config_decoded"
+          - "'bind 127.0.0.1' in redis_config_decoded"
+          - "'requirepass redis_secure_password_123' in redis_config_decoded"
+          - "'logfile /var/log/redis/redis_6379.log' in redis_config_decoded"
+          - "'maxmemory 256mb' in redis_config_decoded"
+          - "'maxmemory-policy allkeys-lru' in redis_config_decoded"
+        fail_msg: "Redis configuration missing required settings"
+      vars:
+        redis_config_decoded: "{{ redis_config_content['content'] | b64decode }}"
+
+    - name: Assert Redis configuration does not contain cleaned-up settings
+      ansible.builtin.assert:
+        that:
+          - "'replica-serve-stale-data' not in redis_config_decoded"
+          - "'replica-read-only' not in redis_config_decoded"
+          - "'repl-ping-replica-period' not in redis_config_decoded"
+          - "'client-output-buffer-limit' not in redis_config_decoded"
+          - "'replica-priority' not in redis_config_decoded"
+        fail_msg: "Redis configuration contains settings that should be cleaned up"
+      vars:
+        redis_config_decoded: "{{ redis_config_content['content'] | b64decode }}"
+
+    - name: Read memcached configuration content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/memcached/memcached.conf
+      register: memcached_config_content
+
+    - name: Assert memcached configuration contains required settings
+      ansible.builtin.assert:
+        that:
+          - "'-m 64' in memcached_config_decoded"
+          - "'-p 11211' in memcached_config_decoded"
+          - "'-l 127.0.0.1' in memcached_config_decoded"
+          - "'-u memcache' in memcached_config_decoded"
+          - "'-c 1024' in memcached_config_decoded"
+        fail_msg: "Memcached configuration missing required settings"
+      vars:
+        memcached_config_decoded: "{{ memcached_config_content['content'] | b64decode }}"
+
+    - name: Check systemd service files exist
+      ansible.builtin.stat:
+        path: "{{ item_service }}"
+      loop:
+        - /tmp/molecule_test/lib/systemd/system/redis-server.service
+        - /tmp/molecule_test/lib/systemd/system/memcached.service
+      loop_control:
+        loop_var: item_service
+      register: service_files_stat
+
+    - name: Assert systemd service files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Systemd service file not found"
+      loop: "{{ service_files_stat['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    # Service checks that cannot run in container environment
+    - name: Check Redis service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Redis service is running
+      ansible.builtin.assert:
+        that:
+          - "'redis-server.service' in ansible_facts.services"
+          - "ansible_facts.services['redis-server.service']['state'] == 'running'"
+        fail_msg: "Redis service not running"
+      tags: molecule-notest
+
+    - name: Check memcached service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert memcached service is running
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts.services"
+          - "ansible_facts.services['memcached.service']['state'] == 'running'"
+        fail_msg: "Memcached service not running"
+      tags: molecule-notest
+
+    # Network connectivity checks that cannot run in container
+    - name: Check Redis port is listening
+      ansible.builtin.wait_for:
+        port: 6379
+        host: 127.0.0.1
+        timeout: 5
+      tags: molecule-notest
+
+    - name: Check memcached port is listening
+      ansible.builtin.wait_for:
+        port: 11211
+        host: 127.0.0.1
+        timeout: 5
+      tags: molecule-notest
+
+    # Redis connectivity tests that cannot run in container
+    - name: Test Redis authentication
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a redis_secure_password_123 ping
+      register: redis_ping_result
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert Redis responds to authenticated ping
+      ansible.builtin.assert:
+        that:
+          - "redis_ping_result['stdout'] == 'PONG'"
+        fail_msg: "Redis authentication test failed"
+      tags: molecule-notest
+
+    - name: Test Redis set/get operations
+      ansible.builtin.command:
+        cmd: "{{ item_redis_cmd }}"
+      loop:
+        - redis-cli -p 6379 -a redis_secure_password_123 set test_key test_value
+        - redis-cli -p 6379 -a redis_secure_password_123 get test_key
+        - redis-cli -p 6379 -a redis_secure_password_123 del test_key
+      loop_control:
+        loop_var: item_redis_cmd
+      register: redis_ops_result
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert Redis operations work correctly
+      ansible.builtin.assert:
+        that:
+          - "redis_ops_result['results'][0]['stdout'] == 'OK'"
+          - "redis_ops_result['results'][1]['stdout'] == 'test_value'"
+          - "redis_ops_result['results'][2]['stdout'] == '1'"
+        fail_msg: "Redis operations test failed"
+      tags: molecule-notest
+
+    # Memcached connectivity tests that cannot run in container
+    - name: Test memcached connectivity
+      ansible.builtin.shell: |
+        echo "stats" | nc localhost 11211
+      register: memcached_stats_result
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert memcached responds to stats command
+      ansible.builtin.assert:
+        that:
+          - "'STAT' in memcached_stats_result['stdout']"
+        fail_msg: "Memcached connectivity test failed"
+      tags: molecule-notest
