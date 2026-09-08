@@ -1,0 +1,218 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Application directory and files verification
+    - name: Check application directories exist
+      ansible.builtin.stat:
+        path: "{{ item_dir }}"
+      loop:
+        - /tmp/molecule_test/opt/fastapi-tutorial
+        - /tmp/molecule_test/opt/fastapi-tutorial/venv
+        - /tmp/molecule_test/opt/fastapi-tutorial/app
+      loop_control:
+        loop_var: item_dir
+      register: app_dir_stat_results
+
+    - name: Assert application directories were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['isdir']
+        fail_msg: "Expected application directory not found"
+      loop: "{{ app_dir_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    # Configuration files verification
+    - name: Check configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_config }}"
+      loop:
+        - /tmp/molecule_test/opt/fastapi-tutorial/.env
+        - /tmp/molecule_test/opt/fastapi-tutorial/requirements.txt
+        - /tmp/molecule_test/opt/fastapi-tutorial/app/main.py
+        - /tmp/molecule_test/etc/systemd/system/fastapi-tutorial.service
+      loop_control:
+        loop_var: item_config
+      register: config_stat_results
+
+    - name: Assert configuration files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Expected configuration file not found"
+      loop: "{{ config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    # Python virtual environment verification
+    - name: Check Python virtual environment executables exist
+      ansible.builtin.stat:
+        path: "{{ item_exec }}"
+      loop:
+        - /tmp/molecule_test/opt/fastapi-tutorial/venv/bin/python
+        - /tmp/molecule_test/opt/fastapi-tutorial/venv/bin/pip
+        - /tmp/molecule_test/opt/fastapi-tutorial/venv/bin/uvicorn
+      loop_control:
+        loop_var: item_exec
+      register: venv_exec_stat_results
+
+    - name: Assert virtual environment executables exist and are executable
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['executable']
+        fail_msg: "Expected virtual environment executable not found or not executable"
+      loop: "{{ venv_exec_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    # Environment configuration validation
+    - name: Read environment configuration file
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/opt/fastapi-tutorial/.env
+      register: env_file_content
+
+    - name: Assert environment configuration contains required variables
+      ansible.builtin.assert:
+        that:
+          - "'PROJECT_NAME=' in env_file_content['content'] | b64decode"
+          - "'API_VERSION=' in env_file_content['content'] | b64decode"
+          - "'DATABASE_URL=' in env_file_content['content'] | b64decode"
+          - "'postgresql://fastapi:' in env_file_content['content'] | b64decode"
+        fail_msg: "Environment configuration missing required variables"
+
+    # Requirements.txt validation
+    - name: Read requirements.txt file
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/opt/fastapi-tutorial/requirements.txt
+      register: requirements_content
+
+    - name: Assert requirements.txt contains expected packages
+      ansible.builtin.assert:
+        that:
+          - "'fastapi' in requirements_content['content'] | b64decode"
+          - "'uvicorn' in requirements_content['content'] | b64decode"
+          - "'psycopg2' in requirements_content['content'] | b64decode"
+        fail_msg: "Requirements file missing expected Python packages"
+
+    # FastAPI application validation
+    - name: Read FastAPI application main file
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/opt/fastapi-tutorial/app/main.py
+      register: main_py_content
+
+    - name: Assert FastAPI application contains expected code
+      ansible.builtin.assert:
+        that:
+          - "'from fastapi import FastAPI' in main_py_content['content'] | b64decode"
+          - "'app = FastAPI' in main_py_content['content'] | b64decode"
+        fail_msg: "FastAPI application main file missing expected code"
+
+    # Systemd service file validation
+    - name: Read systemd service file
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/systemd/system/fastapi-tutorial.service
+      register: service_file_content
+
+    - name: Assert systemd service file contains expected configuration
+      ansible.builtin.assert:
+        that:
+          - "'Description=FastAPI Tutorial Service' in service_file_content['content'] | b64decode"
+          - "'ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn' in service_file_content['content'] | b64decode"
+          - "'WorkingDirectory=/opt/fastapi-tutorial' in service_file_content['content'] | b64decode"
+          - "'--port 8000' in service_file_content['content'] | b64decode"
+        fail_msg: "Systemd service file missing expected configuration"
+
+    # Git repository validation
+    - name: Check git repository metadata exists
+      ansible.builtin.stat:
+        path: "{{ item_git }}"
+      loop:
+        - /tmp/molecule_test/opt/fastapi-tutorial/.git
+        - /tmp/molecule_test/opt/fastapi-tutorial/.git/config
+        - /tmp/molecule_test/opt/fastapi-tutorial/.git/HEAD
+      loop_control:
+        loop_var: item_git
+      register: git_stat_results
+
+    - name: Assert git repository metadata exists
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+        fail_msg: "Expected git repository metadata not found"
+      loop: "{{ git_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Read git config file
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/opt/fastapi-tutorial/.git/config
+      register: git_config_content
+
+    - name: Assert git repository points to correct remote
+      ansible.builtin.assert:
+        that:
+          - "'https://github.com/dibanez/fastapi_tutorial.git' in git_config_content['content'] | b64decode"
+          - "'[branch \"main\"]' in git_config_content['content'] | b64decode"
+        fail_msg: "Git repository configuration incorrect"
+
+- name: Verify Service and Network Checks (Container Incompatible)
+  hosts: all
+  gather_facts: false
+  tasks:
+    # These checks would fail in container environment, so they're tagged for exclusion
+    - name: Check FastAPI service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert FastAPI service is configured
+      ansible.builtin.assert:
+        that:
+          - "'fastapi-tutorial.service' in ansible_facts.services"
+        fail_msg: "FastAPI service not found"
+      tags: molecule-notest
+
+    - name: Check PostgreSQL service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert PostgreSQL service is configured
+      ansible.builtin.assert:
+        that:
+          - "'postgresql.service' in ansible_facts.services"
+        fail_msg: "PostgreSQL service not found"
+      tags: molecule-notest
+
+    # Network port checks (would fail in container)
+    - name: Check FastAPI application port
+      ansible.builtin.wait_for:
+        port: 8000
+        host: localhost
+        timeout: 5
+      tags: molecule-notest
+
+    - name: Check PostgreSQL port
+      ansible.builtin.wait_for:
+        port: 5432
+        host: localhost
+        timeout: 5
+      tags: molecule-notest
+
+    # HTTP endpoint checks (would fail in container)
+    - name: Check FastAPI application health endpoint
+      ansible.builtin.uri:
+        url: http://localhost:8000/
+        method: GET
+        status_code: 200
+      tags: molecule-notest
+
+    - name: Check FastAPI docs endpoint
+      ansible.builtin.uri:
+        url: http://localhost:8000/docs
+        method: GET
+        status_code: 200
+      tags: molecule-notest
