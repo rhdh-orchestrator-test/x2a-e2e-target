@@ -1,0 +1,123 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Install required system packages
+  ansible.builtin.package:
+    name: "{{ fastapi_tutorial_system_packages }}"
+    state: present
+- name: Create application user
+  ansible.builtin.user:
+    name: "{{ fastapi_tutorial_app_user }}"
+    system: true
+    shell: /bin/false
+    home: "{{ fastapi_tutorial_app_dir }}"
+    create_home: false
+  when: fastapi_tutorial_app_user != "root"
+- name: Create application group
+  ansible.builtin.group:
+    name: "{{ fastapi_tutorial_app_group }}"
+    system: true
+  when: fastapi_tutorial_app_group != "root"
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ fastapi_tutorial_app_dir }}"
+    state: directory
+    owner: "{{ fastapi_tutorial_app_user }}"
+    group: "{{ fastapi_tutorial_app_group }}"
+    mode: "0755"
+- name: Clone FastAPI tutorial repository
+  ansible.builtin.git:
+    repo: "{{ fastapi_tutorial_git_repo }}"
+    dest: "{{ fastapi_tutorial_app_dir }}"
+    version: "{{ fastapi_tutorial_git_branch }}"
+- name: Create Python virtual environment
+  ansible.builtin.command:
+    cmd: python3 -m venv {{ fastapi_tutorial_venv_path }}
+    creates: "{{ fastapi_tutorial_venv_path }}/bin/python"
+- name: Install Python dependencies from requirements.txt
+  ansible.builtin.pip:
+    requirements: "{{ fastapi_tutorial_app_dir }}/requirements.txt"
+    virtualenv: "{{ fastapi_tutorial_venv_path }}"
+- name: Enable and start PostgreSQL service
+  ansible.builtin.systemd:
+    name: postgresql
+    enabled: true
+    state: started
+- name: Check if PostgreSQL database user exists
+  ansible.builtin.shell:
+    cmd: sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='{{ db_username }}'"
+  register: db_user_exists
+  changed_when: false
+- name: Create PostgreSQL database user
+  ansible.builtin.shell:
+    cmd: sudo -u postgres psql -c "CREATE USER {{ db_username }} WITH PASSWORD '{{ db_password }}';"
+  when: db_user_exists.stdout != "1"
+- name: Check if PostgreSQL database exists
+  ansible.builtin.shell:
+    cmd: sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='{{ db_name }}'"
+  register: db_exists
+  changed_when: false
+- name: Create PostgreSQL database
+  ansible.builtin.shell:
+    cmd: sudo -u postgres psql -c "CREATE DATABASE {{ db_name }} OWNER {{ db_username }};"
+  when: db_exists.stdout != "1"
+- name: Grant privileges on database to user
+  ansible.builtin.shell:
+    cmd: sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE {{ db_name }} TO {{ db_username }};"
+  changed_when: false
+- name: Create environment configuration file
+  ansible.builtin.copy:
+    content: 'PROJECT_NAME="{{ fastapi_tutorial_project_name }}"
+
+      API_VERSION={{ fastapi_tutorial_api_version }}
+
+      DATABASE_URL=postgresql://{{ db_username }}:{{ db_password }}@{{ db_host }}:{{ db_port }}/{{ db_name }}
+
+      '
+    dest: "{{ fastapi_tutorial_app_dir }}/.env"
+    mode: "0644"
+    owner: "{{ fastapi_tutorial_app_user }}"
+    group: "{{ fastapi_tutorial_app_group }}"
+    backup: true
+- name: Create systemd service file
+  ansible.builtin.copy:
+    content: '[Unit]
+
+      Description={{ fastapi_tutorial_service_description }}
+
+      After={{ fastapi_tutorial_service_after | join('' '') }}
+
+
+      [Service]
+
+      Type=simple
+
+      User={{ fastapi_tutorial_app_user }}
+
+      WorkingDirectory={{ fastapi_tutorial_app_dir }}
+
+      Environment="PATH={{ fastapi_tutorial_venv_path }}/bin"
+
+      ExecStart={{ fastapi_tutorial_venv_path }}/bin/uvicorn app.main:app --host {{ fastapi_tutorial_app_host }} --port {{ fastapi_tutorial_app_port }}
+
+      Restart=always
+
+
+      [Install]
+
+      WantedBy=multi-user.target
+
+      '
+    dest: /etc/systemd/system/{{ fastapi_tutorial_service_name }}.service
+    mode: "0644"
+    owner: root
+    group: root
+    backup: true
+  notify:
+    - Reload systemd daemon
+- name: Enable and start FastAPI tutorial service
+  ansible.builtin.systemd:
+    name: "{{ fastapi_tutorial_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
