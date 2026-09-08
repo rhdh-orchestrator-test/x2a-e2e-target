@@ -1,0 +1,53 @@
+---
+argument_specs:
+  main:
+    short_description: Multi-site nginx web server with SSL-enabled virtual hosts
+    description:
+      - Deploys nginx with multiple SSL-enabled virtual hosts for test, ci, and status environments
+      - Includes comprehensive security hardening with fail2ban, UFW firewall, and SSH hardening
+      - Generates self-signed SSL certificates for each site
+    options:
+      nginx_multisite_sites:
+        type: dict
+        required: false
+        default:
+          test.cluster.local:
+            document_root: /opt/server/test
+            ssl_enabled: true
+          ci.cluster.local:
+            document_root: /opt/server/ci
+            ssl_enabled: true
+          status.cluster.local:
+            document_root: /opt/server/status
+            ssl_enabled: true
+        description: Dictionary of sites to configure. Each key is the site name (server_name), and each value contains document_root and ssl_enabled settings.
+      nginx_multisite_ssl_certificate_path:
+        type: str
+        required: false
+        default: /etc/ssl/certs
+        description: Directory path where SSL certificates will be stored.
+      nginx_multisite_ssl_private_key_path:
+        type: str
+        required: false
+        default: /etc/ssl/private
+        description: Directory path where SSL private keys will be stored.
+      nginx_multisite_security_fail2ban_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether to enable fail2ban for intrusion prevention.
+      nginx_multisite_security_ufw_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether to enable UFW firewall with default deny policy.
+      nginx_multisite_security_ssh_disable_root:
+        type: bool
+        required: false
+        default: true
+        description: Whether to disable SSH root login for security.
+      nginx_multisite_security_ssh_password_auth:
+        type: bool
+        required: false
+        default: false
+        description: Whether to allow SSH password authentication (false = key-only).
