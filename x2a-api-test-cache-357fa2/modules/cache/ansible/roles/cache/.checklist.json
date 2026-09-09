@@ -1,0 +1,109 @@
+{
+  "module_name": "cache",
+  "items": [
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/aap-configuration/controller_credential_types.yml",
+      "status": "complete",
+      "description": "AAP credential types configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/aap-configuration/controller_credentials.yml",
+      "status": "complete",
+      "description": "AAP credentials configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/tasks/validate_credentials.yml",
+      "status": "complete",
+      "description": "Credential validation tasks",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "cookbooks/cache/recipes/default.rb",
+      "target_path": "ansible/roles/cache/tasks/main.yml",
+      "status": "complete",
+      "description": "Main recipe that configures memcached and Redis services with authentication",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/meta/argument_specs.yml",
+      "status": "complete",
+      "description": "Role argument specs for fail-fast parameter validation",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/defaults/main.yml",
+      "status": "complete",
+      "description": "Role defaults for Redis and memcached configuration",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/handlers/main.yml",
+      "status": "complete",
+      "description": "Service handlers for memcached and Redis",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule scenario configuration for AAP testing (delegated driver)",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook that creates expected filesystem state under /tmp/molecule_test/",
+      "notes": "Generated converge.yml that recreates expected filesystem state under /tmp/molecule_test/ including Redis and memcached configuration files, directories, and log files"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification tasks checking /tmp/molecule_test/ paths and service status",
+      "notes": "Generated verify.yml that validates Redis and memcached configuration files, directories, authentication settings, and service status (with container-incompatible tests tagged as molecule-notest)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/molecule/default/create.yml",
+      "status": "complete",
+      "description": "No-op instance create for delegated driver",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/cache/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "No-op instance destroy for delegated driver",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    }
+  ]
+}
