@@ -1,0 +1,68 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis and Memcached caching services
+    description:
+      - Installs and configures Redis server with authentication on a specified port
+      - Optionally installs and configures Memcached service
+      - Creates necessary directories and users for Redis operation
+      - Handles service startup and enablement
+    options:
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port for Redis server to listen on
+      cache_redis_password:
+        type: str
+        required: true
+        description: Redis authentication password. This variable is injected by AAP credential types at runtime.
+      cache_redis_user:
+        type: str
+        required: false
+        default: redis
+        description: System user for Redis service
+      cache_redis_group:
+        type: str
+        required: false
+        default: redis
+        description: System group for Redis service
+      cache_redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory for Redis log files
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/{{ cache_redis_port }}.conf
+        description: Path to Redis configuration file
+      cache_memcached_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether to install and configure Memcached service
+      cache_redis_packages:
+        type: list
+        elements: str
+        required: false
+        default:
+          - redis-server
+        description: List of Redis packages to install
+      cache_memcached_packages:
+        type: list
+        elements: str
+        required: false
+        default:
+          - memcached
+        description: List of Memcached packages to install
+      cache_redis_service:
+        type: str
+        required: false
+        default: redis-server
+        description: Name of the Redis systemd service
+      cache_memcached_service:
+        type: str
+        required: false
+        default: memcached
+        description: Name of the Memcached systemd service
