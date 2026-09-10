@@ -1,0 +1,109 @@
+---
+argument_specs:
+  main:
+    short_description: Configures FastAPI tutorial application with PostgreSQL
+    description:
+      - Deploys a FastAPI tutorial web application with PostgreSQL database backend
+      - Installs Python 3, clones the FastAPI tutorial repository from GitHub
+      - Sets up a virtual environment, configures PostgreSQL with dedicated database and user
+      - Runs the application as a systemd service on port 8000
+    options:
+      fastapi_tutorial_app_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Directory where the FastAPI application will be installed
+      fastapi_tutorial_git_repo:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository URL for the FastAPI tutorial application
+      fastapi_tutorial_git_branch:
+        type: str
+        required: false
+        default: main
+        description: Git branch to checkout
+      fastapi_tutorial_venv_path:
+        type: str
+        required: false
+        default: "{{ fastapi_tutorial_app_dir }}/venv"
+        description: Path to the Python virtual environment
+      fastapi_tutorial_service_name:
+        type: str
+        required: false
+        default: fastapi-tutorial
+        description: Name of the systemd service
+      fastapi_tutorial_service_user:
+        type: str
+        required: false
+        default: fastapi
+        description: User to run the FastAPI service as
+      fastapi_tutorial_service_group:
+        type: str
+        required: false
+        default: fastapi
+        description: Group to run the FastAPI service as
+      fastapi_tutorial_host:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: Host address for the FastAPI application to bind to
+      fastapi_tutorial_port:
+        type: int
+        required: false
+        default: 8000
+        description: Port for the FastAPI application to listen on
+      fastapi_tutorial_project_name:
+        type: str
+        required: false
+        default: FastAPI Tutorial
+        description: Project name for the FastAPI application
+      fastapi_tutorial_api_version:
+        type: str
+        required: false
+        default: 1.0.0
+        description: API version for the FastAPI application
+      fastapi_tutorial_db_host:
+        type: str
+        required: false
+        default: localhost
+        description: PostgreSQL database host
+      fastapi_tutorial_db_port:
+        type: int
+        required: false
+        default: 5432
+        description: PostgreSQL database port
+      fastapi_tutorial_system_packages:
+        type: list
+        elements: str
+        required: false
+        default:
+          - python3
+          - python3-pip
+          - python3-venv
+          - git
+          - postgresql
+          - postgresql-contrib
+        description: List of system packages to install
+      fastapi_tutorial_dir_mode:
+        type: str
+        required: false
+        default: "0755"
+        description: File mode for directories
+      fastapi_tutorial_file_mode:
+        type: str
+        required: false
+        default: "0644"
+        description: File mode for regular files
+      db_username:
+        type: str
+        required: true
+        description: Database username (injected by AAP credential type)
+      db_password:
+        type: str
+        required: true
+        description: Database password (injected by AAP credential type)
+      db_name:
+        type: str
+        required: true
+        description: Database name (injected by AAP credential type)
