@@ -1,0 +1,175 @@
+---
+- name: Verify Redis installation and configuration
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis directories exist
+      ansible.builtin.stat:
+        path: "{{ item_dir }}"
+      loop:
+        - /tmp/molecule_test/var/lib/redis
+        - /tmp/molecule_test/var/log/redis
+        - /tmp/molecule_test/etc/redis
+        - /tmp/molecule_test/var/run/redis
+      loop_control:
+        loop_var: item_dir
+      register: redis_dir_stat_results
+
+    - name: Assert Redis directories were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['isdir']
+        fail_msg: "Expected Redis directory not found"
+      loop: "{{ redis_dir_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/redis/redis.conf
+      register: redis_config_stat
+
+    - name: Assert Redis configuration file was created
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat['stat']['exists']
+          - redis_config_stat['stat']['size'] > 0
+        fail_msg: "Redis configuration file not found"
+
+    - name: Read Redis configuration content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/redis/redis.conf
+      register: redis_config_content
+
+    - name: Assert Redis configuration contains expected settings
+      ansible.builtin.assert:
+        that:
+          - "'port 6379' in redis_config_decoded"
+          - "'bind 127.0.0.1' in redis_config_decoded"
+          - "'dir /var/lib/redis' in redis_config_decoded"
+          - "'logfile /var/log/redis/redis-server.log' in redis_config_decoded"
+        fail_msg: "Redis configuration missing expected settings"
+      vars:
+        redis_config_decoded: "{{ redis_config_content['content'] | b64decode }}"
+
+    - name: Check Redis log file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/log/redis/redis-server.log
+      register: redis_log_stat
+
+    - name: Assert Redis log file was created
+      ansible.builtin.assert:
+        that:
+          - redis_log_stat['stat']['exists']
+          - redis_log_stat['stat']['size'] > 0
+        fail_msg: "Redis log file not found"
+
+    - name: Check Redis PID file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/run/redis/redis-server.pid
+      register: redis_pid_stat
+
+    - name: Assert Redis PID file was created
+      ansible.builtin.assert:
+        that:
+          - redis_pid_stat['stat']['exists']
+          - redis_pid_stat['stat']['size'] > 0
+        fail_msg: "Redis PID file not found"
+
+    - name: Check Redis data directory marker exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/var/lib/redis/.redis_data
+      register: redis_data_stat
+
+    - name: Assert Redis data directory is accessible
+      ansible.builtin.assert:
+        that:
+          - redis_data_stat['stat']['exists']
+        fail_msg: "Redis data directory not accessible"
+
+- name: Verify Redis service and connectivity (container-unsafe)
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Redis service is running
+      ansible.builtin.assert:
+        that:
+          - "'redis-server.service' in ansible_facts.services"
+          - "ansible_facts.services['redis-server.service']['state'] == 'running'"
+        fail_msg: "Redis service not running"
+      tags: molecule-notest
+
+    - name: Test Redis connectivity with ping
+      ansible.builtin.command:
+        cmd: redis-cli ping
+      register: redis_ping_result
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert Redis responds to ping
+      ansible.builtin.assert:
+        that:
+          - redis_ping_result['stdout'] == 'PONG'
+        fail_msg: "Redis not responding to ping"
+      tags: molecule-notest
+
+    - name: Get Redis server info
+      ansible.builtin.command:
+        cmd: redis-cli info server
+      register: redis_info_result
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert Redis server info is available
+      ansible.builtin.assert:
+        that:
+          - "'redis_version' in redis_info_result['stdout']"
+          - "'tcp_port:6379' in redis_info_result['stdout']"
+        fail_msg: "Redis server info not available"
+      tags: molecule-notest
+
+    - name: Test basic Redis operations
+      ansible.builtin.shell: |
+        redis-cli set test_key "test_value" &&
+        redis-cli get test_key &&
+        redis-cli del test_key
+      register: redis_ops_result
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert Redis operations work
+      ansible.builtin.assert:
+        that:
+          - "'test_value' in redis_ops_result['stdout']"
+        fail_msg: "Redis basic operations failed"
+      tags: molecule-notest
+
+    - name: Check Redis port is listening
+      ansible.builtin.wait_for:
+        port: 6379
+        host: 127.0.0.1
+        timeout: 5
+      tags: molecule-notest
+
+    - name: Get Redis configuration values
+      ansible.builtin.shell: |
+        redis-cli config get port &&
+        redis-cli config get bind &&
+        redis-cli config get dir
+      register: redis_config_check
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert Redis configuration is correct
+      ansible.builtin.assert:
+        that:
+          - "'6379' in redis_config_check['stdout']"
+          - "'127.0.0.1' in redis_config_check['stdout']"
+          - "'/var/lib/redis' in redis_config_check['stdout']"
+        fail_msg: "Redis configuration values incorrect"
+      tags: molecule-notest
