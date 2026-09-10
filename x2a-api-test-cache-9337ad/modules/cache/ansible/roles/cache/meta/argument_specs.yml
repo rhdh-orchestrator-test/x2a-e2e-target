@@ -1,0 +1,113 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis and Memcached caching services
+    description:
+      - Installs and configures Redis server with authentication on port 6379
+      - Installs and configures Memcached server on port 11211
+      - Creates proper log directories and applies security configurations
+      - Removes replica-related Redis settings for standalone operation
+    options:
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by AAP credential type. Used for requirepass configuration.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port for Redis server to listen on.
+      cache_redis_bind:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: IP address for Redis server to bind to.
+      cache_redis_timeout:
+        type: int
+        required: false
+        default: 0
+        description: Client idle timeout in seconds (0 = disabled).
+      cache_redis_tcp_keepalive:
+        type: int
+        required: false
+        default: 300
+        description: TCP keepalive timeout in seconds.
+      cache_redis_loglevel:
+        type: str
+        required: false
+        default: notice
+        description: Redis log level (debug, verbose, notice, warning).
+      cache_redis_logfile:
+        type: str
+        required: false
+        default: /var/log/redis/redis-server.log
+        description: Path to Redis log file.
+      cache_redis_databases:
+        type: int
+        required: false
+        default: 16
+        description: Number of Redis databases to create.
+      cache_redis_save:
+        type: list
+        elements: str
+        required: false
+        default:
+          - 900 1
+          - 300 10
+          - 60 10000
+        description: Redis save rules for RDB snapshots.
+      cache_redis_stop_writes_on_bgsave_error:
+        type: bool
+        required: false
+        default: true
+        description: Stop accepting writes if RDB save fails.
+      cache_redis_rdbcompression:
+        type: bool
+        required: false
+        default: true
+        description: Enable RDB file compression.
+      cache_redis_rdbchecksum:
+        type: bool
+        required: false
+        default: true
+        description: Enable RDB file checksum.
+      cache_redis_dbfilename:
+        type: str
+        required: false
+        default: dump.rdb
+        description: RDB file name.
+      cache_redis_dir:
+        type: str
+        required: false
+        default: /var/lib/redis
+        description: Redis working directory.
+      cache_redis_maxmemory_policy:
+        type: str
+        required: false
+        default: noeviction
+        description: Redis memory eviction policy.
+      cache_memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: TCP port for Memcached server to listen on.
+      cache_memcached_listen:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: IP address for Memcached server to bind to.
+      cache_memcached_memory:
+        type: int
+        required: false
+        default: 64
+        description: Memcached memory limit in MB.
+      cache_memcached_user:
+        type: str
+        required: false
+        default: memcache
+        description: User to run Memcached process as.
+      cache_memcached_connections:
+        type: int
+        required: false
+        default: 1024
+        description: Maximum number of Memcached connections.
