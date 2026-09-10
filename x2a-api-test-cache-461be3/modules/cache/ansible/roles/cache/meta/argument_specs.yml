@@ -1,0 +1,94 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure memcached and Redis caching services
+    description:
+      - Installs and configures memcached and Redis caching services with authentication.
+      - Supports configurable ports, memory limits, and security settings.
+      - Creates necessary directories and applies configuration fixes for Redis.
+    options:
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password (injected by AAP credential type).
+      cache_memcached_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether to install and configure memcached service.
+      cache_memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: Port for memcached service to listen on.
+      cache_memcached_memory:
+        type: int
+        required: false
+        default: 64
+        description: Memory limit for memcached in MB.
+      cache_redis_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether to install and configure Redis service.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: Port for Redis service to listen on.
+      cache_redis_bind:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: IP address for Redis to bind to.
+      cache_redis_maxmemory:
+        type: str
+        required: false
+        default: 256mb
+        description: Maximum memory limit for Redis.
+      cache_redis_maxmemory_policy:
+        type: str
+        required: false
+        default: allkeys-lru
+        description: Memory eviction policy for Redis when maxmemory is reached.
+      cache_redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory for Redis log files.
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/{{ cache_redis_port }}.conf
+        description: Path to Redis configuration file.
+      cache_redis_service_name:
+        type: str
+        required: false
+        default: redis_{{ cache_redis_port }}
+        description: Name of the Redis systemd service.
+      cache_redis_user:
+        type: str
+        required: false
+        default: redis
+        description: System user for Redis service.
+      cache_redis_group:
+        type: str
+        required: false
+        default: redis
+        description: System group for Redis service.
+      cache_redis_packages:
+        type: list
+        elements: str
+        required: false
+        default:
+          - redis-server
+          - redis-tools
+        description: List of Redis packages to install.
+      cache_memcached_packages:
+        type: list
+        elements: str
+        required: false
+        default:
+          - memcached
+          - libmemcached-tools
+        description: List of memcached packages to install.
