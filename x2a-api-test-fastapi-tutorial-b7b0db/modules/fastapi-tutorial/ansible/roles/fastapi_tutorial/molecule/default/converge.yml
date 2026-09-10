@@ -1,0 +1,176 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item_dir }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/opt/fastapi-tutorial
+        - /tmp/molecule_test/opt/fastapi-tutorial/venv
+        - /tmp/molecule_test/opt/fastapi-tutorial/venv/bin
+        - /tmp/molecule_test/etc/systemd/system
+        - /tmp/molecule_test/var/lib/postgresql
+      loop_control:
+        loop_var: item_dir
+
+    - name: Create FastAPI application files
+      ansible.builtin.copy:
+        content: "{{ item_file['content'] }}"
+        dest: "{{ item_file['path'] }}"
+        mode: "{{ item_file['mode'] }}"
+        backup: true
+      loop:
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/requirements.txt
+          content: |
+            fastapi==0.104.1
+            uvicorn[standard]==0.24.0
+            psycopg2-binary==2.9.7
+            sqlalchemy==2.0.23
+          mode: "0644"
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/.env
+          content: |
+            PROJECT_NAME="FastAPI Tutorial"
+            API_VERSION=1.0.0
+            DATABASE_URL=postgresql://fastapi:fastapi_password@localhost/fastapi_db
+          mode: "0644"
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/app/__init__.py
+          content: ""
+          mode: "0644"
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/app/main.py
+          content: |
+            from fastapi import FastAPI
+            
+            app = FastAPI(title="FastAPI Tutorial", version="1.0.0")
+            
+            @app.get("/")
+            def read_root():
+                return {"message": "FastAPI Tutorial"}
+            
+            @app.get("/health")
+            def health_check():
+                return {"status": "healthy"}
+          mode: "0644"
+      loop_control:
+        loop_var: item_file
+
+    - name: Create Python virtual environment files
+      ansible.builtin.copy:
+        content: "{{ item_venv['content'] }}"
+        dest: "{{ item_venv['path'] }}"
+        mode: "{{ item_venv['mode'] }}"
+        backup: true
+      loop:
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/venv/bin/python
+          content: "#!/usr/bin/python3\n# Virtual environment python executable"
+          mode: "0755"
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/venv/bin/pip
+          content: "#!/usr/bin/python3\n# Virtual environment pip executable"
+          mode: "0755"
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/venv/bin/uvicorn
+          content: "#!/usr/bin/python3\n# Virtual environment uvicorn executable"
+          mode: "0755"
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/venv/pyvenv.cfg
+          content: |
+            home = /usr/bin
+            include-system-site-packages = false
+            version = 3.11.0
+          mode: "0644"
+      loop_control:
+        loop_var: item_venv
+
+    - name: Create systemd service file
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=FastAPI Tutorial Service
+          After=network.target postgresql.service
+
+          [Service]
+          Type=simple
+          User=root
+          WorkingDirectory=/opt/fastapi-tutorial
+          Environment="PATH=/opt/fastapi-tutorial/venv/bin"
+          ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /tmp/molecule_test/etc/systemd/system/fastapi-tutorial.service
+        mode: "0644"
+        backup: true
+
+    - name: Create Git repository metadata
+      ansible.builtin.copy:
+        content: "{{ item_git['content'] }}"
+        dest: "{{ item_git['path'] }}"
+        mode: "0644"
+        backup: true
+      loop:
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/.git/config
+          content: |
+            [core]
+                repositoryformatversion = 0
+                filemode = true
+                bare = false
+            [remote "origin"]
+                url = https://github.com/dibanez/fastapi_tutorial.git
+                fetch = +refs/heads/*:refs/remotes/origin/*
+            [branch "main"]
+                remote = origin
+                merge = refs/heads/main
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/.git/HEAD
+          content: "ref: refs/heads/main"
+      loop_control:
+        loop_var: item_git
+
+    - name: Create Git directory structure
+      ansible.builtin.file:
+        path: "{{ item_gitdir }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/opt/fastapi-tutorial/.git
+        - /tmp/molecule_test/opt/fastapi-tutorial/.git/refs
+        - /tmp/molecule_test/opt/fastapi-tutorial/.git/refs/heads
+        - /tmp/molecule_test/opt/fastapi-tutorial/.git/refs/remotes
+        - /tmp/molecule_test/opt/fastapi-tutorial/.git/refs/remotes/origin
+        - /tmp/molecule_test/opt/fastapi-tutorial/app
+      loop_control:
+        loop_var: item_gitdir
+
+    - name: Create PostgreSQL data directory structure
+      ansible.builtin.file:
+        path: "{{ item_pgdir }}"
+        state: directory
+        mode: "0700"
+      loop:
+        - /tmp/molecule_test/var/lib/postgresql
+        - /tmp/molecule_test/var/lib/postgresql/data
+      loop_control:
+        loop_var: item_pgdir
+
+    - name: Create PostgreSQL configuration files
+      ansible.builtin.copy:
+        content: "{{ item_pgfile['content'] }}"
+        dest: "{{ item_pgfile['path'] }}"
+        mode: "0600"
+        backup: true
+      loop:
+        - path: /tmp/molecule_test/var/lib/postgresql/data/postgresql.conf
+          content: |
+            # PostgreSQL configuration
+            port = 5432
+            listen_addresses = 'localhost'
+            max_connections = 100
+        - path: /tmp/molecule_test/var/lib/postgresql/data/pg_hba.conf
+          content: |
+            # PostgreSQL Client Authentication Configuration File
+            local   all             all                                     peer
+            host    all             all             127.0.0.1/32            md5
+            host    all             all             ::1/128                 md5
+      loop_control:
+        loop_var: item_pgfile
