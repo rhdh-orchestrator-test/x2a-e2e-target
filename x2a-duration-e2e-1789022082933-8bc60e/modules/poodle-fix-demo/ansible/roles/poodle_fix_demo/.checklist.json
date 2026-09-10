@@ -1,0 +1,93 @@
+{
+  "module_name": "poodle_fix_demo",
+  "items": [
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "ansible/roles/poodle_fix_demo/tasks/main.yml",
+      "status": "complete",
+      "description": "Convert playbook tasks to role tasks with FQCN and proper handler naming",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix_demo/handlers/main.yml",
+      "status": "complete",
+      "description": "Create handlers with consistent naming (fix 'Restart apache2' vs 'Restart apache' mismatch)",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix_demo/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix_demo/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables for apache_ssl_conf_path, ssl_protocol_setting, apache_service_name, ssh_service_name",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "ansible/roles/poodle_fix_demo/defaults/main.yml",
+      "target_path": "ansible/roles/poodle_fix_demo/meta/argument_specs.yml",
+      "status": "complete",
+      "description": "Role argument specs for fail-fast parameter validation (generate after defaults/main.yml)",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix_demo/README.md",
+      "status": "complete",
+      "description": "Role documentation",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix_demo/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule scenario configuration with delegated driver for AAP testing",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix_demo/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook to create expected filesystem state under /tmp/molecule_test/",
+      "notes": "Generated converge.yml that creates Apache SSL config file with vulnerable settings, then applies the role to fix POODLE vulnerability using /tmp/molecule_test/ paths"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix_demo/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification tasks checking /tmp/molecule_test/ paths",
+      "notes": "Generated verify.yml that checks SSL configuration was properly updated to fix POODLE vulnerability, verifies backup creation, and includes container-incompatible service checks with molecule-notest tags"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix_demo/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Molecule no-op instance create",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/poodle_fix_demo/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Molecule no-op instance destroy",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    }
+  ]
+}

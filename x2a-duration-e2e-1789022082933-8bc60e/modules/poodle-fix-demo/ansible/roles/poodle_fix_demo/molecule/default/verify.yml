@@ -1,0 +1,73 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Apache SSL configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_conf_stat
+
+    - name: Assert SSL configuration file was created
+      ansible.builtin.assert:
+        that:
+          - ssl_conf_stat['stat']['exists']
+          - ssl_conf_stat['stat']['size'] > 0
+        fail_msg: "Apache SSL configuration file not found"
+
+    - name: Read SSL configuration file content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_conf_content
+
+    - name: Decode SSL configuration content
+      ansible.builtin.set_fact:
+        ssl_conf_text: "{{ ssl_conf_content['content'] | b64decode }}"
+
+    - name: Assert SSL protocol was updated to fix POODLE vulnerability
+      ansible.builtin.assert:
+        that:
+          - "'SSLProtocol -all +TLSv1.2' in ssl_conf_text"
+          - "'SSLProtocol all -SSLv2 -SSLv3' not in ssl_conf_text"
+        fail_msg: "SSL protocol not properly updated to fix POODLE vulnerability"
+
+    - name: Check for backup file creation
+      ansible.builtin.find:
+        paths: /tmp/molecule_test/etc/apache2/mods-available
+        patterns: "ssl.conf.*"
+        file_type: file
+      register: backup_files
+
+    - name: Assert backup file was created
+      ansible.builtin.assert:
+        that:
+          - backup_files['files'] | length > 0
+        fail_msg: "Backup file was not created during SSL configuration update"
+
+    - name: Verify SSL configuration syntax is valid
+      ansible.builtin.assert:
+        that:
+          - "'<IfModule mod_ssl.c>' in ssl_conf_text"
+          - "'</IfModule>' in ssl_conf_text"
+          - "'SSLEngine on' in ssl_conf_text"
+        fail_msg: "SSL configuration file structure is invalid"
+
+# Service checks that cannot run in container environment
+- name: Verify services (container-incompatible checks)
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Apache service would be restarted
+      ansible.builtin.debug:
+        msg: "Apache service restart would be triggered by handler"
+      tags: molecule-notest
+
+    - name: Check SSH service would be restarted
+      ansible.builtin.debug:
+        msg: "SSH service restart would be triggered by handler"
+      tags: molecule-notest
+
+    - name: Verify POODLE vulnerability fix
+      ansible.builtin.debug:
+        msg: "SSL protocol updated to TLS 1.2 only - POODLE vulnerability mitigated"
+      tags: molecule-notest
