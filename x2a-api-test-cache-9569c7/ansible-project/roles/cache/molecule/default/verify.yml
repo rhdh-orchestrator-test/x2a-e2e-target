@@ -1,0 +1,164 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    # Configuration file verification
+    - name: Check redis configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Assert redis configuration file was created
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat['stat']['exists']
+          - redis_config_stat['stat']['size'] > 0
+        fail_msg: "Redis configuration file not found"
+
+    - name: Check memcached configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/memcached.conf
+      register: memcached_config_stat
+
+    - name: Assert memcached configuration file was created
+      ansible.builtin.assert:
+        that:
+          - memcached_config_stat['stat']['exists']
+          - memcached_config_stat['stat']['size'] > 0
+        fail_msg: "Memcached configuration file not found"
+
+    # Directory verification
+    - name: Check redis directories exist
+      ansible.builtin.stat:
+        path: "{{ item_redis_dir }}"
+      loop:
+        - /tmp/molecule_test/var/log/redis
+        - /tmp/molecule_test/var/lib/redis
+        - /tmp/molecule_test/var/run/redis
+      loop_control:
+        loop_var: item_redis_dir
+      register: redis_dir_stats
+
+    - name: Assert redis directories were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['isdir']
+        fail_msg: "Expected redis directory not found"
+      loop: "{{ redis_dir_stats['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    # Configuration content verification
+    - name: Read redis configuration file
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert redis configuration contains required settings
+      ansible.builtin.assert:
+        that:
+          - "'requirepass redis_secure_password_123' in redis_config_decoded"
+          - "'port 6379' in redis_config_decoded"
+          - "'bind 127.0.0.1' in redis_config_decoded"
+          - "'logfile /var/log/redis/redis-server.log' in redis_config_decoded"
+        fail_msg: "Redis configuration missing required settings"
+      vars:
+        redis_config_decoded: "{{ redis_config_content['content'] | b64decode }}"
+
+    - name: Assert redis configuration does not contain deprecated settings
+      ansible.builtin.assert:
+        that:
+          - "'replica-serve-stale-data' not in redis_config_decoded"
+          - "'replica-read-only' not in redis_config_decoded"
+          - "'repl-ping-replica-period' not in redis_config_decoded"
+          - "'replica-priority' not in redis_config_decoded"
+        fail_msg: "Redis configuration contains deprecated settings"
+      vars:
+        redis_config_decoded: "{{ redis_config_content['content'] | b64decode }}"
+
+    - name: Read memcached configuration file
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/memcached.conf
+      register: memcached_config_content
+
+    - name: Assert memcached configuration contains required settings
+      ansible.builtin.assert:
+        that:
+          - "'-p 11211' in memcached_config_decoded"
+          - "'-l 127.0.0.1' in memcached_config_decoded"
+          - "'-m 64' in memcached_config_decoded"
+        fail_msg: "Memcached configuration missing required settings"
+      vars:
+        memcached_config_decoded: "{{ memcached_config_content['content'] | b64decode }}"
+
+    # Service checks (tagged as molecule-notest since they can't run in container)
+    - name: Check memcached service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert memcached service is running
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts.services"
+          - "ansible_facts.services['memcached.service']['state'] == 'running'"
+        fail_msg: "Memcached service not running"
+      tags: molecule-notest
+
+    - name: Check redis service status
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert redis service is running
+      ansible.builtin.assert:
+        that:
+          - "'redis-server.service' in ansible_facts.services"
+          - "ansible_facts.services['redis-server.service']['state'] == 'running'"
+        fail_msg: "Redis service not running"
+      tags: molecule-notest
+
+    # Port connectivity checks (tagged as molecule-notest since they can't run in container)
+    - name: Check redis port connectivity
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        timeout: 5
+      tags: molecule-notest
+
+    - name: Check memcached port connectivity
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        timeout: 5
+      tags: molecule-notest
+
+    # Redis authentication test (tagged as molecule-notest since redis-cli not available in container)
+    - name: Test redis authentication
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a redis_secure_password_123 ping
+      register: redis_auth_test
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert redis authentication works
+      ansible.builtin.assert:
+        that:
+          - "redis_auth_test['stdout'] == 'PONG'"
+        fail_msg: "Redis authentication failed"
+      tags: molecule-notest
+
+    # Memcached connectivity test (tagged as molecule-notest since nc not available in container)
+    - name: Test memcached connectivity
+      ansible.builtin.shell: |
+        echo "stats" | nc localhost 11211
+      register: memcached_stats_test
+      changed_when: false
+      tags: molecule-notest
+
+    - name: Assert memcached responds to stats command
+      ansible.builtin.assert:
+        that:
+          - "'STAT' in memcached_stats_test['stdout']"
+        fail_msg: "Memcached stats command failed"
+      tags: molecule-notest
