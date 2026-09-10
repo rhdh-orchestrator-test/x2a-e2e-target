@@ -1,0 +1,79 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Apache SSL configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_conf_stat
+
+    - name: Assert SSL configuration file was created
+      ansible.builtin.assert:
+        that:
+          - ssl_conf_stat['stat']['exists']
+          - ssl_conf_stat['stat']['size'] > 0
+        fail_msg: "Apache SSL configuration file not found"
+
+    - name: Read SSL configuration file content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_conf_content
+
+    - name: Decode SSL configuration content
+      ansible.builtin.set_fact:
+        ssl_conf_text: "{{ ssl_conf_content['content'] | b64decode }}"
+
+    - name: Assert SSL protocol has been updated to fix POODLE vulnerability
+      ansible.builtin.assert:
+        that:
+          - "'SSLProtocol -all +TLSv1.2' in ssl_conf_text"
+          - "'SSLProtocol all -SSLv2 -SSLv3' not in ssl_conf_text"
+        fail_msg: "SSL protocol configuration not properly updated"
+
+    - name: Assert vulnerable SSL protocols are disabled
+      ansible.builtin.assert:
+        that:
+          - "'-all' in ssl_conf_text"
+          - "'+TLSv1.2' in ssl_conf_text"
+        fail_msg: "POODLE SSL fix not applied correctly"
+
+    - name: Check backup file was created
+      ansible.builtin.find:
+        paths: /tmp/molecule_test/etc/apache2/mods-available
+        patterns: "ssl.conf.*"
+        file_type: file
+      register: backup_files
+
+    - name: Assert backup file was created
+      ansible.builtin.assert:
+        that:
+          - backup_files['files'] | length > 0
+        fail_msg: "Backup file not created during SSL configuration update"
+
+# Service checks that cannot run in container environment
+- name: Verify services (container-incompatible checks)
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Apache service would be available
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert Apache service would be managed
+      ansible.builtin.assert:
+        that:
+          - "'apache2.service' in ansible_facts.services or 'httpd.service' in ansible_facts.services"
+        fail_msg: "Apache service not available for management"
+      tags: molecule-notest
+
+    - name: Check SSH service would be available
+      ansible.builtin.service_facts:
+      tags: molecule-notest
+
+    - name: Assert SSH service would be managed
+      ansible.builtin.assert:
+        that:
+          - "'sshd.service' in ansible_facts.services or 'ssh.service' in ansible_facts.services"
+        fail_msg: "SSH service not available for management"
+      tags: molecule-notest
