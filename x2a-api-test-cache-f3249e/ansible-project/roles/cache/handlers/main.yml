@@ -1,0 +1,21 @@
+---
+- name: Restart memcached
+  ansible.builtin.service:
+    name: memcached
+    state: restarted
+  when: cache_memcached_enabled | bool
+- name: Restart redis
+  ansible.builtin.service:
+    name: redis-server
+    state: restarted
+  when: cache_redis_enabled | bool
+- name: Reload memcached
+  ansible.builtin.service:
+    name: memcached
+    state: reloaded
+  when: cache_memcached_enabled | bool
+- name: Reload redis
+  ansible.builtin.service:
+    name: redis-server
+    state: reloaded
+  when: cache_redis_enabled | bool
