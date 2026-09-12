@@ -1,0 +1,74 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis and memcached cache services
+    description:
+      - Installs and configures Redis server with authentication on port 6379
+      - Installs and configures memcached service on port 11211
+      - Creates necessary directories and applies security configurations
+      - Removes deprecated Redis replica settings for compatibility
+    options:
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port for Redis server to listen on
+      cache_redis_bind:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: IP address for Redis server to bind to
+      cache_redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory path for Redis log files
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Path to Redis configuration file
+      cache_redis_user:
+        type: str
+        required: false
+        default: redis
+        description: System user for Redis service
+      cache_redis_group:
+        type: str
+        required: false
+        default: redis
+        description: System group for Redis service
+      cache_memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: TCP port for memcached service to listen on
+      cache_memcached_bind:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: IP address for memcached service to bind to
+      cache_redis_package:
+        type: str
+        required: false
+        default: "{{ 'redis-server' if ansible_os_family == 'Debian' else 'redis' }}"
+        description: Package name for Redis server (OS-dependent)
+      cache_memcached_package:
+        type: str
+        required: false
+        default: memcached
+        description: Package name for memcached service
+      cache_redis_service:
+        type: str
+        required: false
+        default: "{{ 'redis-server' if ansible_os_family == 'Debian' else 'redis' }}"
+        description: Service name for Redis (OS-dependent)
+      cache_memcached_service:
+        type: str
+        required: false
+        default: memcached
+        description: Service name for memcached
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password (injected by AAP credential type)
