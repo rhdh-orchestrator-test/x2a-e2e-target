@@ -1,0 +1,74 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Apache SSL configuration file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_config_stat
+
+    - name: Assert SSL configuration file was created
+      ansible.builtin.assert:
+        that:
+          - ssl_config_stat['stat']['exists']
+          - ssl_config_stat['stat']['size'] > 0
+        fail_msg: "Apache SSL configuration file not found"
+
+    - name: Read SSL configuration file content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+      register: ssl_config_content
+
+    - name: Decode SSL configuration content
+      ansible.builtin.set_fact:
+        ssl_config_text: "{{ ssl_config_content['content'] | b64decode }}"
+
+    - name: Assert SSL protocol configuration is secure (POODLE fix applied)
+      ansible.builtin.assert:
+        that:
+          - "'SSLProtocol -all +TLSv1.2' in ssl_config_text"
+          - "'SSLProtocol all -SSLv2 -SSLv3' not in ssl_config_text"
+        fail_msg: "SSL protocol configuration not properly updated to fix POODLE vulnerability"
+
+    - name: Assert vulnerable SSL protocols are disabled
+      ansible.builtin.assert:
+        that:
+          - "'-all' in ssl_config_text"
+          - "'+TLSv1.2' in ssl_config_text"
+        fail_msg: "Expected TLSv1.2-only configuration not found"
+
+    - name: Check backup file was created
+      ansible.builtin.find:
+        paths: /tmp/molecule_test/etc/apache2/mods-available
+        patterns: "ssl.conf.*"
+        file_type: file
+      register: backup_files
+
+    - name: Assert backup file exists
+      ansible.builtin.assert:
+        that:
+          - backup_files['matched'] > 0
+        fail_msg: "Backup file not created during SSL configuration update"
+
+    # Service checks that cannot run in container environment
+    - name: Check Apache service would be restarted (simulation)
+      ansible.builtin.debug:
+        msg: "Apache2 service restart would be triggered by handler"
+      tags: molecule-notest
+
+    - name: Check SSH service would be restarted (simulation)
+      ansible.builtin.debug:
+        msg: "SSH service restart would be triggered by handler"
+      tags: molecule-notest
+
+    # Simulate SSL configuration validation that would run on real system
+    - name: Simulate Apache configuration test
+      ansible.builtin.debug:
+        msg: "Apache configuration test would pass with: apache2ctl configtest"
+      tags: molecule-notest
+
+    - name: Simulate SSL protocol verification
+      ansible.builtin.debug:
+        msg: "SSL protocol verification would show only TLSv1.2 enabled"
+      tags: molecule-notest
