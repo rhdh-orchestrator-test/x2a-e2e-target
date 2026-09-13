@@ -1,0 +1,22 @@
+---
+- name: Install Apache web server
+  ansible.builtin.package:
+    name: apache2
+    state: present
+  become: true
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    dest: "{{ poodle_fix_apache_ssl_conf }}"
+    regexp: ^SSLProtocol.*$
+    replace: "{{ poodle_fix_ssl_protocols }}"
+    backup: "{{ poodle_fix_backup_config }}"
+  become: true
+  notify:
+    - Restart apache2
+    - Restart sshd
+- name: Validate Apache configuration
+  ansible.builtin.command:
+    cmd: apache2ctl configtest
+  become: true
+  changed_when: false
+  when: poodle_fix_validate_config
