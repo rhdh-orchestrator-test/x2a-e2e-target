@@ -1,0 +1,80 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy FastAPI tutorial web application with PostgreSQL backend
+    description:
+      - Installs and configures a FastAPI tutorial web application
+      - Sets up PostgreSQL database with dedicated user and database
+      - Creates Python virtual environment and installs dependencies
+      - Configures systemd service for the FastAPI application
+      - Runs the application on configurable host and port
+    options:
+      fastapi_tutorial_app_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Directory where the FastAPI application will be installed.
+      fastapi_tutorial_repo_url:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository URL for the FastAPI tutorial application.
+      fastapi_tutorial_repo_version:
+        type: str
+        required: false
+        default: main
+        description: Git branch or tag to checkout from the repository.
+      fastapi_tutorial_service_name:
+        type: str
+        required: false
+        default: fastapi-tutorial
+        description: Name of the systemd service for the FastAPI application.
+      fastapi_tutorial_host:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: Host address the FastAPI application will bind to.
+      fastapi_tutorial_port:
+        type: int
+        required: false
+        default: 8000
+        description: Port number the FastAPI application will listen on.
+      fastapi_tutorial_project_name:
+        type: str
+        required: false
+        default: FastAPI Tutorial
+        description: Project name used in the application environment configuration.
+      fastapi_tutorial_api_version:
+        type: str
+        required: false
+        default: 1.0.0
+        description: API version used in the application environment configuration.
+      fastapi_tutorial_system_packages:
+        type: list
+        elements: str
+        required: false
+        default:
+          - python3
+          - python3-pip
+          - python3-venv
+          - git
+          - postgresql
+          - postgresql-contrib
+          - libpq-dev
+        description: List of system packages required for the FastAPI application.
+      db_username:
+        type: str
+        required: true
+        description: Database username for PostgreSQL connection (injected by AAP credential type).
+      db_password:
+        type: str
+        required: true
+        description: Database password for PostgreSQL connection (injected by AAP credential type).
+      db_name:
+        type: str
+        required: true
+        description: Database name for PostgreSQL connection (injected by AAP credential type).
+      db_host:
+        type: str
+        required: true
+        description: Database host for PostgreSQL connection (injected by AAP credential type).
