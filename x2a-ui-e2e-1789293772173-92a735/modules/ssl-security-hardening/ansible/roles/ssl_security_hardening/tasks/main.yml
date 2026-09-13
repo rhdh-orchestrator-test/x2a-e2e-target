@@ -1,0 +1,20 @@
+---
+- name: Ensure Apache2 is installed
+  ansible.builtin.package:
+    name: apache2
+    state: present
+  become: true
+- name: Ensure Apache2 SSL module is enabled
+  ansible.builtin.command:
+    cmd: a2enmod ssl
+    creates: /etc/apache2/mods-enabled/ssl.conf
+  become: true
+  notify: Restart apache2
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    dest: "{{ ssl_config_path }}"
+    regexp: ^SSLProtocol.*$
+    replace: "{{ ssl_protocol_setting }}"
+    backup: true
+  become: true
+  notify: Restart apache2
