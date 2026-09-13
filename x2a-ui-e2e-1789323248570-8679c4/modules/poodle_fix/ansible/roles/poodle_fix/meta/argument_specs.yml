@@ -1,0 +1,31 @@
+---
+argument_specs:
+  main:
+    short_description: Fix POODLE SSL vulnerability in Apache web server
+    description:
+      - Fixes the POODLE SSL vulnerability by updating Apache SSL protocol configuration
+      - Installs Apache web server if not already present
+      - Disables vulnerable SSL protocols and enables only TLSv1.2
+      - Validates Apache configuration after changes to ensure proper syntax
+      - Restarts Apache and SSH services when configuration changes
+    options:
+      poodle_fix_ssl_protocols:
+        type: str
+        required: false
+        default: SSLProtocol -all +TLSv1.2
+        description: SSL protocols configuration string for Apache SSL module
+      poodle_fix_apache_ssl_conf:
+        type: str
+        required: false
+        default: /etc/apache2/mods-available/ssl.conf
+        description: Path to the Apache SSL configuration file to modify
+      poodle_fix_backup_config:
+        type: bool
+        required: false
+        default: true
+        description: Whether to create a backup of the original configuration file before modification
+      poodle_fix_validate_config:
+        type: bool
+        required: false
+        default: true
+        description: Whether to validate Apache configuration syntax after making changes
