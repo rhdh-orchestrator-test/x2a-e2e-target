@@ -1,0 +1,133 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Create expected directories
+      ansible.builtin.file:
+        path: "{{ item_dir }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /tmp/molecule_test/opt/fastapi-tutorial
+        - /tmp/molecule_test/opt/fastapi-tutorial/venv
+        - /tmp/molecule_test/opt/fastapi-tutorial/venv/bin
+        - /tmp/molecule_test/etc/systemd/system
+      loop_control:
+        loop_var: item_dir
+
+    - name: Create mock Python virtual environment files
+      ansible.builtin.copy:
+        content: |
+          #!/bin/bash
+          echo "Python 3.9.2"
+        dest: "{{ item_venv_file['path'] }}"
+        mode: "{{ item_venv_file['mode'] }}"
+        backup: true
+      loop:
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/venv/bin/python
+          mode: "0755"
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/venv/bin/pip
+          mode: "0755"
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/venv/bin/uvicorn
+          mode: "0755"
+      loop_control:
+        loop_var: item_venv_file
+
+    - name: Create mock application files
+      ansible.builtin.copy:
+        content: "{{ item_app_file['content'] }}"
+        dest: "{{ item_app_file['path'] }}"
+        mode: "0644"
+        backup: true
+      loop:
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/requirements.txt
+          content: |
+            fastapi==0.68.0
+            uvicorn==0.15.0
+            sqlalchemy==1.4.23
+            psycopg2-binary==2.9.1
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/app/__init__.py
+          content: ""
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/app/main.py
+          content: |
+            from fastapi import FastAPI
+            app = FastAPI()
+            
+            @app.get("/")
+            def read_root():
+                return {"Hello": "World"}
+            
+            @app.get("/health")
+            def health_check():
+                return {"status": "healthy"}
+      loop_control:
+        loop_var: item_app_file
+
+    - name: Create app directory
+      ansible.builtin.file:
+        path: /tmp/molecule_test/opt/fastapi-tutorial/app
+        state: directory
+        mode: "0755"
+
+    - name: Create environment configuration file
+      ansible.builtin.copy:
+        content: |
+          PROJECT_NAME="FastAPI Tutorial"
+          API_VERSION=1.0.0
+          DATABASE_URL=postgresql://fastapi:fastapi_password@localhost/fastapi_db
+        dest: /tmp/molecule_test/opt/fastapi-tutorial/.env
+        mode: "0644"
+        backup: true
+
+    - name: Create systemd service unit file
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=FastAPI Tutorial Service
+          After=network.target postgresql.service
+
+          [Service]
+          Type=simple
+          User=root
+          WorkingDirectory=/opt/fastapi-tutorial
+          Environment="PATH=/opt/fastapi-tutorial/venv/bin"
+          ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /tmp/molecule_test/etc/systemd/system/fastapi-tutorial.service
+        mode: "0644"
+        backup: true
+
+    - name: Create mock git repository files
+      ansible.builtin.copy:
+        content: "{{ item_git_file['content'] }}"
+        dest: "{{ item_git_file['path'] }}"
+        mode: "0644"
+        backup: true
+      loop:
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/.git/HEAD
+          content: "ref: refs/heads/main"
+        - path: /tmp/molecule_test/opt/fastapi-tutorial/.git/config
+          content: |
+            [core]
+                repositoryformatversion = 0
+                filemode = true
+                bare = false
+                logallrefupdates = true
+            [remote "origin"]
+                url = https://github.com/dibanez/fastapi_tutorial.git
+                fetch = +refs/heads/*:refs/remotes/origin/*
+            [branch "main"]
+                remote = origin
+                merge = refs/heads/main
+      loop_control:
+        loop_var: item_git_file
+
+    - name: Create git directory
+      ansible.builtin.file:
+        path: /tmp/molecule_test/opt/fastapi-tutorial/.git
+        state: directory
+        mode: "0755"
