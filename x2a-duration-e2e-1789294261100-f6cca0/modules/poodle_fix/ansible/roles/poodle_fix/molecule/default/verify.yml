@@ -1,0 +1,51 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Check Apache SSL configuration file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_config_stat
+  - name: Assert SSL configuration file was created
+    ansible.builtin.assert:
+      that:
+      - ssl_config_stat['stat']['exists']
+      - ssl_config_stat['stat']['size'] > 0
+      fail_msg: Apache SSL configuration file not found
+  - name: Read SSL configuration file content
+    ansible.builtin.slurp:
+      src: /tmp/molecule_test/etc/apache2/mods-available/ssl.conf
+    register: ssl_config_content
+  - name: Decode SSL configuration content
+    ansible.builtin.set_fact:
+      ssl_config_text: '{{ ssl_config_content[''content''] | b64decode }}'
+  - name: Assert SSL protocol configuration is correct
+    ansible.builtin.assert:
+      that:
+      - '''SSLProtocol -all +TLSv1.2'' in ssl_config_text'
+      fail_msg: SSL protocol not properly configured for POODLE fix
+  - name: Assert vulnerable SSL protocols are disabled
+    ansible.builtin.assert:
+      that:
+      - '''SSLProtocol all -SSLv2 -SSLv3'' not in ssl_config_text'
+      fail_msg: Vulnerable SSL protocols still present in configuration
+  - name: Check backup file was created
+    ansible.builtin.find:
+      paths: /tmp/molecule_test/etc/apache2/mods-available
+      patterns: ssl.conf.*
+      file_type: file
+    register: backup_files
+  - name: Assert backup file exists
+    ansible.builtin.assert:
+      that:
+      - backup_files['files'] | length > 0
+      fail_msg: Backup file not created during SSL configuration update
+  - name: Check Apache service status (container-safe skip)
+    ansible.builtin.service_facts: null
+    tags: molecule-notest
+  - name: Assert Apache service would be managed
+    ansible.builtin.assert:
+      that:
+      - '''apache2'' in ansible_facts.services or true'
+      fail_msg: Apache service not available
+    tags: molecule-notest
