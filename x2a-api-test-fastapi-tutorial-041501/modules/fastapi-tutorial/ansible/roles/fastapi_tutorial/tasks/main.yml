@@ -1,0 +1,84 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Install required system packages
+  ansible.builtin.package:
+    name: "{{ fastapi_tutorial_packages }}"
+    state: present
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ fastapi_tutorial_app_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+- name: Clone FastAPI tutorial repository
+  ansible.builtin.git:
+    repo: "{{ fastapi_tutorial_git_repo }}"
+    dest: "{{ fastapi_tutorial_app_dir }}"
+    version: "{{ fastapi_tutorial_git_branch }}"
+    force: true
+- name: Create Python virtual environment
+  ansible.builtin.command:
+    cmd: python3 -m venv "{{ fastapi_tutorial_app_dir }}/venv"
+    creates: "{{ fastapi_tutorial_app_dir }}/venv"
+- name: Install Python dependencies from requirements.txt
+  ansible.builtin.pip:
+    requirements: "{{ fastapi_tutorial_app_dir }}/requirements.txt"
+    virtualenv: "{{ fastapi_tutorial_app_dir }}/venv"
+- name: Enable and start PostgreSQL service
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true
+- name: Wait for PostgreSQL to be ready
+  ansible.builtin.wait_for:
+    port: 5432
+    host: localhost
+    timeout: 30
+- name: Check if PostgreSQL database user exists
+  ansible.builtin.command:
+    cmd: sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='{{ db_username }}'"
+  register: user_exists
+  changed_when: false
+  failed_when: false
+- name: Create PostgreSQL database user
+  ansible.builtin.command:
+    cmd: sudo -u postgres psql -c "CREATE USER {{ db_username }} WITH PASSWORD '{{ db_password }}';"
+  when: user_exists.stdout != "1"
+- name: Check if PostgreSQL database exists
+  ansible.builtin.command:
+    cmd: sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='{{ db_name }}'"
+  register: db_exists
+  changed_when: false
+  failed_when: false
+- name: Create PostgreSQL database
+  ansible.builtin.command:
+    cmd: sudo -u postgres psql -c "CREATE DATABASE {{ db_name }} OWNER {{ db_username }};"
+  when: db_exists.stdout != "1"
+- name: Grant privileges on database
+  ansible.builtin.command:
+    cmd: sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE {{ db_name }} TO {{ db_username }};"
+  changed_when: false
+- name: Deploy environment configuration file
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ fastapi_tutorial_app_dir }}/.env"
+    mode: "0644"
+    owner: root
+    group: root
+    backup: true
+- name: Deploy systemd service file
+  ansible.builtin.template:
+    src: fastapi-tutorial.service.j2
+    dest: /etc/systemd/system/fastapi-tutorial.service
+    mode: "0644"
+    owner: root
+    group: root
+    backup: true
+  notify: Reload systemd daemon
+- name: Enable and start FastAPI tutorial service
+  ansible.builtin.service:
+    name: fastapi-tutorial
+    state: started
+    enabled: true
