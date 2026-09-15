@@ -1,0 +1,10 @@
+---
+- name: Install Redis server package
+  ansible.builtin.package:
+    name: "{{ 'redis-server' if ansible_os_family == 'Debian' else 'redis' }}"
+    state: present
+- name: Enable and start Redis service
+  ansible.builtin.service:
+    name: "{{ 'redis-server' if ansible_os_family == 'Debian' else 'redis' }}"
+    state: started
+    enabled: true
