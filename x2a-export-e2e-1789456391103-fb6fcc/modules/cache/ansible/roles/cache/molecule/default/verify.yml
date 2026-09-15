@@ -1,0 +1,45 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Verify Redis configuration file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/redis/6379.conf
+    register: redis_config_stat
+  - name: Assert Redis configuration file exists
+    ansible.builtin.assert:
+      that:
+      - redis_config_stat.stat.exists
+      fail_msg: Redis configuration file does not exist
+  - name: Verify Redis log directory exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/var/log/redis
+    register: redis_log_dir_stat
+  - name: Assert Redis log directory exists
+    ansible.builtin.assert:
+      that:
+      - redis_log_dir_stat.stat.exists
+      - redis_log_dir_stat.stat.isdir
+      fail_msg: Redis log directory does not exist or is not a directory
+  - name: Verify Redis data directory exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/var/lib/redis
+    register: redis_data_dir_stat
+  - name: Assert Redis data directory exists
+    ansible.builtin.assert:
+      that:
+      - redis_data_dir_stat.stat.exists
+      - redis_data_dir_stat.stat.isdir
+      fail_msg: Redis data directory does not exist or is not a directory
+  - name: Verify memcached configuration file exists
+    ansible.builtin.stat:
+      path: /tmp/molecule_test/etc/memcached.conf
+    register: memcached_config_stat
+  - name: Assert memcached configuration file exists
+    ansible.builtin.assert:
+      that:
+      - memcached_config_stat.stat.exists
+      fail_msg: Memcached configuration file does not exist
+  - name: Verify role cache executed successfully
+    ansible.builtin.debug:
+      msg: Role cache applied successfully - all verification checks passed
