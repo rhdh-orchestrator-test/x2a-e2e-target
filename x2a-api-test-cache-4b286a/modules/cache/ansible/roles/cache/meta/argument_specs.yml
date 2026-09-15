@@ -1,0 +1,80 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure memcached and Redis cache services
+    description:
+      - Installs and configures both memcached and Redis cache services
+      - Configures Redis with authentication and removes deprecated settings
+      - Creates necessary directories and manages service startup
+      - Supports cross-platform deployment with OS-specific configurations
+    options:
+      cache_memcached_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether to enable memcached service
+      cache_memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: Port for memcached to listen on
+      cache_memcached_memory:
+        type: int
+        required: false
+        default: 64
+        description: Memory allocation for memcached in MB
+      cache_redis_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether to enable Redis service
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: Port for Redis to listen on
+      cache_redis_bind:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: IP address for Redis to bind to
+      cache_redis_maxmemory:
+        type: str
+        required: false
+        default: 256mb
+        description: Maximum memory allocation for Redis
+      cache_redis_maxmemory_policy:
+        type: str
+        required: false
+        default: allkeys-lru
+        description: Memory eviction policy for Redis when maxmemory is reached
+      cache_redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory for Redis log files
+      cache_redis_log_file:
+        type: str
+        required: false
+        default: redis_6379.log
+        description: Redis log file name
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Path to Redis configuration file
+      cache_redis_deprecated_settings:
+        type: list
+        elements: str
+        required: false
+        default:
+          - replica-serve-stale-data
+          - replica-read-only
+          - repl-ping-replica-period
+          - client-output-buffer-limit
+          - replica-priority
+        description: List of deprecated Redis configuration settings to remove
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password (injected by AAP credential type)
