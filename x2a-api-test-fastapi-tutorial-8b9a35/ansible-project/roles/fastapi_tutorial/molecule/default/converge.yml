@@ -1,0 +1,13 @@
+- name: Converge
+  hosts: all
+  gather_facts: true
+  vars:
+    db_username: fastapi
+    db_password: fastapi_password
+    db_name: fastapi_db
+    db_host: localhost
+    db_port: '5432'
+  tasks:
+  - name: Include fastapi_tutorial
+    ansible.builtin.include_role:
+      name: fastapi_tutorial

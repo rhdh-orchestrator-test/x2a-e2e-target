@@ -1,0 +1,242 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check application directory exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: app_dir_stat
+
+    - name: Assert application directory was created
+      ansible.builtin.assert:
+        that:
+          - app_dir_stat['stat']['exists']
+          - app_dir_stat['stat']['isdir']
+        fail_msg: "Application directory /opt/fastapi-tutorial not found"
+
+    - name: Check virtual environment directory exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv
+      register: venv_dir_stat
+
+    - name: Assert virtual environment was created
+      ansible.builtin.assert:
+        that:
+          - venv_dir_stat['stat']['exists']
+          - venv_dir_stat['stat']['isdir']
+        fail_msg: "Virtual environment directory not found"
+
+    - name: Check virtual environment activation script exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/activate
+      register: venv_activate_stat
+
+    - name: Assert virtual environment is valid
+      ansible.builtin.assert:
+        that:
+          - venv_activate_stat['stat']['exists']
+        fail_msg: "Virtual environment activation script not found"
+
+    - name: Check environment configuration file exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/.env
+      register: env_file_stat
+
+    - name: Assert environment file was created
+      ansible.builtin.assert:
+        that:
+          - env_file_stat['stat']['exists']
+          - env_file_stat['stat']['size'] > 0
+        fail_msg: "Environment configuration file not found or empty"
+
+    - name: Check systemd service file exists
+      ansible.builtin.stat:
+        path: /etc/systemd/system/fastapi-tutorial.service
+      register: service_file_stat
+
+    - name: Assert systemd service file was created
+      ansible.builtin.assert:
+        that:
+          - service_file_stat['stat']['exists']
+          - service_file_stat['stat']['size'] > 0
+        fail_msg: "Systemd service file not found or empty"
+
+    - name: Get service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert PostgreSQL service is running
+      ansible.builtin.assert:
+        that:
+          - "'postgresql.service' in ansible_facts.services"
+          - "ansible_facts.services['postgresql.service']['state'] == 'running'"
+        fail_msg: "PostgreSQL service is not running"
+
+    - name: Assert FastAPI tutorial service is running
+      ansible.builtin.assert:
+        that:
+          - "'fastapi-tutorial.service' in ansible_facts.services"
+          - "ansible_facts.services['fastapi-tutorial.service']['state'] == 'running'"
+        fail_msg: "FastAPI tutorial service is not running"
+
+    - name: Check FastAPI application is responding on port 8000
+      ansible.builtin.uri:
+        url: http://localhost:8000
+        method: GET
+        status_code: [200, 404]
+      register: fastapi_health_check
+
+    - name: Assert FastAPI application is accessible
+      ansible.builtin.assert:
+        that:
+          - fastapi_health_check['status'] in [200, 404]
+        fail_msg: "FastAPI application is not responding on port 8000"
+
+    - name: Check FastAPI docs endpoint
+      ansible.builtin.uri:
+        url: http://localhost:8000/docs
+        method: GET
+        status_code: [200, 404]
+      register: fastapi_docs_check
+      failed_when: false
+
+    - name: Check PostgreSQL is listening on port 5432
+      ansible.builtin.wait_for:
+        port: 5432
+        host: localhost
+        timeout: 10
+      register: postgres_port_check
+
+    - name: Assert PostgreSQL port is accessible
+      ansible.builtin.assert:
+        that:
+          - postgres_port_check is succeeded
+        fail_msg: "PostgreSQL is not listening on port 5432"
+
+    - name: Check FastAPI is listening on port 8000
+      ansible.builtin.wait_for:
+        port: 8000
+        host: localhost
+        timeout: 10
+      register: fastapi_port_check
+
+    - name: Assert FastAPI port is accessible
+      ansible.builtin.assert:
+        that:
+          - fastapi_port_check is succeeded
+        fail_msg: "FastAPI is not listening on port 8000"
+
+- name: Verify Configuration Content
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Read environment configuration file
+      ansible.builtin.slurp:
+        src: /opt/fastapi-tutorial/.env
+      register: env_file_content
+
+    - name: Decode environment file content
+      ansible.builtin.set_fact:
+        env_content: "{{ env_file_content['content'] | b64decode }}"
+
+    - name: Assert environment file contains required variables
+      ansible.builtin.assert:
+        that:
+          - "'PROJECT_NAME' in env_content"
+          - "'API_VERSION' in env_content"
+          - "'DATABASE_URL' in env_content"
+        fail_msg: "Environment file missing required configuration variables"
+
+    - name: Read systemd service file
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/fastapi-tutorial.service
+      register: service_file_content
+
+    - name: Decode service file content
+      ansible.builtin.set_fact:
+        service_content: "{{ service_file_content['content'] | b64decode }}"
+
+    - name: Assert service file contains required configuration
+      ansible.builtin.assert:
+        that:
+          - "'ExecStart' in service_content"
+          - "'WorkingDirectory' in service_content"
+          - "'uvicorn' in service_content"
+        fail_msg: "Service file missing required configuration"
+
+- name: Verify Database Setup
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check if PostgreSQL database user exists
+      ansible.builtin.shell:
+        cmd: sudo -u postgres psql -c "\du" | grep fastapi
+      register: db_user_check
+      failed_when: false
+      changed_when: false
+
+    - name: Assert database user was created
+      ansible.builtin.assert:
+        that:
+          - db_user_check['rc'] == 0
+          - "'fastapi' in db_user_check['stdout']"
+        fail_msg: "PostgreSQL user 'fastapi' was not created"
+
+    - name: Check if PostgreSQL database exists
+      ansible.builtin.shell:
+        cmd: sudo -u postgres psql -c "\l" | grep fastapi_db
+      register: db_check
+      failed_when: false
+      changed_when: false
+
+    - name: Assert database was created
+      ansible.builtin.assert:
+        that:
+          - db_check['rc'] == 0
+          - "'fastapi_db' in db_check['stdout']"
+        fail_msg: "PostgreSQL database 'fastapi_db' was not created"
+
+- name: Verify Python Environment
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Python virtual environment Python version
+      ansible.builtin.command:
+        cmd: /opt/fastapi-tutorial/venv/bin/python --version
+      register: venv_python_version
+      changed_when: false
+
+    - name: Assert Python version is available
+      ansible.builtin.assert:
+        that:
+          - venv_python_version['rc'] == 0
+          - "'Python 3' in venv_python_version['stdout']"
+        fail_msg: "Python virtual environment is not working correctly"
+
+    - name: Check if FastAPI is installed in virtual environment
+      ansible.builtin.shell:
+        cmd: /opt/fastapi-tutorial/venv/bin/python -c "import fastapi; print('FastAPI imported successfully')"
+      register: fastapi_import_check
+      failed_when: false
+      changed_when: false
+
+    - name: Assert FastAPI is installed
+      ansible.builtin.assert:
+        that:
+          - fastapi_import_check['rc'] == 0
+          - "'FastAPI imported successfully' in fastapi_import_check['stdout']"
+        fail_msg: "FastAPI is not properly installed in virtual environment"
+
+    - name: Check if Uvicorn is installed in virtual environment
+      ansible.builtin.shell:
+        cmd: /opt/fastapi-tutorial/venv/bin/python -c "import uvicorn; print('Uvicorn imported successfully')"
+      register: uvicorn_import_check
+      failed_when: false
+      changed_when: false
+
+    - name: Assert Uvicorn is installed
+      ansible.builtin.assert:
+        that:
+          - uvicorn_import_check['rc'] == 0
+          - "'Uvicorn imported successfully' in uvicorn_import_check['stdout']"
+        fail_msg: "Uvicorn is not properly installed in virtual environment"
