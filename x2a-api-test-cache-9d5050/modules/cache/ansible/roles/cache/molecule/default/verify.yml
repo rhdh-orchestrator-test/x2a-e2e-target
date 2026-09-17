@@ -1,0 +1,182 @@
+---
+- name: Verify cache services
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check service status
+      ansible.builtin.service_facts:
+
+    - name: Assert memcached service is running
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts.services"
+          - "ansible_facts.services['memcached.service']['state'] == 'running'"
+        fail_msg: "Memcached service is not running"
+
+    - name: Assert Redis service is running
+      ansible.builtin.assert:
+        that:
+          - "'redis-server.service' in ansible_facts.services"
+          - "ansible_facts.services['redis-server.service']['state'] == 'running'"
+        fail_msg: "Redis service is not running"
+
+    - name: Check memcached port is listening
+      ansible.builtin.wait_for:
+        port: 11211
+        host: 127.0.0.1
+        timeout: 10
+
+    - name: Check Redis port is listening
+      ansible.builtin.wait_for:
+        port: 6379
+        host: 127.0.0.1
+        timeout: 10
+
+    - name: Test memcached connectivity
+      ansible.builtin.command:
+        cmd: echo "stats"
+      register: memcached_test
+      changed_when: false
+
+    - name: Send stats command to memcached
+      ansible.builtin.shell: |
+        echo "stats" | nc localhost 11211
+      register: memcached_stats
+      changed_when: false
+
+    - name: Assert memcached responds to stats
+      ansible.builtin.assert:
+        that:
+          - "memcached_stats.stdout is defined"
+          - "'STAT' in memcached_stats.stdout"
+        fail_msg: "Memcached not responding to stats command"
+
+- name: Verify Redis configuration and connectivity
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Assert Redis config file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat.stat.exists
+          - redis_config_stat.stat.size > 0
+        fail_msg: "Redis configuration file not found or empty"
+
+    - name: Check Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_dir_stat
+
+    - name: Assert Redis log directory exists with correct permissions
+      ansible.builtin.assert:
+        that:
+          - redis_log_dir_stat.stat.exists
+          - redis_log_dir_stat.stat.isdir
+          - redis_log_dir_stat.stat.pw_name == 'redis'
+          - redis_log_dir_stat.stat.gr_name == 'redis'
+          - redis_log_dir_stat.stat.mode == '0755'
+        fail_msg: "Redis log directory missing or incorrect permissions"
+
+    - name: Read Redis configuration file
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Decode Redis configuration
+      ansible.builtin.set_fact:
+        redis_config_text: "{{ redis_config_content.content | b64decode }}"
+
+    - name: Assert Redis password is configured
+      ansible.builtin.assert:
+        that:
+          - "'requirepass' in redis_config_text"
+        fail_msg: "Redis password authentication not configured"
+
+    - name: Assert Redis port is configured
+      ansible.builtin.assert:
+        that:
+          - "'port 6379' in redis_config_text"
+        fail_msg: "Redis port 6379 not configured"
+
+    - name: Assert deprecated Redis settings are removed
+      ansible.builtin.assert:
+        that:
+          - "'replica-serve-stale-data' not in redis_config_text"
+          - "'replica-read-only' not in redis_config_text"
+          - "'repl-ping-replica-period' not in redis_config_text"
+          - "'replica-priority' not in redis_config_text"
+        fail_msg: "Deprecated Redis settings still present in configuration"
+
+    - name: Test Redis connectivity without authentication (should fail)
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 ping
+      register: redis_no_auth
+      failed_when: false
+      changed_when: false
+
+    - name: Assert Redis requires authentication
+      ansible.builtin.assert:
+        that:
+          - redis_no_auth.rc != 0
+        fail_msg: "Redis should require authentication but doesn't"
+
+    - name: Test Redis connectivity with authentication
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a redis_secure_password_123 ping
+      register: redis_with_auth
+      changed_when: false
+
+    - name: Assert Redis responds with authentication
+      ansible.builtin.assert:
+        that:
+          - redis_with_auth.rc == 0
+          - "'PONG' in redis_with_auth.stdout"
+        fail_msg: "Redis not responding correctly with authentication"
+
+- name: Verify Redis functionality
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Test Redis set operation
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a redis_secure_password_123 set test_key "test_value"
+      register: redis_set
+      changed_when: false
+
+    - name: Test Redis get operation
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a redis_secure_password_123 get test_key
+      register: redis_get
+      changed_when: false
+
+    - name: Assert Redis set/get operations work
+      ansible.builtin.assert:
+        that:
+          - redis_set.rc == 0
+          - "'OK' in redis_set.stdout"
+          - redis_get.rc == 0
+          - "'test_value' in redis_get.stdout"
+        fail_msg: "Redis set/get operations failed"
+
+    - name: Clean up test key
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a redis_secure_password_123 del test_key
+      changed_when: false
+
+    - name: Get Redis server info
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a redis_secure_password_123 info server
+      register: redis_info
+      changed_when: false
+
+    - name: Assert Redis server info is available
+      ansible.builtin.assert:
+        that:
+          - redis_info.rc == 0
+          - "'redis_version' in redis_info.stdout"
+        fail_msg: "Redis server info not available"
