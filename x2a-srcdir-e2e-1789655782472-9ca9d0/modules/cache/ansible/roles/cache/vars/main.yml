@@ -1,0 +1,15 @@
+---
+_cache_redis_package: "{{ __cache_redis_package[ansible_os_family] | default(__cache_redis_package['default']) }}"
+_cache_redis_service: "{{ __cache_redis_service[ansible_os_family] | default(__cache_redis_service['default']) }}"
+__cache_redis_package:
+  default: redis-server
+  Debian: redis-server
+  Ubuntu: redis-server
+  RedHat: redis
+  CentOS: redis
+__cache_redis_service:
+  default: redis-server
+  Debian: redis-server
+  Ubuntu: redis-server
+  RedHat: redis
+  CentOS: redis
