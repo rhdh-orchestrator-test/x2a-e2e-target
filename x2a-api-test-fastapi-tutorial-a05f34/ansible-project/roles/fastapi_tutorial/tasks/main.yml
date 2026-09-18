@@ -1,0 +1,90 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Install required system packages
+  ansible.builtin.package:
+    name: "{{ fastapi_tutorial_system_packages }}"
+    state: present
+- name: Install Python PostgreSQL adapter
+  ansible.builtin.package:
+    name: python3-psycopg2
+    state: present
+- name: Create service user
+  ansible.builtin.user:
+    name: "{{ fastapi_tutorial_service_user }}"
+    system: true
+    shell: /bin/false
+    home: "{{ fastapi_tutorial_app_dir }}"
+    create_home: false
+  when: fastapi_tutorial_service_user != 'root'
+- name: Create service group
+  ansible.builtin.group:
+    name: "{{ fastapi_tutorial_service_group }}"
+    system: true
+  when: fastapi_tutorial_service_group != 'root'
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ fastapi_tutorial_app_dir }}"
+    state: directory
+    owner: "{{ fastapi_tutorial_service_user }}"
+    group: "{{ fastapi_tutorial_service_group }}"
+    mode: "{{ fastapi_tutorial_dir_mode }}"
+- name: Clone FastAPI tutorial repository
+  ansible.builtin.git:
+    repo: "{{ fastapi_tutorial_repo_url }}"
+    dest: "{{ fastapi_tutorial_app_dir }}"
+    version: "{{ fastapi_tutorial_repo_branch }}"
+    force: false
+- name: Create Python virtual environment
+  ansible.builtin.command:
+    cmd: python3 -m venv {{ fastapi_tutorial_venv_path }}
+    creates: "{{ fastapi_tutorial_venv_path }}/bin/activate"
+- name: Install Python dependencies
+  ansible.builtin.pip:
+    requirements: "{{ fastapi_tutorial_app_dir }}/requirements.txt"
+    virtualenv: "{{ fastapi_tutorial_venv_path }}"
+- name: Enable and start PostgreSQL service
+  ansible.builtin.systemd:
+    name: postgresql
+    enabled: true
+    state: started
+- name: Create PostgreSQL database user
+  community.postgresql.postgresql_user:
+    name: "{{ fastapi_tutorial_db_user }}"
+    password: "{{ fastapi_tutorial_db_password }}"
+    state: present
+  become: true
+  become_user: postgres
+- name: Create PostgreSQL database
+  community.postgresql.postgresql_db:
+    name: "{{ fastapi_tutorial_db_name }}"
+    owner: "{{ fastapi_tutorial_db_user }}"
+    state: present
+  become: true
+  become_user: postgres
+- name: Deploy environment configuration file
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ fastapi_tutorial_app_dir }}/.env"
+    owner: "{{ fastapi_tutorial_service_user }}"
+    group: "{{ fastapi_tutorial_service_group }}"
+    mode: "{{ fastapi_tutorial_file_mode }}"
+    backup: true
+  notify: Restart fastapi-tutorial service
+- name: Deploy systemd service file
+  ansible.builtin.template:
+    src: fastapi-tutorial.service.j2
+    dest: /etc/systemd/system/fastapi-tutorial.service
+    owner: root
+    group: root
+    mode: "{{ fastapi_tutorial_file_mode }}"
+    backup: true
+  notify:
+    - Reload systemd daemon
+    - Restart fastapi-tutorial service
+- name: Enable and start FastAPI tutorial service
+  ansible.builtin.systemd:
+    name: fastapi-tutorial
+    enabled: true
+    state: started
+    daemon_reload: true
