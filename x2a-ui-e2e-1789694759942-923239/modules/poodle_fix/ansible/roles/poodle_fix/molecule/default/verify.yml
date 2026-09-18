@@ -1,0 +1,56 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Apache SSL configuration file exists
+      ansible.builtin.stat:
+        path: /etc/apache2/mods-available/ssl.conf
+      register: ssl_conf_stat
+
+    - name: Assert SSL configuration file exists
+      ansible.builtin.assert:
+        that:
+          - ssl_conf_stat['stat']['exists']
+          - ssl_conf_stat['stat']['size'] > 0
+        fail_msg: "Apache SSL configuration file not found"
+
+    - name: Read SSL configuration file content
+      ansible.builtin.slurp:
+        src: /etc/apache2/mods-available/ssl.conf
+      register: ssl_conf_content
+
+    - name: Assert SSL protocol configuration is correct
+      ansible.builtin.assert:
+        that:
+          - "'SSLProtocol -all +TLSv1.2' in (ssl_conf_content['content'] | b64decode)"
+        fail_msg: "SSL protocol configuration not updated correctly"
+
+    - name: Check backup file was created
+      ansible.builtin.find:
+        paths: /etc/apache2/mods-available
+        patterns: "ssl.conf.*"
+        file_type: file
+      register: backup_files
+
+    - name: Assert backup file exists
+      ansible.builtin.assert:
+        that:
+          - backup_files['matched'] > 0
+        fail_msg: "Backup file was not created"
+
+    - name: Get service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert Apache2 service is running
+      ansible.builtin.assert:
+        that:
+          - "'apache2.service' in ansible_facts.services"
+          - "ansible_facts.services['apache2.service']['state'] == 'running'"
+        fail_msg: "Apache2 service is not running"
+
+    - name: Assert SSH service is running
+      ansible.builtin.assert:
+        that:
+          - "'sshd.service' in ansible_facts.services or 'ssh.service' in ansible_facts.services"
+        fail_msg: "SSH service is not running"
