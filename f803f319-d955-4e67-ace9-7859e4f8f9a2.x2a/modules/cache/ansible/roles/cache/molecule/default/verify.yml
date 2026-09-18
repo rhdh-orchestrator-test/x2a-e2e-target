@@ -1,0 +1,137 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis and memcached services are running
+      ansible.builtin.service_facts:
+
+    - name: Assert Redis service is active
+      ansible.builtin.assert:
+        that:
+          - "'redis-server' in ansible_facts.services"
+          - "ansible_facts.services['redis-server']['state'] == 'running'"
+        fail_msg: "Redis service is not running"
+
+    - name: Assert memcached service is active
+      ansible.builtin.assert:
+        that:
+          - "'memcached' in ansible_facts.services"
+          - "ansible_facts.services['memcached']['state'] == 'running'"
+        fail_msg: "Memcached service is not running"
+
+    - name: Check Redis port is listening
+      ansible.builtin.wait_for:
+        port: 6379
+        host: localhost
+        timeout: 10
+
+    - name: Check memcached port is listening
+      ansible.builtin.wait_for:
+        port: 11211
+        host: localhost
+        timeout: 10
+
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Assert Redis config file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat['stat']['exists']
+          - redis_config_stat['stat']['size'] > 0
+        fail_msg: "Redis configuration file not found"
+
+    - name: Check Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_dir_stat
+
+    - name: Assert Redis log directory exists with correct permissions
+      ansible.builtin.assert:
+        that:
+          - redis_log_dir_stat['stat']['exists']
+          - redis_log_dir_stat['stat']['isdir']
+          - redis_log_dir_stat['stat']['pw_name'] == 'redis'
+          - redis_log_dir_stat['stat']['gr_name'] == 'redis'
+          - redis_log_dir_stat['stat']['mode'] == '0755'
+        fail_msg: "Redis log directory not found or incorrect permissions"
+
+    - name: Read Redis configuration file
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert Redis password is configured
+      ansible.builtin.assert:
+        that:
+          - "'requirepass' in (redis_config_content['content'] | b64decode)"
+        fail_msg: "Redis password not configured"
+
+    - name: Assert problematic replica settings are removed
+      ansible.builtin.assert:
+        that:
+          - "'replica-serve-stale-data' not in (redis_config_content['content'] | b64decode)"
+          - "'replica-read-only' not in (redis_config_content['content'] | b64decode)"
+          - "'repl-ping-replica-period' not in (redis_config_content['content'] | b64decode)"
+          - "'client-output-buffer-limit' not in (redis_config_content['content'] | b64decode)"
+          - "'replica-priority' not in (redis_config_content['content'] | b64decode)"
+        fail_msg: "Problematic replica settings still present in Redis config"
+
+    - name: Test Redis connectivity with authentication
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a "{{ redis_password }}" ping
+      register: redis_ping_result
+      changed_when: false
+      no_log: true
+
+    - name: Assert Redis responds to ping
+      ansible.builtin.assert:
+        that:
+          - redis_ping_result['rc'] == 0
+          - "'PONG' in redis_ping_result['stdout']"
+        fail_msg: "Redis ping test failed"
+
+    - name: Test Redis set/get operations
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a "{{ redis_password }}" set molecule_test_key "molecule_test_value"
+      register: redis_set_result
+      changed_when: false
+      no_log: true
+
+    - name: Test Redis get operation
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a "{{ redis_password }}" get molecule_test_key
+      register: redis_get_result
+      changed_when: false
+      no_log: true
+
+    - name: Clean up Redis test key
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a "{{ redis_password }}" del molecule_test_key
+      changed_when: false
+      no_log: true
+
+    - name: Assert Redis operations work correctly
+      ansible.builtin.assert:
+        that:
+          - redis_set_result['rc'] == 0
+          - "'OK' in redis_set_result['stdout']"
+          - redis_get_result['rc'] == 0
+          - "'molecule_test_value' in redis_get_result['stdout']"
+        fail_msg: "Redis set/get operations failed"
+
+    - name: Test memcached connectivity
+      ansible.builtin.command:
+        cmd: echo "stats" | nc localhost 11211
+      register: memcached_stats_result
+      changed_when: false
+
+    - name: Assert memcached responds to stats command
+      ansible.builtin.assert:
+        that:
+          - memcached_stats_result['rc'] == 0
+          - "'STAT' in memcached_stats_result['stdout']"
+        fail_msg: "Memcached stats command failed"
