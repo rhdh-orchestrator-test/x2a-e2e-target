@@ -1,0 +1,10 @@
+---
+- name: Enable Redis DNF module stream
+  ansible.builtin.command:
+    cmd: dnf module enable redis:{{ profile_redis_cluster_dnf_module_stream }} -y
+  register: dnf_module_result
+  changed_when: "'Nothing to do' not in dnf_module_result.stdout"
+  when:
+    - ansible_facts['os_family'] == 'RedHat'
+    - ansible_facts['distribution_major_version'] | int >= 8
+    - profile_redis_cluster_dnf_module_stream | length > 0

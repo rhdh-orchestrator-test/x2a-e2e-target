@@ -1,0 +1,10 @@
+---
+- name: Include Redis preinstall tasks
+  ansible.builtin.include_tasks: preinstall.yml
+- name: Include Redis package installation tasks
+  ansible.builtin.include_tasks: redis_install.yml
+- name: Include Redis configuration tasks
+  ansible.builtin.include_tasks: config.yml
+- name: Include Redis service tasks
+  ansible.builtin.include_tasks: service.yml
+  when: profile_redis_cluster_notify_service | bool

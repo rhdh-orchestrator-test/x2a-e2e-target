@@ -1,0 +1,22 @@
+[Unit]
+Description=Advanced key-value store
+After=network.target
+Documentation=http://redis.io/documentation, man:redis-server(1)
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/redis-server /etc/redis/redis.conf
+ExecStop=/bin/kill -s QUIT $MAINPID
+TimeoutStopSec=0
+Restart=always
+User=redis
+Group=redis
+RuntimeDirectory=redis
+RuntimeDirectoryMode=0755
+
+{% if profile_redis_cluster_ulimit_managed %}
+LimitNOFILE={{ profile_redis_cluster_ulimit }}
+{% endif %}
+
+[Install]
+WantedBy=multi-user.target
