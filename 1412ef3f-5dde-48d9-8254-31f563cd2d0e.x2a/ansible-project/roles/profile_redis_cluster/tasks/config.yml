@@ -1,0 +1,35 @@
+---
+- name: Create Redis directories
+  ansible.builtin.file:
+    path: "{{ item_redis_dir['path'] }}"
+    state: directory
+    owner: redis
+    group: redis
+    mode: "{{ item_redis_dir['mode'] }}"
+  loop:
+    - path: /etc/redis
+      mode: "0755"
+    - path: /var/log/redis
+      mode: "0755"
+    - path: /var/lib/redis
+      mode: "0755"
+    - path: /var/run/redis
+      mode: "0755"
+  loop_control:
+    loop_var: item_redis_dir
+- name: Include Redis instance configuration
+  ansible.builtin.include_tasks: instance.yml
+  when: profile_redis_cluster_default_install | bool
+- name: Include Redis ulimit configuration
+  ansible.builtin.include_tasks: ulimit.yml
+  when: profile_redis_cluster_ulimit_managed | bool
+- name: Create Redis default configuration (Debian/Ubuntu)
+  ansible.builtin.template:
+    src: redis-server.default.j2
+    dest: /etc/default/redis-server
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  when: ansible_facts['os_family'] == 'Debian'
+  notify: Restart Redis

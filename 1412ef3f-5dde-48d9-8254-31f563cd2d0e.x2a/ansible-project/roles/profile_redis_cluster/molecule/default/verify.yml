@@ -1,0 +1,112 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_config }}"
+      loop:
+        - /etc/redis/redis.conf
+        - /var/lib/redis
+        - /var/log/redis
+      loop_control:
+        loop_var: item_config
+      register: config_stat_results
+
+    - name: Assert Redis configuration files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+        fail_msg: "Expected Redis configuration file or directory not found"
+      loop: "{{ config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check Redis configuration file has content
+      ansible.builtin.stat:
+        path: /etc/redis/redis.conf
+      register: redis_conf_stat
+
+    - name: Assert Redis configuration file has content
+      ansible.builtin.assert:
+        that:
+          - redis_conf_stat['stat']['exists']
+          - redis_conf_stat['stat']['size'] > 0
+        fail_msg: "Redis configuration file is empty or missing"
+
+    - name: Check systemd ulimit configuration exists
+      ansible.builtin.stat:
+        path: /etc/systemd/system/redis.service.d/limit.conf
+      register: ulimit_conf_stat
+
+    - name: Assert systemd ulimit configuration was created
+      ansible.builtin.assert:
+        that:
+          - ulimit_conf_stat['stat']['exists']
+          - ulimit_conf_stat['stat']['size'] > 0
+        fail_msg: "Redis systemd ulimit configuration not found"
+
+    - name: Check Redis service is running
+      ansible.builtin.service_facts:
+
+    - name: Assert Redis service is active
+      ansible.builtin.assert:
+        that:
+          - "'redis.service' in ansible_facts.services"
+          - ansible_facts.services['redis.service']['state'] == 'running'
+        fail_msg: "Redis service is not running"
+
+    - name: Check Redis port is listening
+      ansible.builtin.wait_for:
+        port: 6379
+        host: 0.0.0.0
+        timeout: 10
+        state: started
+
+    - name: Test Redis connectivity with authentication
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a {{ profile_redis_cluster_redis_password | default('test-redis-password') }} ping
+      register: redis_ping_result
+      changed_when: false
+      failed_when: redis_ping_result.stdout != 'PONG'
+
+    - name: Get Redis memory configuration
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a {{ profile_redis_cluster_redis_password | default('test-redis-password') }} config get maxmemory
+      register: redis_maxmemory_result
+      changed_when: false
+
+    - name: Assert Redis memory configuration is set
+      ansible.builtin.assert:
+        that:
+          - redis_maxmemory_result.stdout_lines | length >= 2
+        fail_msg: "Redis maxmemory configuration not found"
+
+    - name: Get Redis memory info
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a {{ profile_redis_cluster_redis_password | default('test-redis-password') }} info memory
+      register: redis_memory_info
+      changed_when: false
+
+    - name: Assert Redis memory info is available
+      ansible.builtin.assert:
+        that:
+          - "'used_memory:' in redis_memory_info.stdout"
+        fail_msg: "Redis memory information not available"
+
+    - name: Check Redis configuration content
+      ansible.builtin.slurp:
+        src: /etc/redis/redis.conf
+      register: redis_conf_content
+
+    - name: Assert Redis configuration contains expected settings
+      ansible.builtin.assert:
+        that:
+          - "'bind 0.0.0.0' in redis_conf_decoded"
+          - "'port 6379' in redis_conf_decoded"
+          - "'appendonly yes' in redis_conf_decoded"
+          - "'appendfsync everysec' in redis_conf_decoded"
+        fail_msg: "Redis configuration missing expected settings"
+      vars:
+        redis_conf_decoded: "{{ redis_conf_content['content'] | b64decode }}"

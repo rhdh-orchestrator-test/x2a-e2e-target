@@ -1,0 +1,8 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Include profile_redis_cluster
+      ansible.builtin.include_role:
+        name: profile_redis_cluster

@@ -1,0 +1,19 @@
+---
+- name: Create systemd override directory for Redis
+  ansible.builtin.file:
+    path: /etc/systemd/system/{{ 'redis-server' if ansible_facts['os_family'] == 'Debian' else 'redis' }}.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+- name: Configure Redis systemd ulimit
+  ansible.builtin.copy:
+    content: "[Service] LimitNOFILE={{ profile_redis_cluster_ulimit }} "
+    dest: /etc/systemd/system/{{ 'redis-server' if ansible_facts['os_family'] == 'Debian' else 'redis' }}.service.d/limit.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify:
+    - Reload systemd
+    - Restart Redis

@@ -1,0 +1,98 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis cluster
+    description:
+      - Installs and configures a Redis instance with authentication, memory limits, and persistence
+      - Supports both standalone and cluster configurations
+      - Manages systemd service and ulimits
+    options:
+      profile_redis_cluster_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port Redis listens on
+      profile_redis_cluster_maxmemory_mb:
+        type: int
+        required: false
+        default: 2048
+        description: Maximum memory Redis can use in megabytes
+      profile_redis_cluster_maxmemory_policy:
+        type: str
+        required: false
+        default: allkeys-lru
+        description: Memory eviction policy when maxmemory is reached
+      profile_redis_cluster_bind:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: IP address Redis binds to
+      profile_redis_cluster_appendonly:
+        type: bool
+        required: false
+        default: true
+        description: Enable append-only file persistence
+      profile_redis_cluster_appendfsync:
+        type: str
+        required: false
+        default: everysec
+        description: Append-only file sync policy
+      profile_redis_cluster_manage_package:
+        type: bool
+        required: false
+        default: true
+        description: Whether to manage Redis package installation
+      profile_redis_cluster_manage_service:
+        type: bool
+        required: false
+        default: true
+        description: Whether to manage Redis service
+      profile_redis_cluster_service_manage:
+        type: bool
+        required: false
+        default: true
+        description: Whether to manage Redis service state
+      profile_redis_cluster_service_ensure:
+        type: str
+        required: false
+        default: running
+        description: Desired Redis service state
+      profile_redis_cluster_service_enable:
+        type: bool
+        required: false
+        default: true
+        description: Whether to enable Redis service at boot
+      profile_redis_cluster_manage_repo:
+        type: bool
+        required: false
+        default: false
+        description: Whether to manage Redis package repository
+      profile_redis_cluster_ulimit_managed:
+        type: bool
+        required: false
+        default: true
+        description: Whether to manage systemd ulimits for Redis
+      profile_redis_cluster_ulimit:
+        type: int
+        required: false
+        default: 65536
+        description: File descriptor limit for Redis service
+      profile_redis_cluster_default_install:
+        type: bool
+        required: false
+        default: true
+        description: Whether to create default Redis instance
+      profile_redis_cluster_dnf_module_stream:
+        type: str
+        required: false
+        default: ""
+        description: DNF module stream to enable for Redis (RHEL/CentOS 8+)
+      profile_redis_cluster_notify_service:
+        type: bool
+        required: false
+        default: true
+        description: Whether to notify service on configuration changes
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password (injected by AAP credential type)

@@ -1,0 +1,34 @@
+---
+- name: Create Redis group
+  ansible.builtin.group:
+    name: redis
+    system: true
+    state: present
+- name: Create Redis user
+  ansible.builtin.user:
+    name: redis
+    group: redis
+    system: true
+    shell: /bin/false
+    home: /var/lib/redis
+    create_home: false
+    state: present
+- name: Configure Redis repository (Debian/Ubuntu)
+  ansible.builtin.apt_repository:
+    repo: ppa:redislabs/redis
+    state: present
+    update_cache: true
+  when:
+    - profile_redis_cluster_manage_repo | bool
+    - ansible_facts['os_family'] == 'Debian'
+- name: Configure Redis repository (RHEL/CentOS)
+  ansible.builtin.yum_repository:
+    name: redis
+    description: Redis Repository
+    baseurl: https://packages.redis.io/rpm/rhel{{ ansible_facts["distribution_major_version"] }}/x86_64/
+    gpgcheck: true
+    gpgkey: https://packages.redis.io/gpg
+    enabled: true
+  when:
+    - profile_redis_cluster_manage_repo | bool
+    - ansible_facts['os_family'] == 'RedHat'
