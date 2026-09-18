@@ -1,0 +1,31 @@
+---
+- name: Install Apache2
+  ansible.builtin.package:
+    name: apache2
+    state: present
+  become: true
+- name: Enable Apache2 SSL module
+  ansible.builtin.apache2_module:
+    name: ssl
+    state: present
+  become: true
+  notify: Restart apache2
+- name: Ensure Apache SSL config file exists
+  ansible.builtin.stat:
+    path: "{{ apache_ssl_config_path }}"
+  register: ssl_config_stat
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    dest: "{{ apache_ssl_config_path }}"
+    regexp: ^SSLProtocol.*$
+    replace: "{{ ssl_protocol_config }}"
+    backup: true
+  become: true
+  when: ssl_config_stat.stat.exists
+  notify: Restart apache2
+- name: Ensure Apache2 is started and enabled
+  ansible.builtin.service:
+    name: apache2
+    state: started
+    enabled: true
+  become: true
