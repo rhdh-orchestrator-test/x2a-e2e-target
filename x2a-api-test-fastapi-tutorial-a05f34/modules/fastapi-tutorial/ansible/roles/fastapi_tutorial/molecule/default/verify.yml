@@ -1,0 +1,152 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check required configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_config }}"
+      loop:
+        - /opt/fastapi-tutorial/.env
+        - /etc/systemd/system/fastapi-tutorial.service
+        - /opt/fastapi-tutorial/venv/bin/python
+        - /opt/fastapi-tutorial/app/main.py
+        - /opt/fastapi-tutorial/requirements.txt
+      loop_control:
+        loop_var: item_config
+      register: config_stat_results
+
+    - name: Assert configuration files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Expected configuration file not found"
+      loop: "{{ config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert PostgreSQL service is running
+      ansible.builtin.assert:
+        that:
+          - "'postgresql.service' in ansible_facts.services"
+          - "ansible_facts.services['postgresql.service']['state'] == 'running'"
+        fail_msg: "PostgreSQL service is not running"
+
+    - name: Assert fastapi-tutorial service is running and enabled
+      ansible.builtin.assert:
+        that:
+          - "'fastapi-tutorial.service' in ansible_facts.services"
+          - "ansible_facts.services['fastapi-tutorial.service']['state'] == 'running'"
+          - "ansible_facts.services['fastapi-tutorial.service']['status'] == 'enabled'"
+        fail_msg: "FastAPI tutorial service is not running or enabled"
+
+    - name: Check FastAPI application is listening on port 8000
+      ansible.builtin.wait_for:
+        port: 8000
+        host: localhost
+        timeout: 30
+        msg: "FastAPI application is not listening on port 8000"
+
+    - name: Test FastAPI application health endpoint
+      ansible.builtin.uri:
+        url: http://localhost:8000/docs
+        method: GET
+        status_code: 200
+        timeout: 10
+      register: fastapi_health_check
+      failed_when: false
+
+    - name: Check environment configuration content
+      ansible.builtin.slurp:
+        src: /opt/fastapi-tutorial/.env
+      register: env_file_content
+
+    - name: Assert environment configuration contains required variables
+      ansible.builtin.assert:
+        that:
+          - "'PROJECT_NAME' in env_file_content['content'] | b64decode"
+          - "'API_VERSION' in env_file_content['content'] | b64decode"
+          - "'DATABASE_URL' in env_file_content['content'] | b64decode"
+        fail_msg: "Environment file missing required variables"
+
+    - name: Check systemd service configuration content
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/fastapi-tutorial.service
+      register: service_file_content
+
+    - name: Assert systemd service configuration is correct
+      ansible.builtin.assert:
+        that:
+          - "'ExecStart' in service_file_content['content'] | b64decode"
+          - "'WorkingDirectory' in service_file_content['content'] | b64decode"
+          - "'/opt/fastapi-tutorial' in service_file_content['content'] | b64decode"
+        fail_msg: "Systemd service file missing required configuration"
+
+    - name: Check Python virtual environment
+      ansible.builtin.stat:
+        path: "{{ item_venv }}"
+      loop:
+        - /opt/fastapi-tutorial/venv/bin/python
+        - /opt/fastapi-tutorial/venv/bin/pip
+        - /opt/fastapi-tutorial/venv/bin/uvicorn
+      loop_control:
+        loop_var: item_venv
+      register: venv_stat_results
+
+    - name: Assert Python virtual environment is properly set up
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['executable']
+        fail_msg: "Python virtual environment not properly configured"
+      loop: "{{ venv_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+- name: Verify Database Connectivity
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Test PostgreSQL database connectivity
+      ansible.builtin.command:
+        cmd: psql -h localhost -U fastapi -d fastapi_db -c "SELECT version();"
+      environment:
+        PGPASSWORD: fastapi_password
+      register: db_version_check
+      changed_when: false
+      failed_when: false
+
+    - name: Assert database connection successful
+      ansible.builtin.assert:
+        that:
+          - db_version_check['rc'] == 0
+          - "'PostgreSQL' in db_version_check['stdout']"
+        fail_msg: "Database connectivity test failed"
+
+    - name: Verify database user exists
+      ansible.builtin.command:
+        cmd: sudo -u postgres psql -c "SELECT usename FROM pg_user WHERE usename='fastapi';"
+      register: db_user_check
+      changed_when: false
+
+    - name: Assert database user was created
+      ansible.builtin.assert:
+        that:
+          - "'fastapi' in db_user_check['stdout']"
+        fail_msg: "Database user 'fastapi' not found"
+
+    - name: Verify database exists
+      ansible.builtin.command:
+        cmd: sudo -u postgres psql -c "SELECT datname FROM pg_database WHERE datname='fastapi_db';"
+      register: db_exists_check
+      changed_when: false
+
+    - name: Assert database was created
+      ansible.builtin.assert:
+        that:
+          - "'fastapi_db' in db_exists_check['stdout']"
+        fail_msg: "Database 'fastapi_db' not found"
