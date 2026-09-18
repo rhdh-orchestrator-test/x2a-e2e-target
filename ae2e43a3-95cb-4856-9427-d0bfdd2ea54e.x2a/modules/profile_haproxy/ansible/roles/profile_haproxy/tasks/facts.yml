@@ -1,0 +1,15 @@
+---
+- name: Get HAProxy version
+  ansible.builtin.shell:
+    cmd: "set -o pipefail haproxy -v 2>/dev/null | grep -oP 'version\\s+\\K\\d+\\.\\d+\\.\\d+' "
+    executable: /bin/bash
+  register: haproxy_version_output
+  changed_when: false
+  failed_when: false
+  when: ansible_facts.packages['haproxy'] is defined or ansible_facts.packages[profile_haproxy_package_name] is defined
+- name: Set HAProxy version fact
+  ansible.builtin.set_fact:
+    haproxy_version: "{{ haproxy_version_output.stdout | default('unknown') }}"
+- name: Display HAProxy version
+  ansible.builtin.debug:
+    msg: "HAProxy version: {{ haproxy_version }}"

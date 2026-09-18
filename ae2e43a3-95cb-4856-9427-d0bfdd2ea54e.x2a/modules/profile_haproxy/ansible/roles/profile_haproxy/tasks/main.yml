@@ -1,0 +1,28 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Load OS-specific variables
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+- name: Load datacenter-specific variables
+  ansible.builtin.include_vars: datacenter_{{ datacenter }}.yml
+  when: datacenter is defined
+- name: Load environment-specific variables
+  ansible.builtin.include_vars: environment_{{ ansible_environment }}.yml
+  when: ansible_environment is defined
+- name: Load cluster-specific variables
+  ansible.builtin.include_vars: cluster_{{ cluster_name }}.yml
+  when: cluster_name is defined
+- name: Load host-specific variables
+  ansible.builtin.include_vars: host_{{ inventory_hostname | replace('.', '_') | replace('-', '_') }}.yml
+  failed_when: false
+- name: Install HAProxy
+  ansible.builtin.include_tasks: install.yml
+- name: Configure HAProxy
+  ansible.builtin.include_tasks: config.yml
+- name: Configure firewall
+  ansible.builtin.include_tasks: firewall.yml
+- name: Discover backend servers
+  ansible.builtin.include_tasks: discover.yml
+  when: profile_haproxy_discovery_enabled | default(false)
+- name: Manage HAProxy service
+  ansible.builtin.include_tasks: service.yml

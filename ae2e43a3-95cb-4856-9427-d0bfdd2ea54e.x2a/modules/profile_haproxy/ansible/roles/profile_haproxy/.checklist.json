@@ -1,0 +1,237 @@
+{
+  "module_name": "profile_haproxy",
+  "items": [
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_haproxy/aap-configuration/controller_credential_types.yml",
+      "status": "complete",
+      "description": "AAP credential types configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_haproxy/aap-configuration/controller_credentials.yml",
+      "status": "complete",
+      "description": "AAP credentials configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_haproxy/tasks/validate_credentials.yml",
+      "status": "complete",
+      "description": "Credential validation tasks",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_haproxy/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "site-modules/profile_haproxy/data/common.yaml",
+      "target_path": "ansible/roles/profile_haproxy/meta/argument_specs.yml",
+      "status": "complete",
+      "description": "Role argument specs for fail-fast parameter validation (generate after defaults/main.yml)",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_haproxy/handlers/main.yml",
+      "status": "complete",
+      "description": "Task handlers",
+      "notes": ""
+    },
+    {
+      "category": "templates",
+      "source_path": "site-modules/profile_haproxy/templates/haproxy.cfg.erb",
+      "target_path": "ansible/roles/profile_haproxy/templates/haproxy.cfg.j2",
+      "status": "complete",
+      "description": "Main HAProxy configuration template",
+      "notes": ""
+    },
+    {
+      "category": "templates",
+      "source_path": "site-modules/profile_haproxy/templates/backend.conf.epp",
+      "target_path": "ansible/roles/profile_haproxy/templates/backend.conf.j2",
+      "status": "complete",
+      "description": "Backend configuration template",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_haproxy/manifests/init.pp",
+      "target_path": "ansible/roles/profile_haproxy/tasks/main.yml",
+      "status": "complete",
+      "description": "Main profile class - orchestrates all components",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_haproxy/manifests/install.pp",
+      "target_path": "ansible/roles/profile_haproxy/tasks/install.yml",
+      "status": "complete",
+      "description": "Package installation and user/group setup",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_haproxy/manifests/config.pp",
+      "target_path": "ansible/roles/profile_haproxy/tasks/config.yml",
+      "status": "complete",
+      "description": "Configuration file management",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_haproxy/manifests/service.pp",
+      "target_path": "ansible/roles/profile_haproxy/tasks/service.yml",
+      "status": "complete",
+      "description": "Service management and systemd configuration",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_haproxy/manifests/firewall.pp",
+      "target_path": "ansible/roles/profile_haproxy/tasks/firewall.yml",
+      "status": "complete",
+      "description": "Firewall configuration (firewalld/ufw)",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_haproxy/manifests/discover.pp",
+      "target_path": "ansible/roles/profile_haproxy/tasks/discover.yml",
+      "status": "complete",
+      "description": "Dynamic backend discovery via PuppetDB",
+      "notes": ""
+    },
+    {
+      "category": "attributes",
+      "source_path": "site-modules/profile_haproxy/data/common.yaml",
+      "target_path": "ansible/roles/profile_haproxy/defaults/main.yml",
+      "status": "complete",
+      "description": "Base defaults for all nodes",
+      "notes": ""
+    },
+    {
+      "category": "attributes",
+      "source_path": "site-modules/profile_haproxy/data/os/RedHat.yaml",
+      "target_path": "ansible/roles/profile_haproxy/vars/RedHat.yml",
+      "status": "complete",
+      "description": "OS-specific variables for RedHat family",
+      "notes": ""
+    },
+    {
+      "category": "attributes",
+      "source_path": "site-modules/profile_haproxy/data/os/Debian.yaml",
+      "target_path": "ansible/roles/profile_haproxy/vars/Debian.yml",
+      "status": "complete",
+      "description": "OS-specific variables for Debian family",
+      "notes": ""
+    },
+    {
+      "category": "attributes",
+      "source_path": "site-modules/profile_haproxy/data/datacenter/dc1_fra.yaml",
+      "target_path": "ansible/roles/profile_haproxy/vars/datacenter_dc1_fra.yml",
+      "status": "complete",
+      "description": "Datacenter-specific variables for Frankfurt DC1",
+      "notes": ""
+    },
+    {
+      "category": "attributes",
+      "source_path": "site-modules/profile_haproxy/data/environment/production.yaml",
+      "target_path": "ansible/roles/profile_haproxy/vars/environment_production.yml",
+      "status": "complete",
+      "description": "Production environment overrides",
+      "notes": ""
+    },
+    {
+      "category": "attributes",
+      "source_path": "site-modules/profile_haproxy/data/environment/staging.yaml",
+      "target_path": "ansible/roles/profile_haproxy/vars/environment_staging.yml",
+      "status": "complete",
+      "description": "Staging environment overrides",
+      "notes": ""
+    },
+    {
+      "category": "attributes",
+      "source_path": "site-modules/profile_haproxy/data/cluster/haproxy_prod_fra.yaml",
+      "target_path": "ansible/roles/profile_haproxy/vars/cluster_haproxy_prod_fra.yml",
+      "status": "complete",
+      "description": "Cluster-specific overrides for production Frankfurt HAProxy cluster",
+      "notes": ""
+    },
+    {
+      "category": "attributes",
+      "source_path": "site-modules/profile_haproxy/data/nodes/lb01.fra.example.com.yaml",
+      "target_path": "ansible/roles/profile_haproxy/vars/host_lb01_fra_example_com.yml",
+      "status": "complete",
+      "description": "Host-specific overrides for individual load balancer",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_haproxy/lib/facter/haproxy_version.rb",
+      "target_path": "ansible/roles/profile_haproxy/tasks/facts.yml",
+      "status": "complete",
+      "description": "Custom fact for HAProxy version detection",
+      "notes": ""
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.posix",
+      "target_path": "ansible/roles/profile_haproxy/requirements.yml",
+      "status": "complete",
+      "description": "Firewall management for POSIX systems (firewalld, SELinux)",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_haproxy/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule scenario configuration for AAP testing",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_haproxy/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook that runs the role",
+      "notes": "Generated converge.yml that includes the profile_haproxy role via ansible.builtin.include_role"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_haproxy/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification tasks for HAProxy service validation",
+      "notes": "Generated verify.yml with comprehensive tests based on migration plan pre-flight checks: service status, configuration files, port accessibility, HAProxy config validation, user/group existence, and configuration content verification"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_haproxy/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Molecule create playbook (no-op for delegated driver)",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/profile_haproxy/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Molecule destroy playbook (no-op for delegated driver)",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    }
+  ]
+}

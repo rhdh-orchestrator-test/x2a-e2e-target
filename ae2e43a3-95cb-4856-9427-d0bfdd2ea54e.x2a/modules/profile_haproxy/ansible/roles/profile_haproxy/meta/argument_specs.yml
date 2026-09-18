@@ -1,0 +1,220 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure HAProxy load balancer
+    description:
+      - Deploys HAProxy with SSL termination, statistics interface, firewall rules, and dynamic backend discovery.
+      - Supports multiple backends, stick tables for session persistence, and environment-specific configuration.
+    options:
+      profile_haproxy_package_name:
+        type: str
+        required: false
+        default: haproxy
+        description: Name of the HAProxy package to install.
+      profile_haproxy_extra_packages:
+        type: list
+        elements: str
+        required: false
+        description: Additional packages to install with HAProxy.
+      profile_haproxy_config_dir:
+        type: str
+        required: false
+        default: /etc/haproxy
+        description: Directory for HAProxy configuration files.
+      profile_haproxy_config_file:
+        type: str
+        required: false
+        default: /etc/haproxy/haproxy.cfg
+        description: Path to the main HAProxy configuration file.
+      profile_haproxy_service_name:
+        type: str
+        required: false
+        default: haproxy
+        description: Name of the HAProxy service.
+      profile_haproxy_user:
+        type: str
+        required: false
+        default: haproxy
+        description: User account for HAProxy process.
+      profile_haproxy_group:
+        type: str
+        required: false
+        default: haproxy
+        description: Group for HAProxy process.
+      profile_haproxy_stats_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether to enable HAProxy statistics interface.
+      profile_haproxy_stats_port:
+        type: int
+        required: false
+        default: 9000
+        description: TCP port for HAProxy statistics interface.
+      profile_haproxy_stats_uri:
+        type: str
+        required: false
+        default: /haproxy-stats
+        description: URI path for HAProxy statistics interface.
+      profile_haproxy_discovery_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether to enable dynamic backend server discovery.
+      profile_haproxy_firewall_provider:
+        type: str
+        required: false
+        default: ufw
+        choices:
+          - ufw
+          - firewalld
+          - none
+        description: Firewall provider to use for port management.
+      profile_haproxy_firewall_zone:
+        type: str
+        required: false
+        default: public
+        description: Firewall zone for firewalld rules.
+      profile_haproxy_selinux_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether to configure SELinux for HAProxy.
+      profile_haproxy_stick_table_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether to enable stick tables for session persistence.
+      profile_haproxy_stick_table_size:
+        type: str
+        required: false
+        default: 100k
+        description: Size of the stick table.
+      profile_haproxy_stick_table_expire:
+        type: str
+        required: false
+        default: 30m
+        description: Expiration time for stick table entries.
+      stats_user:
+        type: str
+        required: true
+        description: Username for HAProxy statistics interface (injected by AAP credential types).
+      stats_password:
+        type: str
+        required: true
+        description: Password for HAProxy statistics interface (injected by AAP credential types).
+      profile_haproxy_global_maxconn:
+        type: int
+        required: false
+        default: 4096
+        description: Maximum number of concurrent connections.
+      profile_haproxy_client_timeout:
+        type: str
+        required: false
+        default: 30s
+        description: Client connection timeout.
+      profile_haproxy_server_timeout:
+        type: str
+        required: false
+        default: 30s
+        description: Server connection timeout.
+      profile_haproxy_connect_timeout:
+        type: str
+        required: false
+        default: 5s
+        description: Connection establishment timeout.
+      profile_haproxy_connection_retries:
+        type: int
+        required: false
+        default: 3
+        description: Number of connection retries.
+      profile_haproxy_ssl_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether to enable SSL/TLS termination.
+      profile_haproxy_ssl_cert_path:
+        type: str
+        required: false
+        default: /etc/ssl/certs
+        description: Directory containing SSL certificates.
+      profile_haproxy_ssl_key_path:
+        type: str
+        required: false
+        default: /etc/ssl/private
+        description: Directory containing SSL private keys.
+      profile_haproxy_ssl_ciphers:
+        type: str
+        required: false
+        default: ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256
+        description: SSL cipher suite configuration.
+      profile_haproxy_ssl_min_version:
+        type: str
+        required: false
+        default: TLSv1.2
+        description: Minimum SSL/TLS version.
+      profile_haproxy_log_server:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: Syslog server address.
+      profile_haproxy_log_facility:
+        type: str
+        required: false
+        default: local0
+        description: Syslog facility.
+      profile_haproxy_log_level:
+        type: str
+        required: false
+        default: info
+        description: Log level.
+      profile_haproxy_backends:
+        type: dict
+        required: false
+        default:
+          webservers:
+            balance: roundrobin
+            port: 8080
+            health_check: httpchk GET /health
+            health_interval: 5s
+            servers:
+              - name: web1
+                address: 10.0.1.10
+                weight: 100
+          api:
+            balance: leastconn
+            port: 3000
+            health_check: httpchk GET /api/health
+            health_interval: 10s
+            servers:
+              - name: api1
+                address: 10.0.2.10
+                weight: 100
+        description: Backend server configuration including load balancing method, health checks, and server definitions.
+        options:
+          balance:
+            type: str
+            description: Load balancing algorithm (roundrobin, leastconn, etc.).
+          port:
+            type: int
+            description: Backend server port.
+          health_check:
+            type: str
+            description: Health check method.
+          health_interval:
+            type: str
+            description: Health check interval.
+          servers:
+            type: list
+            elements: dict
+            description: List of backend servers.
+            options:
+              name:
+                type: str
+                description: Server name.
+              address:
+                type: str
+                description: Server IP address.
+              weight:
+                type: int
+                description: Server weight for load balancing.

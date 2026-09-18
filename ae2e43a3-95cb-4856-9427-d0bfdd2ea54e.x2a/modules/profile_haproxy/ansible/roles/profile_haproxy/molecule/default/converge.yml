@@ -1,0 +1,8 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Include profile_haproxy
+      ansible.builtin.include_role:
+        name: profile_haproxy
