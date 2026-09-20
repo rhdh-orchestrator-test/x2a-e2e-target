@@ -1,0 +1,36 @@
+---
+- name: Install Apache web server
+  ansible.builtin.package:
+    name: "{{ 'apache2' if ansible_os_family == 'Debian' else 'httpd' }}"
+    state: present
+  become: true
+- name: Enable Apache SSL module (Debian/Ubuntu)
+  ansible.builtin.apache2_module:
+    name: ssl
+    state: present
+  become: true
+  when: ansible_os_family == 'Debian'
+  notify: Restart apache
+- name: Ensure Apache SSL configuration directory exists
+  ansible.builtin.file:
+    path: "{{ apache_config_path | dirname }}"
+    state: directory
+    mode: "0755"
+  become: true
+- name: Deploy secure SSL configuration template
+  ansible.builtin.template:
+    src: ssl.conf.j2
+    dest: "{{ apache_config_path }}"
+    backup: "{{ backup_config }}"
+    mode: "0644"
+  become: true
+  notify: Restart apache
+- name: Fix SSL protocols in existing Apache configuration (fallback)
+  ansible.builtin.replace:
+    dest: "{{ apache_config_path }}"
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol {{ apache_ssl_protocols | join(' ') }}
+    backup: "{{ backup_config }}"
+  become: true
+  when: not ansible_check_mode
+  notify: Restart apache

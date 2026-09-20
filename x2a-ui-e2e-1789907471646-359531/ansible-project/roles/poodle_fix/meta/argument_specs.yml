@@ -1,0 +1,29 @@
+---
+argument_specs:
+  main:
+    short_description: Fix Apache SSL configuration to mitigate POODLE vulnerability
+    description:
+      - Installs Apache web server if not present
+      - Enables SSL module on Debian/Ubuntu systems
+      - Deploys secure SSL configuration template to mitigate POODLE vulnerability (CVE-2014-3566)
+      - Enforces TLSv1.2 and disables vulnerable SSL protocols
+      - Restarts Apache service after configuration changes
+      - Provides configurable SSL protocols and backup options
+    options:
+      apache_config_path:
+        type: str
+        required: false
+        description: Path to Apache SSL configuration file (auto-detected based on OS family)
+      apache_ssl_protocols:
+        type: list
+        elements: str
+        required: false
+        default:
+          - -all
+          - +TLSv1.2
+        description: SSL protocols to enable/disable in Apache configuration
+      backup_config:
+        type: bool
+        required: false
+        default: true
+        description: Whether to backup original configuration file before modification
