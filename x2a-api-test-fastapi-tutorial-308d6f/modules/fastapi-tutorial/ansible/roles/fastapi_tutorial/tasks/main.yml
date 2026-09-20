@@ -1,0 +1,81 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Install required system packages
+  ansible.builtin.package:
+    name: "{{ fastapi_tutorial_system_packages }}"
+    state: present
+- name: Initialize PostgreSQL database (Debian/Ubuntu)
+  ansible.builtin.command:
+    cmd: postgresql-setup initdb
+    creates: /var/lib/pgsql/data/postgresql.conf
+  when: ansible_os_family == "RedHat"
+  ignore_errors: true
+- name: Enable and start PostgreSQL service
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true
+- name: Create PostgreSQL database user
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: "{{ db_username }}"
+    password: "{{ db_password }}"
+    state: present
+  vars:
+    ansible_ssh_pipelining: true
+- name: Create PostgreSQL database
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "{{ db_name }}"
+    owner: "{{ db_username }}"
+    state: present
+  vars:
+    ansible_ssh_pipelining: true
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ fastapi_tutorial_app_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+- name: Clone FastAPI tutorial repository
+  ansible.builtin.git:
+    repo: "{{ fastapi_tutorial_git_repo }}"
+    dest: "{{ fastapi_tutorial_app_dir }}"
+    version: "{{ fastapi_tutorial_git_version }}"
+    force: true
+- name: Create Python virtual environment
+  ansible.builtin.command:
+    cmd: python3 -m venv {{ fastapi_tutorial_venv_path }}
+    creates: "{{ fastapi_tutorial_venv_path }}"
+- name: Install Python dependencies
+  ansible.builtin.pip:
+    requirements: "{{ fastapi_tutorial_app_dir }}/requirements.txt"
+    virtualenv: "{{ fastapi_tutorial_venv_path }}"
+- name: Create environment configuration file
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ fastapi_tutorial_app_dir }}/.env"
+    mode: "0644"
+    owner: root
+    group: root
+    backup: true
+- name: Create systemd service file
+  ansible.builtin.template:
+    src: fastapi-tutorial.service.j2
+    dest: /etc/systemd/system/fastapi-tutorial.service
+    mode: "0644"
+    owner: root
+    group: root
+    backup: true
+  notify: Reload systemd daemon
+- name: Force systemd daemon reload
+  ansible.builtin.meta: flush_handlers
+- name: Enable and start FastAPI tutorial service
+  ansible.builtin.service:
+    name: fastapi-tutorial
+    state: started
+    enabled: true
