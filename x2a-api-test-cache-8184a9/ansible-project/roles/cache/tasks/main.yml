@@ -1,0 +1,91 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Install memcached packages
+  ansible.builtin.package:
+    name: "{{ cache_memcached_packages }}"
+    state: present
+- name: Install Redis packages
+  ansible.builtin.package:
+    name: "{{ cache_redis_packages }}"
+    state: present
+- name: Ensure Redis group exists
+  ansible.builtin.group:
+    name: "{{ cache_redis_group }}"
+    state: present
+- name: Ensure Redis user exists
+  ansible.builtin.user:
+    name: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    system: true
+    shell: /bin/false
+    home: /var/lib/redis
+    create_home: false
+    state: present
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_dir }}"
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+    state: directory
+    recurse: true
+- name: Configure Redis server
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}"
+    regexp: ^#?requirepass
+    line: requirepass {{ redis_password }}
+    backup: true
+  notify: Restart redis
+- name: Configure Redis port
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}"
+    regexp: ^#?port
+    line: port {{ cache_redis_port }}
+    backup: true
+  notify: Restart redis
+- name: Remove replica-serve-stale-data setting
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}"
+    regexp: ^replica-serve-stale-data.*$
+    state: absent
+    backup: true
+  notify: Restart redis
+- name: Remove replica-read-only setting
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}"
+    regexp: ^replica-read-only.*$
+    state: absent
+    backup: true
+  notify: Restart redis
+- name: Remove repl-ping-replica-period setting
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}"
+    regexp: ^repl-ping-replica-period.*$
+    state: absent
+    backup: true
+  notify: Restart redis
+- name: Remove client-output-buffer-limit setting
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}"
+    regexp: ^client-output-buffer-limit.*$
+    state: absent
+    backup: true
+  notify: Restart redis
+- name: Remove replica-priority setting
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}"
+    regexp: ^replica-priority.*$
+    state: absent
+    backup: true
+  notify: Restart redis
+- name: Start and enable memcached service
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service }}"
+    state: started
+    enabled: true
+- name: Start and enable Redis service
+  ansible.builtin.service:
+    name: "{{ cache_redis_service }}"
+    state: started
+    enabled: true
