@@ -1,0 +1,19 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis cache server
+    description:
+      - Installs Redis server package and ensures the service is running
+      - Uses system default Redis configuration for simple cache deployment
+      - Provides basic Redis cache functionality on default port 6379
+    options:
+      cache_service_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Name of the Redis service to manage (distribution-specific)
+      cache_package_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Name of the Redis package to install (distribution-specific)
