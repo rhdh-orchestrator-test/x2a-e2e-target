@@ -1,0 +1,138 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check application directory exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: app_dir_stat
+
+    - name: Assert application directory was created
+      ansible.builtin.assert:
+        that:
+          - app_dir_stat['stat']['exists']
+          - app_dir_stat['stat']['isdir']
+        fail_msg: "Application directory not found"
+
+    - name: Check Python virtual environment exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv
+      register: venv_stat
+
+    - name: Assert virtual environment was created
+      ansible.builtin.assert:
+        that:
+          - venv_stat['stat']['exists']
+          - venv_stat['stat']['isdir']
+        fail_msg: "Python virtual environment not found"
+
+    - name: Check environment configuration file exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/.env
+      register: env_file_stat
+
+    - name: Assert environment file was created
+      ansible.builtin.assert:
+        that:
+          - env_file_stat['stat']['exists']
+          - env_file_stat['stat']['size'] > 0
+        fail_msg: "Environment configuration file not found"
+
+    - name: Check systemd service file exists
+      ansible.builtin.stat:
+        path: /etc/systemd/system/fastapi-tutorial.service
+      register: service_file_stat
+
+    - name: Assert systemd service file was created
+      ansible.builtin.assert:
+        that:
+          - service_file_stat['stat']['exists']
+          - service_file_stat['stat']['size'] > 0
+        fail_msg: "Systemd service file not found"
+
+    - name: Check application files exist
+      ansible.builtin.stat:
+        path: "{{ item_app_file }}"
+      loop:
+        - /opt/fastapi-tutorial/requirements.txt
+        - /opt/fastapi-tutorial/app
+      loop_control:
+        loop_var: item_app_file
+      register: app_files_stat
+
+    - name: Assert application files were cloned
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+        fail_msg: "Application files not found"
+      loop: "{{ app_files_stat['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Get service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert FastAPI tutorial service is running
+      ansible.builtin.assert:
+        that:
+          - "'fastapi-tutorial.service' in ansible_facts.services"
+          - ansible_facts.services['fastapi-tutorial.service']['state'] == 'running'
+        fail_msg: "FastAPI tutorial service is not running"
+
+    - name: Assert PostgreSQL service is running
+      ansible.builtin.assert:
+        that:
+          - "'postgresql.service' in ansible_facts.services"
+          - ansible_facts.services['postgresql.service']['state'] == 'running'
+        fail_msg: "PostgreSQL service is not running"
+
+    - name: Check FastAPI application is listening on port 8000
+      ansible.builtin.wait_for:
+        port: 8000
+        host: 0.0.0.0
+        timeout: 30
+
+    - name: Check PostgreSQL is listening on port 5432
+      ansible.builtin.wait_for:
+        port: 5432
+        host: localhost
+        timeout: 10
+
+    - name: Test FastAPI application health
+      ansible.builtin.uri:
+        url: http://localhost:8000
+        method: GET
+        status_code: [200, 404]
+      register: app_health_check
+
+    - name: Assert FastAPI application responds
+      ansible.builtin.assert:
+        that:
+          - app_health_check['status'] in [200, 404]
+        fail_msg: "FastAPI application not responding"
+
+    - name: Check environment configuration content
+      ansible.builtin.slurp:
+        src: /opt/fastapi-tutorial/.env
+      register: env_content
+
+    - name: Assert environment configuration contains required variables
+      ansible.builtin.assert:
+        that:
+          - "'PROJECT_NAME' in env_content['content'] | b64decode"
+          - "'API_VERSION' in env_content['content'] | b64decode"
+          - "'DATABASE_URL' in env_content['content'] | b64decode"
+        fail_msg: "Environment configuration missing required variables"
+
+    - name: Check Python virtual environment executable
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/python
+      register: venv_python_stat
+
+    - name: Assert Python executable exists in virtual environment
+      ansible.builtin.assert:
+        that:
+          - venv_python_stat['stat']['exists']
+          - venv_python_stat['stat']['executable']
+        fail_msg: "Python executable not found in virtual environment"

@@ -1,0 +1,16 @@
+[Unit]
+Description={{ fastapi_tutorial_service_description }}
+{% for after_service in fastapi_tutorial_service_after %}
+After={{ after_service }}
+{% endfor %}
+
+[Service]
+Type=simple
+User={{ fastapi_tutorial_app_user }}
+WorkingDirectory={{ fastapi_tutorial_app_dir }}
+Environment="PATH={{ fastapi_tutorial_venv_path }}/bin"
+ExecStart={{ fastapi_tutorial_venv_path }}/bin/uvicorn app.main:app --host {{ fastapi_tutorial_app_host }} --port {{ fastapi_tutorial_app_port }}
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
