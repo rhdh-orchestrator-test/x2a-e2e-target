@@ -1,0 +1,74 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Install cache packages
+  ansible.builtin.package:
+    name:
+      - memcached
+      - redis-server
+    state: present
+- name: Create redis user
+  ansible.builtin.user:
+    name: redis
+    system: true
+    shell: /bin/false
+    home: /var/lib/redis
+    create_home: false
+    state: present
+- name: Create memcache user
+  ansible.builtin.user:
+    name: memcache
+    system: true
+    shell: /bin/false
+    home: /nonexistent
+    create_home: false
+    state: present
+- name: Create Redis working directory
+  ansible.builtin.file:
+    path: /var/lib/redis
+    owner: redis
+    group: redis
+    mode: "0755"
+    state: directory
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    owner: redis
+    group: redis
+    mode: "0755"
+    state: directory
+- name: Create Redis PID directory
+  ansible.builtin.file:
+    path: /var/run/redis
+    owner: redis
+    group: redis
+    mode: "0755"
+    state: directory
+- name: Configure Redis server
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: /etc/redis/6379.conf
+    owner: redis
+    group: redis
+    mode: "0640"
+    backup: true
+  notify: Restart redis
+- name: Configure memcached
+  ansible.builtin.template:
+    src: memcached.conf.j2
+    dest: /etc/memcached.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Restart memcached
+- name: Start and enable cache services
+  ansible.builtin.service:
+    name: "{{ item_cache }}"
+    state: started
+    enabled: true
+  loop:
+    - memcached
+    - redis-server
+  loop_control:
+    loop_var: item_cache
