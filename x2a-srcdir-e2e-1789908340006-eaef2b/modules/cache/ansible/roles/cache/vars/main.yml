@@ -1,0 +1,11 @@
+---
+redis_package_name: "{{ _redis_package_name[ansible_os_family] | default(_redis_package_name['default']) }}"
+redis_service_name: "{{ _redis_service_name[ansible_os_family] | default(_redis_service_name['default']) }}"
+_redis_package_name:
+  Debian: redis-server
+  RedHat: redis
+  default: redis-server
+_redis_service_name:
+  Debian: redis-server
+  RedHat: redis
+  default: redis-server
