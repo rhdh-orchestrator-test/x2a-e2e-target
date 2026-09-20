@@ -1,0 +1,86 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis service status
+      ansible.builtin.service_facts:
+
+    - name: Assert Redis service is running
+      ansible.builtin.assert:
+        that:
+          - "'redis-server.service' in ansible_facts.services"
+          - "ansible_facts.services['redis-server.service']['state'] == 'running'"
+        fail_msg: "Redis service is not running"
+
+    - name: Check Redis port is listening
+      ansible.builtin.wait_for:
+        port: 6379
+        host: 127.0.0.1
+        timeout: 10
+        msg: "Redis port 6379 is not listening"
+
+    - name: Test Redis connectivity with ping
+      ansible.builtin.command:
+        cmd: redis-cli ping
+      register: redis_ping_result
+      changed_when: false
+
+    - name: Assert Redis responds to ping
+      ansible.builtin.assert:
+        that:
+          - "redis_ping_result.stdout == 'PONG'"
+        fail_msg: "Redis did not respond to ping command"
+
+    - name: Test Redis basic operations
+      ansible.builtin.command:
+        cmd: "{{ item_redis_cmd }}"
+      loop:
+        - redis-cli set molecule_test_key "molecule_test_value"
+        - redis-cli get molecule_test_key
+        - redis-cli del molecule_test_key
+      loop_control:
+        loop_var: item_redis_cmd
+      register: redis_ops_results
+      changed_when: false
+
+    - name: Assert Redis operations work correctly
+      ansible.builtin.assert:
+        that:
+          - "redis_ops_results['results'][0]['stdout'] == 'OK'"
+          - "redis_ops_results['results'][1]['stdout'] == 'molecule_test_value'"
+          - "redis_ops_results['results'][2]['stdout'] == '1'"
+        fail_msg: "Redis basic operations failed"
+
+    - name: Check Redis configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_config_path }}"
+      loop:
+        - /etc/redis/redis.conf
+        - /var/lib/redis
+        - /var/log/redis
+      loop_control:
+        loop_var: item_config_path
+      register: redis_paths_stat
+
+    - name: Assert Redis paths exist
+      ansible.builtin.assert:
+        that:
+          - item_path_result['stat']['exists']
+        fail_msg: "Required Redis path not found"
+      loop: "{{ redis_paths_stat['results'] }}"
+      loop_control:
+        loop_var: item_path_result
+
+    - name: Get Redis server info
+      ansible.builtin.command:
+        cmd: redis-cli info server
+      register: redis_info_result
+      changed_when: false
+
+    - name: Assert Redis server info contains expected data
+      ansible.builtin.assert:
+        that:
+          - "'redis_version' in redis_info_result.stdout"
+          - "'tcp_port:6379' in redis_info_result.stdout"
+        fail_msg: "Redis server info does not contain expected data"
