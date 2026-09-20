@@ -1,0 +1,68 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Apache SSL configuration file exists
+      ansible.builtin.stat:
+        path: /etc/apache2/mods-available/ssl.conf
+      register: ssl_config_stat
+
+    - name: Assert SSL configuration file exists
+      ansible.builtin.assert:
+        that:
+          - ssl_config_stat['stat']['exists']
+          - ssl_config_stat['stat']['size'] > 0
+        fail_msg: "Apache SSL configuration file not found"
+
+    - name: Read SSL configuration file content
+      ansible.builtin.slurp:
+        src: /etc/apache2/mods-available/ssl.conf
+      register: ssl_config_content
+
+    - name: Assert SSL protocol configuration is correct
+      ansible.builtin.assert:
+        that:
+          - "'SSLProtocol -all +TLSv1.2' in (ssl_config_content['content'] | b64decode)"
+        fail_msg: "SSL protocol not configured correctly"
+
+    - name: Check Apache configuration syntax
+      ansible.builtin.command:
+        cmd: apache2ctl configtest
+      register: apache_configtest
+      changed_when: false
+      failed_when: apache_configtest['rc'] != 0
+
+    - name: Assert Apache configuration is valid
+      ansible.builtin.assert:
+        that:
+          - apache_configtest['rc'] == 0
+        fail_msg: "Apache configuration syntax is invalid"
+
+    - name: Check if Apache SSL module is loaded
+      ansible.builtin.command:
+        cmd: apache2ctl -M
+      register: apache_modules
+      changed_when: false
+
+    - name: Assert SSL module is available
+      ansible.builtin.assert:
+        that:
+          - "'ssl_module' in apache_modules['stdout']"
+        fail_msg: "Apache SSL module not loaded"
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert Apache2 service is running
+      ansible.builtin.assert:
+        that:
+          - "'apache2.service' in ansible_facts.services"
+          - "ansible_facts.services['apache2.service']['state'] == 'running'"
+        fail_msg: "Apache2 service is not running"
+
+    - name: Assert SSH service is running
+      ansible.builtin.assert:
+        that:
+          - "'sshd.service' in ansible_facts.services or 'ssh.service' in ansible_facts.services"
+        fail_msg: "SSH service is not running"
