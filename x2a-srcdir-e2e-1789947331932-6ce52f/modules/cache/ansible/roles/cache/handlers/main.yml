@@ -1,0 +1,9 @@
+---
+- name: Restart Redis service
+  ansible.builtin.service:
+    name: "{{ cache_redis_service }}"
+    state: restarted
+- name: Reload Redis service
+  ansible.builtin.service:
+    name: "{{ cache_redis_service }}"
+    state: reloaded
