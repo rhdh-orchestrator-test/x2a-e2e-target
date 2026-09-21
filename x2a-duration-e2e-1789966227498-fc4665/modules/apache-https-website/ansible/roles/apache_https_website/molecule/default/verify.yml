@@ -1,0 +1,144 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Apache configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_config }}"
+      loop:
+        - /etc/apache2/sites-available/helloworld.conf
+        - /var/www/helloworld/index.html
+      loop_control:
+        loop_var: item_config
+      register: config_stat_results
+
+    - name: Assert configuration files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Expected configuration file not found"
+      loop: "{{ config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check SSL certificate files exist
+      ansible.builtin.stat:
+        path: "{{ item_ssl }}"
+      loop:
+        - /etc/apache2/certs/apache.crt
+        - /etc/apache2/certs/apache.key
+        - /etc/apache2/certs/apache.csr
+      loop_control:
+        loop_var: item_ssl
+      register: ssl_stat_results
+
+    - name: Assert SSL files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Expected SSL file not found"
+      loop: "{{ ssl_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Verify Apache configuration syntax
+      ansible.builtin.command:
+        cmd: apache2ctl configtest
+      register: apache_configtest
+      changed_when: false
+
+    - name: Assert Apache configuration is valid
+      ansible.builtin.assert:
+        that:
+          - apache_configtest['rc'] == 0
+        fail_msg: "Apache configuration syntax is invalid"
+
+    - name: Check SSL certificate validity
+      ansible.builtin.command:
+        cmd: openssl x509 -in /etc/apache2/certs/apache.crt -text -noout
+      register: ssl_cert_check
+      changed_when: false
+
+    - name: Assert SSL certificate is valid
+      ansible.builtin.assert:
+        that:
+          - ssl_cert_check['rc'] == 0
+        fail_msg: "SSL certificate is invalid"
+
+    - name: Get service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert Apache service is running
+      ansible.builtin.assert:
+        that:
+          - "'apache2.service' in ansible_facts.services"
+          - ansible_facts.services['apache2.service']['state'] == 'running'
+        fail_msg: "Apache service is not running"
+
+    - name: Check enabled Apache sites
+      ansible.builtin.command:
+        cmd: a2ensite -l
+      register: enabled_sites
+      changed_when: false
+
+    - name: Assert helloworld site is enabled
+      ansible.builtin.assert:
+        that:
+          - "'helloworld' in enabled_sites['stdout']"
+        fail_msg: "Helloworld site is not enabled"
+
+    - name: Check Apache modules
+      ansible.builtin.command:
+        cmd: apache2ctl -M
+      register: apache_modules
+      changed_when: false
+
+    - name: Assert SSL module is enabled
+      ansible.builtin.assert:
+        that:
+          - "'ssl_module' in apache_modules['stdout']"
+        fail_msg: "SSL module is not enabled"
+
+    - name: Test HTTPS site accessibility
+      ansible.builtin.uri:
+        url: https://localhost/
+        method: GET
+        validate_certs: false
+        return_content: true
+      register: https_response
+
+    - name: Assert HTTPS site is accessible
+      ansible.builtin.assert:
+        that:
+          - https_response['status'] == 200
+          - "'Hello, world!' in https_response['content']"
+        fail_msg: "HTTPS site is not accessible or content is incorrect"
+
+    - name: Check document root directory permissions
+      ansible.builtin.stat:
+        path: /var/www/helloworld
+      register: docroot_stat
+
+    - name: Assert document root has correct permissions
+      ansible.builtin.assert:
+        that:
+          - docroot_stat['stat']['exists']
+          - docroot_stat['stat']['isdir']
+          - docroot_stat['stat']['mode'] == '0755'
+        fail_msg: "Document root directory has incorrect permissions"
+
+    - name: Check SSL certificate directory permissions
+      ansible.builtin.stat:
+        path: /etc/apache2/certs
+      register: ssl_dir_stat
+
+    - name: Assert SSL directory has correct permissions
+      ansible.builtin.assert:
+        that:
+          - ssl_dir_stat['stat']['exists']
+          - ssl_dir_stat['stat']['isdir']
+          - ssl_dir_stat['stat']['mode'] == '0750'
+        fail_msg: "SSL certificate directory has incorrect permissions"

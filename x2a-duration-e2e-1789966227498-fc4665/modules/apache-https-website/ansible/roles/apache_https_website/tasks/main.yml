@@ -1,0 +1,99 @@
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+  become: true
+- name: Install Apache2 with specific version
+  ansible.builtin.package:
+    name: apache2={{ apache_version }}
+    state: present
+  become: true
+- name: Install SSL support packages
+  ansible.builtin.package:
+    name: '{{ ssl_packages }}'
+    state: present
+  become: true
+- name: Create directory for SSL certificates
+  ansible.builtin.file:
+    path: '{{ ssl_cert_dir }}'
+    state: directory
+    mode: '0750'
+  become: true
+- name: Generate SSL private key
+  community.crypto.openssl_privatekey:
+    path: '{{ apache_ssl_key_path }}'
+    state: present
+  become: true
+- name: Generate SSL certificate signing request
+  community.crypto.openssl_csr:
+    path: '{{ apache_ssl_csr_path }}'
+    privatekey_path: '{{ apache_ssl_key_path }}'
+    common_name: '{{ ssl_common_name }}'
+    state: present
+  become: true
+- name: Generate self-signed SSL certificate
+  community.crypto.x509_certificate:
+    path: '{{ apache_ssl_cert_path }}'
+    privatekey_path: '{{ apache_ssl_key_path }}'
+    csr_path: '{{ apache_ssl_csr_path }}'
+    provider: selfsigned
+    state: present
+  become: true
+- name: Configure Hello World virtual host
+  ansible.builtin.template:
+    src: helloworld.conf.j2
+    dest: /etc/apache2/sites-available/{{ apache_site_name }}.conf
+    mode: '0644'
+    backup: true
+  become: true
+  notify: Restart apache
+- name: Create document root directory
+  ansible.builtin.file:
+    path: '{{ apache_document_root }}'
+    state: directory
+    mode: '0755'
+  become: true
+- name: Deploy Hello World website content
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: '{{ apache_document_root }}/index.html'
+    owner: root
+    group: root
+    mode: '0644'
+    backup: true
+  become: true
+- name: Check if default site is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/sites-enabled/000-default.conf
+  register: default_site_enabled
+- name: Deactivate default Apache virtual host
+  ansible.builtin.command:
+    cmd: a2dissite 000-default
+  become: true
+  when: default_site_enabled.stat.exists
+  notify: Restart apache
+- name: Check if Hello World site is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/sites-enabled/{{ apache_site_name }}.conf
+  register: helloworld_site_enabled
+- name: Activate Hello World virtual host
+  ansible.builtin.command:
+    cmd: a2ensite {{ apache_site_name }}
+  become: true
+  when: not helloworld_site_enabled.stat.exists
+  notify: Restart apache
+- name: Check if SSL module is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/mods-enabled/ssl.load
+  register: ssl_module_enabled
+- name: Enable SSL module in Apache
+  ansible.builtin.command:
+    cmd: a2enmod ssl
+  become: true
+  when: not ssl_module_enabled.stat.exists
+  notify: Restart apache
+- name: Start and enable Apache service
+  ansible.builtin.service:
+    name: apache2
+    state: started
+    enabled: true
+  become: true

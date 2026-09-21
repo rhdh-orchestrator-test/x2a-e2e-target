@@ -1,0 +1,65 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Apache web server with HTTPS support
+    description:
+      - Installs Apache2 web server with SSL/TLS support
+      - Generates self-signed SSL certificates
+      - Configures HTTPS virtual host for a Hello World website
+      - Deploys static HTML content and manages Apache site activation
+    options:
+      apache_version:
+        type: str
+        required: false
+        default: 2.4.41-4ubuntu3.10
+        description: Apache package version to install
+      apache_document_root:
+        type: str
+        required: false
+        default: /var/www/helloworld
+        description: Document root path for the website
+      apache_site_name:
+        type: str
+        required: false
+        default: helloworld
+        description: Name of the Apache site configuration
+      ssl_cert_dir:
+        type: str
+        required: false
+        default: /etc/apache2/certs
+        description: Directory to store SSL certificates
+      ssl_common_name:
+        type: str
+        required: false
+        default: "{{ ansible_fqdn }}"
+        description: Common name for the SSL certificate
+      site_title:
+        type: str
+        required: false
+        default: Test Site
+        description: HTML page title for the website
+      site_heading:
+        type: str
+        required: false
+        default: Hello, world!
+        description: Main heading text displayed on the website
+      site_content:
+        type: str
+        required: false
+        default: The site is up and running
+        description: Content text displayed on the website
+      apache_ssl_cert_path:
+        type: str
+        required: false
+        default: /etc/apache2/certs/apache.crt
+        description: Path to the SSL certificate file
+      apache_ssl_key_path:
+        type: str
+        required: false
+        default: /etc/apache2/certs/apache.key
+        description: Path to the SSL private key file
+      apache_ssl_csr_path:
+        type: str
+        required: false
+        default: /etc/apache2/certs/apache.csr
+        description: Path to the SSL certificate signing request file
