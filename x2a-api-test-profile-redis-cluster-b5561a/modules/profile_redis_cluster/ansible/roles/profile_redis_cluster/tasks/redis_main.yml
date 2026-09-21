@@ -1,0 +1,12 @@
+---
+- name: Include Redis preinstall tasks
+  ansible.builtin.include_tasks: redis_preinstall.yml
+- name: Include Redis install tasks
+  ansible.builtin.include_tasks: redis_install.yml
+- name: Include Redis config tasks
+  ansible.builtin.include_tasks: redis_config.yml
+- name: Include Redis ulimit tasks
+  ansible.builtin.include_tasks: redis_ulimit.yml
+  when: redis_ulimit_managed | default(false)
+- name: Include Redis service tasks
+  ansible.builtin.include_tasks: redis_service.yml

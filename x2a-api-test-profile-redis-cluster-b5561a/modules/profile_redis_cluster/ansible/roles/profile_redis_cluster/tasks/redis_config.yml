@@ -1,0 +1,26 @@
+---
+- name: Create Redis directories
+  ansible.builtin.file:
+    path: "{{ item_redis_dir }}"
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+  loop:
+    - /etc/redis
+    - /var/log/redis
+    - /var/lib/redis
+    - /var/run/redis
+  loop_control:
+    loop_var: item_redis_dir
+- name: Include Redis instance configuration
+  ansible.builtin.include_tasks: redis_instance.yml
+  when: redis_default_install | default(true)
+- name: Create Redis default configuration (Debian)
+  ansible.builtin.template:
+    src: redis-server.default.j2
+    dest: /etc/default/redis-server
+    mode: "0644"
+    backup: true
+  when: ansible_os_family == "Debian"
+  notify: Restart Redis service

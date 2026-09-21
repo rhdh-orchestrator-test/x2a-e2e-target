@@ -1,0 +1,8 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Gather Redis cluster nodes from inventory
+  ansible.builtin.set_fact:
+    redis_nodes: "{{ groups['redis_cluster'] | default([]) }}"
+- name: Install and configure Redis
+  ansible.builtin.include_tasks: install.yml

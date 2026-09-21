@@ -1,0 +1,103 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis cluster
+    description:
+      - Installs and configures Redis with cluster support, authentication, and memory management
+      - Supports both primary and replica configurations
+      - Includes custom fact for role detection
+    options:
+      redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port Redis listens on
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password (injected by AAP credential type)
+      maxmemory_mb:
+        type: int
+        required: false
+        default: 256
+        description: Maximum memory limit in megabytes
+      maxmemory_policy:
+        type: str
+        required: false
+        default: allkeys-lru
+        description: Memory eviction policy when maxmemory is reached
+      redis_manage_repo:
+        type: bool
+        required: false
+        default: true
+        description: Whether to manage Redis package repository
+      redis_manage_package:
+        type: bool
+        required: false
+        default: true
+        description: Whether to manage Redis package installation
+      redis_service_manage:
+        type: bool
+        required: false
+        default: true
+        description: Whether to manage Redis service
+      redis_default_install:
+        type: bool
+        required: false
+        default: true
+        description: Whether to install default Redis instance
+      redis_ulimit_managed:
+        type: bool
+        required: false
+        default: false
+        description: Whether to manage Redis ulimits
+      redis_bind:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: IP address Redis binds to
+      redis_appendonly:
+        type: bool
+        required: false
+        default: true
+        description: Enable Redis AOF persistence
+      redis_appendfsync:
+        type: str
+        required: false
+        default: everysec
+        description: AOF fsync policy
+      redis_daemonize:
+        type: bool
+        required: false
+        default: true
+        description: Run Redis as daemon
+      redis_loglevel:
+        type: str
+        required: false
+        default: notice
+        description: Redis log level
+      redis_config_dir:
+        type: str
+        required: false
+        default: /etc/redis
+        description: Redis configuration directory
+      redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Redis log directory
+      redis_data_dir:
+        type: str
+        required: false
+        default: /var/lib/redis
+        description: Redis data directory
+      redis_user:
+        type: str
+        required: false
+        default: redis
+        description: Redis system user
+      redis_group:
+        type: str
+        required: false
+        default: redis
+        description: Redis system group

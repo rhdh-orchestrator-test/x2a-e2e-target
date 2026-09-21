@@ -1,0 +1,21 @@
+---
+- name: Check if Redis DNF module stream is already enabled
+  ansible.builtin.command:
+    cmd: dnf module list redis --enabled
+  register: redis_module_status
+  changed_when: false
+  failed_when: false
+  when:
+    - redis_dnf_module_stream is defined
+    - ansible_os_family == "RedHat"
+    - ansible_distribution_major_version | int >= 8
+- name: Enable Redis DNF module stream
+  ansible.builtin.command:
+    cmd: dnf module enable redis:{{ redis_dnf_module_stream }} -y
+  when:
+    - redis_dnf_module_stream is defined
+    - ansible_os_family == "RedHat"
+    - ansible_distribution_major_version | int >= 8
+    - redis_module_status is defined
+    - redis_dnf_module_stream not in redis_module_status.stdout
+  changed_when: true

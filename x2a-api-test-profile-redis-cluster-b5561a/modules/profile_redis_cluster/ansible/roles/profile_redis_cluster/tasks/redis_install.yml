@@ -1,0 +1,11 @@
+---
+- name: Install Redis package
+  ansible.builtin.package:
+    name: redis
+    state: present
+  when: redis_manage_package | default(true)
+- name: Include DNF module tasks
+  ansible.builtin.include_tasks: redis_dnfmodule.yml
+  when:
+    - redis_dnf_module_stream is defined
+    - ansible_os_family == "RedHat"

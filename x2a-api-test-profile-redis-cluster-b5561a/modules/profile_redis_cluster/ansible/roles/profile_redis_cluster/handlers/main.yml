@@ -1,0 +1,16 @@
+---
+- name: Restart Redis service
+  ansible.builtin.service:
+    name: redis
+    state: restarted
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+- name: Start Redis service
+  ansible.builtin.service:
+    name: redis
+    state: started
+- name: Stop Redis service
+  ansible.builtin.service:
+    name: redis
+    state: stopped
