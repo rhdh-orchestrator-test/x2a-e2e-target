@@ -1,0 +1,14 @@
+---
+- name: Set Redis default parameters
+  ansible.builtin.set_fact:
+    redis_default_params:
+      bind: 0.0.0.0
+      port: "{{ redis_port }}"
+      requirepass: "{{ redis_password }}"
+      maxmemory: "{{ maxmemory_mb }}mb"
+      maxmemory_policy: "{{ maxmemory_policy }}"
+      appendonly: true
+      appendfsync: everysec
+      manage_package: true
+      service_manage: true
+      default_install: true

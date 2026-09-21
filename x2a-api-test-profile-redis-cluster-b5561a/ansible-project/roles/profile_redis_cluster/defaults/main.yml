@@ -1,0 +1,35 @@
+---
+redis_port: 6379
+maxmemory_mb: 256
+maxmemory_policy: allkeys-lru
+redis_manage_repo: true
+redis_manage_package: true
+redis_service_manage: true
+redis_default_install: true
+redis_ulimit_managed: false
+redis_bind: 0.0.0.0
+redis_appendonly: true
+redis_appendfsync: everysec
+redis_daemonize: true
+redis_loglevel: notice
+redis_config_dir: /etc/redis
+redis_log_dir: /var/log/redis
+redis_data_dir: /var/lib/redis
+redis_pid_dir: /var/run/redis
+redis_user: redis
+redis_group: redis
+redis_save_db_to_disk: true
+redis_databases: 16
+redis_protected_mode: true
+redis_supervised: auto
+redis_tcp_backlog: 511
+redis_timeout: 0
+redis_tcp_keepalive: 300
+redis_auto_aof_rewrite_percentage: 100
+redis_auto_aof_rewrite_min_size: 64mb
+redis_rdb_save_rules:
+  - 900 1
+  - 300 10
+  - 60 10000
+redis_dbfilename: dump.rdb
+redis_appendfilename: appendonly.aof

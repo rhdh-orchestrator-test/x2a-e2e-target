@@ -1,0 +1,99 @@
+---
+- name: Verify Redis cluster configuration
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_config }}"
+      loop:
+        - /etc/redis/redis.conf
+        - /etc/systemd/system/redis.service
+      loop_control:
+        loop_var: item_config
+      register: config_stat_results
+
+    - name: Assert configuration files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Expected configuration file not found"
+      loop: "{{ config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check Redis directories exist
+      ansible.builtin.stat:
+        path: "{{ item_dir }}"
+      loop:
+        - /etc/redis
+        - /var/log/redis
+        - /var/lib/redis
+      loop_control:
+        loop_var: item_dir
+      register: dir_stat_results
+
+    - name: Assert Redis directories were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['isdir']
+        fail_msg: "Expected Redis directory not found"
+      loop: "{{ dir_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check Redis service status
+      ansible.builtin.service_facts:
+
+    - name: Assert Redis service is configured
+      ansible.builtin.assert:
+        that:
+          - "'redis.service' in ansible_facts.services"
+        fail_msg: "Redis service not found in systemd"
+
+    - name: Check Redis port is listening
+      ansible.builtin.wait_for:
+        port: 6379
+        host: 127.0.0.1
+        timeout: 30
+        msg: "Redis port 6379 is not listening"
+
+    - name: Test Redis connectivity
+      ansible.builtin.uri:
+        url: "redis://127.0.0.1:6379"
+        method: GET
+        timeout: 10
+      ignore_errors: true
+      register: redis_connection_test
+
+    - name: Read Redis configuration content
+      ansible.builtin.slurp:
+        src: /etc/redis/redis.conf
+      register: redis_config_content
+
+    - name: Assert Redis configuration contains required settings
+      ansible.builtin.assert:
+        that:
+          - "'port 6379' in redis_config_decoded"
+          - "'maxmemory' in redis_config_decoded"
+          - "'maxmemory-policy' in redis_config_decoded"
+        fail_msg: "Required Redis configuration settings not found"
+      vars:
+        redis_config_decoded: "{{ redis_config_content['content'] | b64decode }}"
+
+    - name: Check Redis service file content
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/redis.service
+      register: redis_service_content
+
+    - name: Assert Redis service file contains required settings
+      ansible.builtin.assert:
+        that:
+          - "'ExecStart=' in redis_service_decoded"
+          - "'User=redis' in redis_service_decoded"
+          - "'Type=' in redis_service_decoded"
+        fail_msg: "Required Redis service configuration not found"
+      vars:
+        redis_service_decoded: "{{ redis_service_content['content'] | b64decode }}"

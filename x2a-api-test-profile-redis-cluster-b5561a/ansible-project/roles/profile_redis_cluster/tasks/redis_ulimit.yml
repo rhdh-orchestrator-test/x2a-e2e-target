@@ -1,0 +1,15 @@
+---
+- name: Configure Redis ulimits
+  ansible.builtin.lineinfile:
+    path: /etc/security/limits.conf
+    line: "{{ item_redis_limit }}"
+    backup: true
+  loop:
+    - redis soft nofile 65535
+    - redis hard nofile 65535
+    - redis soft nproc 65535
+    - redis hard nproc 65535
+  loop_control:
+    loop_var: item_redis_limit
+  when: redis_ulimit_managed | default(false)
+  notify: Restart Redis service
