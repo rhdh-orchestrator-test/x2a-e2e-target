@@ -1,0 +1,142 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check HAProxy service status
+      ansible.builtin.service_facts:
+
+    - name: Assert HAProxy service is running and enabled
+      ansible.builtin.assert:
+        that:
+          - "'haproxy.service' in ansible_facts.services"
+          - "ansible_facts.services['haproxy.service']['state'] == 'running'"
+          - "ansible_facts.services['haproxy.service']['status'] == 'enabled'"
+        fail_msg: "HAProxy service is not running or enabled"
+
+    - name: Check HAProxy configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_config }}"
+      loop:
+        - /etc/haproxy/haproxy.cfg
+        - /etc/haproxy/conf.d/webservers.cfg
+        - /etc/haproxy/errors/503.http
+        - /etc/haproxy/errors/408.http
+        - /etc/systemd/system/haproxy.service.d/override.conf
+        - /etc/logrotate.d/haproxy
+      loop_control:
+        loop_var: item_config
+      register: config_stat_results
+
+    - name: Assert configuration files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Expected configuration file not found"
+      loop: "{{ config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check HAProxy errors directory exists
+      ansible.builtin.stat:
+        path: /etc/haproxy/errors
+      register: errors_dir_stat
+
+    - name: Assert errors directory was created
+      ansible.builtin.assert:
+        that:
+          - errors_dir_stat['stat']['exists']
+          - errors_dir_stat['stat']['isdir']
+        fail_msg: "HAProxy errors directory not found"
+
+    - name: Validate HAProxy configuration syntax
+      ansible.builtin.command:
+        cmd: /usr/sbin/haproxy -f /etc/haproxy/haproxy.cfg -c
+      register: haproxy_config_check
+      changed_when: false
+
+    - name: Assert HAProxy configuration is valid
+      ansible.builtin.assert:
+        that:
+          - haproxy_config_check['rc'] == 0
+        fail_msg: "HAProxy configuration validation failed"
+
+    - name: Check HAProxy listening ports
+      ansible.builtin.wait_for:
+        port: "{{ item_port }}"
+        host: localhost
+        timeout: 10
+      loop:
+        - 80
+        - 8404
+      loop_control:
+        loop_var: item_port
+
+    - name: Check HAProxy statistics interface
+      ansible.builtin.uri:
+        url: http://localhost:8404/stats
+        method: GET
+        status_code: [200, 401]
+      register: stats_check
+
+    - name: Assert statistics interface is accessible
+      ansible.builtin.assert:
+        that:
+          - stats_check['status'] in [200, 401]
+        fail_msg: "HAProxy statistics interface not accessible"
+
+    - name: Check HAProxy user and group exist
+      ansible.builtin.getent:
+        database: "{{ item_db }}"
+        key: haproxy
+      loop:
+        - passwd
+        - group
+      loop_control:
+        loop_var: item_db
+      register: user_group_check
+
+    - name: Assert HAProxy user and group were created
+      ansible.builtin.assert:
+        that:
+          - user_group_check['results'][0]['ansible_facts']['getent_passwd']['haproxy'] is defined
+          - user_group_check['results'][1]['ansible_facts']['getent_group']['haproxy'] is defined
+        fail_msg: "HAProxy user or group not found"
+
+    - name: Check HAProxy data directory
+      ansible.builtin.stat:
+        path: /var/lib/haproxy
+      register: data_dir_stat
+
+    - name: Assert HAProxy data directory exists with correct ownership
+      ansible.builtin.assert:
+        that:
+          - data_dir_stat['stat']['exists']
+          - data_dir_stat['stat']['isdir']
+          - data_dir_stat['stat']['pw_name'] == 'haproxy'
+          - data_dir_stat['stat']['gr_name'] == 'haproxy'
+        fail_msg: "HAProxy data directory not found or incorrect ownership"
+
+- name: Verify backend health checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check backend server health endpoints
+      ansible.builtin.uri:
+        url: "http://{{ item_server['address'] }}:{{ backends['webservers']['port'] }}/health"
+        method: GET
+        status_code: [200, 404, 503]
+        timeout: 5
+      loop: "{{ backends['webservers']['servers'] }}"
+      loop_control:
+        loop_var: item_server
+      register: backend_health_checks
+      failed_when: false
+
+    - name: Report backend health check results
+      ansible.builtin.debug:
+        msg: "Backend {{ item_result['item_server']['name'] }} health check: {{ item_result['status'] | default('failed') }}"
+      loop: "{{ backend_health_checks['results'] }}"
+      loop_control:
+        loop_var: item_result

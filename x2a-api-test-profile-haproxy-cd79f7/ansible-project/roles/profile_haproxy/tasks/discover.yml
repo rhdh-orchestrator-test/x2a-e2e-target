@@ -1,0 +1,46 @@
+---
+- name: Register current node as webserver backend member
+  ansible.builtin.set_fact:
+    haproxy_exported_member:
+      listening_service: webservers
+      server_name: "{{ ansible_fqdn }}"
+      ip_address: "{{ ansible_default_ipv4.address }}"
+      port: 8080
+      options: check
+- name: Display exported member information
+  ansible.builtin.debug:
+    msg:
+      - "Registering HAProxy backend member:"
+      - "Service: {{ haproxy_exported_member.listening_service }}"
+      - "Server: {{ haproxy_exported_member.server_name }}"
+      - "IP: {{ haproxy_exported_member.ip_address }}"
+      - "Port: {{ haproxy_exported_member.port }}"
+- name: Discover application servers from inventory
+  ansible.builtin.set_fact:
+    discovered_app_servers: "{{ groups['app_servers'] | default([]) }}"
+  when: "'app_servers' in groups"
+- name: Build dynamic API backend configuration
+  ansible.builtin.set_fact:
+    dynamic_api_backends: "{% set backends = [] %}\n{% for server in discovered_app_servers | default([]) %}\n{% set server_info = {\n  'name': 'api-' + server,\n\
+      \  'address': hostvars[server]['ansible_default_ipv4']['address'] | default(server),\n  'port': hostvars[server]['app_port'] | default(8080),\n  'weight': 100\n\
+      } %}\n{% set _ = backends.append(server_info) %}\n{% endfor %}\n{{ backends }}\n"
+  when: discovered_app_servers is defined and discovered_app_servers | length > 0
+- name: Display discovered API backends
+  ansible.builtin.debug:
+    msg:
+      - "Discovered {{ dynamic_api_backends | length }} API backend servers:"
+      - "{{ dynamic_api_backends }}"
+  when: dynamic_api_backends is defined and dynamic_api_backends | length > 0
+- name: Update backend configuration with discovered servers
+  ansible.builtin.set_fact:
+    updated_backends: "{{ backends | combine({'api': {'balance': 'roundrobin', 'port': 8080, 'servers': dynamic_api_backends, 'health_check': 'httpchk GET /health',
+      'health_interval': '10s'}}) }}"
+  when: dynamic_api_backends is defined and dynamic_api_backends | length > 0
+- name: Display service discovery summary
+  ansible.builtin.debug:
+    msg:
+      - "Service Discovery Summary:"
+      - "Environment: {{ ansible_env.ENVIRONMENT | default('production') }}"
+      - "Current node: {{ ansible_fqdn }}"
+      - "Discovered app servers: {{ discovered_app_servers | default([]) | length }}"
+      - "Backend pools updated: {{ 'Yes' if dynamic_api_backends is defined else 'No' }}"
