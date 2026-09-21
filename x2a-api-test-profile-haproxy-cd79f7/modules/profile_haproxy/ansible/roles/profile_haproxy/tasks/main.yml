@@ -1,0 +1,14 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+- name: Include installation tasks
+  ansible.builtin.include_tasks: install.yml
+- name: Include configuration tasks
+  ansible.builtin.include_tasks: config.yml
+- name: Include service discovery tasks
+  ansible.builtin.include_tasks: discover.yml
+  when: discovery_enabled | bool
+- name: Include service management tasks
+  ansible.builtin.include_tasks: service.yml
+- name: Include firewall configuration tasks
+  ansible.builtin.include_tasks: firewall.yml
