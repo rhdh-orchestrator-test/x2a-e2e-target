@@ -1,0 +1,87 @@
+- name: Verify cache services
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Check service status
+    ansible.builtin.service_facts: null
+  - name: Assert Redis service is running
+    ansible.builtin.assert:
+      that:
+      - '''redis-server'' in ansible_facts.services'
+      - ansible_facts.services['redis-server']['state'] == 'running'
+      fail_msg: Redis service is not running
+  - name: Assert memcached service is running
+    ansible.builtin.assert:
+      that:
+      - '''memcached'' in ansible_facts.services'
+      - ansible_facts.services['memcached']['state'] == 'running'
+      fail_msg: Memcached service is not running
+  - name: Check Redis configuration file exists
+    ansible.builtin.stat:
+      path: /etc/redis/6379.conf
+    register: redis_config_stat
+  - name: Assert Redis configuration file was created
+    ansible.builtin.assert:
+      that:
+      - redis_config_stat['stat']['exists']
+      - redis_config_stat['stat']['size'] > 0
+      fail_msg: Redis configuration file not found or empty
+  - name: Check Redis log directory exists
+    ansible.builtin.stat:
+      path: /var/log/redis
+    register: redis_log_dir_stat
+  - name: Assert Redis log directory was created
+    ansible.builtin.assert:
+      that:
+      - redis_log_dir_stat['stat']['exists']
+      - redis_log_dir_stat['stat']['isdir']
+      - redis_log_dir_stat['stat']['mode'] == '0755'
+      fail_msg: Redis log directory not found or incorrect permissions
+  - name: Check Redis port is listening
+    ansible.builtin.wait_for:
+      port: 6379
+      host: localhost
+      timeout: 10
+      msg: Redis port 6379 is not listening
+  - name: Check memcached port is listening
+    ansible.builtin.wait_for:
+      port: 11211
+      host: localhost
+      timeout: 10
+      msg: Memcached port 11211 is not listening
+- name: Verify Redis functionality
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Test Redis connection with authentication
+    ansible.builtin.command:
+      cmd: redis-cli -p 6379 -a {{ redis_password }} ping
+    register: redis_ping_result
+    changed_when: false
+    failed_when: redis_ping_result['stdout'] != 'PONG'
+  - name: Test Redis set operation
+    ansible.builtin.command:
+      cmd: redis-cli -p 6379 -a {{ redis_password }} set test_key test_value
+    register: redis_set_result
+    changed_when: false
+    failed_when: redis_set_result['stdout'] != 'OK'
+  - name: Test Redis get operation
+    ansible.builtin.command:
+      cmd: redis-cli -p 6379 -a {{ redis_password }} get test_key
+    register: redis_get_result
+    changed_when: false
+    failed_when: redis_get_result['stdout'] != 'test_value'
+  - name: Clean up Redis test key
+    ansible.builtin.command:
+      cmd: redis-cli -p 6379 -a {{ redis_password }} del test_key
+    changed_when: false
+- name: Verify memcached functionality
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Test memcached stats command
+    ansible.builtin.command:
+      cmd: bash -c 'echo "stats" | nc localhost 11211'
+    register: memcached_stats_result
+    changed_when: false
+    failed_when: '''STAT version'' not in memcached_stats_result[''stdout'']'
