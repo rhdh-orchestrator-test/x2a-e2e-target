@@ -1,0 +1,64 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure memcached and Redis caching services
+    description:
+      - Installs and configures memcached and Redis caching services with authentication.
+      - Creates Redis log directory with proper ownership and permissions.
+      - Configures Redis with password authentication and removes deprecated settings.
+      - Starts and enables both caching services.
+    options:
+      cache_memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: Port number for memcached service.
+      cache_memcached_memory:
+        type: int
+        required: false
+        default: 64
+        description: Memory allocation for memcached in MB.
+      cache_memcached_user:
+        type: str
+        required: false
+        default: memcache
+        description: User account for memcached service.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: Port number for Redis service.
+      cache_redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory path for Redis log files.
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Path to Redis configuration file.
+      cache_redis_user:
+        type: str
+        required: false
+        default: redis
+        description: User account for Redis service.
+      cache_redis_group:
+        type: str
+        required: false
+        default: redis
+        description: Group for Redis service.
+      cache_redis_password:
+        type: str
+        required: true
+        description: Redis authentication password. This variable is injected by AAP credential types at runtime.
+      cache_memcached_package:
+        type: str
+        required: false
+        default: "{{ _cache_memcached_package }}"
+        description: Package name for memcached (OS-dependent).
+      cache_redis_package:
+        type: str
+        required: false
+        default: "{{ _cache_redis_package }}"
+        description: Package name for Redis (OS-dependent).
