@@ -1,0 +1,26 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy FastAPI tutorial web application with PostgreSQL backend
+    description:
+      - Installs Python dependencies and clones FastAPI tutorial application from GitHub
+      - Sets up Python virtual environment and installs application dependencies
+      - Configures PostgreSQL database with dedicated user and database
+      - Deploys systemd service to run FastAPI application on port 8000
+    options:
+      db_username:
+        type: str
+        required: true
+        description: PostgreSQL database username for FastAPI application (injected by AAP credential type)
+      db_password:
+        type: str
+        required: true
+        description: PostgreSQL database password for FastAPI application (injected by AAP credential type)
+      db_name:
+        type: str
+        required: true
+        description: PostgreSQL database name for FastAPI application (injected by AAP credential type)
+      db_host:
+        type: str
+        required: true
+        description: PostgreSQL database host for FastAPI application (injected by AAP credential type)
