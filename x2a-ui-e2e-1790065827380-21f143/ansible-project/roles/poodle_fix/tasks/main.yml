@@ -1,0 +1,27 @@
+---
+- name: Install Apache web server
+  ansible.builtin.package:
+    name: "{{ apache_package_name }}"
+    state: present
+  become: true
+- name: Enable Apache SSL module
+  ansible.builtin.command:
+    cmd: a2enmod ssl
+    creates: /etc/apache2/mods-enabled/ssl.load
+  become: true
+  notify: Restart apache2
+- name: Ensure Apache SSL configuration directory exists
+  ansible.builtin.file:
+    path: "{{ ssl_config_path | dirname }}"
+    state: directory
+    mode: "0755"
+  become: true
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    dest: "{{ ssl_config_path }}"
+    regexp: ^SSLProtocol.*$
+    replace: "{{ ssl_protocol_config }}"
+    mode: "0644"
+    backup: true
+  notify: Restart apache2
+  become: true
