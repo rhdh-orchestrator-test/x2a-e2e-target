@@ -1,0 +1,18 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis cache server
+    description:
+      - Installs Redis server package and ensures the service is running
+      - Uses default Redis configuration without custom settings
+      - Provides basic in-memory data store service on port 6379
+      - Automatically detects correct package and service names for different distributions
+    options:
+      redis_package_name:
+        type: str
+        description: Name of the Redis package to install
+        default: redis-server on Debian/Ubuntu, redis on RHEL/CentOS
+      redis_service_name:
+        type: str
+        description: Name of the Redis service to manage
+        default: redis-server on Debian/Ubuntu, redis on RHEL/CentOS
