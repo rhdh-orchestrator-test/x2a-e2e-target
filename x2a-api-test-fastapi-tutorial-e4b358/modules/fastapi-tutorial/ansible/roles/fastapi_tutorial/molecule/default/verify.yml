@@ -1,0 +1,189 @@
+- name: Verify
+  hosts: all
+  gather_facts: false
+  vars:
+    db_username: testuser
+    db_password: testpass
+    db_name: testdb
+    db_host: localhost
+  tasks:
+  - name: Check application directory exists
+    ansible.builtin.stat:
+      path: '{{ item_path }}'
+    loop:
+    - /opt/fastapi-tutorial
+    - /opt/fastapi-tutorial/venv
+    - /opt/fastapi-tutorial/.env
+    - /etc/systemd/system/fastapi-tutorial.service
+    loop_control:
+      loop_var: item_path
+    register: path_stat_results
+  - name: Assert required paths exist
+    ansible.builtin.assert:
+      that:
+      - item_result['stat']['exists']
+      fail_msg: Required path not found
+    loop: '{{ path_stat_results[''results''] }}'
+    loop_control:
+      loop_var: item_result
+  - name: Check virtual environment Python executable
+    ansible.builtin.stat:
+      path: /opt/fastapi-tutorial/venv/bin/python
+    register: venv_python_stat
+  - name: Assert virtual environment is properly created
+    ansible.builtin.assert:
+      that:
+      - venv_python_stat['stat']['exists']
+      - venv_python_stat['stat']['executable']
+      fail_msg: Virtual environment Python executable not found
+  - name: Get service facts
+    ansible.builtin.service_facts: null
+  - name: Assert services are running
+    ansible.builtin.assert:
+      that:
+      - '''fastapi-tutorial.service'' in ansible_facts.services'
+      - ansible_facts.services['fastapi-tutorial.service']['state'] == 'running'
+      - '''postgresql.service'' in ansible_facts.services'
+      - ansible_facts.services['postgresql.service']['state'] == 'running'
+      fail_msg: Required services not running
+  - name: Check FastAPI application health
+    ansible.builtin.uri:
+      url: http://localhost:8000/
+      method: HEAD
+      status_code:
+      - 200
+      - 404
+    register: fastapi_health
+    retries: 5
+    delay: 2
+  - name: Assert FastAPI is responding
+    ansible.builtin.assert:
+      that:
+      - fastapi_health['status'] in [200, 404]
+      fail_msg: FastAPI application not responding
+  - name: Check FastAPI docs endpoint
+    ansible.builtin.uri:
+      url: http://localhost:8000/docs
+      method: GET
+      status_code:
+      - 200
+      - 404
+    register: fastapi_docs
+    retries: 3
+    delay: 2
+    ignore_errors: true
+  - name: Check port 8000 is listening
+    ansible.builtin.wait_for:
+      port: 8000
+      host: localhost
+      timeout: 10
+  - name: Check environment configuration file content
+    ansible.builtin.slurp:
+      src: /opt/fastapi-tutorial/.env
+    register: env_file_content
+  - name: Assert environment file contains required variables
+    ansible.builtin.assert:
+      that:
+      - '''PROJECT_NAME'' in env_file_content[''content''] | b64decode'
+      - '''API_VERSION'' in env_file_content[''content''] | b64decode'
+      - '''DATABASE_URL'' in env_file_content[''content''] | b64decode'
+      fail_msg: Environment file missing required variables
+  - name: Check systemd service file content
+    ansible.builtin.slurp:
+      src: /etc/systemd/system/fastapi-tutorial.service
+    register: service_file_content
+  - name: Assert systemd service file is properly configured
+    ansible.builtin.assert:
+      that:
+      - '''uvicorn app.main:app'' in service_file_content[''content''] | b64decode'
+      - '''--host 0.0.0.0 --port 8000'' in service_file_content[''content''] | b64decode'
+      - '''WorkingDirectory=/opt/fastapi-tutorial'' in service_file_content[''content''] | b64decode'
+      fail_msg: Systemd service file not properly configured
+- name: Verify Database
+  hosts: all
+  gather_facts: false
+  vars:
+    db_username: testuser
+    db_password: testpass
+    db_name: testdb
+    db_host: localhost
+  tasks:
+  - name: Check PostgreSQL database exists
+    ansible.builtin.shell: 'sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw {{ db_name }}
+
+      '
+    register: db_check
+    changed_when: false
+    failed_when: db_check.rc != 0
+  - name: Check PostgreSQL user exists
+    ansible.builtin.shell: 'sudo -u postgres psql -c "\du" | grep -q {{ db_username }}
+
+      '
+    register: user_check
+    changed_when: false
+    failed_when: user_check.rc != 0
+  - name: Test database connection
+    ansible.builtin.shell: 'cd /opt/fastapi-tutorial && /opt/fastapi-tutorial/venv/bin/python -c "
+
+      import os
+
+      from sqlalchemy import create_engine
+
+      engine = create_engine(''postgresql://{{ db_username }}:{{ db_password }}@{{ db_host }}/{{ db_name }}'')
+
+      conn = engine.connect()
+
+      result = conn.execute(''SELECT 1'')
+
+      print(''Database connection successful'')
+
+      conn.close()
+
+      "
+
+      '
+    register: db_connection_test
+    changed_when: false
+  - name: Assert database connection successful
+    ansible.builtin.assert:
+      that:
+      - '''Database connection successful'' in db_connection_test.stdout'
+      fail_msg: Database connection test failed
+- name: Verify Process and Git Repository
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Check uvicorn process is running
+    ansible.builtin.shell: 'pgrep -f uvicorn
+
+      '
+    register: uvicorn_process
+    changed_when: false
+  - name: Assert uvicorn process exists
+    ansible.builtin.assert:
+      that:
+      - uvicorn_process.stdout | length > 0
+      fail_msg: Uvicorn process not found
+  - name: Check git repository status
+    ansible.builtin.shell: 'cd /opt/fastapi-tutorial && git remote -v
+
+      '
+    register: git_remote
+    changed_when: false
+  - name: Assert git repository is properly cloned
+    ansible.builtin.assert:
+      that:
+      - '''github.com/dibanez/fastapi_tutorial.git'' in git_remote.stdout'
+      fail_msg: Git repository not properly cloned
+  - name: Check Python dependencies are installed
+    ansible.builtin.shell: '/opt/fastapi-tutorial/venv/bin/pip list | grep -E ''fastapi|uvicorn''
+
+      '
+    register: pip_packages
+    changed_when: false
+  - name: Assert required Python packages are installed
+    ansible.builtin.assert:
+      that:
+      - '''fastapi'' in pip_packages.stdout.lower()'
+      - '''uvicorn'' in pip_packages.stdout.lower()'
+      fail_msg: Required Python packages not installed
