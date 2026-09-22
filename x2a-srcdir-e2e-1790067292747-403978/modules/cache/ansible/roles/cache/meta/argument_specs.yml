@@ -1,0 +1,54 @@
+---
+argument_specs:
+  main:
+    short_description: Simple Redis cache server role for local dependency testing
+    description:
+      - Installs and configures Redis server as a simple cache solution
+      - Provides basic Redis installation with default configuration
+      - Suitable for development and testing environments
+    options:
+      cache_redis_package:
+        type: str
+        required: false
+        default: redis-server
+        description: Name of the Redis package to install (varies by OS distribution).
+      cache_redis_service:
+        type: str
+        required: false
+        default: redis-server
+        description: Name of the Redis service to manage.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port Redis server listens on.
+      cache_redis_bind:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: IP address Redis server binds to.
+      cache_redis_data_dir:
+        type: str
+        required: false
+        default: /var/lib/redis
+        description: Directory where Redis stores its data files.
+      cache_redis_log_file:
+        type: str
+        required: false
+        default: /var/log/redis/redis-server.log
+        description: Path to Redis server log file.
+      cache_redis_pid_file:
+        type: str
+        required: false
+        default: /var/run/redis/redis-server.pid
+        description: Path to Redis server PID file.
+      cache_redis_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether to enable Redis service to start at boot.
+      cache_redis_state:
+        type: str
+        required: false
+        default: started
+        description: Desired state of Redis service (started, stopped, restarted).
