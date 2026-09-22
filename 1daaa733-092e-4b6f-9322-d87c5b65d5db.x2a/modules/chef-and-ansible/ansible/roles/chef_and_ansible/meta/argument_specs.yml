@@ -1,0 +1,73 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Apache2 with SSL/TLS security hardening
+    description:
+      - Installs Apache2 web server with specific version pinning
+      - Generates self-signed SSL certificates for HTTPS configuration
+      - Configures virtual host for Hello World website
+      - Implements SSL security hardening to fix POODLE vulnerability
+      - Manages Apache modules and service configuration
+    options:
+      chef_and_ansible_apache_version:
+        type: str
+        required: false
+        default: 2.4.41-4ubuntu3.10
+        description: Specific version of Apache2 package to install
+      chef_and_ansible_cert_path:
+        type: str
+        required: false
+        default: /etc/apache2/certs
+        description: Directory path where SSL certificates will be stored
+      chef_and_ansible_web_root:
+        type: str
+        required: false
+        default: /var/www/helloworld
+        description: Document root directory for the web application
+      chef_and_ansible_site_name:
+        type: str
+        required: false
+        default: helloworld
+        description: Name of the Apache virtual host site
+      chef_and_ansible_ssl_common_name:
+        type: str
+        required: false
+        default: myhost
+        description: Common name for the SSL certificate
+      chef_and_ansible_conftext:
+        type: str
+        required: false
+        default: |
+          <VirtualHost *:443>
+           DocumentRoot "/var/www/helloworld"
+           SSLEngine on
+           SSLCertificateFile /etc/apache2/certs/apache.crt
+           SSLCertificateKeyFile /etc/apache2/certs/apache.key
+            <Directory "/var/www/helloworld">
+              allow from all
+              Options None
+              Require all granted
+            </Directory>
+          </VirtualHost>
+        description: Apache virtual host configuration content
+      chef_and_ansible_webtext:
+        type: str
+        required: false
+        default: |
+          <html>
+            <head><title>Test Site</title></head>
+            <body>
+             <h1>Hello, world!</h1>
+             <p>The site is up and running</p>
+            </body>
+          </html>
+        description: HTML content for the Hello World website
+      chef_and_ansible_packages:
+        type: list
+        elements: str
+        required: false
+        default:
+          - curl
+          - openssl
+          - python3-openssl
+        description: List of additional packages required for SSL functionality

@@ -1,0 +1,117 @@
+{
+  "module_name": "chef_and_ansible",
+  "items": [
+    {
+      "category": "recipes",
+      "source_path": "website_https.yml",
+      "target_path": "ansible/roles/chef_and_ansible/tasks/main.yml",
+      "status": "complete",
+      "description": "Main Apache HTTPS configuration tasks (consolidated from website_https.yml)",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "poodle_fix.yml",
+      "target_path": "ansible/roles/chef_and_ansible/tasks/ssl_hardening.yml",
+      "status": "complete",
+      "description": "SSL hardening tasks for POODLE vulnerability fix",
+      "notes": ""
+    },
+    {
+      "category": "files",
+      "source_path": "index.html",
+      "target_path": "ansible/roles/chef_and_ansible/files/index.html",
+      "status": "complete",
+      "description": "Static HTML content for the Hello World website",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "attributes",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables extracted from playbooks (conftext, webtext, apache_version, cert_path, web_root, site_name)",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "defaults/main.yml",
+      "target_path": "ansible/roles/chef_and_ansible/meta/argument_specs.yml",
+      "status": "complete",
+      "description": "Role argument specs for fail-fast parameter validation (generate after defaults/main.yml)",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/handlers/main.yml",
+      "status": "complete",
+      "description": "Consolidated handlers for Apache and SSH service management",
+      "notes": ""
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:community.crypto",
+      "target_path": "ansible/roles/chef_and_ansible/requirements.yml",
+      "status": "complete",
+      "description": "Community crypto collection for SSL certificate management (openssl_privatekey, openssl_csr, x509_certificate)",
+      "notes": ""
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:ansible.posix",
+      "target_path": "ansible/roles/chef_and_ansible/requirements.yml",
+      "status": "complete",
+      "description": "Ansible POSIX collection for service management",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/molecule/default/molecule.yml",
+      "status": "complete",
+      "description": "Molecule scenario configuration for AAP testing (delegated driver)",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/molecule/default/converge.yml",
+      "status": "complete",
+      "description": "Molecule converge playbook (runs the role via include_role)",
+      "notes": "Generated converge.yml that includes the chef_and_ansible role via ansible.builtin.include_role"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/molecule/default/verify.yml",
+      "status": "complete",
+      "description": "Molecule verification tasks for Apache HTTPS and SSL hardening",
+      "notes": "Generated verify.yml with comprehensive tests for Apache HTTPS configuration, SSL hardening, certificate files, and web content based on migration plan pre-flight checks"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/molecule/default/create.yml",
+      "status": "complete",
+      "description": "Molecule create playbook (no-op for delegated driver)",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/roles/chef_and_ansible/molecule/default/destroy.yml",
+      "status": "complete",
+      "description": "Molecule destroy playbook (no-op for delegated driver)",
+      "notes": "Created by MoleculeAgent (deterministic scaffold)"
+    }
+  ]
+}

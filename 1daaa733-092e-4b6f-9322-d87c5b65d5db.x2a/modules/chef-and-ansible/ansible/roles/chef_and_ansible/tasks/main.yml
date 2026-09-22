@@ -1,0 +1,112 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+    state: present
+
+- name: Install Apache2 with specific version
+  ansible.builtin.apt:
+    name: apache2={{ chef_and_ansible_apache_version }} # noqa: R113 - version from role defaults
+    state: present
+
+- name: Install required packages
+  ansible.builtin.package:
+    name: "{{ chef_and_ansible_packages }}"
+    state: present
+
+- name: Create SSL certificate directory
+  ansible.builtin.file:
+    path: "{{ chef_and_ansible_cert_path }}" # noqa: R114 - path from role defaults
+    state: directory
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: Generate SSL private key
+  community.crypto.openssl_privatekey:
+    path: "{{ chef_and_ansible_cert_path }}/apache.key"
+    owner: root
+    group: root
+    mode: "0600"
+    state: present
+
+- name: Generate SSL certificate signing request
+  community.crypto.openssl_csr:
+    path: "{{ chef_and_ansible_cert_path }}/apache.csr"
+    privatekey_path: "{{ chef_and_ansible_cert_path }}/apache.key"
+    common_name: "{{ chef_and_ansible_ssl_common_name }}"
+    owner: root
+    group: root
+    mode: "0644"
+    state: present
+
+- name: Generate self-signed SSL certificate
+  community.crypto.x509_certificate:
+    path: "{{ chef_and_ansible_cert_path }}/apache.crt"
+    privatekey_path: "{{ chef_and_ansible_cert_path }}/apache.key"
+    csr_path: "{{ chef_and_ansible_cert_path }}/apache.csr"
+    provider: selfsigned
+    owner: root
+    group: root
+    mode: "0644"
+    state: present
+
+- name: Configure Hello World virtual host
+  ansible.builtin.copy:
+    content: "{{ chef_and_ansible_conftext }}"
+    dest: /etc/apache2/sites-available/{{ chef_and_ansible_site_name }}.conf # noqa: R114 - site name from role defaults
+    mode: "0640"
+    backup: true
+  notify: Restart apache
+
+- name: Create web document root directory
+  ansible.builtin.file:
+    path: "{{ chef_and_ansible_web_root }}" # noqa: R114 - path from role defaults
+    state: directory
+    mode: "0755"
+
+- name: Deploy Hello World website content
+  ansible.builtin.copy:
+    content: "{{ chef_and_ansible_webtext }}"
+    dest: "{{ chef_and_ansible_web_root }}/index.html" # noqa: R114 - path from role defaults
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+
+- name: Check if default Apache site is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/sites-enabled/000-default.conf
+  register: default_site_enabled
+
+- name: Deactivate default Apache virtual host
+  ansible.builtin.command:
+    cmd: a2dissite 000-default
+  when: default_site_enabled.stat.exists # noqa: L039 - registered by prior task
+  notify: Restart apache
+
+- name: Check if Hello World site is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/sites-enabled/{{ chef_and_ansible_site_name }}.conf
+  register: helloworld_site_enabled
+
+- name: Activate Hello World virtual host
+  ansible.builtin.command:
+    cmd: a2ensite {{ chef_and_ansible_site_name }} # noqa: R101 - site name from role defaults # noqa: L039 - registered by prior task
+  when: not helloworld_site_enabled.stat.exists
+  notify: Restart apache
+
+- name: Check if SSL module is enabled
+  ansible.builtin.stat:
+    path: /etc/apache2/mods-enabled/ssl.load
+  register: ssl_module_enabled
+
+- name: Enable SSL module in Apache
+  ansible.builtin.command:
+    cmd: a2enmod ssl
+  when: not ssl_module_enabled.stat.exists # noqa: L039 - registered by prior task
+  notify: Restart apache
+
+- name: Include SSL hardening tasks
+  ansible.builtin.include_tasks: ssl_hardening.yml
