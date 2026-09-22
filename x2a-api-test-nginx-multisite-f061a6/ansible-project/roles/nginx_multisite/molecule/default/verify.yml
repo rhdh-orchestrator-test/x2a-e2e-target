@@ -1,0 +1,258 @@
+---
+- name: Verify nginx_multisite role
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check nginx service status
+      ansible.builtin.service_facts:
+
+    - name: Assert nginx service is running
+      ansible.builtin.assert:
+        that:
+          - "'nginx.service' in ansible_facts.services"
+          - "ansible_facts.services['nginx.service']['state'] == 'running'"
+        fail_msg: "Nginx service is not running"
+
+    - name: Assert fail2ban service is running
+      ansible.builtin.assert:
+        that:
+          - "'fail2ban.service' in ansible_facts.services"
+          - "ansible_facts.services['fail2ban.service']['state'] == 'running'"
+        fail_msg: "Fail2ban service is not running"
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        cmd: nginx -t
+      register: nginx_config_test
+      changed_when: false
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - "nginx_config_test.rc == 0"
+        fail_msg: "Nginx configuration test failed"
+
+    - name: Check nginx main configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_config }}"
+      loop:
+        - /etc/nginx/nginx.conf
+        - /etc/nginx/conf.d/security.conf
+      loop_control:
+        loop_var: item_config
+      register: nginx_config_stat_results
+
+    - name: Assert nginx configuration files exist
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Nginx configuration file not found"
+      loop: "{{ nginx_config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check site configuration files exist
+      ansible.builtin.stat:
+        path: "/etc/nginx/sites-available/{{ item_site }}"
+      loop:
+        - test.cluster.local
+        - ci.cluster.local
+        - status.cluster.local
+      loop_control:
+        loop_var: item_site
+      register: site_config_stat_results
+
+    - name: Assert site configuration files exist
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Site configuration file not found"
+      loop: "{{ site_config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check site enabled symlinks exist
+      ansible.builtin.stat:
+        path: "/etc/nginx/sites-enabled/{{ item_site }}"
+      loop:
+        - test.cluster.local
+        - ci.cluster.local
+        - status.cluster.local
+      loop_control:
+        loop_var: item_site
+      register: site_enabled_stat_results
+
+    - name: Assert site enabled symlinks exist
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['islnk']
+        fail_msg: "Site enabled symlink not found"
+      loop: "{{ site_enabled_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check document root directories exist
+      ansible.builtin.stat:
+        path: "{{ item_docroot }}"
+      loop:
+        - /opt/server/test
+        - /opt/server/ci
+        - /opt/server/status
+      loop_control:
+        loop_var: item_docroot
+      register: docroot_stat_results
+
+    - name: Assert document root directories exist
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['isdir']
+        fail_msg: "Document root directory not found"
+      loop: "{{ docroot_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check index.html files exist
+      ansible.builtin.stat:
+        path: "{{ item_index }}"
+      loop:
+        - /opt/server/test/index.html
+        - /opt/server/ci/index.html
+        - /opt/server/status/index.html
+      loop_control:
+        loop_var: item_index
+      register: index_stat_results
+
+    - name: Assert index.html files exist
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Index.html file not found"
+      loop: "{{ index_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check SSL certificate files exist
+      ansible.builtin.stat:
+        path: "/etc/ssl/certs/{{ item_site }}.crt"
+      loop:
+        - test.cluster.local
+        - ci.cluster.local
+        - status.cluster.local
+      loop_control:
+        loop_var: item_site
+      register: ssl_cert_stat_results
+
+    - name: Assert SSL certificate files exist
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "SSL certificate file not found"
+      loop: "{{ ssl_cert_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check SSL private key files exist
+      ansible.builtin.stat:
+        path: "/etc/ssl/private/{{ item_site }}.key"
+      loop:
+        - test.cluster.local
+        - ci.cluster.local
+        - status.cluster.local
+      loop_control:
+        loop_var: item_site
+      register: ssl_key_stat_results
+
+    - name: Assert SSL private key files exist and have correct permissions
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+          - item_result['stat']['mode'] == '0640'
+        fail_msg: "SSL private key file not found or incorrect permissions"
+      loop: "{{ ssl_key_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check security configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_security }}"
+      loop:
+        - /etc/fail2ban/jail.local
+        - /etc/sysctl.d/99-security.conf
+      loop_control:
+        loop_var: item_security
+      register: security_config_stat_results
+
+    - name: Assert security configuration files exist
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Security configuration file not found"
+      loop: "{{ security_config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check nginx is listening on ports 80 and 443
+      ansible.builtin.wait_for:
+        port: "{{ item_port }}"
+        host: "0.0.0.0"
+        timeout: 10
+      loop:
+        - 80
+        - 443
+      loop_control:
+        loop_var: item_port
+
+    - name: Read fail2ban jail configuration
+      ansible.builtin.slurp:
+        src: /etc/fail2ban/jail.local
+      register: fail2ban_config
+
+    - name: Assert fail2ban configuration contains expected settings
+      ansible.builtin.assert:
+        that:
+          - "'enabled = true' in fail2ban_config['content'] | b64decode"
+          - "'bantime' in fail2ban_config['content'] | b64decode"
+          - "'maxretry' in fail2ban_config['content'] | b64decode"
+        fail_msg: "Fail2ban configuration missing expected settings"
+
+    - name: Read sysctl security configuration
+      ansible.builtin.slurp:
+        src: /etc/sysctl.d/99-security.conf
+      register: sysctl_config
+
+    - name: Assert sysctl security configuration contains expected settings
+      ansible.builtin.assert:
+        that:
+          - "'net.ipv4.conf.all.send_redirects' in sysctl_config['content'] | b64decode"
+          - "'net.ipv4.conf.all.accept_redirects' in sysctl_config['content'] | b64decode"
+        fail_msg: "Sysctl security configuration missing expected settings"
+
+    - name: Validate SSL certificates
+      ansible.builtin.command:
+        cmd: "openssl x509 -in /etc/ssl/certs/{{ item_site }}.crt -noout -subject"
+      loop:
+        - test.cluster.local
+        - ci.cluster.local
+        - status.cluster.local
+      loop_control:
+        loop_var: item_site
+      register: ssl_cert_validation
+      changed_when: false
+
+    - name: Assert SSL certificates are valid for their respective sites
+      ansible.builtin.assert:
+        that:
+          - "item_result['rc'] == 0"
+          - "'CN=' + item_result['item'] in item_result['stdout']"
+        fail_msg: "SSL certificate validation failed"
+      loop: "{{ ssl_cert_validation['results'] }}"
+      loop_control:
+        loop_var: item_result
