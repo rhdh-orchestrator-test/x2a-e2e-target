@@ -1,0 +1,125 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis and memcached configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_config }}"
+      loop:
+        - /etc/redis/6379.conf
+        - /etc/memcached.conf
+      loop_control:
+        loop_var: item_config
+      register: config_stat_results
+
+    - name: Assert configuration files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Expected configuration file not found"
+      loop: "{{ config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_dir_stat
+
+    - name: Assert Redis log directory was created with correct permissions
+      ansible.builtin.assert:
+        that:
+          - redis_log_dir_stat['stat']['exists']
+          - redis_log_dir_stat['stat']['isdir']
+          - redis_log_dir_stat['stat']['pw_name'] == 'redis'
+          - redis_log_dir_stat['stat']['gr_name'] == 'redis'
+          - redis_log_dir_stat['stat']['mode'] == '0755'
+        fail_msg: "Redis log directory not found or incorrect permissions"
+
+    - name: Get service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert Redis service is running
+      ansible.builtin.assert:
+        that:
+          - "'redis-server.service' in ansible_facts.services"
+          - ansible_facts.services['redis-server.service']['state'] == 'running'
+          - ansible_facts.services['redis-server.service']['status'] == 'enabled'
+        fail_msg: "Redis service not running or not enabled"
+
+    - name: Assert memcached service is running
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts.services"
+          - ansible_facts.services['memcached.service']['state'] == 'running'
+          - ansible_facts.services['memcached.service']['status'] == 'enabled'
+        fail_msg: "Memcached service not running or not enabled"
+
+    - name: Check Redis port is listening
+      ansible.builtin.wait_for:
+        port: 6379
+        host: localhost
+        timeout: 10
+        msg: "Redis port 6379 not listening"
+
+    - name: Check memcached port is listening
+      ansible.builtin.wait_for:
+        port: 11211
+        host: localhost
+        timeout: 10
+        msg: "Memcached port 11211 not listening"
+
+    - name: Test Redis connectivity
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 ping
+      register: redis_ping_result
+      changed_when: false
+      failed_when: redis_ping_result.stdout != "PONG"
+
+    - name: Test memcached connectivity
+      ansible.builtin.command:
+        cmd: echo "stats"
+      register: memcached_test_cmd
+      changed_when: false
+
+    - name: Send stats command to memcached
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          echo "stats" | nc localhost 11211
+        executable: /bin/bash
+      register: memcached_stats_result
+      changed_when: false
+      failed_when: "'STAT' not in memcached_stats_result.stdout"
+
+    - name: Read Redis configuration file
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Verify Redis configuration contains required settings
+      ansible.builtin.assert:
+        that:
+          - "'port 6379' in redis_config_decoded"
+          - "'requirepass' in redis_config_decoded"
+        fail_msg: "Redis configuration missing required settings"
+      vars:
+        redis_config_decoded: "{{ redis_config_content['content'] | b64decode }}"
+
+    - name: Verify deprecated Redis settings are removed
+      ansible.builtin.assert:
+        that:
+          - item_deprecated not in redis_config_decoded
+        fail_msg: "Deprecated Redis setting still present in configuration"
+      loop:
+        - replica-serve-stale-data
+        - replica-read-only
+        - repl-ping-replica-period
+        - client-output-buffer-limit
+        - replica-priority
+      loop_control:
+        loop_var: item_deprecated
+      vars:
+        redis_config_decoded: "{{ redis_config_content['content'] | b64decode }}"
