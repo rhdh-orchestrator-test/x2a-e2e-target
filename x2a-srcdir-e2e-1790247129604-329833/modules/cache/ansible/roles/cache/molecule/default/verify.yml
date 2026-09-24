@@ -1,0 +1,91 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis service status
+      ansible.builtin.service_facts:
+
+    - name: Assert Redis service is running
+      ansible.builtin.assert:
+        that:
+          - "'redis-server.service' in ansible_facts.services"
+          - "ansible_facts.services['redis-server.service']['state'] == 'running'"
+          - "ansible_facts.services['redis-server.service']['status'] == 'enabled'"
+        fail_msg: "Redis service is not running or not enabled"
+
+    - name: Check Redis is listening on port 6379
+      ansible.builtin.wait_for:
+        port: 6379
+        host: 127.0.0.1
+        timeout: 10
+        msg: "Redis is not listening on port 6379"
+
+    - name: Test Redis connectivity with ping
+      ansible.builtin.command:
+        cmd: redis-cli ping
+      register: redis_ping_result
+      changed_when: false
+
+    - name: Assert Redis ping response
+      ansible.builtin.assert:
+        that:
+          - "redis_ping_result['stdout'] == 'PONG'"
+        fail_msg: "Redis ping test failed"
+
+    - name: Test Redis basic operations # noqa: R101 - commands are hardcoded in loop, not from user input
+      ansible.builtin.command:
+        cmd: "{{ item_redis_cmd }}"
+      loop:
+        - redis-cli set molecule_test_key "molecule_test_value"
+        - redis-cli get molecule_test_key
+        - redis-cli del molecule_test_key
+      loop_control:
+        loop_var: item_redis_cmd
+      register: redis_ops_results
+      changed_when: false
+
+    - name: Assert Redis operations work correctly
+      ansible.builtin.assert:
+        that:
+          - "redis_ops_results['results'][0]['stdout'] == 'OK'"
+          - "redis_ops_results['results'][1]['stdout'] == 'molecule_test_value'"
+          - "redis_ops_results['results'][2]['stdout'] == '1'"
+        fail_msg: "Redis basic operations test failed"
+
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/redis.conf
+      register: redis_config_stat
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - "redis_config_stat['stat']['exists']"
+          - "redis_config_stat['stat']['size'] > 0"
+        fail_msg: "Redis configuration file not found or empty"
+
+    - name: Check Redis data directory exists
+      ansible.builtin.stat:
+        path: /var/lib/redis
+      register: redis_data_dir_stat
+
+    - name: Assert Redis data directory exists
+      ansible.builtin.assert:
+        that:
+          - "redis_data_dir_stat['stat']['exists']"
+          - "redis_data_dir_stat['stat']['isdir']"
+        fail_msg: "Redis data directory not found"
+
+    - name: Get Redis server info
+      ansible.builtin.command:
+        cmd: redis-cli info server
+      register: redis_info_result
+      changed_when: false
+
+    - name: Assert Redis server info contains expected data
+      ansible.builtin.assert:
+        that:
+          - "'redis_version' in redis_info_result['stdout']"
+          - "'tcp_port:6379' in redis_info_result['stdout']"
+        fail_msg: "Redis server info does not contain expected data"
