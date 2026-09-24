@@ -1,0 +1,16 @@
+---
+# FastAPI Tutorial Role Handlers
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Restart fastapi-tutorial service
+  ansible.builtin.service:
+    name: fastapi-tutorial
+    state: restarted
+
+- name: Restart postgresql service
+  ansible.builtin.service:
+    name: postgresql
+    state: restarted
