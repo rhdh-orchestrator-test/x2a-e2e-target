@@ -1,0 +1,203 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  vars:
+    # Mock AAP credential variables for testing (same as converge)
+    db_username: fastapi
+    db_password: fastapi_password
+    db_host: localhost
+    db_name: fastapi_db
+  tasks:
+    - name: Check application directory exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: app_dir_stat
+
+    - name: Assert application directory was created
+      ansible.builtin.assert:
+        that:
+          - app_dir_stat['stat']['exists']
+          - app_dir_stat['stat']['isdir']
+        fail_msg: "Application directory /opt/fastapi-tutorial not found"
+
+    - name: Check Python virtual environment exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/python
+      register: venv_stat
+
+    - name: Assert virtual environment was created
+      ansible.builtin.assert:
+        that:
+          - venv_stat['stat']['exists']
+          - venv_stat['stat']['executable']
+        fail_msg: "Python virtual environment not found"
+
+    - name: Check configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_config }}"
+      loop:
+        - /opt/fastapi-tutorial/.env
+        - /etc/systemd/system/fastapi-tutorial.service
+        - /opt/fastapi-tutorial/requirements.txt
+      loop_control:
+        loop_var: item_config
+      register: config_stat_results
+
+    - name: Assert configuration files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Expected configuration file not found"
+      loop: "{{ config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check main application file exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/app/main.py
+      register: main_app_stat
+
+    - name: Assert main application file exists
+      ansible.builtin.assert:
+        that:
+          - main_app_stat['stat']['exists']
+        fail_msg: "Main app file /opt/fastapi-tutorial/app/main.py missing"
+
+    - name: Get service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert services are running
+      ansible.builtin.assert:
+        that:
+          - "'postgresql.service' in ansible_facts.services"
+          - "ansible_facts.services['postgresql.service']['state'] == 'running'"
+          - "'fastapi-tutorial.service' in ansible_facts.services"
+          - "ansible_facts.services['fastapi-tutorial.service']['state'] == 'running'"
+        fail_msg: "Required services not running"
+
+    - name: Check FastAPI application is listening on port 8000
+      ansible.builtin.wait_for:
+        port: 8000
+        host: localhost
+        timeout: 30
+        msg: "FastAPI application not listening on port 8000"
+
+    - name: Check PostgreSQL is listening on port 5432
+      ansible.builtin.wait_for:
+        port: 5432
+        host: localhost
+        timeout: 10
+        msg: "PostgreSQL not listening on port 5432"
+
+    - name: Test FastAPI application health
+      ansible.builtin.uri:
+        url: http://localhost:8000
+        method: GET
+        status_code: [200, 404] # Accept 404 as app may not have root endpoint
+      register: app_health_check
+
+    - name: Assert FastAPI application responds
+      ansible.builtin.assert:
+        that:
+          - app_health_check['status'] in [200, 404]
+        fail_msg: "FastAPI application not responding"
+
+    - name: Check FastAPI docs endpoint
+      ansible.builtin.uri:
+        url: http://localhost:8000/docs
+        method: GET
+        status_code: 200
+      register: docs_check
+
+    - name: Assert FastAPI docs endpoint accessible
+      ansible.builtin.assert:
+        that:
+          - docs_check['status'] == 200
+        fail_msg: "FastAPI docs endpoint not accessible"
+
+    - name: Read environment configuration file
+      ansible.builtin.slurp:
+        src: /opt/fastapi-tutorial/.env
+      register: env_config
+
+    - name: Assert environment configuration contains required variables
+      ansible.builtin.assert:
+        that:
+          - "'PROJECT_NAME=' in env_config['content'] | b64decode"
+          - "'API_VERSION=' in env_config['content'] | b64decode"
+          - "'DATABASE_URL=' in env_config['content'] | b64decode"
+        fail_msg: "Environment configuration missing required variables"
+
+    - name: Read systemd service file
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/fastapi-tutorial.service
+      register: service_config
+
+    - name: Assert systemd service configuration is correct
+      ansible.builtin.assert:
+        that:
+          - "'ExecStart=' in service_config['content'] | b64decode"
+          - "'WorkingDirectory=/opt/fastapi-tutorial' in service_config['content'] | b64decode"
+          - "'uvicorn app.main:app' in service_config['content'] | b64decode"
+        fail_msg: "Systemd service configuration incorrect"
+
+    - name: Test database connectivity # noqa: R101 - db credentials from test vars, not user input
+      ansible.builtin.shell:
+        cmd: |
+          cd /opt/fastapi-tutorial && /opt/fastapi-tutorial/venv/bin/python -c "
+          import psycopg2
+          try:
+              conn = psycopg2.connect(
+                  host='localhost',
+                  database='{{ db_name }}',
+                  user='{{ db_username }}',
+                  password='{{ db_password }}'
+              )
+              cursor = conn.cursor()
+              cursor.execute('SELECT version();')
+              result = cursor.fetchone()
+              print('Database connection successful')
+              cursor.close()
+              conn.close()
+          except Exception as e:
+              print(f'Database connection failed: {e}')
+              exit(1)
+          "
+      register: db_test
+      changed_when: false
+
+    - name: Assert database connection successful
+      ansible.builtin.assert:
+        that:
+          - "'Database connection successful' in db_test['stdout']"
+        fail_msg: "Database connection test failed"
+
+    - name: Check Git repository status
+      ansible.builtin.shell:
+        cmd: cd /opt/fastapi-tutorial && git remote -v
+      register: git_remote_check
+      changed_when: false
+
+    - name: Assert Git repository is properly cloned
+      ansible.builtin.assert:
+        that:
+          - "'github.com/dibanez/fastapi_tutorial.git' in git_remote_check['stdout']"
+        fail_msg: "Git repository not properly cloned"
+
+    - name: Check Python dependencies are installed
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          /opt/fastapi-tutorial/venv/bin/pip list | grep -E 'fastapi|uvicorn|psycopg'
+        executable: /bin/bash
+      register: pip_deps_check
+      changed_when: false
+
+    - name: Assert required Python packages are installed
+      ansible.builtin.assert:
+        that:
+          - "'fastapi' in pip_deps_check['stdout'] or 'FastAPI' in pip_deps_check['stdout']"
+          - "'uvicorn' in pip_deps_check['stdout']"
+        fail_msg: "Required Python packages not installed"
