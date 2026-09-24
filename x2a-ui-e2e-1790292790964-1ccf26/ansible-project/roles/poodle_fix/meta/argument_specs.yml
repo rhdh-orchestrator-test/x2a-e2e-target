@@ -1,0 +1,19 @@
+---
+argument_specs:
+  main:
+    short_description: Fix POODLE SSL vulnerability in Apache
+    description:
+      - Fixes the POODLE SSL vulnerability (CVE-2014-3566) in Apache web server
+      - Installs Apache, enables SSL module, and updates SSL protocol configuration
+      - Disables vulnerable protocols and enables only TLSv1.2
+    options:
+      apache_ssl_conf_path:
+        type: str
+        required: false
+        default: /etc/apache2/mods-available/ssl.conf
+        description: Path to Apache SSL configuration file
+      ssl_protocol_config:
+        type: str
+        required: false
+        default: SSLProtocol -all +TLSv1.2
+        description: SSL protocol configuration string to fix POODLE vulnerability
