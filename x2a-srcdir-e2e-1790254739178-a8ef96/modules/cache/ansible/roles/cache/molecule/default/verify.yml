@@ -1,0 +1,89 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis service status
+      ansible.builtin.service_facts:
+
+    - name: Assert Redis service is running and enabled
+      ansible.builtin.assert:
+        that:
+          - "'redis-server.service' in ansible_facts.services"
+          - "ansible_facts.services['redis-server.service']['state'] == 'running'"
+        fail_msg: "Redis service is not running"
+
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/redis.conf
+      register: redis_config_stat
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat['stat']['exists']
+          - redis_config_stat['stat']['size'] > 0
+        fail_msg: "Redis configuration file not found"
+
+    - name: Check Redis data directory exists
+      ansible.builtin.stat:
+        path: /var/lib/redis
+      register: redis_data_dir_stat
+
+    - name: Assert Redis data directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_data_dir_stat['stat']['exists']
+          - redis_data_dir_stat['stat']['isdir']
+        fail_msg: "Redis data directory not found"
+
+    - name: Check Redis is listening on port 6379
+      ansible.builtin.wait_for:
+        port: 6379
+        host: 127.0.0.1
+        timeout: 10
+        msg: "Redis is not listening on port 6379"
+
+    - name: Test Redis connectivity with ping
+      ansible.builtin.command:
+        cmd: redis-cli ping
+      register: redis_ping_result
+      changed_when: false
+
+    - name: Assert Redis responds to ping
+      ansible.builtin.assert:
+        that:
+          - redis_ping_result['stdout'] == 'PONG'
+        fail_msg: "Redis did not respond to ping command"
+
+    - name: Test Redis basic operations
+      ansible.builtin.command: # noqa: R101 - variable comes from hardcoded loop values in molecule test, not user input
+        cmd: "{{ item_redis_cmd }}"
+      loop:
+        - redis-cli set molecule_test_key "molecule_test_value"
+        - redis-cli get molecule_test_key
+        - redis-cli del molecule_test_key
+      loop_control:
+        loop_var: item_redis_cmd
+      register: redis_ops_results
+      changed_when: false
+
+    - name: Assert Redis basic operations work
+      ansible.builtin.assert:
+        that:
+          - redis_ops_results['results'][0]['stdout'] == 'OK'
+          - redis_ops_results['results'][1]['stdout'] == 'molecule_test_value'
+          - redis_ops_results['results'][2]['stdout'] == '1'
+        fail_msg: "Redis basic operations failed"
+
+    - name: Get Redis server info
+      ansible.builtin.command:
+        cmd: redis-cli info server
+      register: redis_info_result
+      changed_when: false
+
+    - name: Assert Redis server info contains version
+      ansible.builtin.assert:
+        that:
+          - "'redis_version' in redis_info_result['stdout']"
+        fail_msg: "Redis server info does not contain version information"
