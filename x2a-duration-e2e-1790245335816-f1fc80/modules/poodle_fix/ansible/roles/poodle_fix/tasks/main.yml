@@ -1,0 +1,28 @@
+---
+- name: Ensure Apache is installed
+  ansible.builtin.package:
+    name: "{{ poodle_fix_apache_package }}"
+    state: present
+  become: true # noqa: R108 - package installation requires root privileges
+
+- name: Ensure Apache SSL module is enabled
+  ansible.builtin.apache2_module:
+    name: ssl
+    state: present
+  become: true # noqa: R108 - Apache module management requires root privileges
+  notify: Restart apache2
+
+- name: Check if Apache SSL config file exists
+  ansible.builtin.stat:
+    path: "{{ poodle_fix_apache_config_path }}"
+  register: apache_ssl_config
+
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    dest: "{{ poodle_fix_apache_config_path }}" # noqa: R114 - path from role variables, not user input
+    regexp: ^SSLProtocol.*$
+    replace: "{{ poodle_fix_ssl_protocol }}"
+    backup: true
+  notify: Restart apache2
+  become: true # noqa: R108 - file modification requires root privileges
+  when: apache_ssl_config.stat.exists # noqa: L039 - variable registered by prior task

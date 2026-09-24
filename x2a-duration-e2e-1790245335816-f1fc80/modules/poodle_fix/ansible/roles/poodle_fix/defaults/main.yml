@@ -1,0 +1,9 @@
+---
+# Apache package name
+poodle_fix_apache_package: apache2
+# Apache SSL configuration path
+poodle_fix_apache_config_path: /etc/apache2/mods-available/ssl.conf
+# SSL protocol configuration - disables all protocols except TLSv1.2 to fix POODLE vulnerability
+poodle_fix_ssl_protocol: SSLProtocol -all +TLSv1.2
+# Whether to restart services after configuration changes
+poodle_fix_restart_services: true
