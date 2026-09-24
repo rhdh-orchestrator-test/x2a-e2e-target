@@ -1,0 +1,55 @@
+---
+# Cache role main tasks
+
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install cache packages
+  ansible.builtin.package:
+    name: "{{ cache_packages }}"
+    state: present
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_dir }}"
+    state: directory
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+
+- name: Configure Redis server
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: "{{ cache_redis_config_file }}"
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0640"
+    backup: true
+  notify: Restart Redis service
+
+- name: Remove unwanted Redis replica configuration lines
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path from role defaults, not user input
+    regexp: "{{ item_redis_config }}"
+    state: absent
+  loop:
+    - "^replica-serve-stale-data.*$"
+    - "^replica-read-only.*$"
+    - "^repl-ping-replica-period.*$"
+    - "^client-output-buffer-limit.*$"
+    - "^replica-priority.*$"
+  loop_control:
+    loop_var: item_redis_config
+  notify: Restart Redis service
+
+- name: Start and enable Redis service
+  ansible.builtin.service:
+    name: "{{ cache_redis_service }}"
+    state: started
+    enabled: true
+
+- name: Start and enable memcached service
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service }}"
+    state: started
+    enabled: true
