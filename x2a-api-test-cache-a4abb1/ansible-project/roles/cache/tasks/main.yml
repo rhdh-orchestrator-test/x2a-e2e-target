@@ -1,0 +1,115 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install memcached package
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Install Redis packages
+  ansible.builtin.package:
+    name:
+      - redis-server
+      - redis-tools
+    state: present
+
+- name: Ensure Redis user exists
+  ansible.builtin.user:
+    name: "{{ cache_redis_user }}"
+    system: true
+    shell: /bin/false
+    home: /var/lib/redis
+    create_home: false
+    state: present
+
+- name: Ensure Redis group exists
+  ansible.builtin.group:
+    name: "{{ cache_redis_group }}"
+    system: true
+    state: present
+
+- name: Check if Redis config file exists
+  ansible.builtin.stat:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path from role defaults
+  register: redis_config_stat # noqa: L033 - register variable scoped to this task file, no conflict with verify.yml
+
+- name: Create Redis config file if it doesn't exist # noqa: R114 - path from role defaults
+  ansible.builtin.copy:
+    dest: "{{ cache_redis_config_file }}"
+    content: |
+      # Redis configuration file
+      port {{ cache_redis_port }}
+      bind 127.0.0.1
+      timeout 0
+      tcp-keepalive 0
+      loglevel notice
+      logfile {{ cache_redis_log_dir }}/redis-server.log
+      databases 16
+      save 900 1
+      save 300 10
+      save 60 10000
+      stop-writes-on-bgsave-error yes
+      rdbcompression yes
+      rdbchecksum yes
+      dbfilename dump.rdb
+      dir /var/lib/redis/
+      maxmemory-policy noeviction
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0640"
+  when: not redis_config_stat.stat.exists # noqa: L039 - redis_config_stat registered by prior task
+  notify: Restart Redis
+
+- name: Create Redis log directory # noqa: R114 - path from role defaults
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_dir }}"
+    state: directory
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+    recurse: true
+
+- name: Configure Redis server port # noqa: R114 - path from role defaults
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}"
+    regexp: "^port "
+    line: "port {{ cache_redis_port }}"
+    backup: true
+  notify: Restart Redis
+
+- name: Configure Redis authentication # noqa: R114 - path from role defaults
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}"
+    regexp: "^requirepass "
+    line: "requirepass {{ redis_password }}" # noqa: L039 - variable comes from role defaults
+    backup: true
+  notify: Restart Redis
+
+- name: Remove Redis replica configuration settings # noqa: R114,R115 - path from role defaults
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}"
+    regexp: "{{ item_redis_config }}"
+    state: absent
+    backup: true
+  loop:
+    - ^replica-serve-stale-data.*$
+    - ^replica-read-only.*$
+    - ^repl-ping-replica-period.*$
+    - ^client-output-buffer-limit.*$
+    - ^replica-priority.*$
+  loop_control:
+    loop_var: item_redis_config
+  notify: Restart Redis
+
+- name: Start and enable memcached service
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service_name }}"
+    state: started
+    enabled: true
+
+- name: Start and enable Redis service
+  ansible.builtin.service:
+    name: "{{ cache_redis_service_name }}"
+    state: started
+    enabled: true

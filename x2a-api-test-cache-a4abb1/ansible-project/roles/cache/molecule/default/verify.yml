@@ -1,0 +1,139 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  vars:
+    redis_password: "test_password_123"
+  tasks:
+    - name: Check service status
+      ansible.builtin.service_facts:
+
+    - name: Assert memcached service is running
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts.services"
+          - "ansible_facts.services['memcached.service']['state'] == 'running'"
+        fail_msg: "Memcached service is not running"
+
+    - name: Assert Redis service is running
+      ansible.builtin.assert:
+        that:
+          - "'redis-server.service' in ansible_facts.services"
+          - "ansible_facts.services['redis-server.service']['state'] == 'running'"
+        fail_msg: "Redis service is not running"
+
+    - name: Check Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_dir_stat
+
+    - name: Assert Redis log directory was created with correct permissions
+      ansible.builtin.assert:
+        that:
+          - redis_log_dir_stat['stat']['exists']
+          - redis_log_dir_stat['stat']['isdir']
+          - redis_log_dir_stat['stat']['pw_name'] == 'redis'
+          - redis_log_dir_stat['stat']['gr_name'] == 'redis'
+          - redis_log_dir_stat['stat']['mode'] == '0755'
+        fail_msg: "Redis log directory not found or incorrect permissions"
+
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat # noqa: L033 - register variable scoped to this playbook, no conflict with main.yml
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat['stat']['exists']
+          - redis_config_stat['stat']['size'] > 0
+        fail_msg: "Redis configuration file not found"
+
+    - name: Read Redis configuration file
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert Redis port configuration
+      ansible.builtin.assert:
+        that:
+          - "'port 6379' in (redis_config_content['content'] | b64decode)"
+        fail_msg: "Redis port 6379 not configured"
+
+    - name: Assert Redis authentication is configured
+      ansible.builtin.assert:
+        that:
+          - "'requirepass' in (redis_config_content['content'] | b64decode)"
+        fail_msg: "Redis authentication not configured"
+
+    - name: Assert Redis replica settings were removed
+      ansible.builtin.assert:
+        that:
+          - "'replica-serve-stale-data' not in (redis_config_content['content'] | b64decode)"
+          - "'replica-read-only' not in (redis_config_content['content'] | b64decode)"
+          - "'repl-ping-replica-period' not in (redis_config_content['content'] | b64decode)"
+          - "'client-output-buffer-limit' not in (redis_config_content['content'] | b64decode)"
+          - "'replica-priority' not in (redis_config_content['content'] | b64decode)"
+        fail_msg: "Redis replica settings were not properly removed"
+
+    - name: Check memcached port is listening
+      ansible.builtin.wait_for:
+        port: 11211
+        host: localhost
+        timeout: 10
+        msg: "Memcached port 11211 is not listening"
+
+    - name: Check Redis port is listening
+      ansible.builtin.wait_for:
+        port: 6379
+        host: localhost
+        timeout: 10
+        msg: "Redis port 6379 is not listening"
+
+    - name: Test memcached connectivity
+      ansible.builtin.command:
+        cmd: echo "stats"
+        stdin: true
+      register: memcached_stats
+      changed_when: false
+      failed_when: false
+
+    - name: Test Redis connectivity with authentication # noqa: R101 - redis_password from role vars, not user input
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a "{{ redis_password }}" ping
+      register: redis_ping
+      changed_when: false
+      failed_when: redis_ping.rc != 0
+
+    - name: Assert Redis responds to authenticated ping
+      ansible.builtin.assert:
+        that:
+          - "'PONG' in redis_ping.stdout"
+        fail_msg: "Redis authentication test failed"
+
+    - name: Test Redis info command # noqa: R101 - redis_password from role vars, not user input
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a "{{ redis_password }}" info server
+      register: redis_info
+      changed_when: false
+      failed_when: redis_info.rc != 0
+
+    - name: Assert Redis info command works
+      ansible.builtin.assert:
+        that:
+          - "'redis_version' in redis_info.stdout"
+        fail_msg: "Redis info command failed"
+
+    - name: Verify Redis requirepass configuration # noqa: R101 - redis_password from role vars, not user input
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a "{{ redis_password }}" config get requirepass
+      register: redis_requirepass
+      changed_when: false
+      failed_when: redis_requirepass.rc != 0
+
+    - name: Assert Redis requirepass is set
+      ansible.builtin.assert:
+        that:
+          - "redis_requirepass.stdout_lines | length >= 2"
+          - "'requirepass' in redis_requirepass.stdout"
+        fail_msg: "Redis requirepass not properly configured"
