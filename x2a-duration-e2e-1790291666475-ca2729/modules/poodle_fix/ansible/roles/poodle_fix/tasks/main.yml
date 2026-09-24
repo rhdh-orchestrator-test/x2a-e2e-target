@@ -1,0 +1,47 @@
+---
+- name: Install Apache web server
+  ansible.builtin.package:
+    name: apache2
+    state: present
+  become: true # noqa: R108 - package installation requires root privileges
+  tags:
+    - ssl
+    - security
+    - apache
+
+- name: Enable Apache SSL module
+  ansible.builtin.command:
+    cmd: a2enmod ssl
+    creates: /etc/apache2/mods-enabled/ssl.conf
+  become: true # noqa: R108 - enabling Apache modules requires root privileges
+  notify:
+    - Restart apache2
+  tags:
+    - ssl
+    - security
+    - apache
+
+- name: Ensure Apache SSL configuration file exists
+  ansible.builtin.file:
+    path: "{{ apache_ssl_conf_path }}" # noqa: R114 - path from role variables
+    state: touch
+    mode: "0644"
+  become: true # noqa: R108 - creating files in system directories requires root privileges
+  tags:
+    - ssl
+    - security
+    - apache
+
+- name: Fix SSL in Apache
+  ansible.builtin.replace:
+    dest: "{{ apache_ssl_conf_path }}" # noqa: R114 - path from role variables
+    regexp: "{{ ssl_protocol_regex }}"
+    replace: "{{ ssl_protocols }}"
+    backup: true
+  notify:
+    - Restart apache2
+  become: true # noqa: R108 - modifying Apache configuration requires root privileges
+  tags:
+    - ssl
+    - security
+    - apache
