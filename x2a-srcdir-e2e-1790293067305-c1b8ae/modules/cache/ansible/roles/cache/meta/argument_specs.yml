@@ -1,0 +1,18 @@
+---
+argument_specs:
+  main:
+    short_description: Simple cache cookbook - local dependency for testing
+    description:
+      - Installs and configures Redis server as a simple cache service.
+      - Uses default Redis configuration without custom settings.
+      - Provides basic Redis functionality on the default port 6379.
+      - Automatically detects the correct package and service names based on OS family.
+    options:
+      redis_package_name:
+        description: Name of the Redis package to install
+        type: str
+        default: "{{ 'redis' if ansible_os_family == 'RedHat' else 'redis-server' }}"
+      redis_service_name:
+        description: Name of the Redis service to manage
+        type: str
+        default: "{{ 'redis' if ansible_os_family == 'RedHat' else 'redis-server' }}"

@@ -1,0 +1,6 @@
+---
+# Redis package name (automatically determined based on OS family)
+redis_package_name: "{{ 'redis' if ansible_os_family == 'RedHat' else 'redis-server' }}"
+
+# Redis service name (automatically determined based on OS family)
+redis_service_name: "{{ 'redis' if ansible_os_family == 'RedHat' else 'redis-server' }}"
