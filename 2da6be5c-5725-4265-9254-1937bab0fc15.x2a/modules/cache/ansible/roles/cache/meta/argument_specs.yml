@@ -1,0 +1,44 @@
+---
+argument_specs:
+  main:
+    short_description: Simple cache cookbook - local dependency for testing
+    description:
+      - Installs and configures Redis server as a simple cache service
+      - Provides basic Redis functionality with default configuration
+      - Suitable for development and testing environments
+    options:
+      cache_service_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Name of the Redis service to manage
+      cache_package_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Name of the Redis package to install
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port Redis listens on
+      cache_redis_bind:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: IP address Redis binds to
+      cache_redis_config_path:
+        type: str
+        required: false
+        default: /etc/redis/redis.conf
+        description: Path to Redis configuration file
+      cache_redis_data_dir:
+        type: str
+        required: false
+        default: /var/lib/redis
+        description: Directory where Redis stores data files
+      cache_redis_log_file:
+        type: str
+        required: false
+        default: /var/log/redis/redis-server.log
+        description: Path to Redis log file
