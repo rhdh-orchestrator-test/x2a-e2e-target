@@ -1,0 +1,142 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check cache service status
+      ansible.builtin.service_facts:
+
+    - name: Assert memcached service is running
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts.services"
+          - "ansible_facts.services['memcached.service']['state'] == 'running'"
+        fail_msg: "Memcached service is not running"
+
+    - name: Assert Redis service is running
+      ansible.builtin.assert:
+        that:
+          - "'redis-server.service' in ansible_facts.services"
+          - "ansible_facts.services['redis-server.service']['state'] == 'running'"
+        fail_msg: "Redis service is not running"
+
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat['stat']['exists']
+          - redis_config_stat['stat']['size'] > 0
+        fail_msg: "Redis configuration file not found or empty"
+
+    - name: Check Redis directories exist
+      ansible.builtin.stat:
+        path: "{{ item_redis_dir }}" # noqa: R114 - path from fixed test list, not user input
+      loop:
+        - /var/log/redis
+        - /var/lib/redis
+        - /var/run/redis
+      loop_control:
+        loop_var: item_redis_dir
+      register: redis_dir_stats
+
+    - name: Assert Redis directories were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['isdir']
+        fail_msg: "Redis directory not found or not a directory"
+      loop: "{{ redis_dir_stats['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check memcached port is listening
+      ansible.builtin.wait_for:
+        port: 11211
+        host: localhost
+        timeout: 10
+
+    - name: Check Redis port is listening
+      ansible.builtin.wait_for:
+        port: 6379
+        host: localhost
+        timeout: 10
+
+    - name: Test memcached connectivity
+      ansible.builtin.command:
+        cmd: echo "stats"
+      register: memcached_test
+      changed_when: false
+
+    - name: Send stats command to memcached
+      ansible.builtin.shell:
+        cmd: |
+          echo "stats" | nc localhost 11211
+      register: memcached_stats
+      changed_when: false
+
+    - name: Assert memcached responds to stats command
+      ansible.builtin.assert:
+        that:
+          - "'STAT' in memcached_stats['stdout']"
+        fail_msg: "Memcached not responding to stats command"
+
+    - name: Test Redis ping without authentication
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 ping
+      register: redis_ping_noauth
+      failed_when: false
+      changed_when: false
+
+    - name: Test Redis ping with authentication
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a redis_secure_password_123 ping
+      register: redis_ping_auth
+      changed_when: false
+      no_log: true
+
+    - name: Assert Redis authentication is working
+      ansible.builtin.assert:
+        that:
+          - "redis_ping_auth['stdout'] == 'PONG'"
+        fail_msg: "Redis authentication not working properly"
+
+    - name: Check Redis configuration contains requirepass
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert Redis configuration has requirepass
+      ansible.builtin.assert:
+        that:
+          - "'requirepass' in (redis_config_content['content'] | b64decode)"
+        fail_msg: "Redis configuration missing requirepass setting"
+
+    - name: Check deprecated Redis settings are not present
+      ansible.builtin.shell:
+        cmd: |
+          grep -E 'replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority' /etc/redis/6379.conf || true
+      register: deprecated_settings
+      changed_when: false
+
+    - name: Assert deprecated Redis settings are removed
+      ansible.builtin.assert:
+        that:
+          - "deprecated_settings['stdout'] == ''"
+        fail_msg: "Deprecated Redis settings still present in configuration"
+
+    - name: Get Redis server info
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a redis_secure_password_123 info server
+      register: redis_info
+      changed_when: false
+      no_log: true
+
+    - name: Assert Redis server is responding
+      ansible.builtin.assert:
+        that:
+          - "'redis_version' in redis_info['stdout']"
+        fail_msg: "Redis server not responding to info command"
