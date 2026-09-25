@@ -1,0 +1,17 @@
+---
+# Cache role handlers
+
+- name: Restart redis
+  ansible.builtin.service:
+    name: redis-server
+    state: restarted
+
+- name: Restart memcached
+  ansible.builtin.service:
+    name: memcached
+    state: restarted
+
+- name: Reload redis
+  ansible.builtin.service:
+    name: redis-server
+    state: reloaded
