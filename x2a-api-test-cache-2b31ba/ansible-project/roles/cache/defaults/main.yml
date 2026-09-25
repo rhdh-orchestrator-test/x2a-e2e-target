@@ -1,0 +1,17 @@
+---
+# Cache role default variables
+# Redis configuration
+cache_redis_port: 6379
+cache_redis_config_file: /etc/redis/{{ cache_redis_port }}.conf
+cache_redis_log_dir: /var/log/redis
+cache_redis_user: redis
+cache_redis_group: redis
+# Memcached configuration
+cache_memcached_port: 11211
+# Redis configuration lines to remove (replica-related settings)
+cache_redis_config_lines_to_remove:
+  - ^replica-serve-stale-data.*$
+  - ^replica-read-only.*$
+  - ^repl-ping-replica-period.*$
+  - ^client-output-buffer-limit.*$
+  - ^replica-priority.*$
