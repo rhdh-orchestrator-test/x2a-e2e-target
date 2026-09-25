@@ -1,0 +1,17 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis cache server
+    description:
+      - Installs Redis server package and ensures the service is enabled and started.
+      - Uses default Redis configuration without custom parameters.
+      - Supports both Debian/Ubuntu and RedHat/CentOS distributions.
+    options:
+      redis_package_name:
+        description: Name of the Redis package to install
+        type: str
+        default: "{{ _redis_package_name[ansible_os_family] | default('redis-server') }}"
+      redis_service_name:
+        description: Name of the Redis service to manage
+        type: str
+        default: "{{ _redis_service_name[ansible_os_family] | default('redis-server') }}"

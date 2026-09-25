@@ -1,0 +1,14 @@
+---
+# Redis package and service names vary by distribution
+redis_package_name: "{{ _redis_package_name[ansible_os_family] | default('redis-server') }}"
+redis_service_name: "{{ _redis_service_name[ansible_os_family] | default('redis-server') }}"
+
+# Distribution-specific package names
+_redis_package_name:
+  Debian: redis-server
+  RedHat: redis
+
+# Distribution-specific service names  
+_redis_service_name:
+  Debian: redis-server
+  RedHat: redis

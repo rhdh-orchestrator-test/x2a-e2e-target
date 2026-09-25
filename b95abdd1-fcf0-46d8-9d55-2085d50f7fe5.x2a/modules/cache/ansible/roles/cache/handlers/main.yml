@@ -1,0 +1,10 @@
+---
+- name: Restart redis-server
+  ansible.builtin.service:
+    name: "{{ redis_service_name | default('redis-server') }}"
+    state: restarted
+
+- name: Reload redis-server
+  ansible.builtin.service:
+    name: "{{ redis_service_name | default('redis-server') }}"
+    state: reloaded
