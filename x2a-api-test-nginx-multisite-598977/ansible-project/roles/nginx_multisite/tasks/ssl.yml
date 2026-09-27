@@ -1,0 +1,63 @@
+---
+- name: Install SSL packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create ssl-cert group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Create SSL certificate directory
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_certificate_path }}"  # noqa: R114 - path from role defaults
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create SSL private key directory
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_private_key_path }}"  # noqa: R114 - path from role defaults
+    state: directory
+    owner: root
+    group: ssl-cert
+    mode: "0710"
+
+- name: Generate SSL private key for sites
+  ansible.builtin.command:
+    cmd: openssl genrsa -out {{ nginx_multisite_ssl_private_key_path }}/{{ item_site['key'] }}.key 2048  # noqa: R101 - paths from role defaults and loop over role-defined sites dict
+    creates: "{{ nginx_multisite_ssl_private_key_path }}/{{ item_site['key'] }}.key"
+  when: item_site['value']['ssl_enabled']
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_site
+
+- name: Set permissions on SSL private keys
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_private_key_path }}/{{ item_site['key'] }}.key"  # noqa: R114 - path from role defaults
+    state: file
+    owner: root
+    group: ssl-cert
+    mode: "0640"
+  when: item_site['value']['ssl_enabled']
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_site
+
+- name: Generate SSL certificate for sites
+  ansible.builtin.command:
+    cmd: >
+      openssl req -x509 -new -days 365
+      -key {{ nginx_multisite_ssl_private_key_path }}/{{ item_site['key'] }}.key
+      -out {{ nginx_multisite_ssl_certificate_path }}/{{ item_site['key'] }}.crt
+      -subj "/C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN={{ item_site['key'] }}/emailAddress=admin@example.com"  # noqa: R101 - paths from role defaults and loop over role-defined sites dict
+    creates: "{{ nginx_multisite_ssl_certificate_path }}/{{ item_site['key'] }}.crt"
+  when: item_site['value']['ssl_enabled']
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_site
+  notify: Reload nginx
