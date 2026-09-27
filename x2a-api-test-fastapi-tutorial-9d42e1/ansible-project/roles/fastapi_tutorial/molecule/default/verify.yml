@@ -1,0 +1,181 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  vars:
+    # Default test values for molecule testing
+    db_username: fastapi
+    db_password: fastapi_password
+    db_host: localhost
+    db_name: fastapi_db
+  tasks:
+    - name: Check application directory exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: app_dir_stat
+
+    - name: Assert application directory was created
+      ansible.builtin.assert:
+        that:
+          - app_dir_stat['stat']['exists']
+          - app_dir_stat['stat']['isdir']
+        fail_msg: "Application directory /opt/fastapi-tutorial not found"
+
+    - name: Check Python virtual environment exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/python3
+      register: venv_stat
+
+    - name: Assert virtual environment was created
+      ansible.builtin.assert:
+        that:
+          - venv_stat['stat']['exists']
+          - venv_stat['stat']['executable']
+        fail_msg: "Python virtual environment not found or not executable"
+
+    - name: Check configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_config }}"
+      loop:
+        - /opt/fastapi-tutorial/.env
+        - /etc/systemd/system/fastapi-tutorial.service
+        - /opt/fastapi-tutorial/requirements.txt
+      loop_control:
+        loop_var: item_config
+      register: config_stat_results
+
+    - name: Assert configuration files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Expected configuration file not found"
+      loop: "{{ config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check .env file content
+      ansible.builtin.slurp:
+        src: /opt/fastapi-tutorial/.env
+      register: env_file_content
+
+    - name: Assert .env file contains required variables
+      ansible.builtin.assert:
+        that:
+          - "'PROJECT_NAME=' in env_file_content['content'] | b64decode"
+          - "'API_VERSION=' in env_file_content['content'] | b64decode"
+          - "'DATABASE_URL=' in env_file_content['content'] | b64decode"
+        fail_msg: "Environment file missing required variables"
+
+    - name: Check systemd service file content
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/fastapi-tutorial.service
+      register: service_file_content
+
+    - name: Assert systemd service file contains required configuration
+      ansible.builtin.assert:
+        that:
+          - "'ExecStart=' in service_file_content['content'] | b64decode"
+          - "'uvicorn app.main:app' in service_file_content['content'] | b64decode"
+          - "'--port 8000' in service_file_content['content'] | b64decode"
+        fail_msg: "Systemd service file missing required configuration"
+
+    - name: Get service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert PostgreSQL service is running
+      ansible.builtin.assert:
+        that:
+          - "'postgresql.service' in ansible_facts.services"
+          - "ansible_facts.services['postgresql.service']['state'] == 'running'"
+        fail_msg: "PostgreSQL service not running"
+
+    - name: Assert FastAPI service is running
+      ansible.builtin.assert:
+        that:
+          - "'fastapi-tutorial.service' in ansible_facts.services"
+          - "ansible_facts.services['fastapi-tutorial.service']['state'] == 'running'"
+        fail_msg: "FastAPI tutorial service not running"
+
+    - name: Check if FastAPI application is listening on port 8000
+      ansible.builtin.wait_for:
+        port: 8000
+        host: localhost
+        timeout: 30
+        msg: "FastAPI application not listening on port 8000"
+
+    - name: Test FastAPI application health
+      ansible.builtin.uri:
+        url: http://localhost:8000/docs
+        method: GET
+        status_code: 200
+        timeout: 10
+      register: health_check
+      failed_when: false
+
+    - name: Assert FastAPI application is responding
+      ansible.builtin.assert:
+        that:
+          - health_check['status'] == 200
+        fail_msg: "FastAPI application not responding correctly"
+
+    - name: Check Git repository was cloned
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/.git
+      register: git_dir_stat
+
+    - name: Assert Git repository exists
+      ansible.builtin.assert:
+        that:
+          - git_dir_stat['stat']['exists']
+          - git_dir_stat['stat']['isdir']
+        fail_msg: "Git repository not found in application directory"
+
+    - name: Check Python dependencies are installed
+      ansible.builtin.command:
+        cmd: /opt/fastapi-tutorial/venv/bin/pip list
+      register: pip_list_output
+      changed_when: false
+
+    - name: Assert required Python packages are installed
+      ansible.builtin.assert:
+        that:
+          - "'fastapi' in pip_list_output['stdout']"
+          - "'uvicorn' in pip_list_output['stdout']"
+        fail_msg: "Required Python packages not installed"
+
+- name: Verify Database Configuration
+  hosts: all
+  gather_facts: false
+  vars:
+    # Default test values for molecule testing
+    db_username: fastapi
+    db_password: fastapi_password
+    db_host: localhost
+    db_name: fastapi_db
+  tasks:
+    - name: Check PostgreSQL user exists
+      ansible.builtin.command:
+        cmd: sudo -u postgres psql -c "SELECT usename FROM pg_user WHERE usename='{{ db_username }}';" # noqa: R101 - db_username from test vars, not user input
+      register: pg_user_check
+      changed_when: false
+      failed_when: false
+
+    - name: Assert PostgreSQL user was created
+      ansible.builtin.assert:
+        that:
+          - "'{{ db_username }}' in pg_user_check['stdout']"
+        fail_msg: "PostgreSQL user '{{ db_username }}' not found"
+
+    - name: Check PostgreSQL database exists
+      ansible.builtin.command:
+        cmd: sudo -u postgres psql -c "SELECT datname FROM pg_database WHERE datname='{{ db_name }}';" # noqa: R101 - db_name from test vars, not user input
+      register: pg_db_check
+      changed_when: false
+      failed_when: false
+
+    - name: Assert PostgreSQL database was created
+      ansible.builtin.assert:
+        that:
+          - "'{{ db_name }}' in pg_db_check['stdout']"
+        fail_msg: "PostgreSQL database '{{ db_name }}' not found"
