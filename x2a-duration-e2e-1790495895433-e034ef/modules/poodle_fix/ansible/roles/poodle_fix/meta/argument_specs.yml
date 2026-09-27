@@ -1,0 +1,24 @@
+---
+argument_specs:
+  main:
+    short_description: Fix POODLE SSL vulnerability in Apache
+    description:
+      - Configures Apache SSL settings to disable vulnerable SSL protocols
+      - Enforces TLS 1.2 only protocol in Apache configuration
+      - Addresses POODLE (Padding Oracle On Downgraded Legacy Encryption) vulnerability
+    options:
+      poodle_fix_apache_ssl_protocol:
+        type: str
+        required: false
+        default: -all +TLSv1.2
+        description: SSL protocol configuration for Apache to fix POODLE vulnerability
+      poodle_fix_apache_config_path:
+        type: str
+        required: false
+        default: /etc/apache2/mods-available/ssl.conf
+        description: Path to Apache SSL configuration file
+      poodle_fix_restart_services:
+        type: bool
+        required: false
+        default: true
+        description: Whether to restart services after configuration changes
