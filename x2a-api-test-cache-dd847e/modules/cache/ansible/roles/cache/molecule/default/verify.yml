@@ -1,0 +1,168 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis and Memcached packages are installed
+      ansible.builtin.package_facts:
+
+    - name: Assert Redis and Memcached packages are installed
+      ansible.builtin.assert:
+        that:
+          - "'redis-server' in ansible_facts.packages"
+          - "'memcached' in ansible_facts.packages"
+        fail_msg: "Required cache packages not installed"
+
+    - name: Check Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_dir_stat
+
+    - name: Assert Redis log directory was created with correct permissions
+      ansible.builtin.assert:
+        that:
+          - redis_log_dir_stat['stat']['exists']
+          - redis_log_dir_stat['stat']['isdir']
+          - redis_log_dir_stat['stat']['pw_name'] == 'redis'
+          - redis_log_dir_stat['stat']['gr_name'] == 'redis'
+          - redis_log_dir_stat['stat']['mode'] == '0755'
+        fail_msg: "Redis log directory not properly configured"
+
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat['stat']['exists']
+          - redis_config_stat['stat']['size'] > 0
+          - redis_config_stat['stat']['pw_name'] == 'redis'
+          - redis_config_stat['stat']['gr_name'] == 'redis'
+          - redis_config_stat['stat']['mode'] == '0640'
+        fail_msg: "Redis configuration file not properly created"
+
+    - name: Read Redis configuration file
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert Redis configuration contains required settings
+      ansible.builtin.assert:
+        that:
+          - "'requirepass' in redis_config_content['content'] | b64decode"
+          - "'port 6379' in redis_config_content['content'] | b64decode"
+        fail_msg: "Redis configuration missing required settings"
+
+    - name: Assert Redis configuration cleanup was performed
+      ansible.builtin.assert:
+        that:
+          - "'replica-serve-stale-data' not in redis_config_content['content'] | b64decode"
+          - "'replica-read-only' not in redis_config_content['content'] | b64decode"
+          - "'repl-ping-replica-period' not in redis_config_content['content'] | b64decode"
+          - "'client-output-buffer-limit' not in redis_config_content['content'] | b64decode"
+          - "'replica-priority' not in redis_config_content['content'] | b64decode"
+        fail_msg: "Redis configuration cleanup not performed"
+
+    - name: Check service status
+      ansible.builtin.service_facts:
+
+    - name: Assert Redis service is running and enabled
+      ansible.builtin.assert:
+        that:
+          - "'redis-server.service' in ansible_facts.services"
+          - "ansible_facts.services['redis-server.service']['state'] == 'running'"
+          - "ansible_facts.services['redis-server.service']['status'] == 'enabled'"
+        fail_msg: "Redis service not properly configured"
+
+    - name: Assert Memcached service is running and enabled
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts.services"
+          - "ansible_facts.services['memcached.service']['state'] == 'running'"
+          - "ansible_facts.services['memcached.service']['status'] == 'enabled'"
+        fail_msg: "Memcached service not properly configured"
+
+    - name: Check Redis port is listening
+      ansible.builtin.wait_for:
+        port: 6379
+        host: localhost
+        timeout: 10
+
+    - name: Check Memcached port is listening
+      ansible.builtin.wait_for:
+        port: 11211
+        host: localhost
+        timeout: 10
+
+    - name: Test Redis connectivity and authentication
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a redis_secure_password_123 ping
+      register: redis_ping_result
+      changed_when: false
+
+    - name: Assert Redis ping successful
+      ansible.builtin.assert:
+        that:
+          - redis_ping_result['rc'] == 0
+          - "'PONG' in redis_ping_result['stdout']"
+        fail_msg: "Redis ping test failed"
+
+    - name: Test Redis functionality - set test key
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a redis_secure_password_123 set molecule_test_key "molecule_test_value"
+      register: redis_set_result
+      changed_when: false
+
+    - name: Test Redis functionality - get test key
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a redis_secure_password_123 get molecule_test_key
+      register: redis_get_result
+      changed_when: false
+
+    - name: Assert Redis functionality test successful
+      ansible.builtin.assert:
+        that:
+          - redis_set_result['rc'] == 0
+          - redis_get_result['rc'] == 0
+          - "'molecule_test_value' in redis_get_result['stdout']"
+        fail_msg: "Redis functionality test failed"
+
+    - name: Test Memcached connectivity
+      ansible.builtin.shell:
+        cmd: echo "stats" | nc localhost 11211
+      register: memcached_stats_result
+      changed_when: false
+
+    - name: Assert Memcached connectivity successful
+      ansible.builtin.assert:
+        that:
+          - memcached_stats_result['rc'] == 0
+          - "'STAT' in memcached_stats_result['stdout']"
+        fail_msg: "Memcached connectivity test failed"
+
+    - name: Test Memcached functionality - set and get test key
+      ansible.builtin.shell:
+        cmd: |
+          echo -e "set molecule_test_key 0 60 18\r\nmolecule_test_value\r\nquit\r" | nc localhost 11211
+          echo -e "get molecule_test_key\r\nquit\r" | nc localhost 11211
+      register: memcached_test_result
+      changed_when: false
+
+    - name: Assert Memcached functionality test successful
+      ansible.builtin.assert:
+        that:
+          - memcached_test_result['rc'] == 0
+          - "'molecule_test_value' in memcached_test_result['stdout']"
+        fail_msg: "Memcached functionality test failed"
+
+    - name: Clean up Redis test key
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a redis_secure_password_123 del molecule_test_key
+      changed_when: false
+
+    - name: Clean up Memcached test key
+      ansible.builtin.shell:
+        cmd: echo -e "delete molecule_test_key\r\nquit\r" | nc localhost 11211
+      changed_when: false
