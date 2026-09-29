@@ -1,0 +1,5 @@
+---
+# Redis cache role defaults
+# Platform-specific package and service names
+redis_package_name: "{{ 'redis-server' if ansible_os_family == 'Debian' else 'redis' }}"
+redis_service_name: "{{ 'redis-server' if ansible_os_family == 'Debian' else 'redis' }}"
