@@ -1,0 +1,29 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure memcached and Redis caching services
+    description:
+      - Installs and configures both memcached and Redis server
+      - Creates Redis log directory with proper permissions
+      - Configures Redis with authentication and removes deprecated settings
+      - Starts and enables both caching services
+    options:
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port for Redis server to listen on
+      cache_redis_password:
+        type: str
+        required: true
+        description: Password for Redis authentication (injected by AAP credential type)
+      cache_memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: TCP port for memcached to listen on
+      cache_memcached_memory:
+        type: int
+        required: false
+        default: 64
+        description: Memory limit for memcached in MB
