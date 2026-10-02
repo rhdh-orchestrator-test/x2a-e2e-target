@@ -1,0 +1,107 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert Redis service is running
+      ansible.builtin.assert:
+        that:
+          - "'redis-server.service' in ansible_facts.services"
+          - "ansible_facts.services['redis-server.service']['state'] == 'running'"
+          - "ansible_facts.services['redis-server.service']['status'] == 'enabled'"
+        fail_msg: "Redis service is not running or enabled"
+
+    - name: Check Redis is listening on port 6379
+      ansible.builtin.wait_for:
+        host: "{{ cache_redis_bind }}" # noqa: L039 - variable comes from role defaults
+        port: "{{ cache_redis_port }}" # noqa: L039 - variable comes from role defaults
+        timeout: 10
+        msg: "Redis is not listening on port {{ cache_redis_port }}"
+
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/redis.conf
+      register: redis_config_stat
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat['stat']['exists']
+        fail_msg: "Redis configuration file not found"
+
+    - name: Check Redis data directory exists
+      ansible.builtin.stat:
+        path: "{{ cache_redis_data_dir }}" # noqa: L039 - variable comes from role defaults
+      register: redis_data_dir_stat
+
+    - name: Assert Redis data directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_data_dir_stat['stat']['exists']
+          - redis_data_dir_stat['stat']['isdir']
+        fail_msg: "Redis data directory not found or not a directory"
+
+    - name: Test Redis connectivity with PING # noqa: R101 - variables come from role defaults, command is safe
+      ansible.builtin.command:
+        cmd: redis-cli -h {{ cache_redis_bind }} -p {{ cache_redis_port }} ping # noqa: L039 - variables come from role defaults
+      register: redis_ping_result
+      changed_when: false
+
+    - name: Assert Redis responds to PING
+      ansible.builtin.assert:
+        that:
+          - redis_ping_result['rc'] == 0
+          - "'PONG' in redis_ping_result['stdout']"
+        fail_msg: "Redis did not respond to PING command"
+
+    - name: Test Redis basic operations # noqa: R101 - command constructed from safe loop variables
+      ansible.builtin.command:
+        cmd: "{{ item_redis_cmd }}"
+      loop:
+        - redis-cli -h {{ cache_redis_bind }} -p {{ cache_redis_port }} set molecule_test_key "molecule_test_value"
+        - redis-cli -h {{ cache_redis_bind }} -p {{ cache_redis_port }} get molecule_test_key
+        - redis-cli -h {{ cache_redis_bind }} -p {{ cache_redis_port }} del molecule_test_key
+      loop_control:
+        loop_var: item_redis_cmd
+      register: redis_ops_results
+      changed_when: false
+
+    - name: Assert Redis basic operations work
+      ansible.builtin.assert:
+        that:
+          - item_redis_result['rc'] == 0
+          - item_redis_result['stdout'] | length > 0
+        fail_msg: "Redis basic operations failed"
+      loop: "{{ redis_ops_results['results'] }}"
+      loop_control:
+        loop_var: item_redis_result
+
+    - name: Get Redis server info # noqa: R101 - variables come from role defaults, command is safe
+      ansible.builtin.command:
+        cmd: redis-cli -h {{ cache_redis_bind }} -p {{ cache_redis_port }} info server # noqa: L039 - variables come from role defaults
+      register: redis_info_result
+      changed_when: false
+
+    - name: Assert Redis server info is available
+      ansible.builtin.assert:
+        that:
+          - redis_info_result['rc'] == 0
+          - "'redis_version' in redis_info_result['stdout']"
+          - "'tcp_port:{{ cache_redis_port }}' in redis_info_result['stdout']" # noqa: L039 - variable comes from role defaults
+        fail_msg: "Redis server info not available or incorrect"
+
+    - name: Get Redis memory info # noqa: R101 - variables come from role defaults, command is safe
+      ansible.builtin.command:
+        cmd: redis-cli -h {{ cache_redis_bind }} -p {{ cache_redis_port }} info memory # noqa: L039 - variables come from role defaults
+      register: redis_memory_result
+      changed_when: false
+
+    - name: Assert Redis memory info is available
+      ansible.builtin.assert:
+        that:
+          - redis_memory_result['rc'] == 0
+          - "'used_memory_human' in redis_memory_result['stdout']"
+        fail_msg: "Redis memory info not available"
