@@ -1,0 +1,16 @@
+---
+- name: Check if Apache SSL configuration file exists
+  ansible.builtin.stat:
+    path: "{{ ssl_config_path }}"
+  register: ssl_config_stat
+
+- name: Fix SSL in Apache to prevent POODLE vulnerability
+  ansible.builtin.replace:
+    dest: "{{ ssl_config_path }}" # noqa: R114 - path from role defaults
+    regexp: ^SSLProtocol.*$
+    replace: "{{ ssl_protocol_config }}"
+    backup: true
+  when: ssl_config_stat.stat.exists # noqa: L039 - registered by prior task
+  notify:
+    - Restart apache2
+    - Restart sshd

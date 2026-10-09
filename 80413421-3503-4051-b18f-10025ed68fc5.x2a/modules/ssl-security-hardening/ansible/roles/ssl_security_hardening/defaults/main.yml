@@ -1,0 +1,11 @@
+---
+# SSL configuration file path
+ssl_config_path: /etc/apache2/mods-available/ssl.conf
+# SSL protocol configuration to fix POODLE vulnerability
+ssl_protocol_config: SSLProtocol -all +TLSv1.2
+# Services to restart after SSL configuration changes
+restart_services:
+  - apache2
+  - sshd
+# Secure logging toggle for sensitive operations
+ssl_security_hardening_secure_logging: true
