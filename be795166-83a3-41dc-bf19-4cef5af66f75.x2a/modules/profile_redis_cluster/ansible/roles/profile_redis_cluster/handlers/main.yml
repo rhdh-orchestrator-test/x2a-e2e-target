@@ -1,0 +1,22 @@
+---
+- name: Restart redis
+  ansible.builtin.service:
+    name: "{{ profile_redis_cluster_service_name }}"
+    state: restarted
+  when: profile_redis_cluster_manage_service | bool
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Start redis
+  ansible.builtin.service:
+    name: "{{ profile_redis_cluster_service_name }}"
+    state: started
+  when: profile_redis_cluster_manage_service | bool
+
+- name: Stop redis
+  ansible.builtin.service:
+    name: "{{ profile_redis_cluster_service_name }}"
+    state: stopped
+  when: profile_redis_cluster_manage_service | bool

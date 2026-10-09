@@ -1,0 +1,35 @@
+# Redis configuration — Managed by Ansible
+# Node: {{ ansible_facts['fqdn'] }}
+
+bind 0.0.0.0
+port {{ profile_redis_cluster_redis_port }}
+daemonize yes
+pidfile /var/run/redis/redis-server.pid
+logfile {{ profile_redis_cluster_log_dir }}/redis-server.log
+loglevel notice
+
+# Security
+requirepass {{ redis_password }}
+
+# Persistence
+appendonly yes
+appendfilename "appendonly.aof"
+appendfsync everysec
+auto-aof-rewrite-percentage 100
+auto-aof-rewrite-min-size 64mb
+
+# RDB snapshots
+save 900 1
+save 300 10
+save 60 10000
+dbfilename dump.rdb
+dir {{ profile_redis_cluster_workdir }}
+
+# Memory
+maxmemory {{ profile_redis_cluster_maxmemory_mb }}mb
+maxmemory-policy {{ profile_redis_cluster_maxmemory_policy }}
+
+# Network
+tcp-backlog 511
+timeout 0
+tcp-keepalive 300

@@ -1,0 +1,52 @@
+---
+- name: Ensure Redis user exists
+  ansible.builtin.user:
+    name: "{{ profile_redis_cluster_service_user }}"
+    system: true
+    shell: /bin/false
+    home: "{{ profile_redis_cluster_workdir }}"
+    create_home: false
+    state: present
+
+- name: Create Redis configuration directory
+  ansible.builtin.file:
+    path: "{{ profile_redis_cluster_config_dir }}" # noqa: R114 - path from role defaults
+    state: directory
+    owner: "{{ profile_redis_cluster_service_user }}"
+    group: "{{ profile_redis_cluster_service_user }}"
+    mode: "0755"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ profile_redis_cluster_log_dir }}" # noqa: R114 - path from role defaults
+    state: directory
+    owner: "{{ profile_redis_cluster_service_user }}"
+    group: "{{ profile_redis_cluster_service_user }}"
+    mode: "0755"
+
+- name: Create Redis working directory
+  ansible.builtin.file:
+    path: "{{ profile_redis_cluster_workdir }}" # noqa: R114 - path from role defaults
+    state: directory
+    owner: "{{ profile_redis_cluster_service_user }}"
+    group: "{{ profile_redis_cluster_service_user }}"
+    mode: "0755"
+
+- name: Configure Redis default instance
+  ansible.builtin.include_tasks: instance.yml
+  when: profile_redis_cluster_default_install | bool
+
+- name: Configure Redis ulimits
+  ansible.builtin.include_tasks: ulimit.yml
+  when: profile_redis_cluster_ulimit_managed | bool
+
+- name: Configure Redis defaults (Debian family)
+  ansible.builtin.template:
+    src: redis-server.default.j2
+    dest: /etc/default/redis-server
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  when: ansible_facts['os_family'] == 'Debian'
+  notify: restart redis

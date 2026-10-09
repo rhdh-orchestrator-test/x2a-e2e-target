@@ -1,0 +1,118 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis cluster
+    description:
+      - Installs Redis server and configures cluster nodes with authentication
+      - Manages systemd services and creates Redis instances with custom configuration
+      - Supports cross-platform deployment with OS-specific optimizations
+    options:
+      profile_redis_cluster_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port Redis listens on
+      profile_redis_cluster_maxmemory_mb:
+        type: int
+        required: false
+        default: 2048
+        description: Maximum memory limit for Redis in megabytes
+      profile_redis_cluster_maxmemory_policy:
+        type: str
+        required: false
+        default: allkeys-lru
+        description: Memory eviction policy when maxmemory is reached
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password (injected by AAP credential type)
+      profile_redis_cluster_service_name:
+        type: str
+        required: false
+        default: redis
+        description: Name of the Redis systemd service
+      profile_redis_cluster_service_user:
+        type: str
+        required: false
+        default: redis
+        description: System user for Redis service
+      profile_redis_cluster_service_timeout_start:
+        type: int
+        required: false
+        default: 0
+        description: Systemd service start timeout in seconds
+      profile_redis_cluster_service_timeout_stop:
+        type: int
+        required: false
+        default: 0
+        description: Systemd service stop timeout in seconds
+      profile_redis_cluster_config_dir:
+        type: str
+        required: false
+        default: /etc/redis
+        description: Directory for Redis configuration files
+      profile_redis_cluster_config_file:
+        type: str
+        required: false
+        default: /etc/redis/redis.conf
+        description: Path to main Redis configuration file
+      profile_redis_cluster_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory for Redis log files
+      profile_redis_cluster_workdir:
+        type: str
+        required: false
+        default: /var/lib/redis
+        description: Redis working directory for data files
+      profile_redis_cluster_bin_path:
+        type: str
+        required: false
+        default: /usr/bin/redis-server
+        description: Path to Redis server binary
+      profile_redis_cluster_package_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Name of the Redis package to install
+      profile_redis_cluster_manage_package:
+        type: bool
+        required: false
+        default: true
+        description: Whether to manage Redis package installation
+      profile_redis_cluster_manage_repo:
+        type: bool
+        required: false
+        default: false
+        description: Whether to manage package repositories
+      profile_redis_cluster_manage_service:
+        type: bool
+        required: false
+        default: true
+        description: Whether to manage Redis service state
+      profile_redis_cluster_ulimit_managed:
+        type: bool
+        required: false
+        default: false
+        description: Whether to configure ulimits for Redis
+      profile_redis_cluster_ulimit:
+        type: int
+        required: false
+        default: 65535
+        description: File descriptor limit for Redis process
+      profile_redis_cluster_default_install:
+        type: bool
+        required: false
+        default: true
+        description: Whether to configure default Redis instance
+      profile_redis_cluster_manage_service_file:
+        type: bool
+        required: false
+        default: true
+        description: Whether to manage systemd service file
+      profile_redis_cluster_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to hide sensitive information in logs

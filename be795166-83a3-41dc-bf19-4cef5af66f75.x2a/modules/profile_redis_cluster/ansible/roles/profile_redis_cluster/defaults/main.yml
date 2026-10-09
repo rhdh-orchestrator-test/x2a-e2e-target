@@ -1,0 +1,29 @@
+---
+# Redis cluster configuration defaults
+profile_redis_cluster_redis_port: 6379
+profile_redis_cluster_maxmemory_mb: 2048
+profile_redis_cluster_maxmemory_policy: allkeys-lru
+# Redis service configuration
+profile_redis_cluster_service_name: redis
+profile_redis_cluster_service_user: redis
+profile_redis_cluster_service_timeout_start: 0
+profile_redis_cluster_service_timeout_stop: 0
+# Redis paths
+profile_redis_cluster_config_dir: /etc/redis
+profile_redis_cluster_config_file: /etc/redis/redis.conf
+profile_redis_cluster_log_dir: /var/log/redis
+profile_redis_cluster_workdir: /var/lib/redis
+profile_redis_cluster_bin_path: /usr/bin/redis-server
+# Package management
+profile_redis_cluster_package_name: redis-server
+profile_redis_cluster_manage_package: true
+profile_redis_cluster_manage_repo: false
+profile_redis_cluster_manage_service: true
+# Ulimit configuration
+profile_redis_cluster_ulimit_managed: false
+profile_redis_cluster_ulimit: 65535
+# Default instance configuration
+profile_redis_cluster_default_install: true
+profile_redis_cluster_manage_service_file: true
+# Security logging
+profile_redis_cluster_secure_logging: true

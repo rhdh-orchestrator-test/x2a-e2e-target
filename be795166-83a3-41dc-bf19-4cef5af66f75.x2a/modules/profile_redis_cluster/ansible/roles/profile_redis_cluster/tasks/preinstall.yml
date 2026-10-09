@@ -1,0 +1,21 @@
+---
+- name: Configure Redis repository (RedHat family)
+  ansible.builtin.yum_repository:
+    name: epel
+    description: Extra Packages for Enterprise Linux
+    baseurl: https://download.fedoraproject.org/pub/epel/$releasever/$basearch/
+    gpgcheck: true
+    gpgkey: https://download.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-{{ ansible_facts['distribution_major_version'] }}
+    state: present
+  when:
+    - profile_redis_cluster_manage_repo | bool
+    - ansible_facts['os_family'] == 'RedHat'
+
+- name: Update package cache (Debian family)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+    state: present
+  when:
+    - profile_redis_cluster_manage_repo | bool
+    - ansible_facts['os_family'] == 'Debian'

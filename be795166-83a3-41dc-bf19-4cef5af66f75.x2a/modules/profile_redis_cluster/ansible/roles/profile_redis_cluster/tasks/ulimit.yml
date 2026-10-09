@@ -1,0 +1,42 @@
+---
+- name: Configure Redis ulimits in limits.d
+  ansible.builtin.lineinfile:
+    path: /etc/security/limits.d/redis.conf
+    line: "{{ profile_redis_cluster_service_user }} soft nofile {{ profile_redis_cluster_ulimit }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+
+- name: Configure Redis hard ulimits in limits.d
+  ansible.builtin.lineinfile:
+    path: /etc/security/limits.d/redis.conf
+    line: "{{ profile_redis_cluster_service_user }} hard nofile {{ profile_redis_cluster_ulimit }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+
+- name: Create systemd service override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/{{ profile_redis_cluster_service_name }}.service.d # noqa: R114 - service name from role defaults
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure systemd ulimit override
+  ansible.builtin.copy:
+    content: |
+      [Service]
+      LimitNOFILE={{ profile_redis_cluster_ulimit }}
+    dest: /etc/systemd/system/{{ profile_redis_cluster_service_name }}.service.d/limit.conf # noqa: R114 - service name from role defaults
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify:
+    - reload systemd
+    - restart redis
