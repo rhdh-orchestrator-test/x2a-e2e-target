@@ -1,0 +1,48 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis cache server
+    description:
+      - Installs Redis server package and ensures the service is enabled and started.
+      - Provides a simple Redis cache instance with default configuration.
+    options:
+      cache_package_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Name of the Redis package to install.
+      cache_service_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Name of the Redis service to manage.
+      cache_service_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether to enable the Redis service at boot.
+      cache_service_state:
+        type: str
+        required: false
+        default: started
+        description: Desired state of the Redis service.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port Redis listens on.
+      cache_redis_bind:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: IP address Redis binds to.
+      cache_redis_data_dir:
+        type: str
+        required: false
+        default: /var/lib/redis
+        description: Redis data directory path.
+      cache_redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Redis log directory path.

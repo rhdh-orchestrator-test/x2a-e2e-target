@@ -1,0 +1,11 @@
+---
+- name: Install Redis server package
+  ansible.builtin.package:
+    name: "{{ cache_package_name }}"
+    state: present
+
+- name: Enable and start Redis service
+  ansible.builtin.service:
+    name: "{{ cache_service_name }}"
+    enabled: "{{ cache_service_enabled }}"
+    state: "{{ cache_service_state }}"
