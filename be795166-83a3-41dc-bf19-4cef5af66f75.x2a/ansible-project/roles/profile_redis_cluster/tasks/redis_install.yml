@@ -1,0 +1,12 @@
+---
+- name: Install Redis DNF module (RedHat family)
+  ansible.builtin.include_tasks: dnfmodule.yml
+  when:
+    - ansible_facts['os_family'] == 'RedHat'
+    - ansible_facts['distribution_major_version'] | int >= 8
+
+- name: Install Redis package
+  ansible.builtin.package:
+    name: "{{ profile_redis_cluster_package_name }}"
+    state: present
+  when: profile_redis_cluster_manage_package | bool

@@ -1,0 +1,121 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_config }}"
+      loop:
+        - /etc/redis/redis.conf
+        - /etc/systemd/system/redis.service
+      loop_control:
+        loop_var: item_config
+      register: config_stat_results
+
+    - name: Assert Redis configuration files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Expected Redis configuration file not found"
+      loop: "{{ config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check Redis directories exist
+      ansible.builtin.stat:
+        path: "{{ item_dir }}"
+      loop:
+        - /var/log/redis
+        - /var/lib/redis
+        - /etc/redis
+      loop_control:
+        loop_var: item_dir
+      register: dir_stat_results
+
+    - name: Assert Redis directories were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['isdir']
+        fail_msg: "Expected Redis directory not found"
+      loop: "{{ dir_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check Redis service status
+      ansible.builtin.service_facts:
+
+    - name: Assert Redis service is configured
+      ansible.builtin.assert:
+        that:
+          - "'redis.service' in ansible_facts.services"
+        fail_msg: "Redis service not found in systemd"
+
+    - name: Check Redis port is listening
+      ansible.builtin.wait_for:
+        port: 6379
+        host: 127.0.0.1
+        timeout: 30
+        state: started
+
+    - name: Test Redis connectivity with ping
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 ping
+      register: redis_ping_result
+      changed_when: false
+
+    - name: Assert Redis responds to ping
+      ansible.builtin.assert:
+        that:
+          - redis_ping_result['stdout'] == 'PONG'
+        fail_msg: "Redis ping test failed"
+
+    - name: Get Redis replication info
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 info replication
+      register: redis_replication_result
+      changed_when: false
+
+    - name: Assert Redis replication info is available
+      ansible.builtin.assert:
+        that:
+          - "'role:' in redis_replication_result['stdout']"
+        fail_msg: "Redis replication info not available"
+
+    - name: Get Redis maxmemory configuration
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 config get maxmemory
+      register: redis_maxmemory_result
+      changed_when: false
+
+    - name: Assert Redis maxmemory is configured
+      ansible.builtin.assert:
+        that:
+          - redis_maxmemory_result['stdout_lines'] | length >= 2
+        fail_msg: "Redis maxmemory configuration not found"
+
+    - name: Test Redis configuration syntax
+      ansible.builtin.command:
+        cmd: redis-server /etc/redis/redis.conf --test-memory 1
+      register: redis_config_test_result
+      changed_when: false
+
+    - name: Assert Redis configuration is valid
+      ansible.builtin.assert:
+        that:
+          - redis_config_test_result['rc'] == 0
+        fail_msg: "Redis configuration syntax test failed"
+
+    - name: Check Redis port with netstat
+      ansible.builtin.command:
+        cmd: netstat -tlnp
+      register: netstat_result
+      changed_when: false
+
+    - name: Assert Redis port 6379 is listening
+      ansible.builtin.assert:
+        that:
+          - "':6379' in netstat_result['stdout']"
+        fail_msg: "Redis port 6379 not found in netstat output"

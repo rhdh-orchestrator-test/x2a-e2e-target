@@ -1,0 +1,8 @@
+---
+- name: Enable Redis DNF module
+  ansible.builtin.dnf:
+    name: "@redis"
+    state: present
+  when:
+    - ansible_facts['os_family'] == 'RedHat'
+    - ansible_facts['distribution_major_version'] | int >= 8

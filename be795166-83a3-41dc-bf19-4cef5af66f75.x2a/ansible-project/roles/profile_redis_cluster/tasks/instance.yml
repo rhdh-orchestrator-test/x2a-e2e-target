@@ -1,0 +1,24 @@
+---
+- name: Deploy Redis configuration file
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: "{{ profile_redis_cluster_config_file }}" # noqa: R114 - path from role defaults
+    owner: "{{ profile_redis_cluster_service_user }}"
+    group: "{{ profile_redis_cluster_service_user }}"
+    mode: "0640"
+    backup: true
+  notify: restart redis
+  no_log: "{{ profile_redis_cluster_secure_logging }}"
+
+- name: Deploy Redis systemd service file
+  ansible.builtin.template:
+    src: redis.service.j2
+    dest: /etc/systemd/system/{{ profile_redis_cluster_service_name }}.service # noqa: R114 - service name from role defaults
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  when: profile_redis_cluster_manage_service_file | bool
+  notify:
+    - reload systemd
+    - restart redis
