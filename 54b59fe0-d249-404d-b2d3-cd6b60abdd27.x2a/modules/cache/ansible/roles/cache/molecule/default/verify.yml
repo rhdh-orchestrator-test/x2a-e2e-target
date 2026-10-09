@@ -1,0 +1,173 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check service status
+      ansible.builtin.service_facts:
+
+    - name: Assert memcached service is running
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts.services"
+          - "ansible_facts.services['memcached.service']['state'] == 'running'"
+        fail_msg: "Memcached service is not running"
+
+    - name: Assert Redis service is running
+      ansible.builtin.assert:
+        that:
+          - "'redis_6379.service' in ansible_facts.services"
+          - "ansible_facts.services['redis_6379.service']['state'] == 'running'"
+        fail_msg: "Redis service is not running"
+
+    - name: Check memcached port is listening
+      ansible.builtin.wait_for:
+        port: 11211
+        host: 127.0.0.1
+        timeout: 10
+
+    - name: Check Redis port is listening
+      ansible.builtin.wait_for:
+        port: 6379
+        host: 127.0.0.1
+        timeout: 10
+
+    - name: Test memcached connectivity
+      ansible.builtin.command:
+        cmd: echo "stats"
+      register: memcached_test_cmd
+      changed_when: false
+
+    - name: Send stats command to memcached
+      ansible.builtin.shell:
+        cmd: set -o pipefail && echo "stats" | nc localhost 11211
+        executable: /bin/bash
+      register: memcached_stats_result
+      changed_when: false
+
+    - name: Assert memcached responds to stats
+      ansible.builtin.assert:
+        that:
+          - "'STAT' in memcached_stats_result.stdout"
+        fail_msg: "Memcached not responding to stats command"
+
+    - name: Test Redis connectivity without authentication (should fail)
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 ping
+      register: redis_no_auth_result
+      failed_when: false
+      changed_when: false
+
+    - name: Assert Redis requires authentication
+      ansible.builtin.assert:
+        that:
+          - "redis_no_auth_result.rc != 0"
+        fail_msg: "Redis should require authentication but doesn't"
+
+    - name: Test Redis connectivity with authentication
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a redis_secure_password_123 ping
+      register: redis_auth_result
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert Redis responds with authentication
+      ansible.builtin.assert:
+        that:
+          - "redis_auth_result.rc == 0"
+          - "'PONG' in redis_auth_result.stdout"
+        fail_msg: "Redis not responding with authentication"
+
+    - name: Check Redis configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_config }}"
+      loop:
+        - /etc/redis/6379.conf
+      loop_control:
+        loop_var: item_config
+      register: redis_config_stat_results
+
+    - name: Assert Redis configuration files exist
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Redis configuration file not found"
+      loop: "{{ redis_config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Check Redis directories exist
+      ansible.builtin.stat:
+        path: "{{ item_dir }}"
+      loop:
+        - /var/log/redis
+        - /var/lib/redis
+      loop_control:
+        loop_var: item_dir
+      register: redis_dir_stat_results
+
+    - name: Assert Redis directories exist with correct permissions
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['isdir']
+          - item_result['stat']['pw_name'] == 'redis'
+          - item_result['stat']['gr_name'] == 'redis'
+          - item_result['stat']['mode'] == '0755'
+        fail_msg: "Redis directory missing or incorrect permissions"
+      loop: "{{ redis_dir_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Read Redis configuration file
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Decode Redis configuration # noqa: L039 - redis_config_content registered by prior task
+      ansible.builtin.set_fact: # noqa: M005 - registered variable used in template, but required for verification
+        redis_config_text: "{{ redis_config_content['content'] | b64decode }}"
+
+    - name: Assert Redis password is configured
+      ansible.builtin.assert:
+        that:
+          - "'requirepass' in redis_config_text"
+        fail_msg: "Redis password not configured"
+
+    - name: Assert replica settings are removed from Redis config
+      ansible.builtin.assert:
+        that:
+          - "'replica-serve-stale-data' not in redis_config_text"
+          - "'replica-read-only' not in redis_config_text"
+          - "'repl-ping-replica-period' not in redis_config_text"
+          - "'replica-priority' not in redis_config_text"
+        fail_msg: "Replica settings not properly removed from Redis config"
+
+    - name: Get Redis server info
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a redis_secure_password_123 info server
+      register: redis_info_result
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert Redis server info is accessible
+      ansible.builtin.assert:
+        that:
+          - "redis_info_result.rc == 0"
+          - "'redis_version' in redis_info_result.stdout"
+        fail_msg: "Cannot get Redis server info"
+
+    - name: Get Redis memory info
+      ansible.builtin.command:
+        cmd: redis-cli -p 6379 -a redis_secure_password_123 info memory
+      register: redis_memory_result
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert Redis memory info is accessible
+      ansible.builtin.assert:
+        that:
+          - "redis_memory_result.rc == 0"
+          - "'used_memory' in redis_memory_result.stdout"
+        fail_msg: "Cannot get Redis memory info"

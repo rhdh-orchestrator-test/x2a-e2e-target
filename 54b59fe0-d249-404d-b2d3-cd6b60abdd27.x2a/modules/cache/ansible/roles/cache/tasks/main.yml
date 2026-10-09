@@ -1,0 +1,99 @@
+---
+# Cache role main tasks
+
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install memcached package
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Install Redis packages
+  ansible.builtin.package:
+    name:
+      - redis-server
+      - redis-tools
+    state: present
+
+- name: Create Redis group
+  ansible.builtin.group:
+    name: "{{ cache_redis_group }}"
+    system: true
+    state: present
+
+- name: Create Redis user
+  ansible.builtin.user:
+    name: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    system: true
+    shell: /bin/false
+    home: /var/lib/redis
+    create_home: false
+    state: present
+
+- name: Create Redis configuration directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_config_file | dirname }}" # noqa: R114 - path from role defaults
+    owner: root
+    group: root
+    mode: "0755"
+    state: directory
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_dir }}" # noqa: R114 - path from role defaults
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+    state: directory
+
+- name: Create Redis data directory
+  ansible.builtin.file:
+    path: /var/lib/redis
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+    state: directory
+
+- name: Create Redis PID directory
+  ansible.builtin.file:
+    path: /var/run/redis
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+    state: directory
+
+- name: Configure Redis server
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: "{{ cache_redis_config_file }}" # noqa: R114 - path from role defaults
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0640"
+    backup: true
+  notify: restart redis
+  no_log: "{{ cache_secure_logging }}"
+
+- name: Remove replica settings from Redis config
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path from role defaults
+    regexp: ^{{ item_setting }}.*$
+    state: absent # noqa: R115 - path from role defaults, removing config lines not files
+    backup: true
+  loop: "{{ cache_redis_replica_settings_to_remove }}"
+  loop_control:
+    loop_var: item_setting
+  notify: restart redis
+
+- name: Start and enable Redis service
+  ansible.builtin.service:
+    name: "{{ cache_redis_service_name }}"
+    state: started
+    enabled: true
+
+- name: Start and enable memcached service
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true
