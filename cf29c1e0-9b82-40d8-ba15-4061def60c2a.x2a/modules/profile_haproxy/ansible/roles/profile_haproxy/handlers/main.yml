@@ -1,0 +1,11 @@
+---
+# HAProxy handlers
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Restart haproxy
+  ansible.builtin.systemd:
+    name: "{{ profile_haproxy_service_name }}"
+    state: restarted

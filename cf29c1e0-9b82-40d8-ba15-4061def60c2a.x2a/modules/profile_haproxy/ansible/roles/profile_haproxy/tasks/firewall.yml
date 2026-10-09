@@ -1,0 +1,80 @@
+---
+# OS-conditional firewall configuration for HAProxy
+
+- name: Configure firewalld rules
+  when: profile_haproxy_firewall_provider == 'firewalld'
+  block:
+    - name: Open HTTP and HTTPS ports in firewalld
+      ansible.posix.firewalld:
+        port: "{{ item_port }}/tcp"
+        zone: "{{ profile_haproxy_firewall_zone | default('public') }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      loop:
+        - "80"
+        - "443"
+      loop_control:
+        loop_var: item_port
+
+    - name: Open stats port in firewalld
+      ansible.posix.firewalld:
+        port: "{{ profile_haproxy_stats_port }}/tcp"
+        zone: "{{ profile_haproxy_firewall_zone | default('public') }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      when: profile_haproxy_stats_enabled | default(false)
+
+- name: Configure ufw rules using shell commands
+  when: profile_haproxy_firewall_provider == 'ufw'
+  block:
+    - name: Install ufw package
+      ansible.builtin.package:
+        name: ufw
+        state: present
+
+    - name: Check if HTTP port is already allowed in ufw
+      ansible.builtin.command:
+        cmd: ufw status numbered
+      register: ufw_status  # noqa: L039 - registered by this task
+      changed_when: false
+
+    - name: Allow HTTP port in ufw
+      ansible.builtin.command:
+        cmd: ufw allow 80/tcp
+      when: "'80/tcp' not in ufw_status.stdout"  # noqa: L039 - registered by prior task
+      changed_when: "'80/tcp' not in ufw_status.stdout"
+
+    - name: Allow HTTPS port in ufw
+      ansible.builtin.command:
+        cmd: ufw allow 443/tcp
+      when: "'443/tcp' not in ufw_status.stdout"  # noqa: L039 - registered by prior task
+      changed_when: "'443/tcp' not in ufw_status.stdout"
+
+    - name: Allow stats port in ufw
+      ansible.builtin.command:
+        cmd: ufw allow {{ profile_haproxy_stats_port }}/tcp  # noqa: R101 - port from role defaults, not user input
+      when:
+        - profile_haproxy_stats_enabled | default(false)
+        - "profile_haproxy_stats_port ~ '/tcp' not in ufw_status.stdout"  # noqa: L039 - registered by prior task
+      changed_when:
+        - profile_haproxy_stats_enabled | default(false)
+        - "profile_haproxy_stats_port ~ '/tcp' not in ufw_status.stdout"
+
+    - name: Check if ufw is enabled
+      ansible.builtin.command:
+        cmd: ufw status
+      register: ufw_enabled_status  # noqa: L039 - registered by this task
+      changed_when: false
+
+    - name: Enable ufw
+      ansible.builtin.command:
+        cmd: ufw --force enable
+      when: "'Status: inactive' in ufw_enabled_status.stdout"  # noqa: L039 - registered by prior task
+      changed_when: "'Status: inactive' in ufw_enabled_status.stdout"
+
+- name: Firewall management disabled
+  ansible.builtin.debug:
+    msg: Firewall management disabled via configuration
+  when: profile_haproxy_firewall_provider == 'none'

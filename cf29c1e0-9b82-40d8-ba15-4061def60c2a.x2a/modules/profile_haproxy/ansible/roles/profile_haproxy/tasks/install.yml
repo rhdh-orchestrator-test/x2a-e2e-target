@@ -1,0 +1,72 @@
+---
+# Install HAProxy and OS-specific dependencies
+
+- name: Install HAProxy package
+  ansible.builtin.package:
+    name: "{{ profile_haproxy_package_name }}"
+    state: present
+
+- name: Install extra packages
+  ansible.builtin.package:
+    name: "{{ profile_haproxy_extra_packages }}"
+    state: present
+  when: profile_haproxy_extra_packages | length > 0
+
+- name: Ensure haproxy group exists
+  ansible.builtin.group:
+    name: "{{ profile_haproxy_group }}"
+    state: present
+    system: true
+
+- name: Ensure haproxy user exists
+  ansible.builtin.user:
+    name: "{{ profile_haproxy_user }}"
+    group: "{{ profile_haproxy_group }}"
+    home: /var/lib/haproxy
+    shell: /sbin/nologin
+    system: true
+    state: present
+
+- name: Create HAProxy configuration directories
+  ansible.builtin.file:
+    path: "{{ item_dir }}" # noqa: R114 - path from role-defined directories list, not user input
+    state: directory
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0755"
+  loop:
+    - "{{ profile_haproxy_config_dir }}"
+    - "{{ profile_haproxy_config_dir }}/conf.d"
+    - "{{ profile_haproxy_config_dir }}/errors"
+  loop_control:
+    loop_var: item_dir
+
+- name: Create HAProxy runtime directory
+  ansible.builtin.file:
+    path: /var/lib/haproxy
+    state: directory
+    owner: "{{ profile_haproxy_user }}"
+    group: "{{ profile_haproxy_group }}"
+    mode: "0750"
+
+- name: Check current SELinux haproxy_connect_any setting
+  ansible.builtin.command:
+    cmd: getsebool haproxy_connect_any
+  register: haproxy_selinux_status  # noqa: L039 - registered by this task
+  when:
+    - profile_haproxy_selinux_enabled | default(false)
+    - ansible_facts['selinux']['status'] == 'enabled'
+  changed_when: false
+  failed_when: false
+
+- name: Configure SELinux for HAProxy
+  ansible.builtin.command:
+    cmd: setsebool -P haproxy_connect_any 1
+  when:
+    - profile_haproxy_selinux_enabled | default(false)
+    - ansible_facts['selinux']['status'] == 'enabled'
+    - haproxy_selinux_status.stdout is defined  # noqa: L039 - registered by prior task
+    - "'haproxy_connect_any --> off' in haproxy_selinux_status.stdout"  # noqa: L039 - registered by prior task
+  changed_when:
+    - haproxy_selinux_status.stdout is defined
+    - "'haproxy_connect_any --> off' in haproxy_selinux_status.stdout"

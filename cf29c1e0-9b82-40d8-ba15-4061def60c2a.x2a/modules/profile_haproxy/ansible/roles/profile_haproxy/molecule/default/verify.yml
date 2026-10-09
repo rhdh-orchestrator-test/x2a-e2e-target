@@ -1,0 +1,186 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check HAProxy configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_config }}"
+      loop:
+        - /etc/haproxy/haproxy.cfg
+        - /etc/haproxy/conf.d/webservers.cfg
+        - /etc/haproxy/conf.d/api.cfg
+        - /etc/haproxy/errors/503.http
+        - /etc/haproxy/errors/408.http
+        - /etc/systemd/system/haproxy.service.d/override.conf
+        - /etc/logrotate.d/haproxy
+      loop_control:
+        loop_var: item_config
+      register: config_stat_results
+
+    - name: Assert configuration files were created
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Expected configuration file not found"
+      loop: "{{ config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
+
+    - name: Validate HAProxy configuration syntax
+      ansible.builtin.command:
+        cmd: haproxy -f /etc/haproxy/haproxy.cfg -c
+      register: haproxy_config_check
+      changed_when: false
+
+    - name: Assert HAProxy configuration is valid
+      ansible.builtin.assert:
+        that:
+          - haproxy_config_check['rc'] == 0
+        fail_msg: "HAProxy configuration validation failed"
+
+    - name: Check HAProxy service status
+      ansible.builtin.service_facts:
+
+    - name: Assert HAProxy service is running
+      ansible.builtin.assert:
+        that:
+          - "'haproxy.service' in ansible_facts.services"
+          - ansible_facts.services['haproxy.service']['state'] == 'running'
+          - ansible_facts.services['haproxy.service']['status'] == 'enabled'
+        fail_msg: "HAProxy service is not running or enabled"
+
+    - name: Check HAProxy HTTP frontend port
+      ansible.builtin.wait_for:
+        port: 80
+        host: localhost
+        timeout: 10
+
+    - name: Check HAProxy statistics port (if enabled)
+      ansible.builtin.wait_for:
+        port: 9000
+        host: localhost
+        timeout: 10
+      when: profile_haproxy_stats_enabled | default(true)  # noqa: L039 - variable from role defaults
+
+    - name: Check HAProxy HTTPS frontend port (if SSL enabled)
+      ansible.builtin.wait_for:
+        port: 443
+        host: localhost
+        timeout: 10
+      when: profile_haproxy_ssl_enabled | default(false)  # noqa: L039 - variable from role defaults
+
+    - name: Test HTTP health endpoint
+      ansible.builtin.uri:
+        url: http://localhost/health
+        method: HEAD
+        status_code: [200, 404, 503]
+      register: health_check_result
+      failed_when: false
+
+    - name: Test HAProxy statistics interface (if enabled)
+      ansible.builtin.uri:
+        url: http://localhost:9000/haproxy-stats
+        method: GET
+        status_code: [200, 401]
+      register: stats_check_result
+      failed_when: false
+      when: profile_haproxy_stats_enabled | default(true)  # noqa: L039 - variable from role defaults
+
+    - name: Check backend server connectivity
+      ansible.builtin.wait_for:
+        port: "{{ item_backend['port'] }}"
+        host: "{{ item_backend['host'] }}"
+        timeout: 5
+      loop:
+        - { host: "10.0.1.10", port: 8080 }
+        - { host: "10.0.1.11", port: 8080 }
+        - { host: "10.0.1.12", port: 8080 }
+        - { host: "10.0.2.10", port: 3000 }
+        - { host: "10.0.2.11", port: 3000 }
+      loop_control:
+        loop_var: item_backend
+      failed_when: false
+      register: backend_connectivity
+
+    - name: Check HAProxy main configuration content
+      ansible.builtin.slurp:
+        src: /etc/haproxy/haproxy.cfg
+      register: haproxy_main_config
+
+    - name: Assert main configuration contains expected sections
+      ansible.builtin.assert:
+        that:
+          - "'global' in haproxy_main_config['content'] | b64decode"
+          - "'defaults' in haproxy_main_config['content'] | b64decode"
+          - "'frontend' in haproxy_main_config['content'] | b64decode"
+          - "'backend' in haproxy_main_config['content'] | b64decode"
+        fail_msg: "HAProxy main configuration missing required sections"
+
+    - name: Check webservers backend configuration content
+      ansible.builtin.slurp:
+        src: /etc/haproxy/conf.d/webservers.cfg
+      register: webservers_backend_config
+
+    - name: Assert webservers backend configuration is valid
+      ansible.builtin.assert:
+        that:
+          - "'backend webservers' in webservers_backend_config['content'] | b64decode"
+          - "'balance roundrobin' in webservers_backend_config['content'] | b64decode"
+        fail_msg: "Webservers backend configuration invalid"
+
+    - name: Check API backend configuration content
+      ansible.builtin.slurp:
+        src: /etc/haproxy/conf.d/api.cfg
+      register: api_backend_config
+
+    - name: Assert API backend configuration is valid
+      ansible.builtin.assert:
+        that:
+          - "'backend api' in api_backend_config['content'] | b64decode"
+          - "'balance leastconn' in api_backend_config['content'] | b64decode"
+        fail_msg: "API backend configuration invalid"
+
+    - name: Check HAProxy user and group exist
+      ansible.builtin.getent:
+        database: "{{ item_db }}"
+        key: haproxy
+      loop:
+        - passwd
+        - group
+      loop_control:
+        loop_var: item_db
+      register: haproxy_user_group
+
+    - name: Assert HAProxy user and group are configured
+      ansible.builtin.assert:
+        that:
+          - haproxy_user_group['results'][0]['ansible_facts']['getent_passwd']['haproxy'] is defined
+          - haproxy_user_group['results'][1]['ansible_facts']['getent_group']['haproxy'] is defined
+        fail_msg: "HAProxy user or group not properly configured"
+
+    - name: Check HAProxy directories exist with correct permissions
+      ansible.builtin.stat:
+        path: "{{ item_dir['path'] }}"
+      loop:
+        - { path: "/etc/haproxy", owner: "root", group: "root", mode: "0755" }
+        - { path: "/etc/haproxy/conf.d", owner: "root", group: "root", mode: "0755" }
+        - { path: "/var/lib/haproxy", owner: "haproxy", group: "haproxy", mode: "0755" }
+        - { path: "/etc/haproxy/errors", owner: "root", group: "root", mode: "0755" }
+      loop_control:
+        loop_var: item_dir
+      register: directory_stats
+
+    - name: Assert directories have correct permissions
+      ansible.builtin.assert:
+        that:
+          - item_result['stat']['exists']
+          - item_result['stat']['isdir']
+          - item_result['stat']['mode'] == item_dir['mode']
+        fail_msg: "Directory permissions incorrect"
+      loop: "{{ directory_stats['results'] }}"
+      loop_control:
+        loop_var: item_result
+      vars:
+        item_dir: "{{ directory_stats['results'][ansible_loop.index0]['item_dir'] }}"

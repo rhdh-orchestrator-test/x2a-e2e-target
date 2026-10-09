@@ -1,0 +1,14 @@
+---
+# Per-node: lb01.fra.example.com — primary LB node (highest priority)
+profile_haproxy_stats_enabled: true
+profile_haproxy_stats_port: 9001
+# This node handles extra weight for the API backend
+profile_haproxy_backends:
+  api:
+    servers:
+      - name: api1-fra
+        address: 10.100.2.10
+        weight: 200
+      - name: api2-fra
+        address: 10.100.2.11
+        weight: 100
