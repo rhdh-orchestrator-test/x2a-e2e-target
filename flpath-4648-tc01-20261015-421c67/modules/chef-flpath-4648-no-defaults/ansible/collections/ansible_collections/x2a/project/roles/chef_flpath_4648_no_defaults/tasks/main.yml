@@ -1,0 +1,12 @@
+---
+# FLPATH-4648 fixture: no attributes/default.rb and no user-facing defaults.
+# FLPATH-3351-TC-07-RULE
+
+- name: Create static configuration file
+  ansible.builtin.copy:
+    content: "FLPATH-4648 no-defaults fixture "
+    dest: /etc/x2a-no-defaults-fixture.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true

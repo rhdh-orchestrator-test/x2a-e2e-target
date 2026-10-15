@@ -1,0 +1,48 @@
+---
+# verify.yml for chef_flpath_4648_no_defaults scenario
+# Based on pre-flight checks from migration plan
+# FLPATH-3351-TC-07-RULE
+
+- name: Verify configuration
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check if configuration file exists
+      ansible.builtin.stat:
+        path: /etc/x2a-no-defaults-fixture.conf
+      register: config_file
+
+    - name: Assert configuration file exists
+      ansible.builtin.assert:
+        that: config_file.stat.exists
+        fail_msg: "Configuration file missing"
+        success_msg: "Configuration file exists"
+
+    - name: Get file content
+      ansible.builtin.slurp:
+        src: /etc/x2a-no-defaults-fixture.conf
+      register: file_content
+      when: config_file.stat.exists
+
+    - name: Verify file content
+      ansible.builtin.assert:
+        that: "'FLPATH-4648 no-defaults fixture' in (file_content.content | b64decode)"
+        fail_msg: "Content incorrect"
+        success_msg: "Content verified"
+      when: config_file.stat.exists
+
+    - name: Verify file ownership
+      ansible.builtin.assert:
+        that:
+          - config_file.stat.uid == 0
+          - config_file.stat.gid == 0
+        fail_msg: "Ownership incorrect"
+        success_msg: "Ownership correct"
+      when: config_file.stat.exists
+
+    - name: Verify file permissions
+      ansible.builtin.assert:
+        that: config_file.stat.mode == '0644'
+        fail_msg: "Permissions incorrect"
+        success_msg: "Permissions correct"
+      when: config_file.stat.exists
