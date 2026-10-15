@@ -1,0 +1,73 @@
+---
+# FLPATH-3351-TC-07-RULE
+argument_specs:
+  main:
+    short_description: Fixture covering scalar, collection, and nested Chef defaults
+    description:
+      - Manages a simple application configuration with configuration files
+      - Creates base directories and site-specific configurations
+    options:
+      chef_flpath_4648_types_app_name:
+        type: str
+        required: false
+        default: argument-specs-fixture
+        description: Name of the application
+      chef_flpath_4648_types_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether the application is enabled
+      chef_flpath_4648_types_port:
+        type: int
+        required: false
+        default: 8080
+        description: TCP port the application listens on
+      chef_flpath_4648_types_ratio:
+        type: float
+        required: false
+        default: 1.5
+        description: Ratio configuration for the application
+      chef_flpath_4648_types_allowed_hosts:
+        type: list
+        elements: str
+        required: false
+        default:
+          - localhost
+          - example.test
+        description: List of hosts allowed to connect to the application
+      chef_flpath_4648_types_config:
+        type: dict
+        required: false
+        default:
+          timeout: 30
+          retries: 3
+        description: Application configuration parameters
+        options:
+          timeout:
+            type: int
+            required: false
+            description: Timeout in seconds
+          retries:
+            type: int
+            required: false
+            description: Number of retries
+      chef_flpath_4648_types_sites:
+        type: dict
+        required: false
+        default:
+          test.example.test:
+            document_root: /srv/test
+            ssl_enabled: true
+          ci.example.test:
+            document_root: /srv/ci
+            ssl_enabled: false
+        description: Site configuration dictionary
+        options:
+          document_root:
+            type: str
+            required: false
+            description: Path to site document root directory
+          ssl_enabled:
+            type: bool
+            required: false
+            description: Whether SSL is enabled for the site

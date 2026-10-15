@@ -1,0 +1,116 @@
+---
+# FLPATH-3351-TC-07-RULE
+# Verify playbook for chef_flpath_4648_types
+
+- name: Verify configuration files and directories
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify directory existence
+      ansible.builtin.stat:
+        path: "{{ item_dir }}"
+      loop:
+        - /opt/argument-specs-fixture
+        - /srv/test
+        - /srv/ci
+      loop_control:
+        loop_var: item_dir
+      register: directory_stats
+
+    - name: Assert directories exist with correct permissions
+      ansible.builtin.assert:
+        that:
+          - directory_stat.stat.exists
+          - directory_stat.stat.isdir
+          - directory_stat.stat.mode == '0755'
+        fail_msg: "Directory verification failed"
+        success_msg: "Directory verification succeeded"
+      loop: "{{ directory_stats.results }}"
+      loop_control:
+        loop_var: directory_stat
+        label: "{{ directory_stat.item_dir }}"
+
+    # Verify application.conf content
+    - name: Get application.conf content
+      ansible.builtin.slurp:
+        path: /opt/argument-specs-fixture/application.conf
+      register: application_conf
+
+    - name: Verify application.conf content
+      ansible.builtin.assert:
+        that:
+          - application_conf.content | b64decode | regex_search('enabled=true')
+          - application_conf.content | b64decode | regex_search('port=8080')
+          - application_conf.content | b64decode | regex_search('ratio=1.5')
+          - application_conf.content | b64decode | regex_search('timeout=30')
+          - application_conf.content | b64decode | regex_search('retries=3')
+          - application_conf.content | b64decode | regex_search('allowed_hosts=localhost,example.test')
+        fail_msg: "application.conf content verification failed"
+        success_msg: "application.conf content verification succeeded"
+
+    - name: Verify application.conf permissions
+      ansible.builtin.stat:
+        path: /opt/argument-specs-fixture/application.conf
+      register: app_conf_stat
+
+    - name: Assert application.conf has correct permissions
+      ansible.builtin.assert:
+        that:
+          - app_conf_stat.stat.exists
+          - app_conf_stat.stat.mode == '0644'
+        fail_msg: "application.conf permissions verification failed"
+        success_msg: "application.conf permissions verification succeeded"
+
+    # Verify test.example.test.conf content
+    - name: Get test.example.test.conf content
+      ansible.builtin.slurp:
+        path: /opt/argument-specs-fixture/test.example.test.conf
+      register: test_site_conf
+
+    - name: Verify test.example.test.conf content
+      ansible.builtin.assert:
+        that:
+          - test_site_conf.content | b64decode | regex_search('document_root=/srv/test')
+          - test_site_conf.content | b64decode | regex_search('ssl_enabled=true')
+        fail_msg: "test.example.test.conf content verification failed"
+        success_msg: "test.example.test.conf content verification succeeded"
+
+    - name: Verify test.example.test.conf permissions
+      ansible.builtin.stat:
+        path: /opt/argument-specs-fixture/test.example.test.conf
+      register: test_conf_stat
+
+    - name: Assert test.example.test.conf has correct permissions
+      ansible.builtin.assert:
+        that:
+          - test_conf_stat.stat.exists
+          - test_conf_stat.stat.mode == '0644'
+        fail_msg: "test.example.test.conf permissions verification failed"
+        success_msg: "test.example.test.conf permissions verification succeeded"
+
+    # Verify ci.example.test.conf content
+    - name: Get ci.example.test.conf content
+      ansible.builtin.slurp:
+        path: /opt/argument-specs-fixture/ci.example.test.conf
+      register: ci_site_conf
+
+    - name: Verify ci.example.test.conf content
+      ansible.builtin.assert:
+        that:
+          - ci_site_conf.content | b64decode | regex_search('document_root=/srv/ci')
+          - ci_site_conf.content | b64decode | regex_search('ssl_enabled=false')
+        fail_msg: "ci.example.test.conf content verification failed"
+        success_msg: "ci.example.test.conf content verification succeeded"
+
+    - name: Verify ci.example.test.conf permissions
+      ansible.builtin.stat:
+        path: /opt/argument-specs-fixture/ci.example.test.conf
+      register: ci_conf_stat
+
+    - name: Assert ci.example.test.conf has correct permissions
+      ansible.builtin.assert:
+        that:
+          - ci_conf_stat.stat.exists
+          - ci_conf_stat.stat.mode == '0644'
+        fail_msg: "ci.example.test.conf permissions verification failed"
+        success_msg: "ci.example.test.conf permissions verification succeeded"
