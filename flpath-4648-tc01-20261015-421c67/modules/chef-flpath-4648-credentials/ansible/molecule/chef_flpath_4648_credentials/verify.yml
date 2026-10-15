@@ -1,0 +1,50 @@
+---
+# FLPATH-3351-TC-07-RULE
+# Verify playbook for chef_flpath_4648_credentials module
+# Based on explicit pre-flight checks from migration plan
+
+- name: Verify chef_flpath_4648_credentials configuration
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify config file exists with correct permissions
+      ansible.builtin.stat:
+        path: /etc/x2a-credentials-fixture.conf
+      register: config_file
+
+    - name: Assert config file exists and has correct permissions
+      ansible.builtin.assert:
+        that:
+          - config_file.stat.exists
+          - config_file.stat.mode == "0600"
+          - config_file.stat.pw_name == "root"
+          - config_file.stat.gr_name == "root"
+        fail_msg: "Configuration file missing or has incorrect permissions"
+        success_msg: "Configuration file exists with correct permissions"
+
+    - name: Fetch config file content
+      ansible.builtin.slurp:
+        path: /etc/x2a-credentials-fixture.conf
+      register: config_content
+      changed_when: false
+
+    - name: Verify endpoint in config file
+      ansible.builtin.assert:
+        that:
+          - "'endpoint=https://example.test/api' in (config_content.content | b64decode)"
+        fail_msg: "Config file does not contain expected endpoint URL"
+        success_msg: "Config file contains expected endpoint URL"
+
+    - name: Verify username in config file
+      ansible.builtin.assert:
+        that:
+          - "'username=fixture-user' in (config_content.content | b64decode)"
+        fail_msg: "Config file does not contain expected username"
+        success_msg: "Config file contains expected username"
+
+    - name: Verify token_configured in config file
+      ansible.builtin.assert:
+        that:
+          - "('token_configured=true' in (config_content.content | b64decode)) or ('token_configured=false' in (config_content.content | b64decode))"
+        fail_msg: "Config file does not contain token_configured setting"
+        success_msg: "Config file contains token_configured setting"

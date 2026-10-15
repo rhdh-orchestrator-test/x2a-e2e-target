@@ -1,0 +1,27 @@
+---
+# FLPATH-3351-TC-07-RULE
+# Tasks for the chef_flpath_4648_credentials role
+
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Ensure /etc directory exists
+  ansible.builtin.file:
+    path: /etc
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create credentials configuration file # noqa: L039 - api_token comes from role parameters or inventory
+  ansible.builtin.copy:
+    content: |
+      endpoint={{ endpoint }}
+      username={{ username }}
+      token_configured={{ api_token is defined and api_token | length > 0 }}
+    dest: /etc/x2a-credentials-fixture.conf
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
+  no_log: "{{ chef_flpath_4648_credentials_secure_logging }}"

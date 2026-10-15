@@ -1,0 +1,28 @@
+---
+# FLPATH-3351-TC-07-RULE
+argument_specs:
+  main:
+    short_description: Manages API credentials configuration file
+    description:
+      - Creates a configuration file with API access credentials
+      - Sets appropriate permissions for security (0600)
+    options:
+      endpoint:
+        type: str
+        required: false
+        default: https://example.test/api
+        description: API endpoint URL
+      username:
+        type: str
+        required: false
+        default: fixture-user
+        description: Username for API authentication
+      api_token:
+        type: str
+        required: true
+        description: API token for authentication (injected by AAP credential type)
+      chef_flpath_4648_credentials_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Controls logging of sensitive data
