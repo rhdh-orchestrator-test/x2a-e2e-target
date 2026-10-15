@@ -1,0 +1,49 @@
+---
+# FLPATH-3351-TC-07-RULE
+# verify.yml for chef_flpath_4648_credentials scenario
+# Verifies the configuration file existence, content, and permissions
+
+- name: Verify configuration file and permissions
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check configuration file existence and permissions
+      ansible.builtin.stat:
+        path: /etc/x2a-credentials-fixture.conf
+      register: config_file
+
+    - name: Verify file exists
+      ansible.builtin.assert:
+        that:
+          - config_file.stat.exists
+          - config_file.stat.isreg
+        fail_msg: "Configuration file does not exist or is not a regular file"
+        success_msg: "Configuration file exists"
+
+    - name: Verify file ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - config_file.stat.mode == "0600"
+          - config_file.stat.pw_name == "root"
+          - config_file.stat.gr_name == "root"
+        fail_msg: "Configuration file has incorrect permissions or ownership"
+        success_msg: "Configuration file has correct permissions and ownership"
+
+    - name: Read configuration file content
+      ansible.builtin.slurp:
+        src: /etc/x2a-credentials-fixture.conf
+      register: config_content
+      changed_when: false
+
+    - name: Decode configuration file content
+      ansible.builtin.set_fact:
+        decoded_content: "{{ config_content.content | b64decode }}"
+
+    - name: Verify configuration file content
+      ansible.builtin.assert:
+        that:
+          - "'endpoint=https://example.test/api' in decoded_content"
+          - "'username=fixture-user' in decoded_content"
+          - "'token_configured=' in decoded_content"
+        fail_msg: "Configuration file does not contain expected content"
+        success_msg: "Configuration file contains expected content"
