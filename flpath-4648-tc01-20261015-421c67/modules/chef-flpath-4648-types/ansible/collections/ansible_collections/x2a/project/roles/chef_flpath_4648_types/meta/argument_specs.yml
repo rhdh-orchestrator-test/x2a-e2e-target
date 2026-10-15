@@ -1,0 +1,75 @@
+---
+# FLPATH-3351-TC-07-RULE
+argument_specs:
+  main:
+    short_description: FLPATH-4648 argument-specification type and nested-value fixture
+    description:
+      - Configures a simple application service with site instances.
+      - Creates main configuration file and site-specific configurations.
+    options:
+      chef_flpath_4648_types_app_name:
+        type: str
+        required: false
+        default: argument-specs-fixture
+        description: Application name used in configuration file path.
+      chef_flpath_4648_types_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether the application is enabled.
+      chef_flpath_4648_types_port:
+        type: int
+        required: false
+        default: 8080
+        description: TCP port the application listens on.
+      chef_flpath_4648_types_ratio:
+        type: float
+        required: false
+        default: 1.5
+        description: Floating point ratio value for application configuration.
+      chef_flpath_4648_types_allowed_hosts:
+        type: list
+        elements: str
+        required: false
+        default:
+          - localhost
+          - example.test
+        description: List of hosts allowed to connect to the application.
+      chef_flpath_4648_types_config:
+        type: dict
+        required: false
+        default:
+          timeout: 30
+          retries: 3
+        description: >-
+          Application configuration parameters.
+        options:
+          timeout:
+            type: int
+            required: false
+            description: Connection timeout in seconds.
+          retries:
+            type: int
+            required: false
+            description: Number of connection retry attempts.
+      chef_flpath_4648_types_sites:
+        type: dict
+        required: false
+        default:
+          test.example.test:
+            document_root: /srv/test
+            ssl_enabled: true
+          ci.example.test:
+            document_root: /srv/ci
+            ssl_enabled: false
+        description: >-
+          Dictionary of site configurations with site names as keys.
+        options:
+          document_root:
+            type: str
+            required: true
+            description: Document root directory path for the site.
+          ssl_enabled:
+            type: bool
+            required: true
+            description: Whether SSL is enabled for the site.

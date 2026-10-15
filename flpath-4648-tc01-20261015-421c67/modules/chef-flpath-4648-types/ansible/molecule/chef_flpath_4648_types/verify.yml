@@ -1,0 +1,86 @@
+---
+# FLPATH-3351-TC-07-RULE
+# verify.yml for chef_flpath_4648_types scenario
+# Unsupported checks:
+# - Port verification (netstat/ss) - Could be replaced with wait_for but no expected outcome specified
+
+- name: Verify configuration files and directories
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Collect file information
+      ansible.builtin.stat:
+        path: "{{ item_file['path'] }}"
+      loop:
+        - path: /etc/argument-specs-fixture.conf
+        - path: /etc/test.example.test.conf
+        - path: /etc/ci.example.test.conf
+        - path: /srv/test
+        - path: /srv/ci
+      loop_control:
+        loop_var: item_file
+      register: file_stats
+
+    - name: Verify files exist and have correct permissions
+      ansible.builtin.assert:
+        that:
+          - item_file['stat']['exists']
+          - item_file['stat']['mode'] == '0644' if item_file['stat']['isreg'] else true
+          - item_file['stat']['mode'] == '0755' if item_file['stat']['isdir'] else true
+          - item_file['stat']['pw_name'] == 'root'
+          - item_file['stat']['gr_name'] == 'root'
+        fail_msg: "File or directory has incorrect permissions or ownership"
+        success_msg: "File or directory has correct permissions and ownership"
+      loop: "{{ file_stats.results }}"
+      loop_control:
+        loop_var: item_file
+
+    - name: Get main application configuration content
+      ansible.builtin.slurp:
+        path: /etc/argument-specs-fixture.conf
+      register: main_config
+      changed_when: false
+
+    - name: Verify main application configuration content
+      ansible.builtin.assert:
+        that:
+          - "'enabled=true' in decoded_content"
+          - "'port=8080' in decoded_content"
+          - "'ratio=1.5' in decoded_content"
+          - "'hosts=localhost,example.test' in decoded_content"
+          - "'timeout=30' in decoded_content"
+          - "'retries=3' in decoded_content"
+        fail_msg: "Main configuration file missing required content"
+        success_msg: "Main configuration file contains all required content"
+      vars:
+        decoded_content: "{{ main_config['content'] | b64decode }}"
+
+    - name: Get test.example.test configuration content
+      ansible.builtin.slurp:
+        path: /etc/test.example.test.conf
+      register: test_site_config
+      changed_when: false
+
+    - name: Verify test site configuration content
+      ansible.builtin.assert:
+        that:
+          - "'ssl_enabled=true' in decoded_content"
+        fail_msg: "Test site configuration file missing required content"
+        success_msg: "Test site configuration file contains all required content"
+      vars:
+        decoded_content: "{{ test_site_config['content'] | b64decode }}"
+
+    - name: Get ci.example.test configuration content
+      ansible.builtin.slurp:
+        path: /etc/ci.example.test.conf
+      register: ci_site_config
+      changed_when: false
+
+    - name: Verify ci site configuration content
+      ansible.builtin.assert:
+        that:
+          - "'ssl_enabled=false' in decoded_content"
+        fail_msg: "CI site configuration file missing required content"
+        success_msg: "CI site configuration file contains all required content"
+      vars:
+        decoded_content: "{{ ci_site_config['content'] | b64decode }}"

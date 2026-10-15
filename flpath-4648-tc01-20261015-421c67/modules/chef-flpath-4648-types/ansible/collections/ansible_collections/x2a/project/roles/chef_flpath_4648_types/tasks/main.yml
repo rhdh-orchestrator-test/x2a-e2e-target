@@ -1,0 +1,63 @@
+---
+# FLPATH-3351-TC-07-RULE
+# Converted from Chef recipes/default.rb
+
+# Ensure /etc directory exists with correct permissions
+- name: Ensure /etc directory exists
+  ansible.builtin.file:
+    path: /etc
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create main application configuration file
+  ansible.builtin.copy:
+    dest: /etc/{{ chef_flpath_4648_types_app_name }}.conf # noqa: R114 - path from role-defined variable
+    content: |
+      enabled={{ chef_flpath_4648_types_enabled }}
+      port={{ chef_flpath_4648_types_port }}
+      ratio={{ chef_flpath_4648_types_ratio }}
+      hosts={{ chef_flpath_4648_types_allowed_hosts | join(',') }}
+      timeout={{ chef_flpath_4648_types_config['timeout'] }}
+      retries={{ chef_flpath_4648_types_config['retries'] }}
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+
+# Ensure parent directories exist before creating document_root directories
+- name: Ensure parent directories for document roots exist
+  ansible.builtin.file:
+    path: "{{ item_site['value']['document_root'] | dirname }}" # noqa: R114 - path from role-defined sites dict
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ chef_flpath_4648_types_sites | dict2items }}"
+  loop_control:
+    loop_var: item_site
+
+- name: Create site document root directories and configuration files
+  ansible.builtin.file:
+    path: "{{ item_site['value']['document_root'] }}" # noqa: R114 - path from role-defined sites dict
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+    recurse: true
+  loop: "{{ chef_flpath_4648_types_sites | dict2items }}"
+  loop_control:
+    loop_var: item_site
+
+- name: Create site configuration files
+  ansible.builtin.copy:
+    dest: /etc/{{ item_site['key'] }}.conf # noqa: R114 - path from role-defined sites dict
+    content: "ssl_enabled={{ item_site['value']['ssl_enabled'] }} "
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  loop: "{{ chef_flpath_4648_types_sites | dict2items }}"
+  loop_control:
+    loop_var: item_site
