@@ -1,0 +1,51 @@
+---
+# FLPATH-3351-TC-07-RULE
+# Converted from Chef recipe fixtures/chef-flpath-4648-types/recipes/default.rb
+
+- name: Create application base directory
+  ansible.builtin.file:
+    path: /opt/{{ flpath_4648_types_app_name }} # noqa: R114 - path from role default variable
+    state: directory
+    mode: "0755"
+    recurse: true
+
+- name: Create application configuration file
+  ansible.builtin.copy:
+    dest: /opt/{{ flpath_4648_types_app_name }}/application.conf # noqa: R114 - path from role default variable
+    content: |
+      enabled={{ flpath_4648_types_enabled }}
+      port={{ flpath_4648_types_port }}
+      ratio={{ flpath_4648_types_ratio }}
+      timeout={{ flpath_4648_types_config['timeout'] }}
+      retries={{ flpath_4648_types_config['retries'] }}
+      allowed_hosts={{ flpath_4648_types_allowed_hosts | join(',') }}
+    mode: "0644"
+    backup: true
+
+- name: Ensure /srv directory exists
+  ansible.builtin.file:
+    path: /srv
+    state: directory
+    mode: "0755"
+
+- name: Create site directories and configuration files
+  ansible.builtin.file:
+    path: "{{ item_site['value']['document_root'] }}" # noqa: R114 - path from role default variable
+    state: directory
+    mode: "0755"
+    recurse: true
+  loop: "{{ flpath_4648_types_sites | dict2items }}"
+  loop_control:
+    loop_var: item_site
+
+- name: Create site configuration files
+  ansible.builtin.copy:
+    dest: /opt/{{ flpath_4648_types_app_name }}/{{ item_site['key'] }}.conf # noqa: R114 - path from role default variable
+    content: |
+      document_root={{ item_site['value']['document_root'] }}
+      ssl_enabled={{ item_site['value']['ssl_enabled'] }}
+    mode: "0644"
+    backup: true
+  loop: "{{ flpath_4648_types_sites | dict2items }}"
+  loop_control:
+    loop_var: item_site

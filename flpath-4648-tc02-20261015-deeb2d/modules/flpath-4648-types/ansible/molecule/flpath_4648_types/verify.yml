@@ -1,0 +1,107 @@
+---
+# FLPATH-3351-TC-07-RULE
+# verify.yml: Performs verification checks for flpath_4648_types module
+# Based on pre-flight checks defined in migration plan
+
+- name: Verify application configuration setup
+  hosts: all
+  tasks:
+    - name: Check directory existence
+      ansible.builtin.stat:
+        path: "{{ item_dir['path'] }}" # noqa: R114 - path from fixed list, not user input
+      loop:
+        - path: /opt/argument-specs-fixture
+        - path: /srv/test
+        - path: /srv/ci
+      loop_control:
+        loop_var: item_dir
+      register: dir_checks
+
+    - name: Verify directories exist and are directories
+      ansible.builtin.assert:
+        that:
+          - item_dir_result['stat']['exists']
+          - item_dir_result['stat']['isdir']
+        fail_msg: "Directory check failed"
+        success_msg: "Directory exists and is a directory"
+      loop: "{{ dir_checks['results'] }}"
+      loop_control:
+        loop_var: item_dir_result
+        label: "{{ item_dir_result['item']['path'] }}"
+
+    - name: Check configuration files existence
+      ansible.builtin.stat:
+        path: "{{ item_file['path'] }}" # noqa: R114 - path from fixed list, not user input
+      loop:
+        - path: /opt/argument-specs-fixture/application.conf
+        - path: /opt/argument-specs-fixture/test.example.test.conf
+        - path: /opt/argument-specs-fixture/ci.example.test.conf
+      loop_control:
+        loop_var: item_file
+      register: file_checks
+
+    - name: Verify configuration files exist
+      ansible.builtin.assert:
+        that:
+          - item_file_result['stat']['exists']
+          - item_file_result['stat']['isreg']
+        fail_msg: "File check failed"
+        success_msg: "File exists and is a regular file"
+      loop: "{{ file_checks['results'] }}"
+      loop_control:
+        loop_var: item_file_result
+        label: "{{ item_file_result['item']['path'] }}"
+
+    - name: Check file permissions
+      ansible.builtin.stat:
+        path: "{{ item_path['path'] }}" # noqa: R114 - path from fixed list, not user input
+      loop:
+        - path: /opt/argument-specs-fixture
+        - path: /opt/argument-specs-fixture/application.conf
+        - path: /opt/argument-specs-fixture/test.example.test.conf
+        - path: /opt/argument-specs-fixture/ci.example.test.conf
+        - path: /srv/test
+        - path: /srv/ci
+      loop_control:
+        loop_var: item_path
+      register: permission_checks
+
+    # No explicit expected permission modes were stated in pre-flight checks,
+    # so we just register the information without assertions
+
+    - name: Check main application config content
+      ansible.builtin.command: grep -E "{{ item_pattern['pattern'] }}" /opt/argument-specs-fixture/application.conf
+      loop:
+        - pattern: enabled=true
+        - pattern: port=8080
+        - pattern: ratio=1.5
+        - pattern: timeout=30
+        - pattern: retries=3
+        - pattern: allowed_hosts=localhost,example.test
+      loop_control:
+        loop_var: item_pattern
+      register: app_config_checks
+      changed_when: false
+      failed_when: app_config_checks.rc != 0
+
+    - name: Check test.example.test site configuration
+      ansible.builtin.command: grep "{{ item_pattern['pattern'] }}" /opt/argument-specs-fixture/test.example.test.conf
+      loop:
+        - pattern: document_root
+        - pattern: ssl_enabled
+      loop_control:
+        loop_var: item_pattern
+      register: test_site_config_checks
+      changed_when: false
+      failed_when: test_site_config_checks.rc != 0
+
+    - name: Check ci.example.test site configuration
+      ansible.builtin.command: grep "{{ item_pattern['pattern'] }}" /opt/argument-specs-fixture/ci.example.test.conf
+      loop:
+        - pattern: document_root
+        - pattern: ssl_enabled
+      loop_control:
+        loop_var: item_pattern
+      register: ci_site_config_checks
+      changed_when: false
+      failed_when: ci_site_config_checks.rc != 0
