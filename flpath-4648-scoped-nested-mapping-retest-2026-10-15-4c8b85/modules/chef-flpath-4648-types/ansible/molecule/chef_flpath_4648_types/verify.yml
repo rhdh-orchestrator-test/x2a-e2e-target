@@ -1,0 +1,73 @@
+---
+# FLPATH-3351-TC-07-RULE
+# This verify playbook checks the application directory and configuration file
+# based on the pre-flight checks from the migration plan.
+# Unsupported checks:
+# - None, all pre-flight checks have been implemented
+
+- name: Verify application directory and configuration file
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check directory exists and permissions
+      ansible.builtin.stat:
+        path: /opt/argument-specs-fixture
+      register: directory_stat
+
+    - name: Assert directory exists with correct permissions
+      ansible.builtin.assert:
+        that:
+          - directory_stat.stat.exists
+          - directory_stat.stat.isdir
+          - directory_stat.stat.mode == "0755"
+        fail_msg: "Application directory does not exist or has incorrect permissions"
+        success_msg: "Application directory exists with correct permissions"
+
+    - name: Check config file exists and permissions
+      ansible.builtin.stat:
+        path: /opt/argument-specs-fixture/application.conf
+      register: config_file_stat
+
+    - name: Assert config file exists with correct permissions
+      ansible.builtin.assert:
+        that:
+          - config_file_stat.stat.exists
+          - config_file_stat.stat.isreg
+          - config_file_stat.stat.mode == "0644"
+        fail_msg: "Configuration file does not exist or has incorrect permissions"
+        success_msg: "Configuration file exists with correct permissions"
+
+    - name: Get configuration file content
+      ansible.builtin.slurp:
+        path: /opt/argument-specs-fixture/application.conf
+      register: config_content
+
+    - name: Decode configuration file content
+      ansible.builtin.set_fact:
+        decoded_config: "{{ config_content.content | b64decode }}"
+
+    - name: Verify configuration file has expected values
+      ansible.builtin.assert:
+        that:
+          - decoded_config is search('enabled=true')
+          - decoded_config is search('port=8080')
+          - decoded_config is search('ratio=1.5')
+          - decoded_config is search('timeout=30')
+          - decoded_config is search('retries=3')
+          - decoded_config is search('allowed_hosts=localhost,example.test')
+        fail_msg: "Configuration file is missing expected values"
+        success_msg: "Configuration file contains all expected values"
+
+    - name: Verify configuration file format (non-empty, non-comment lines count)
+      ansible.builtin.shell:
+        cmd: set -o pipefail && cat /opt/argument-specs-fixture/application.conf | grep -v "^$" | grep -v "^#" | wc -l
+        executable: /bin/bash
+      register: config_line_count
+      changed_when: false
+
+    - name: Assert configuration file has correct number of lines
+      ansible.builtin.assert:
+        that:
+          - config_line_count.stdout | trim == "6"
+        fail_msg: "Configuration file does not have the expected 6 lines"
+        success_msg: "Configuration file has the expected 6 lines"

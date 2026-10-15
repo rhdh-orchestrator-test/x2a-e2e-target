@@ -1,0 +1,52 @@
+---
+# FLPATH-3351-TC-07-RULE
+argument_specs:
+  main:
+    short_description: Fixture covering scalar, collection, and nested defaults
+    description:
+      - Creates application directory and configuration file with different data types
+    options:
+      chef_flpath_4648_types_app_name:
+        type: str
+        required: false
+        default: argument-specs-fixture
+        description: Name of the application
+      chef_flpath_4648_types_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether the application is enabled
+      chef_flpath_4648_types_port:
+        type: int
+        required: false
+        default: 8080
+        description: Port the application listens on
+      chef_flpath_4648_types_ratio:
+        type: float
+        required: false
+        default: 1.5
+        description: Ratio value used by the application
+      chef_flpath_4648_types_allowed_hosts:
+        type: list
+        elements: str
+        required: false
+        default:
+          - localhost
+          - example.test
+        description: List of allowed hosts
+      chef_flpath_4648_types_config:
+        type: dict
+        required: false
+        default:
+          timeout: 30
+          retries: 3
+        description: Configuration parameters for the application
+        options:
+          timeout:
+            type: int
+            required: false
+            description: Timeout in seconds
+          retries:
+            type: int
+            required: false
+            description: Number of retries

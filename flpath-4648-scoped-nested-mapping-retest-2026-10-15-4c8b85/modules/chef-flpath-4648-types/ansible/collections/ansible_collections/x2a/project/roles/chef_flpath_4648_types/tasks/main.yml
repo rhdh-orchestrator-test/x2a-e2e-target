@@ -1,0 +1,29 @@
+---
+# FLPATH-3351-TC-07-RULE
+# Tasks for chef_flpath_4648_types role
+
+- name: Check if application exists
+  ansible.builtin.stat:
+    path: /usr/bin/{{ chef_flpath_4648_types_app_name }}
+  register: app_binary
+
+- name: Create application directory
+  ansible.builtin.file:
+    path: /opt/{{ chef_flpath_4648_types_app_name }} # noqa: R114 - path from role-defined variable, not user input
+    state: directory
+    mode: "0755"
+
+- name: Create application configuration file
+  ansible.builtin.copy:
+    dest: /opt/{{ chef_flpath_4648_types_app_name }}/application.conf # noqa: R114 - path from role-defined variable, not user input
+    content: |
+      enabled={{ chef_flpath_4648_types_enabled }}
+      port={{ chef_flpath_4648_types_port }}
+      ratio={{ chef_flpath_4648_types_ratio }}
+      timeout={{ chef_flpath_4648_types_config.timeout }}
+      retries={{ chef_flpath_4648_types_config.retries }}
+      allowed_hosts={{ chef_flpath_4648_types_allowed_hosts | join(',') }}
+    mode: "0644"
+    backup: true
+    create: false
+  when: app_binary.stat.exists # noqa: L039 - variable registered by prior task
