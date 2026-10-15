@@ -1,0 +1,53 @@
+---
+# FLPATH-3351-TC-07-RULE - Required marker
+argument_specs:
+  main:
+    short_description: Configure application with various parameter types
+    description:
+      - Creates a directory structure and configuration file with various parameter types
+      - Demonstrates different attribute types including boolean, numeric, string, array and hash values
+    options:
+      flpath_4648_types_app_name:
+        type: str
+        required: false
+        default: argument-specs-fixture
+        description: Name of the application
+      flpath_4648_types_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether the application is enabled
+      flpath_4648_types_port:
+        type: int
+        required: false
+        default: 8080
+        description: TCP port for the application
+      flpath_4648_types_ratio:
+        type: float
+        required: false
+        default: 1.5
+        description: Floating point ratio value
+      flpath_4648_types_allowed_hosts:
+        type: list
+        elements: str
+        required: false
+        default:
+          - localhost
+          - example.test
+        description: List of hostnames allowed to connect
+      flpath_4648_types_config:
+        type: dict
+        required: false
+        default:
+          timeout: 30
+          retries: 3
+        description: Application configuration parameters
+        options:
+          timeout:
+            type: int
+            required: false
+            description: Connection timeout in seconds
+          retries:
+            type: int
+            required: false
+            description: Number of retry attempts

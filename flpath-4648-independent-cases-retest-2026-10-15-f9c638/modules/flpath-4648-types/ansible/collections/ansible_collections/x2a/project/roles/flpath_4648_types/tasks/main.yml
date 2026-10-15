@@ -1,0 +1,25 @@
+---
+# FLPATH-3351-TC-07-RULE - Required marker
+
+- name: Create application directory
+  ansible.builtin.file:
+    path: /opt/{{ flpath_4648_types_app_name }} # noqa: R114 - path from role-defined variable, not user input
+    state: directory
+    mode: "0755"
+    owner: root
+    group: root
+
+- name: Create application configuration file
+  ansible.builtin.copy:
+    dest: /opt/{{ flpath_4648_types_app_name }}/application.conf # noqa: R114 - path from role-defined variable, not user input
+    mode: "0644"
+    backup: true
+    owner: root
+    group: root
+    content: |-
+      enabled={{ flpath_4648_types_enabled }}
+      port={{ flpath_4648_types_port }}
+      ratio={{ flpath_4648_types_ratio }}
+      timeout={{ flpath_4648_types_config.timeout }}
+      retries={{ flpath_4648_types_config.retries }}
+      allowed_hosts={{ flpath_4648_types_allowed_hosts | join(',') }}

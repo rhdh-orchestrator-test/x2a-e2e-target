@@ -1,0 +1,50 @@
+---
+# FLPATH-3351-TC-07-RULE
+# Verify the application configuration based on the pre-flight checks
+# from the migration plan for flpath_4648_types
+
+- name: Verify application configuration
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify directory structure exists
+      ansible.builtin.stat:
+        path: /opt/argument-specs-fixture
+      register: app_dir
+      failed_when: not app_dir.stat.exists or not app_dir.stat.isdir
+
+    - name: Verify configuration file permissions
+      ansible.builtin.stat:
+        path: /opt/argument-specs-fixture/application.conf
+      register: config_file
+      failed_when: not config_file.stat.exists or not config_file.stat.isfile
+
+    - name: Assert proper file permissions
+      ansible.builtin.assert:
+        that:
+          - config_file.stat.mode == '0644'
+          - config_file.stat.uid == 0 # root user
+          - config_file.stat.gid == 0 # root group
+        fail_msg: "Configuration file has incorrect permissions"
+        success_msg: "Configuration file has correct permissions"
+
+    - name: Read configuration file content
+      ansible.builtin.slurp:
+        path: /opt/argument-specs-fixture/application.conf
+      register: config_content
+
+    - name: Decode configuration content
+      ansible.builtin.set_fact:
+        decoded_content: "{{ config_content.content | b64decode }}"
+
+    - name: Verify configuration file content
+      ansible.builtin.assert:
+        that:
+          - "'enabled=true' in decoded_content"
+          - "'port=8080' in decoded_content"
+          - "'ratio=1.5' in decoded_content"
+          - "'timeout=30' in decoded_content"
+          - "'retries=3' in decoded_content"
+          - "'allowed_hosts=localhost,example.test' in decoded_content"
+        fail_msg: "Configuration file is missing expected content"
+        success_msg: "Configuration file contains all expected content"
