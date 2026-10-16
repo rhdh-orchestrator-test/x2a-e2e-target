@@ -1,0 +1,16 @@
+---
+# FLPATH-3351-TC-07-RULE
+# Tasks for chef_flpath_4648_vars role
+
+- name: Check if /etc directory exists
+  ansible.builtin.stat:
+    path: /etc
+  register: etc_dir
+
+- name: Create configuration file # noqa: L039 - etc_dir is registered by prior task
+  ansible.builtin.copy:
+    dest: /etc/flpath-4648-vars.conf
+    content: "service_name={{ chef_flpath_4648_vars_service_name }} "
+    mode: "0600"
+    backup: true
+  when: etc_dir.stat.exists and etc_dir.stat.isdir

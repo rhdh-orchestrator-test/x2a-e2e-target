@@ -1,0 +1,32 @@
+---
+# FLPATH-3351-TC-07-RULE
+- name: Verify configuration
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Get configuration file stats
+      ansible.builtin.stat:
+        path: /etc/flpath-4648-vars.conf
+      register: config_file
+
+    - name: Verify configuration file exists
+      ansible.builtin.assert:
+        that:
+          - config_file.stat.exists
+          - config_file.stat.mode == "0600"
+        fail_msg: "Config file does not exist or has incorrect permissions"
+        success_msg: "Config file exists with correct permissions"
+
+    - name: Read the configuration file content
+      ansible.builtin.slurp:
+        path: /etc/flpath-4648-vars.conf
+      register: config_content
+      when: config_file.stat.exists
+
+    - name: Verify configuration file content
+      ansible.builtin.assert:
+        that:
+          - "'service_name=fixture-service' in (config_content.content | b64decode)"
+        fail_msg: "Config file does not contain expected service_name setting"
+        success_msg: "Config file contains expected service_name setting"
+      when: config_file.stat.exists
