@@ -1,0 +1,33 @@
+---
+# verify.yml for chef_flpath_4648_no_defaults scenario
+# FLPATH-3351-TC-07-RULE
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check file existence and permissions
+      ansible.builtin.stat:
+        path: /etc/x2a-no-defaults-fixture.conf
+      register: conf_file
+
+    - name: Verify file exists with correct permissions
+      ansible.builtin.assert:
+        that:
+          - conf_file.stat.exists
+          - conf_file.stat.mode == '0644'
+          - conf_file.stat.uid == 0
+          - conf_file.stat.gid == 0
+        fail_msg: "File permissions check failed"
+        success_msg: "File permissions check passed"
+
+    - name: Check file content
+      ansible.builtin.slurp:
+        src: /etc/x2a-no-defaults-fixture.conf
+      register: file_content
+
+    - name: Verify file content
+      ansible.builtin.assert:
+        that:
+          - "'FLPATH-4648 no-defaults fixture' in (file_content['content'] | b64decode)"
+        fail_msg: "File content check failed"
+        success_msg: "File content check passed"

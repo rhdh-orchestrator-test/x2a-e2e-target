@@ -1,0 +1,22 @@
+---
+# FLPATH-3351-TC-07-RULE marker as required
+
+- name: Ensure /etc directory exists
+  ansible.builtin.file:
+    path: /etc
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  check_mode: true
+  register: etc_dir_check
+  failed_when: not etc_dir_check.stat.exists
+
+- name: Create configuration file
+  ansible.builtin.copy:
+    content: "FLPATH-4648 no-defaults fixture "
+    dest: /etc/x2a-no-defaults-fixture.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
