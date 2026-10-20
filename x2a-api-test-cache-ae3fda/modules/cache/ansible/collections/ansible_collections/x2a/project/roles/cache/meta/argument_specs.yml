@@ -1,0 +1,99 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis and Memcached caching services
+    description:
+      - Deploys and configures Redis and Memcached caching services.
+      - Configures Redis with authentication on port 6379.
+      - Configures Memcached on port 11211.
+      - Manages service users, directories, and configuration files.
+    options:
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port for Redis server.
+      cache_redis_bind:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: IP address Redis should bind to.
+      cache_redis_maxmemory:
+        type: str
+        required: false
+        default: 256mb
+        description: Maximum memory Redis can use.
+      cache_redis_maxmemory_policy:
+        type: str
+        required: false
+        default: allkeys-lru
+        description: Redis eviction policy when maxmemory is reached.
+      cache_redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory for Redis log files.
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Path to Redis configuration file.
+      cache_redis_data_dir:
+        type: str
+        required: false
+        default: /var/lib/redis/6379
+        description: Directory for Redis data persistence.
+      cache_redis_user:
+        type: str
+        required: false
+        default: redis
+        description: System user for Redis service.
+      cache_redis_group:
+        type: str
+        required: false
+        default: redis
+        description: System group for Redis service.
+      cache_memcached_memory:
+        type: int
+        required: false
+        default: 64
+        description: Memory limit for Memcached in megabytes.
+      cache_memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: TCP port for Memcached server.
+      cache_memcached_listen:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: IP address Memcached should bind to.
+      cache_memcached_maxconn:
+        type: int
+        required: false
+        default: 1024
+        description: Maximum number of simultaneous connections for Memcached.
+      cache_memcached_user:
+        type: str
+        required: false
+        default: memcache
+        description: System user for Memcached service.
+      cache_redis_service_name:
+        type: str
+        required: false
+        default: redis
+        description: Name of the Redis systemd service.
+      cache_memcached_service_name:
+        type: str
+        required: false
+        default: memcached
+        description: Name of the Memcached systemd service.
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to hide sensitive credential data in logs (no_log).
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password (injected by AAP credential type at runtime).

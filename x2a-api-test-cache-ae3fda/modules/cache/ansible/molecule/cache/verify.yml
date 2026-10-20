@@ -1,0 +1,564 @@
+---
+# Molecule verification playbook for cache role
+# Translates explicit pre-flight checks from migration plan
+#
+# Unsupported checks (no expected outcome or read-only translation not feasible):
+# - journalctl/tail -f commands (follow mode for logs)
+# - Interactive grep for errors without expected count/pattern
+# - Memory stats checks (no expected values specified)
+# - Persistence config checks (no expected values specified)
+# - Process count echo commands (informational only)
+
+- name: Verify cache services (memcached and Redis)
+  hosts: all
+  gather_facts: true
+  tasks:
+    # ========================================================================
+    # MEMCACHED SERVICE CHECKS
+    # ========================================================================
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Verify memcached service is running
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts.services or 'memcached' in ansible_facts.services"
+          - >-
+            (ansible_facts.services['memcached.service'].state | default('')) == 'running' or
+            (ansible_facts.services['memcached'].state | default('')) == 'running'
+        fail_msg: "Memcached service is not running"
+        success_msg: "Memcached service is running"
+
+    - name: Check memcached process is running
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -f
+          - memcached
+      changed_when: false
+      register: memcached_process
+
+    - name: Verify memcached process exists
+      ansible.builtin.assert:
+        that:
+          - memcached_process.rc == 0
+          - memcached_process.stdout | length > 0
+        fail_msg: "Memcached process not found"
+        success_msg: "Memcached process is running"
+
+    - name: Check memcached listening on port 11211
+      ansible.builtin.wait_for:
+        port: 11211
+        host: localhost
+        timeout: 5
+        state: started
+
+    - name: Test memcached connectivity and version
+      ansible.builtin.command:
+        argv:
+          - bash
+          - -c
+          - echo "version" | nc localhost 11211
+      changed_when: false
+      register: memcached_version
+
+    - name: Verify memcached responds to version command
+      ansible.builtin.assert:
+        that:
+          - memcached_version.rc == 0
+          - memcached_version.stdout is search('VERSION')
+        fail_msg: "Memcached did not respond correctly to version command"
+        success_msg: "Memcached connectivity verified"
+
+    - name: Test memcached stats command
+      ansible.builtin.command:
+        argv:
+          - bash
+          - -c
+          - printf "stats\r\n" | nc localhost 11211 | head -20
+      changed_when: false
+      register: memcached_stats
+
+    - name: Verify memcached stats response
+      ansible.builtin.assert:
+        that:
+          - memcached_stats.rc == 0
+          - memcached_stats.stdout is search('STAT')
+        fail_msg: "Memcached stats command failed"
+        success_msg: "Memcached stats command successful"
+
+    - name: Check for memcached configuration file
+      ansible.builtin.stat:
+        path: "{{ item_memcached_conf }}"
+      register: memcached_conf_check
+      loop:
+        - /etc/memcached.conf
+        - /etc/sysconfig/memcached
+      loop_control:
+        loop_var: item_memcached_conf
+
+    - name: Verify at least one memcached config exists
+      ansible.builtin.assert:
+        that:
+          - memcached_conf_check.results | selectattr('stat.exists', 'equalto', true) | list | length > 0
+        fail_msg: "No memcached configuration file found"
+        success_msg: "Memcached configuration file exists"
+
+    - name: Test memcached set/get operations
+      ansible.builtin.command:
+        argv:
+          - bash
+          - -c
+          - printf "set test_key 0 60 5\r\nvalue\r\n" | nc localhost 11211
+      changed_when: false
+      register: memcached_set
+
+    - name: Verify memcached set operation
+      ansible.builtin.assert:
+        that:
+          - memcached_set.rc == 0
+          - memcached_set.stdout is search('STORED')
+        fail_msg: "Memcached set operation failed"
+        success_msg: "Memcached set operation successful"
+
+    - name: Test memcached get operation
+      ansible.builtin.command:
+        argv:
+          - bash
+          - -c
+          - printf "get test_key\r\n" | nc localhost 11211
+      changed_when: false
+      register: memcached_get
+
+    - name: Verify memcached get operation
+      ansible.builtin.assert:
+        that:
+          - memcached_get.rc == 0
+          - memcached_get.stdout is search('VALUE test_key')
+        fail_msg: "Memcached get operation failed"
+        success_msg: "Memcached get operation successful"
+
+    # ========================================================================
+    # REDIS SERVICE CHECKS - Instance on port 6379
+    # ========================================================================
+
+    - name: Check for redis service (multiple naming patterns)
+      ansible.builtin.service_facts:
+
+    - name: Verify Redis service is running
+      ansible.builtin.assert:
+        that: >-
+          'redis6379.service' in ansible_facts.services or
+          'redis_6379.service' in ansible_facts.services or
+          'redis@6379.service' in ansible_facts.services
+        fail_msg: "Redis service for port 6379 not found"
+        success_msg: "Redis service found"
+
+    - name: Check Redis process is running on port 6379
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -f
+          - redis-server.*6379
+      changed_when: false
+      register: redis_process
+
+    - name: Verify Redis process exists
+      ansible.builtin.assert:
+        that:
+          - redis_process.rc == 0
+          - redis_process.stdout | length > 0
+        fail_msg: "Redis process for port 6379 not found"
+        success_msg: "Redis process is running on port 6379"
+
+    - name: Check Redis listening on port 6379
+      ansible.builtin.wait_for:
+        port: 6379
+        host: localhost
+        timeout: 5
+        state: started
+
+    - name: Test Redis PING without authentication (expect NOAUTH error)
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - PING
+      changed_when: false
+      register: redis_ping_noauth
+      failed_when: false
+
+    - name: Verify Redis requires authentication
+      ansible.builtin.assert:
+        that:
+          - redis_ping_noauth.rc != 0
+          - redis_ping_noauth.stderr is search('NOAUTH')
+        fail_msg: "Redis did not require authentication as expected"
+        success_msg: "Redis correctly requires authentication"
+
+    - name: Test Redis PING with authentication (expect PONG)
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - -a
+          - redis_secure_password_123
+          - PING
+      changed_when: false
+      register: redis_ping_auth
+
+    - name: Verify Redis PING with auth returns PONG
+      ansible.builtin.assert:
+        that:
+          - redis_ping_auth.rc == 0
+          - redis_ping_auth.stdout is search('PONG')
+        fail_msg: "Redis PING with authentication failed"
+        success_msg: "Redis authentication successful, PONG received"
+
+    - name: Get Redis server info
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - -a
+          - redis_secure_password_123
+          - INFO
+          - server
+      changed_when: false
+      register: redis_info_server
+
+    - name: Verify Redis INFO server command works
+      ansible.builtin.assert:
+        that:
+          - redis_info_server.rc == 0
+          - redis_info_server.stdout is search('redis_version')
+        fail_msg: "Redis INFO server command failed"
+        success_msg: "Redis INFO server command successful"
+
+    - name: Get Redis replication info
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - -a
+          - redis_secure_password_123
+          - INFO
+          - replication
+      changed_when: false
+      register: redis_info_replication
+
+    - name: Verify Redis INFO replication command works
+      ansible.builtin.assert:
+        that:
+          - redis_info_replication.rc == 0
+          - redis_info_replication.stdout is search('role:')
+        fail_msg: "Redis INFO replication command failed"
+        success_msg: "Redis INFO replication command successful"
+
+    - name: Get Redis requirepass config
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - -a
+          - redis_secure_password_123
+          - CONFIG
+          - GET
+          - requirepass
+      changed_when: false
+      register: redis_config_requirepass
+
+    - name: Verify Redis requirepass is set correctly
+      ansible.builtin.assert:
+        that:
+          - redis_config_requirepass.rc == 0
+          - redis_config_requirepass.stdout_lines[0] == 'requirepass'
+          - redis_config_requirepass.stdout_lines[1] == 'redis_secure_password_123'
+        fail_msg: "Redis requirepass not set to expected value"
+        success_msg: "Redis requirepass configured correctly"
+
+    - name: Get Redis port config
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - -a
+          - redis_secure_password_123
+          - CONFIG
+          - GET
+          - port
+      changed_when: false
+      register: redis_config_port
+
+    - name: Verify Redis port is 6379
+      ansible.builtin.assert:
+        that:
+          - redis_config_port.rc == 0
+          - redis_config_port.stdout_lines[0] == 'port'
+          - redis_config_port.stdout_lines[1] == '6379'
+        fail_msg: "Redis port not set to 6379"
+        success_msg: "Redis port configured correctly as 6379"
+
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_conf_stat
+
+    - name: Verify Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_conf_stat.stat.exists
+          - redis_conf_stat.stat.isreg
+        fail_msg: "Redis configuration file /etc/redis/6379.conf does not exist"
+        success_msg: "Redis configuration file exists"
+
+    - name: Read Redis configuration file
+      ansible.builtin.slurp:
+        path: /etc/redis/6379.conf
+      register: redis_conf_content
+
+    - name: Decode Redis configuration
+      ansible.builtin.set_fact:
+        redis_conf_text: "{{ redis_conf_content.content | b64decode }}"
+
+    - name: Verify requirepass directive in Redis config
+      ansible.builtin.command:
+        argv:
+          - grep
+          - ^requirepass
+          - /etc/redis/6379.conf
+      changed_when: false
+      register: redis_conf_requirepass
+
+    - name: Assert requirepass is in config file
+      ansible.builtin.assert:
+        that:
+          - redis_conf_requirepass.rc == 0
+          - redis_conf_requirepass.stdout is search('requirepass redis_secure_password_123')
+        fail_msg: "requirepass directive not found in Redis config"
+        success_msg: "requirepass directive present in Redis config"
+
+    - name: Check removed directive - replica-serve-stale-data (should not exist)
+      ansible.builtin.command:
+        argv:
+          - grep
+          - ^replica-serve-stale-data
+          - /etc/redis/6379.conf
+      changed_when: false
+      register: redis_conf_replica_serve
+      failed_when: false
+
+    - name: Verify replica-serve-stale-data was removed
+      ansible.builtin.assert:
+        that:
+          - redis_conf_replica_serve.rc != 0
+          - redis_conf_replica_serve.stdout | length == 0
+        fail_msg: "replica-serve-stale-data directive found but should be removed"
+        success_msg: "replica-serve-stale-data directive correctly removed"
+
+    - name: Check removed directive - replica-read-only (should not exist)
+      ansible.builtin.command:
+        argv:
+          - grep
+          - ^replica-read-only
+          - /etc/redis/6379.conf
+      changed_when: false
+      register: redis_conf_replica_readonly
+      failed_when: false
+
+    - name: Verify replica-read-only was removed
+      ansible.builtin.assert:
+        that:
+          - redis_conf_replica_readonly.rc != 0
+          - redis_conf_replica_readonly.stdout | length == 0
+        fail_msg: "replica-read-only directive found but should be removed"
+        success_msg: "replica-read-only directive correctly removed"
+
+    - name: Check removed directive - repl-ping-replica-period (should not exist)
+      ansible.builtin.command:
+        argv:
+          - grep
+          - ^repl-ping-replica-period
+          - /etc/redis/6379.conf
+      changed_when: false
+      register: redis_conf_repl_ping
+      failed_when: false
+
+    - name: Verify repl-ping-replica-period was removed
+      ansible.builtin.assert:
+        that:
+          - redis_conf_repl_ping.rc != 0
+          - redis_conf_repl_ping.stdout | length == 0
+        fail_msg: "repl-ping-replica-period directive found but should be removed"
+        success_msg: "repl-ping-replica-period directive correctly removed"
+
+    - name: Check removed directive - client-output-buffer-limit (should not exist)
+      ansible.builtin.command:
+        argv:
+          - grep
+          - ^client-output-buffer-limit
+          - /etc/redis/6379.conf
+      changed_when: false
+      register: redis_conf_client_buffer
+      failed_when: false
+
+    - name: Verify client-output-buffer-limit was removed
+      ansible.builtin.assert:
+        that:
+          - redis_conf_client_buffer.rc != 0
+          - redis_conf_client_buffer.stdout | length == 0
+        fail_msg: "client-output-buffer-limit directive found but should be removed"
+        success_msg: "client-output-buffer-limit directive correctly removed"
+
+    - name: Check removed directive - replica-priority (should not exist)
+      ansible.builtin.command:
+        argv:
+          - grep
+          - ^replica-priority
+          - /etc/redis/6379.conf
+      changed_when: false
+      register: redis_conf_replica_priority
+      failed_when: false
+
+    - name: Verify replica-priority was removed
+      ansible.builtin.assert:
+        that:
+          - redis_conf_replica_priority.rc != 0
+          - redis_conf_replica_priority.stdout | length == 0
+        fail_msg: "replica-priority directive found but should be removed"
+        success_msg: "replica-priority directive correctly removed"
+
+    - name: Check Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_dir_stat
+
+    - name: Verify Redis log directory exists with correct permissions
+      ansible.builtin.assert:
+        that:
+          - redis_log_dir_stat.stat.exists
+          - redis_log_dir_stat.stat.isdir
+          - redis_log_dir_stat.stat.pw_name == 'redis'
+          - redis_log_dir_stat.stat.gr_name == 'redis'
+          - redis_log_dir_stat.stat.mode == '0755'
+        fail_msg: "Redis log directory has incorrect ownership or permissions"
+        success_msg: "Redis log directory has correct ownership (redis:redis) and permissions (0755)"
+
+    - name: Test Redis SET operation
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - -a
+          - redis_secure_password_123
+          - SET
+          - test_key
+          - test_value
+      changed_when: false
+      register: redis_set
+
+    - name: Verify Redis SET returns OK
+      ansible.builtin.assert:
+        that:
+          - redis_set.rc == 0
+          - redis_set.stdout is search('OK')
+        fail_msg: "Redis SET operation failed"
+        success_msg: "Redis SET operation successful"
+
+    - name: Test Redis GET operation
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - -a
+          - redis_secure_password_123
+          - GET
+          - test_key
+      changed_when: false
+      register: redis_get
+
+    - name: Verify Redis GET returns test_value
+      ansible.builtin.assert:
+        that:
+          - redis_get.rc == 0
+          - redis_get.stdout is search('test_value')
+        fail_msg: "Redis GET operation failed or returned wrong value"
+        success_msg: "Redis GET operation successful"
+
+    - name: Test Redis DEL operation
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - -a
+          - redis_secure_password_123
+          - DEL
+          - test_key
+      changed_when: false
+      register: redis_del
+
+    - name: Verify Redis DEL returns 1
+      ansible.builtin.assert:
+        that:
+          - redis_del.rc == 0
+          - redis_del.stdout is search('1')
+        fail_msg: "Redis DEL operation failed"
+        success_msg: "Redis DEL operation successful"
+
+    # ========================================================================
+    # COMBINED CHECKS
+    # ========================================================================
+
+    - name: Check all cache service ports are listening
+      ansible.builtin.wait_for:
+        port: "{{ item_cache_port }}"
+        host: localhost
+        timeout: 5
+        state: started
+      loop:
+        - 11211
+        - 6379
+      loop_control:
+        loop_var: item_cache_port
+
+    - name: Verify memcached process count
+      ansible.builtin.command:
+        argv:
+          - bash
+          - -c
+          - ps aux | grep memcached | grep -v grep | wc -l
+      changed_when: false
+      register: memcached_proc_count
+
+    - name: Assert memcached has exactly 1 process
+      ansible.builtin.assert:
+        that:
+          - memcached_proc_count.stdout | int == 1
+        fail_msg: "Expected 1 memcached process"
+        success_msg: "Memcached process count correct (1)"
+
+    - name: Verify Redis process count for port 6379
+      ansible.builtin.command:
+        argv:
+          - bash
+          - -c
+          - ps aux | grep redis-server | grep 6379 | wc -l
+      changed_when: false
+      register: redis_proc_count
+
+    - name: Assert Redis has exactly 1 process on port 6379
+      ansible.builtin.assert:
+        that:
+          - redis_proc_count.stdout | int == 1
+        fail_msg: "Expected 1 Redis process on port 6379"
+        success_msg: "Redis process count correct (1)"

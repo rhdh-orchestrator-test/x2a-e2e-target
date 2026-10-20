@@ -1,0 +1,29 @@
+# memcached configuration file
+# Managed by Ansible - DO NOT EDIT MANUALLY
+
+# Run memcached as a daemon
+-d
+
+# Log memory allocation requests
+# -v
+
+# Memory limit (in megabytes)
+-m {{ cache_memcached_memory }}
+
+# Port to listen on
+-p {{ cache_memcached_port }}
+
+# User to run as
+-u {{ cache_memcached_user }}
+
+# Listen on specified address
+-l {{ cache_memcached_listen }}
+
+# Maximum number of simultaneous connections
+-c {{ cache_memcached_maxconn }}
+
+# Disable CAS (Compare-And-Swap) for backward compatibility
+# -C
+
+# Increase the default maximum slab size
+# -I 1m

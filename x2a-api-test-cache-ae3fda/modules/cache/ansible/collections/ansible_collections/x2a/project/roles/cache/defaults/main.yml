@@ -1,0 +1,22 @@
+---
+# Redis configuration
+cache_redis_port: 6379
+cache_redis_bind: 127.0.0.1
+cache_redis_maxmemory: 256mb
+cache_redis_maxmemory_policy: allkeys-lru
+cache_redis_log_dir: /var/log/redis
+cache_redis_config_file: /etc/redis/6379.conf
+cache_redis_data_dir: /var/lib/redis/6379
+cache_redis_user: redis
+cache_redis_group: redis
+# Memcached configuration
+cache_memcached_memory: 64
+cache_memcached_port: 11211
+cache_memcached_listen: 127.0.0.1
+cache_memcached_maxconn: 1024
+cache_memcached_user: memcache
+# Service management
+cache_redis_service_name: redis
+cache_memcached_service_name: memcached
+# Secure logging for credential handling
+cache_secure_logging: true

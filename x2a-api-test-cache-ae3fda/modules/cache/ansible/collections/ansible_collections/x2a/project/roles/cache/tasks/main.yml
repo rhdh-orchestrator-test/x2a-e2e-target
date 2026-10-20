@@ -1,0 +1,111 @@
+---
+# Validate AAP credential variables are present
+
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+# Install memcached and Redis packages
+
+- name: Install cache service packages
+  ansible.builtin.package:
+    name:
+      - memcached
+      - redis
+    state: present
+# Create Redis user and group
+
+- name: Ensure Redis group exists
+  ansible.builtin.group:
+    name: "{{ cache_redis_group }}"
+    state: present
+    system: true
+
+- name: Ensure Redis user exists
+  ansible.builtin.user:
+    name: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    system: true
+    shell: /sbin/nologin
+    home: "{{ cache_redis_data_dir }}"
+    createhome: false
+    state: present
+# Create Redis directories
+
+- name: Create Redis configuration directory
+  ansible.builtin.file:
+    path: /etc/redis
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_dir }}" # noqa: R114 - path from role defaults, not user input
+    state: directory
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+
+- name: Create Redis data directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_data_dir }}" # noqa: R114 - path from role defaults, not user input
+    state: directory
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+
+- name: Create Redis PID directory
+  ansible.builtin.file:
+    path: /var/run/redis
+    state: directory
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+# Configure Redis
+
+- name: Deploy Redis configuration file
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: "{{ cache_redis_config_file }}" # noqa: R114 - path from role defaults, not user input
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0644"
+    backup: true
+  notify: Restart redis
+  no_log: "{{ cache_secure_logging }}"
+# Configure memcached
+
+- name: Deploy memcached configuration (Debian/Ubuntu)
+  ansible.builtin.template:
+    src: memcached.conf.j2
+    dest: /etc/memcached.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  when: ansible_facts['os_family'] == 'Debian'
+  notify: Restart memcached
+
+- name: Deploy memcached configuration (RedHat/CentOS)
+  ansible.builtin.template:
+    src: memcached.sysconfig.j2
+    dest: /etc/sysconfig/memcached
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  when: ansible_facts['os_family'] == 'RedHat'
+  # Start and enable services
+  notify: Restart memcached
+
+- name: Ensure Redis service is started and enabled
+  ansible.builtin.service:
+    name: "{{ cache_redis_service_name }}"
+    state: started
+    enabled: true
+
+- name: Ensure memcached service is started and enabled
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service_name }}"
+    state: started
+    enabled: true
