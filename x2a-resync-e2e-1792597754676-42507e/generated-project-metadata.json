@@ -2,37 +2,37 @@
   {
     "name": "website_https",
     "path": "chef-and-ansible/website_https.yml",
-    "description": "An Ansible playbook that prepares an Ubuntu Apache web server, installs Apache and OpenSSL packages, creates a self-signed TLS certificate, publishes a Hello World site, and configures HTTPS.",
+    "description": "An Ansible playbook that provisions an Ubuntu Apache HTTPS site, including packages, self-signed TLS certificates, virtual host configuration, site and SSL enablement, and service management.",
     "technology": "Ansible"
   },
   {
     "name": "poodle_fix",
     "path": "chef-and-ansible/poodle_fix.yml",
-    "description": "An Ansible playbook that restricts Apache SSL protocols to TLS 1.2 and restarts affected services to remediate insecure SSL configuration.",
+    "description": "An Ansible playbook that hardens Apache SSL configuration by restricting protocols to TLS 1.2 and restarting affected services.",
     "technology": "Ansible"
   },
   {
     "name": "website_https_verification",
     "path": "chef-and-ansible/tests/website_https_verify.rb",
-    "description": "A Chef InSpec verification profile that tests HTTPS availability, expected site content, SSLv3 disablement, and TLS 1.2 support.",
+    "description": "A Chef InSpec verification profile for validating HTTPS availability, expected site content, disabled SSLv3, and enabled TLS 1.2.",
     "technology": "Chef"
   },
   {
     "name": "ssh_root_login_control",
     "path": "chef-and-ansible/tests/ssh_profile.rb",
-    "description": "A Chef InSpec compliance control that verifies SSH root login is disabled and records related OpenSSH and RHEL 8 STIG metadata.",
+    "description": "A Chef InSpec compliance control that verifies SSH root login is disabled and includes related OpenSSH and RHEL 8 STIG metadata.",
     "technology": "Chef"
   },
   {
     "name": "chef_automate_deployment",
     "path": "setup-automate/deploy-automate.sh",
-    "description": "A bootstrap script that deploys Chef Automate with Chef Infra Server, configures host and kernel settings, and creates Chef users and organizations with generated credentials.",
+    "description": "A bootstrap deployment script that configures host and kernel settings, deploys Chef Automate with Chef Infra Server, and creates a Chef user and organization with PEM credentials.",
     "technology": "Chef"
   },
   {
     "name": "chef_server_deployment",
     "path": "setup-automate/deploy-chef-server.sh",
-    "description": "A bootstrap script that deploys standalone Chef Infra Server, configures host and kernel settings, and creates a Chef user and organization with PEM credentials.",
+    "description": "A bootstrap deployment script for standalone Chef Infra Server that configures the host, creates a Chef user and organization, and generates PEM credentials.",
     "technology": "Chef"
   }
 ]
