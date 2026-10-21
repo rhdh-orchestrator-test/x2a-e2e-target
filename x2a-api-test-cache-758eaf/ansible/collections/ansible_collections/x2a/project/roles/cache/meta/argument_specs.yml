@@ -1,0 +1,48 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure a Redis cache service.
+    description:
+      - Creates the Redis log directory and configures a Redis instance on the configured port.
+      - The Redis password is injected by an AAP credential at runtime.
+    options:
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by the Redis instance.
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: "/etc/redis/6379.conf"
+        description: Redis configuration file to post-process.
+      cache_redis_log_directory:
+        type: str
+        required: false
+        default: "/var/log/redis"
+        description: Directory where Redis logs are stored.
+      cache_redis_user:
+        type: str
+        required: false
+        default: 'redis'
+        description: User owning the Redis log directory.
+      cache_redis_group:
+        type: str
+        required: false
+        default: 'redis'
+        description: Group owning the Redis log directory.
+      cache_redis_service_name:
+        type: str
+        required: false
+        default: 'redis'
+        description: Redis service name.
+      cache_redis_package_name:
+        type: str
+        required: false
+        default: 'redis-server'
+        description: Redis package name.
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide task output for operations involving the Redis password.

@@ -1,0 +1,72 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install Redis server
+  ansible.builtin.package:
+    name:
+      - redis-server
+    state: present
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+
+- name: Ensure Redis instance configuration exists
+  ansible.builtin.file:
+    path: /etc/redis/6379.conf
+    state: touch
+    owner: redis
+    group: redis
+    mode: "0640"
+  notify: Restart Redis
+
+- name: Configure Redis listening port
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: '^port\\s+'
+    line: 'port 6379'
+    state: present
+    create: true
+    owner: redis
+    group: redis
+    mode: "0640"
+  notify: Restart Redis
+
+- name: Configure Redis authentication
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: '^requirepass\\s+'
+    line: "requirepass {{ redis_password }}"
+    state: present
+    create: true
+    owner: redis
+    group: redis
+    mode: "0640"
+  no_log: "{{ cache_secure_logging }}"
+  notify: Restart Redis
+
+- name: Remove unsupported Redis directives
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: "^{{ item_cache_directive }}.*$"
+    state: absent
+  loop:
+    - 'replica-serve-stale-data'
+    - 'replica-read-only'
+    - 'repl-ping-replica-period'
+    - 'client-output-buffer-limit'
+    - 'replica-priority'
+  loop_control:
+    loop_var: item_cache_directive
+  notify: Restart Redis
+
+- name: Enable and start Redis service
+  ansible.builtin.service:
+    name: redis-server
+    state: started
+    enabled: true

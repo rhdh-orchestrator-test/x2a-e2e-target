@@ -1,0 +1,106 @@
+---
+# Unsupported pre-flight checks: configuration grep output, service-name discovery and
+# service status/enabled checks (the service name is unspecified), Redis INFO output,
+# cache SET/GET/DEL output, and log listings have no stated expected result.
+# The authenticated checks require the Vault-backed redis_password variable.
+
+- name: Verify cache instance
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_config['stat']['exists']
+          - item_redis_config['stat']['isreg']
+        fail_msg: Redis configuration file is missing
+
+    - name: Read Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: item_redis_config_content
+
+    - name: Assert unwanted Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - (item_redis_config_content['content'] | b64decode) is not search('(?m)^replica-serve-stale-data')
+          - (item_redis_config_content['content'] | b64decode) is not search('(?m)^replica-read-only')
+          - (item_redis_config_content['content'] | b64decode) is not search('(?m)^repl-ping-replica-period')
+          - (item_redis_config_content['content'] | b64decode) is not search('(?m)^client-output-buffer-limit')
+          - (item_redis_config_content['content'] | b64decode) is not search('(?m)^replica-priority')
+        fail_msg: Unwanted Redis configuration directives are present
+
+    - name: Verify Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_directory
+
+    - name: Assert Redis log directory ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory['stat']['exists']
+          - item_redis_log_directory['stat']['isdir']
+          - item_redis_log_directory['stat']['mode'] == '0755'
+          - item_redis_log_directory['stat']['pw_name'] == 'redis'
+          - item_redis_log_directory['stat']['gr_name'] == 'redis'
+        fail_msg: Redis log directory does not match the expected ownership or permissions
+
+    - name: Verify Redis is listening on port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+      register: item_redis_listener
+
+    - name: Assert Redis listener is available
+      ansible.builtin.assert:
+        that:
+          - item_redis_listener['state'] == 'started'
+        fail_msg: Redis is not listening on port 6379
+
+    - name: Verify unauthenticated Redis access is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+      register: item_redis_unauthenticated
+      changed_when: false
+
+    - name: Assert unauthenticated Redis access returns an authentication error
+      ansible.builtin.assert:
+        that:
+          - item_redis_unauthenticated['rc'] != 0
+          - >-
+            ('NOAUTH' in (item_redis_unauthenticated['stdout'] | upper)) or
+            ('AUTHENTICATION' in (item_redis_unauthenticated['stdout'] | upper)) or
+            ('NOAUTH' in (item_redis_unauthenticated['stderr'] | upper)) or
+            ('AUTHENTICATION' in (item_redis_unauthenticated['stderr'] | upper))
+        fail_msg: Unauthenticated Redis access was not rejected with an authentication error
+
+    - name: Verify authenticated Redis health check
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+        environment:
+          REDISCLI_AUTH: "{{ redis_password }}"
+      register: item_redis_authenticated
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert authenticated Redis health check returns PONG
+      ansible.builtin.assert:
+        that:
+          - item_redis_authenticated['rc'] == 0
+          - item_redis_authenticated['stdout'] | trim == 'PONG'
+        fail_msg: Authenticated Redis health check did not return PONG
