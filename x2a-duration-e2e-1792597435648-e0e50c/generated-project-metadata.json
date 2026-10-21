@@ -1,0 +1,38 @@
+[
+  {
+    "name": "website_https",
+    "path": "chef-and-ansible/website_https.yml",
+    "description": "An Ansible playbook that installs and configures Apache on Ubuntu, serves a static site, and enables HTTPS with a generated self-signed certificate.",
+    "technology": "Ansible"
+  },
+  {
+    "name": "poodle_fix",
+    "path": "chef-and-ansible/poodle_fix.yml",
+    "description": "An Ansible remediation playbook that restricts Apache SSL protocols to TLS 1.2 and restarts the web service.",
+    "technology": "Ansible"
+  },
+  {
+    "name": "chef-infra-server-bootstrap",
+    "path": "setup-automate/deploy-chef-server.sh",
+    "description": "Bootstraps Chef Infra Server by deploying the server, creating a user and organization, and generating credential PEM files.",
+    "technology": "Chef"
+  },
+  {
+    "name": "chef-automate-bootstrap",
+    "path": "setup-automate/deploy-automate.sh",
+    "description": "Bootstraps a combined Chef Automate and Chef Infra Server installation, including administrative setup, organization creation, and credential generation.",
+    "technology": "Chef"
+  },
+  {
+    "name": "ssh-root-login-compliance",
+    "path": "chef-and-ansible/tests/ssh_profile.rb",
+    "description": "Chef InSpec control that verifies SSH root login is disabled and evaluates an alternate package-based security assertion.",
+    "technology": "Chef"
+  },
+  {
+    "name": "website-https-compliance",
+    "path": "chef-and-ansible/tests/website_https_verify.rb",
+    "description": "Chef InSpec checks that validate HTTPS availability, expected site content, and TLS protocol configuration.",
+    "technology": "Chef"
+  }
+]
