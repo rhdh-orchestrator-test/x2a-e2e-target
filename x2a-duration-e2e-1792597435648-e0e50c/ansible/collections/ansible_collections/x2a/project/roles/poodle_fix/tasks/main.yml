@@ -1,0 +1,27 @@
+---
+- name: Install Apache
+  ansible.builtin.apt:
+    name: apache2
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install OpenSSH server
+  ansible.builtin.apt:
+    name: openssh-server
+    state: present
+
+- name: Check whether Apache SSL configuration exists
+  ansible.builtin.stat:
+    path: /etc/apache2/mods-available/ssl.conf
+  register: poodle_fix_ssl_conf
+
+- name: Fix SSL in Apache  # noqa: L039 - variable is registered by the prior stat task
+  ansible.builtin.replace:
+    path: /etc/apache2/mods-available/ssl.conf
+    regexp: "^SSLProtocol.*$"
+    replace: "SSLProtocol -all +TLSv1.2"
+  when: poodle_fix_ssl_conf.stat.exists
+  notify:
+    - Restart apache2
+    - Restart sshd
