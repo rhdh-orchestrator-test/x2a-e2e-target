@@ -1,0 +1,63 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install cache service packages
+  ansible.builtin.package:
+    name:
+      - "{{ cache_memcached_package }}"
+      - "{{ cache_redis_package }}"
+    state: present
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_directory }}" # noqa: R114 - path is a role default controlled by the operator
+    state: directory
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+    recurse: true
+
+- name: Start and enable Memcached
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service }}"
+    state: started
+    enabled: true
+
+- name: Render Redis configuration # noqa: L039 - redis_password is supplied by the attached AAP credential type and validated by the prior task
+  ansible.builtin.copy:
+    dest: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default controlled by the operator
+    content: |
+      port {{ cache_redis_port }}
+      bind 127.0.0.1 ::1
+      protected-mode yes
+      requirepass {{ redis_password }}
+      dir {{ cache_redis_data_directory }}
+      logfile {{ cache_redis_log_file }}
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0640"
+    backup: true
+  notify: Restart Redis
+  no_log: "{{ cache_secure_logging }}"
+
+- name: Remove unwanted Redis replication directives # noqa: R115 - deletion is restricted to the role-configured Redis configuration file and removes only known directives
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default controlled by the operator
+    regexp: ^{{ item_cache }}(?:\s|$)
+    state: absent
+  loop:
+    - replica-serve-stale-data
+    - replica-read-only
+    - repl-ping-replica-period
+    - client-output-buffer-limit
+    - replica-priority
+  loop_control:
+    loop_var: item_cache
+  notify: Restart Redis
+
+- name: Start and enable Redis
+  ansible.builtin.service:
+    name: "{{ cache_redis_service }}"
+    state: started
+    enabled: true

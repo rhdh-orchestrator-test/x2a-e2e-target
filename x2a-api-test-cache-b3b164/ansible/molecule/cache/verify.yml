@@ -1,0 +1,66 @@
+# Unsupported pre-flight checks: Redis authentication/SET-GET-DEL require a vaulted password;
+# service status/enablement and process logs require implementation-specific service names;
+# Memcached status, enablement, and port require implementation-specific values.
+---
+- name: Verify cache pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis log directory metadata
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory metadata
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+          - redis_log_directory.stat.mode == '0755'
+          - redis_log_directory.stat.pw_name == 'redis'
+          - redis_log_directory.stat.gr_name == 'redis'
+          - redis_log_directory.stat.path == '/var/log/redis'
+        fail_msg: Redis log directory does not have the expected metadata.
+
+    - name: Verify Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_configuration_file
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_configuration_file.stat.exists
+          - redis_configuration_file.stat.isreg
+        fail_msg: Redis configuration file /etc/redis/6379.conf is missing.
+
+    - name: Read Redis configuration for pre-flight checks
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_configuration
+
+    - name: Decode Redis configuration
+      ansible.builtin.set_fact:
+        redis_configuration_text: "{{ redis_configuration.content | b64decode }}"
+
+    - name: Assert Redis configuration uses port 6379
+      ansible.builtin.assert:
+        that:
+          - redis_configuration_text is search('(?m)^port\\s+6379(?:\\s*)$')
+        fail_msg: Redis configuration does not declare port 6379.
+
+    - name: Verify Redis TCP port is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Assert unwanted Redis replication directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            redis_configuration_text is not search(
+              '(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)(?:\\s|$)'
+            )
+        fail_msg: Unwanted Redis replication directives remain in the configuration.
