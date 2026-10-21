@@ -1,0 +1,16 @@
+---
+cache_redis_package_name: "{{ 'redis-server' if ansible_os_family == 'Debian' else 'redis' }}"
+cache_redis_port: 6379
+cache_redis_config_path: "{{ '/etc/redis/redis.conf' if ansible_os_family == 'Debian' else '/etc/redis.conf' }}"
+cache_redis_log_directory: /var/log/redis
+cache_redis_service_name: "{{ 'redis-server' if ansible_os_family == 'Debian' else 'redis' }}"
+cache_redis_user: redis
+cache_redis_group: redis
+cache_redis_password: "{{ redis_password }}"
+cache_secure_logging: true
+cache_redis_cleanup_directives:
+  - replica-serve-stale-data
+  - replica-read-only
+  - repl-ping-replica-period
+  - client-output-buffer-limit
+  - replica-priority

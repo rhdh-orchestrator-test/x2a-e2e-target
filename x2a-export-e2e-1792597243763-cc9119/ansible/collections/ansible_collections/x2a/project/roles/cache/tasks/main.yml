@@ -1,0 +1,52 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install Redis package
+  ansible.builtin.package:
+    name: "{{ cache_redis_package_name }}"
+    state: present
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_directory }}" # noqa: R114 - path is a trusted role default
+    state: directory
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+
+- name: Ensure Redis listens on the configured port
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path is a trusted role default
+    regexp: ^\\s*port\\s+
+    line: port {{ cache_redis_port }}
+    create: false
+    backup: true
+  notify: Restart Redis service
+
+- name: Configure Redis authentication password
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path is a trusted role default
+    regexp: ^\\s*requirepass\\s+
+    line: requirepass {{ cache_redis_password }}
+    create: false
+    backup: true
+  notify: Restart Redis service
+  no_log: "{{ cache_secure_logging }}"
+
+- name: Remove replication directives from Redis configuration
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_path }}" # noqa: R114,R115 - path is a trusted role default
+    regexp: ^\\s*{{ item_cache_directive | regex_escape }}(?:\\s|$)
+    state: absent
+    backup: true
+  loop: "{{ cache_redis_cleanup_directives }}"
+  loop_control:
+    loop_var: item_cache_directive
+  notify: Restart Redis service
+
+- name: Enable and start Redis service
+  ansible.builtin.service:
+    name: "{{ cache_redis_service_name }}"
+    state: started
+    enabled: true

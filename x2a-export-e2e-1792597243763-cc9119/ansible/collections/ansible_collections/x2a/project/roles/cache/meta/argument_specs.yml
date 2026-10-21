@@ -1,0 +1,64 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Redis cache service
+    description:
+      - Installs and configures the Redis cache service on the configured port.
+      - Creates the Redis log directory and removes replication directives from the instance configuration.
+    options:
+      cache_redis_package_name:
+        type: str
+        required: false
+        default: "{{ 'redis-server' if ansible_os_family == 'Debian' else 'redis' }}"
+        description: Package providing the Redis cache service.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by the Redis instance.
+      cache_redis_config_path:
+        type: str
+        required: false
+        default: "{{ '/etc/redis/redis.conf' if ansible_os_family == 'Debian' else '/etc/redis.conf' }}"
+        description: Path to the Redis instance configuration file.
+      cache_redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory used for Redis logs.
+      cache_redis_service_name:
+        type: str
+        required: false
+        default: "{{ 'redis-server' if ansible_os_family == 'Debian' else 'redis' }}"
+        description: System service name for Redis.
+      cache_redis_user:
+        type: str
+        required: false
+        default: redis
+        description: User owning the Redis log directory.
+      cache_redis_group:
+        type: str
+        required: false
+        default: redis
+        description: Group owning the Redis log directory.
+      cache_redis_password:
+        type: str
+        required: false
+        default: "{{ redis_password }}"
+        description: Redis authentication password supplied by the AAP credential variable.
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide task output for operations handling the Redis password.
+      cache_redis_cleanup_directives:
+        type: list
+        elements: str
+        required: false
+        default:
+          - replica-serve-stale-data
+          - replica-read-only
+          - repl-ping-replica-period
+          - client-output-buffer-limit
+          - replica-priority
+        description: Redis directives removed from the instance configuration.

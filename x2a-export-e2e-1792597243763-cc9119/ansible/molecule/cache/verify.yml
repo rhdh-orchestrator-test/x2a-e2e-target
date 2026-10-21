@@ -1,0 +1,85 @@
+# Unsupported pre-flight checks: service status (exact service name is unavailable); Redis authentication,
+# authenticated write/read/delete, and INFO checks (no vault variable or expected INFO values are supplied);
+# recent Redis journal logs (no expected outcome); lsof alternative (covered by the supported port check).
+---
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify a redis-server process is running
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -a
+          - redis-server
+      register: redis_process_check
+      changed_when: false
+
+    - name: Assert that a redis-server process is running
+      ansible.builtin.assert:
+        that:
+          - redis_process_check['rc'] == 0
+        fail_msg: A redis-server process is not running.
+
+    - name: Verify that TCP port 6379 is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 2
+      register: redis_port_check
+      changed_when: false
+
+    - name: Assert that TCP port 6379 is listening
+      ansible.builtin.assert:
+        that:
+          - redis_port_check['state'] == 'started'
+        fail_msg: TCP port 6379 is not listening.
+
+    - name: Check that the Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_file
+
+    - name: Assert that the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_file['stat']['exists']
+          - redis_config_file['stat']['isreg']
+        fail_msg: The Redis configuration file /etc/redis/6379.conf does not exist.
+
+    - name: Check Redis log directory metadata
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert the Redis log directory metadata
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+          - redis_log_directory['stat']['mode'] == '0755'
+          - redis_log_directory['stat']['pw_name'] == 'redis'
+          - redis_log_directory['stat']['gr_name'] == 'redis'
+        fail_msg: The Redis log directory does not match the expected metadata.
+
+    - name: Read the Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert the configured Redis port
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content['content'] | b64decode) is
+            regex_search('(?m)^\\s*port\\s+6379(\\s|$)')
+        fail_msg: Redis configuration does not set port 6379.
+
+    - name: Assert cleanup directives are absent from Redis configuration
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content['content'] | b64decode) is not
+            regex_search('(?m)^\\s*(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)(\\s|$)')
+        fail_msg: A replication-related cleanup directive is active in the Redis configuration.
