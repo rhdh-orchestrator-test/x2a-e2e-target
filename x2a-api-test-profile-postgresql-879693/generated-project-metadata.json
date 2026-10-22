@@ -1,0 +1,50 @@
+[
+  {
+    "name": "base_utils",
+    "path": "site-modules/base_utils",
+    "description": "Manages common host utilities, including configurable utility packages and an optional /etc/motd, along with supporting custom facts, functions, types, and operational assets.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_app_stack",
+    "path": "site-modules/profile_app_stack",
+    "description": "Deploys and configures a Python application stack with PostgreSQL connectivity, dependencies, application content, environment files, a hardened systemd Gunicorn service, and operational monitoring resources.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_haproxy",
+    "path": "site-modules/profile_haproxy",
+    "description": "Configures HAProxy load balancers with generated frontend and backend settings, optional TLS termination, statistics and error pages, firewall integration, health checks, and optional dynamic discovery.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_postgresql",
+    "path": "site-modules/profile_postgresql",
+    "description": "Installs and configures PostgreSQL, including repository management, versioned packages, libpq-dev, and ordered service startup; PostgreSQL 15 is the intended version.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_redis_cluster",
+    "path": "site-modules/profile_redis_cluster",
+    "description": "Configures Redis through the puppet-redis module, including networking, authentication, persistence, memory limits, and eviction policy, with supporting cluster-member discovery.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile composition layer",
+    "path": "site-modules/profile",
+    "description": "Provides thin profile wrappers that compose base, application, HAProxy, and Redis services and define the class contract used by higher-level roles.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "role composition layer",
+    "path": "site-modules/role",
+    "description": "Defines node-level compositions for application servers, full application stacks, HAProxy nodes, and Redis cluster nodes, including dependencies and ordering between profiles.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "puppetdb_query_stub",
+    "path": "site-modules/puppetdb_query_stub",
+    "description": "Provides a custom puppetdb_query Ruby function used by Redis and HAProxy discovery code, requiring replacement with Ansible inventory or another service-discovery mechanism.",
+    "technology": "Puppet"
+  }
+]
