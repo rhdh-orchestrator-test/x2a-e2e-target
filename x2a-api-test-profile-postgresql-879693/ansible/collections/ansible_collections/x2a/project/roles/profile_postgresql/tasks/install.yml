@@ -1,0 +1,10 @@
+---
+- name: Install PostgreSQL server packages
+  ansible.builtin.package:
+    name: "{{ postgresql_package_names }}"
+    state: present
+
+- name: Install PostgreSQL development package
+  ansible.builtin.package:
+    name: "{{ postgresql_dev_package }}"
+    state: present

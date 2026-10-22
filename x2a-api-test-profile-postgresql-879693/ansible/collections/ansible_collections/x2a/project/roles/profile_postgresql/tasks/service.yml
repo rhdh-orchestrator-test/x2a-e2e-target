@@ -1,0 +1,6 @@
+---
+- name: Enable and start PostgreSQL service
+  ansible.builtin.service:
+    name: "{{ postgresql_service_name }}"
+    state: started
+    enabled: true

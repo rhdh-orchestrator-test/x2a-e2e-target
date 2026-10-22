@@ -1,0 +1,13 @@
+---
+- name: Install PGDG repository signing key  # noqa: R109 - repository key source is intentionally variable for supported mirrors and cannot be replaced with a fixed URL without changing functionality
+  ansible.builtin.apt_key:
+    id: "{{ postgresql_repo_key_id }}"
+    url: "{{ postgresql_repo_key_source }}"
+    state: present
+
+- name: Configure PostgreSQL PGDG repository
+  ansible.builtin.apt_repository:
+    repo: deb {{ postgresql_repo_location }} {{ postgresql_repo_release }} main
+    filename: pgdg
+    state: present
+    update_cache: true

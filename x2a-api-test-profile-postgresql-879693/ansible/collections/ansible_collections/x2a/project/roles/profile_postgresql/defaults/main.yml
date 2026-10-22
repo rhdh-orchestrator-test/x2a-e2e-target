@@ -1,0 +1,15 @@
+---
+# defaults file for x2a.project.profile_postgresql
+profile_postgresql_my_variable: default_value
+
+# PostgreSQL installation and repository settings.
+postgresql_version: '16'
+postgresql_package_names:
+  - "postgresql-{{ postgresql_version }}"
+  - "postgresql-contrib-{{ postgresql_version }}"
+postgresql_dev_package: libpq-dev
+postgresql_service_name: postgresql
+postgresql_repo_location: https://apt.postgresql.org/pub/repos/apt
+postgresql_repo_release: "{{ ansible_facts['distribution_release'] }}-pgdg"
+postgresql_repo_key_id: B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8
+postgresql_repo_key_source: https://www.postgresql.org/media/keys/ACCC4CF8.asc

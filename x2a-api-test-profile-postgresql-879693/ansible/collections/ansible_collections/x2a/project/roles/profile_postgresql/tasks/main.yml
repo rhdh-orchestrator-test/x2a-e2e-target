@@ -1,0 +1,20 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Validate supported operating system
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'Debian'
+      - ansible_facts['distribution_release'] is defined
+    fail_msg: This role requires a Debian-family host with gathered distribution facts.
+    quiet: true
+
+- name: Configure PostgreSQL repository
+  ansible.builtin.include_tasks: repo.yml
+
+- name: Install PostgreSQL packages
+  ansible.builtin.include_tasks: install.yml
+
+- name: Manage PostgreSQL service
+  ansible.builtin.include_tasks: service.yml

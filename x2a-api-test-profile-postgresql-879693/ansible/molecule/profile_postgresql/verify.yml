@@ -1,0 +1,110 @@
+---
+# Unsupported pre-flight checks: OS fact output has no stated expected value; the
+# unresolved application database resources, application port, migrations, application
+# service, and secret-output/history review cannot be verified safely from the plan.
+- name: Verify profile_postgresql pre-flight checks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Confirm the local PostgreSQL branch is enabled
+      ansible.builtin.assert:
+        that:
+          - app_db_host is defined
+          - app_db_host == 'localhost'
+        fail_msg: "The local PostgreSQL branch is not enabled."
+
+    - name: Check the PGDG repository is configured
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -R
+          - apt.postgresql.org
+          - /etc/apt/sources.list
+          - /etc/apt/sources.list.d
+      register: pgdg_repository_check
+      changed_when: false
+
+    - name: Assert that the PGDG repository is present
+      ansible.builtin.assert:
+        that:
+          - pgdg_repository_check.rc == 0
+        fail_msg: "The PGDG repository was not found."
+
+    - name: Check the PGDG signing key
+      ansible.builtin.command:
+        argv:
+          - gpg
+          - --list-keys
+          - B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8
+      register: pgdg_signing_key_check
+      changed_when: false
+
+    - name: Assert that the PGDG signing key is present
+      ansible.builtin.assert:
+        that:
+          - pgdg_signing_key_check.rc == 0
+          - >-
+            B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8 in
+            (pgdg_signing_key_check.stdout ~ pgdg_signing_key_check.stderr)
+        fail_msg: "The expected PGDG signing key was not found."
+
+    - name: Validate APT metadata
+      ansible.builtin.command:
+        argv:
+          - apt-get
+          - update
+      register: apt_metadata_check
+      changed_when: false
+
+    - name: Assert that APT metadata is valid
+      ansible.builtin.assert:
+        that:
+          - apt_metadata_check.rc == 0
+        fail_msg: "APT metadata validation failed."
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert that PostgreSQL is enabled and active
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts.services.get('postgresql.service',
+            ansible_facts.services.get('postgresql', {}))).get('enabled') == true
+          - >-
+            (ansible_facts.services.get('postgresql.service',
+            ansible_facts.services.get('postgresql', {}))).get('state') == 'running'
+        fail_msg: "The postgresql service is not enabled and running."
+
+    - name: Check PostgreSQL readiness on the local endpoint
+      ansible.builtin.command:
+        argv:
+          - pg_isready
+          - --host
+          - 127.0.0.1
+          - --port
+          - "5432"
+      register: postgres_readiness_check
+      changed_when: false
+
+    - name: Assert that PostgreSQL accepts local readiness checks
+      ansible.builtin.assert:
+        that:
+          - postgres_readiness_check.rc == 0
+        fail_msg: "PostgreSQL is not ready on 127.0.0.1:5432."
+
+    - name: Gather installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert that the expected PostgreSQL packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_postgresql_package in ansible_facts.packages
+        fail_msg: "An expected PostgreSQL package is not installed."
+      loop:
+        - postgresql-15
+        - postgresql-contrib-15
+        - libpq-dev
+      loop_control:
+        loop_var: item_postgresql_package

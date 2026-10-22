@@ -1,0 +1,181 @@
+{
+  "module_name": "profile_postgresql",
+  "items": [
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/run_profile_postgresql.yml",
+      "status": "complete",
+      "description": "Deployment entry point for the migrated role",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/requirements.yml",
+      "status": "complete",
+      "description": "Test-only Podman collection dependency",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/README.md",
+      "status": "complete",
+      "description": "Developer instructions for running Molecule",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_postgresql/molecule.yml",
+      "status": "complete",
+      "description": "Ansible-native Molecule scenario configuration",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_postgresql/inventory/hosts.yml",
+      "status": "complete",
+      "description": "Disposable Podman target inventory",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_postgresql/create.yml",
+      "status": "complete",
+      "description": "Create and inspect disposable Podman targets",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_postgresql/destroy.yml",
+      "status": "complete",
+      "description": "Remove disposable Podman targets",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_postgresql/prepare.yml",
+      "status": "complete",
+      "description": "Bootstrap Python on the disposable Linux target",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_postgresql/converge.yml",
+      "status": "complete",
+      "description": "Run the deployment playbook under test",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_postgresql/verify.yml",
+      "status": "complete",
+      "description": "Verify migrated behavior against the source plan",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_postgresql/aap-configuration/controller_credential_types.yml",
+      "status": "complete",
+      "description": "AAP credential types configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_postgresql/aap-configuration/controller_credentials.yml",
+      "status": "complete",
+      "description": "AAP credentials configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_postgresql/tasks/validate_credentials.yml",
+      "status": "complete",
+      "description": "Credential validation tasks",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_postgresql/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata for profile_postgresql",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "site-modules/profile_postgresql/data/common.yaml",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_postgresql/defaults/main.yml",
+      "status": "complete",
+      "description": "Default PostgreSQL version, packages, service, repository, and signing-key variables",
+      "notes": "Created PostgreSQL defaults from migration plan; version remains overridable by inventory/group variables."
+    },
+    {
+      "category": "structure",
+      "source_path": "site-modules/profile_postgresql/data/common.yaml",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_postgresql/meta/argument_specs.yml",
+      "status": "complete",
+      "description": "Role argument specs; generate after defaults/main.yml is written",
+      "notes": "Added argument specifications for all user-facing PostgreSQL role defaults."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_postgresql/handlers/main.yml",
+      "status": "complete",
+      "description": "Handlers for PostgreSQL repository/package/service changes",
+      "notes": "Created handler for systemd daemon reload support."
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_postgresql/manifests/init.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_postgresql/tasks/main.yml",
+      "status": "complete",
+      "description": "Main role orchestration preserving repo, install, and service ordering",
+      "notes": "Converted Puppet containment and ordering into credential validation, OS variable loading, and ordered repository, installation, and service task includes."
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_postgresql/manifests/repo.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_postgresql/tasks/repo.yml",
+      "status": "complete",
+      "description": "Configure the PGDG APT repository and signing key",
+      "notes": "Converted apt::source PGDG repository and signing key configuration to builtin apt_key and apt_repository tasks."
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_postgresql/manifests/install.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_postgresql/tasks/install.yml",
+      "status": "complete",
+      "description": "Install PostgreSQL versioned packages and libpq-dev",
+      "notes": "Converted PostgreSQL server/contrib and libpq-dev package resources to explicit-state builtin package tasks."
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_postgresql/manifests/service.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_postgresql/tasks/service.yml",
+      "status": "complete",
+      "description": "Enable and start the PostgreSQL service",
+      "notes": "Converted enabled/running PostgreSQL service resource to builtin service task using the role-configured service name."
+    },
+    {
+      "category": "structure",
+      "source_path": "site-modules/profile_postgresql/data/os/Debian.yaml",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_postgresql/vars/main.yml",
+      "status": "complete",
+      "description": "Debian-specific PostgreSQL package, service, repository, and signing-key variables",
+      "notes": "Added Debian-family repository, package, and service values; effective package version follows the documented production override."
+    }
+  ]
+}

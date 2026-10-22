@@ -1,0 +1,41 @@
+---
+# argument spec file for x2a.project.profile_postgresql
+argument_specs:
+  main:
+    short_description: Install and manage PostgreSQL from the PGDG repository.
+    options:
+      profile_postgresql_my_variable:
+        type: str
+        description: A simple string argument for demonstration.
+        default: default_value
+      postgresql_version:
+        type: str
+        description: PostgreSQL major version to install.
+        default: '16'
+      postgresql_package_names:
+        type: list
+        elements: str
+        description: PostgreSQL server packages to install.
+      postgresql_dev_package:
+        type: str
+        description: PostgreSQL client development package to install.
+        default: libpq-dev
+      postgresql_service_name:
+        type: str
+        description: PostgreSQL service name.
+        default: postgresql
+      postgresql_repo_location:
+        type: str
+        description: PGDG APT repository base URL.
+        default: https://apt.postgresql.org/pub/repos/apt
+      postgresql_repo_release:
+        type: str
+        description: PGDG APT repository release.
+      postgresql_repo_key_id:
+        type: str
+        description: PGDG repository signing key ID.
+        default: B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8
+      postgresql_repo_key_source:
+        type: str
+        description: URL for the PGDG repository signing key.
+        default: https://www.postgresql.org/media/keys/ACCC4CF8.asc
