@@ -1,0 +1,182 @@
+---
+# Unsupported without an explicit expected outcome: service status output, global and
+# security configuration contents, Fail2ban output, sysctl output, certificate subject
+# details, virtual-host text, HTTP/HTTPS response details, logs, and curl diagnostics.
+- name: Verify nginx-multisite pre-flight checks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify required packages are installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are installed
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['packages'][item_package] is defined
+        quiet: true
+      loop:
+        - nginx
+        - fail2ban
+        - ufw
+        - openssl
+        - ca-certificates
+      loop_control:
+        loop_var: item_package
+
+    - name: Validate the Nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: nginx_config_test
+      changed_when: false
+
+    - name: Assert the Nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - nginx_config_test['rc'] == 0
+        quiet: true
+
+    - name: Verify required application and configuration files
+      ansible.builtin.stat:
+        path: "{{ item_required_file }}"
+      register: required_file_stats
+      loop:
+        - /opt/server/test/index.html
+        - /opt/server/ci/index.html
+        - /opt/server/status/index.html
+        - /etc/nginx/sites-available/test.cluster.local
+        - /etc/nginx/sites-available/ci.cluster.local
+        - /etc/nginx/sites-available/status.cluster.local
+      loop_control:
+        loop_var: item_required_file
+
+    - name: Assert required application and configuration files exist
+      ansible.builtin.assert:
+        that:
+          - item_required_stat['stat']['exists']
+          - not item_required_stat['stat']['isdir']
+        quiet: true
+      loop: "{{ required_file_stats['results'] }}"
+      loop_control:
+        loop_var: item_required_stat
+
+    - name: Verify enabled virtual-host links
+      ansible.builtin.stat:
+        path: "{{ item_enabled_link }}"
+        follow: false
+      register: enabled_link_stats
+      loop:
+        - /etc/nginx/sites-enabled/test.cluster.local
+        - /etc/nginx/sites-enabled/ci.cluster.local
+        - /etc/nginx/sites-enabled/status.cluster.local
+      loop_control:
+        loop_var: item_enabled_link
+
+    - name: Assert enabled virtual-host links exist
+      ansible.builtin.assert:
+        that:
+          - item_enabled_stat['stat']['exists']
+          - item_enabled_stat['stat']['islnk']
+        quiet: true
+      loop: "{{ enabled_link_stats['results'] }}"
+      loop_control:
+        loop_var: item_enabled_stat
+
+    - name: Verify the default Nginx site was removed
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: default_site_stat
+
+    - name: Assert the default Nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not default_site_stat['stat']['exists']
+        quiet: true
+
+    - name: Verify private-key ownership and permissions
+      ansible.builtin.stat:
+        path: "{{ item_private_key }}"
+      register: private_key_stats
+      loop:
+        - /etc/ssl/private/test.cluster.local.key
+        - /etc/ssl/private/ci.cluster.local.key
+        - /etc/ssl/private/status.cluster.local.key
+      loop_control:
+        loop_var: item_private_key
+
+    - name: Assert private keys have the expected ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - item_private_key_stat['stat']['exists']
+          - item_private_key_stat['stat']['pw_name'] == 'root'
+          - item_private_key_stat['stat']['gr_name'] == 'ssl-cert'
+          - item_private_key_stat['stat']['mode'] == '0640'
+        quiet: true
+      loop: "{{ private_key_stats['results'] }}"
+      loop_control:
+        loop_var: item_private_key_stat
+
+    - name: Verify UFW policy and allowed ports
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      register: ufw_status
+      changed_when: false
+
+    - name: Assert UFW denies incoming traffic and allows SSH HTTP and HTTPS
+      ansible.builtin.assert:
+        that:
+          - ufw_status['rc'] == 0
+          - "'deny (incoming)' in ufw_status['stdout']"
+          - "'22/tcp' in ufw_status['stdout'] or 'SSH' in ufw_status['stdout']"
+          - "'80/tcp' in ufw_status['stdout'] or 'WWW' in ufw_status['stdout']"
+          - "'443/tcp' in ufw_status['stdout'] or 'HTTPS' in ufw_status['stdout']"
+        quiet: true
+
+    - name: Verify SSH root login hardening
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - '^[[:space:]]*PermitRootLogin[[:space:]]+no([[:space:]]|$)'
+          - /etc/ssh/sshd_config
+      register: ssh_root_login
+      changed_when: false
+
+    - name: Assert root login is disabled
+      ansible.builtin.assert:
+        that:
+          - ssh_root_login['rc'] == 0
+        quiet: true
+
+    - name: Verify SSH password authentication hardening
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - '^[[:space:]]*PasswordAuthentication[[:space:]]+no([[:space:]]|$)'
+          - /etc/ssh/sshd_config
+      register: ssh_password_authentication
+      changed_when: false
+
+    - name: Assert password authentication is disabled
+      ansible.builtin.assert:
+        that:
+          - ssh_password_authentication['rc'] == 0
+        quiet: true
+
+    - name: Verify HTTP is listening
+      ansible.builtin.wait_for:
+        port: 80
+        state: started
+        timeout: 5
+
+    - name: Verify HTTPS is listening
+      ansible.builtin.wait_for:
+        port: 443
+        state: started
+        timeout: 5
