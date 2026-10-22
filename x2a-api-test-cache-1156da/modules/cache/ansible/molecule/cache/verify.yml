@@ -1,0 +1,136 @@
+# Unsupported pre-flight checks: Redis service status/enablement/log review require an unresolved
+# distribution-specific service name. Memcached checks cannot be specified because no endpoint or
+# service details are provided by the migration plan.
+---
+- name: Verify cache pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis listener on TCP port 6379
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: cache_ss
+      changed_when: false
+
+    - name: Assert Redis is listening on TCP port 6379
+      ansible.builtin.assert:
+        that:
+          - cache_ss.stdout is search('(?m)(redis[^\\n]*:6379|:6379[^\\n]*redis)')
+        fail_msg: Redis is not shown as listening on TCP port 6379.
+
+    - name: Check that the Redis configuration exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config
+
+    - name: Assert that the Redis configuration exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config.stat.exists
+          - cache_redis_config.stat.isreg
+        fail_msg: The Redis configuration file /etc/redis/6379.conf is missing.
+
+    - name: Read the Redis configuration for read-only validation
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_config_content
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert the Redis port and password are configured
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config_content.content | b64decode is search('(?m)^\\s*port\\s+6379\\s*$')
+          - cache_redis_config_content.content | b64decode is search('(?m)^\\s*requirepass\\s+\\S+')
+        fail_msg: The Redis configuration does not contain the required port and password settings.
+
+    - name: Assert removed Redis directives are inactive
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config_content.content | b64decode is not search('(?m)^\\s*replica-serve-stale-data\\b')
+          - cache_redis_config_content.content | b64decode is not search('(?m)^\\s*replica-read-only\\b')
+          - cache_redis_config_content.content | b64decode is not search('(?m)^\\s*repl-ping-replica-period\\b')
+          - cache_redis_config_content.content | b64decode is not search('(?m)^\\s*client-output-buffer-limit\\b')
+          - cache_redis_config_content.content | b64decode is not search('(?m)^\\s*replica-priority\\b')
+        fail_msg: A removed Redis directive remains active in the configuration.
+
+    - name: Check the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_directory
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_directory.stat.exists
+          - cache_redis_log_directory.stat.isdir
+          - cache_redis_log_directory.stat.pw_name == 'redis'
+          - cache_redis_log_directory.stat.gr_name == 'redis'
+          - cache_redis_log_directory.stat.mode == '0755'
+        fail_msg: The Redis log directory does not have the expected ownership or mode.
+
+    - name: Verify unauthenticated Redis access is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -h
+          - 127.0.0.1
+          - -p
+          - '6379'
+          - PING
+      register: cache_redis_unauthenticated
+      changed_when: false
+
+    - name: Assert unauthenticated Redis access returns an authentication error
+      ansible.builtin.assert:
+        that:
+          - >-
+            (cache_redis_unauthenticated.stdout ~ ' ' ~ cache_redis_unauthenticated.stderr)
+            is search('(?i)(NOAUTH|authentication required)')
+        fail_msg: Unauthenticated Redis access was not rejected with an authentication error.
+
+    - name: Verify authenticated Redis PING
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -h
+          - 127.0.0.1
+          - -p
+          - '6379'
+          - PING
+        environment:
+          REDISCLI_AUTH: "{{ redis_password }}"
+      register: cache_redis_ping
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert authenticated Redis PING returns PONG
+      ansible.builtin.assert:
+        that:
+          - cache_redis_ping.rc == 0
+          - cache_redis_ping.stdout is search('(?m)^PONG\\s*$')
+        fail_msg: Authenticated Redis PING did not return PONG.
+
+    - name: Verify authenticated Redis INFO server
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -h
+          - 127.0.0.1
+          - -p
+          - '6379'
+          - INFO
+          - server
+        environment:
+          REDISCLI_AUTH: "{{ redis_password }}"
+      register: cache_redis_info
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert authenticated Redis INFO server succeeds
+      ansible.builtin.assert:
+        that:
+          - cache_redis_info.rc == 0
+          - cache_redis_info.stdout | length > 0
+        fail_msg: Authenticated Redis INFO server did not return server information.

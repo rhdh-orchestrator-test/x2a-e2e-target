@@ -1,0 +1,53 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure a Redis cache service
+    description:
+      - Installs Redis and configures an authenticated listener on the configured port.
+      - Creates the Redis log directory and removes replication directives from the instance configuration.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks handling the Redis password.
+      cache_redis_package_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis package name for the target operating system.
+      cache_redis_service_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis service unit name for the target operating system.
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Redis instance configuration file path.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by the Redis instance.
+      cache_redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory where Redis writes logs.
+      cache_redis_user:
+        type: str
+        required: false
+        default: redis
+        description: Owner of Redis files and directories.
+      cache_redis_group:
+        type: str
+        required: false
+        default: redis
+        description: Group owner of Redis files and directories.
+      cache_redis_password:
+        type: str
+        required: false
+        default: "{{ redis_password }}"
+        description: Redis password sourced from the AAP credential variable redis_password.
