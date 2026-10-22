@@ -1,0 +1,29 @@
+---
+- name: Load operating system variables
+  ansible.builtin.debug:
+    msg: Operating-system package variables are supplied by inventory group variables.
+  when: ansible_facts['os_family'] is defined
+
+- name: Check whether the host message of the day exists
+  ansible.builtin.stat:
+    path: /etc/motd
+  register: base_utils_motd_file
+  when: base_utils_manage_motd | bool
+
+- name: Manage host message of the day  # noqa: L039 - registered by prior task
+  ansible.builtin.template:
+    src: motd.j2
+    dest: /etc/motd
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  when:
+    - base_utils_manage_motd | bool
+    - base_utils_motd_file.stat.exists | default(false)
+
+- name: Install base utility packages
+  ansible.builtin.package:
+    name: "{{ base_utils_utility_packages }}"
+    state: present
+  when: base_utils_utility_packages | length > 0

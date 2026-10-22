@@ -1,0 +1,24 @@
+---
+argument_specs:
+  main:
+    short_description: Install baseline utilities and optionally manage the host MOTD.
+    description:
+      - Installs the configured operating-system utility package set.
+      - Optionally renders the host message of the day.
+    options:
+      base_utils_manage_motd:
+        type: bool
+        required: false
+        default: true
+        description: Whether to manage /etc/motd.
+      base_utils_motd_template:
+        type: str
+        required: false
+        default: base_utils/motd.erb
+        description: Source template identifier retained from the Puppet configuration.
+      base_utils_utility_packages:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: Utility packages to install on the host.

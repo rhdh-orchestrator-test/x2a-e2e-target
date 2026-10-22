@@ -1,0 +1,15 @@
+---
+- name: Include base operating-system profile
+  ansible.builtin.include_tasks: profile_base.yml
+
+- name: Include application stack profile when available
+  ansible.builtin.debug:
+    msg: Application stack profile is outside the base_utils migration scope.
+
+- name: Include load balancer profile when available
+  ansible.builtin.debug:
+    msg: Load balancer profile is outside the base_utils migration scope.
+
+- name: Include cache profile when available
+  ansible.builtin.debug:
+    msg: Cache profile is outside the base_utils migration scope.

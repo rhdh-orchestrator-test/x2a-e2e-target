@@ -1,0 +1,62 @@
+---
+# Unsupported pre-flight checks: source-tree file tests, the unqualified OS-family
+# confirmation, full role check-mode output, restart/reload log inspection, and
+# unfiltered socket output cannot be verified safely from this target play.
+
+- name: Verify base_utils pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Validate Debian package availability in check mode
+      ansible.builtin.package:
+        name:
+          - vim
+          - wget
+          - curl
+          - jq
+          - dnsutils
+        state: present
+      check_mode: true
+      register: base_utils_debian_packages
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Assert Debian package availability check succeeded
+      ansible.builtin.assert:
+        that:
+          - not base_utils_debian_packages.failed | default(false)
+        fail_msg: Debian base utility package availability check failed.
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Validate RedHat package availability in check mode
+      ansible.builtin.package:
+        name:
+          - vim-enhanced
+          - wget
+          - curl
+          - jq
+          - bind-utils
+        state: present
+      check_mode: true
+      register: base_utils_redhat_packages
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Assert RedHat package availability check succeeded
+      ansible.builtin.assert:
+        that:
+          - not base_utils_redhat_packages.failed | default(false)
+        fail_msg: RedHat base utility package availability check failed.
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Inspect the managed MOTD instance
+      ansible.builtin.stat:
+        path: /etc/motd
+      register: base_utils_motd
+
+    - name: Assert MOTD ownership, group, mode, and existence
+      ansible.builtin.assert:
+        that:
+          - base_utils_motd.stat['exists']
+          - base_utils_motd.stat['pw_name'] == 'root'
+          - base_utils_motd.stat['gr_name'] == 'root'
+          - base_utils_motd.stat['mode'] == '0644'
+        fail_msg: The managed MOTD does not match the expected instance metadata.

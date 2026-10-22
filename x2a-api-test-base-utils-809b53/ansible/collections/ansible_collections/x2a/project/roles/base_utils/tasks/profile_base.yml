@@ -1,0 +1,38 @@
+---
+- name: Manage base utility profile  # noqa: L039 - variable comes from role parameters or inventory
+  ansible.builtin.include_tasks: main.yml
+  when: base_utils_manage_utils | default(true) | bool
+
+- name: Install NTP package  # noqa: L039 - variable comes from role parameters or inventory
+  ansible.builtin.package:
+    name: chrony
+    state: present
+  when:
+    - base_utils_manage_ntp | default(true) | bool
+    - ansible_facts['kernel'] == 'Linux'
+
+- name: Ensure NTP service is running  # noqa: L039 - variable comes from role parameters or inventory
+  ansible.builtin.service:
+    name: chronyd
+    state: started
+    enabled: true
+  when:
+    - base_utils_manage_ntp | default(true) | bool
+    - ansible_facts['kernel'] == 'Linux'
+
+- name: Install syslog package  # noqa: L039 - variable comes from role parameters or inventory
+  ansible.builtin.package:
+    name: rsyslog
+    state: present
+  when:
+    - base_utils_manage_syslog | default(true) | bool
+    - ansible_facts['kernel'] == 'Linux'
+
+- name: Ensure syslog service is running  # noqa: L039 - variable comes from role parameters or inventory
+  ansible.builtin.service:
+    name: rsyslog
+    state: started
+    enabled: true
+  when:
+    - base_utils_manage_syslog | default(true) | bool
+    - ansible_facts['kernel'] == 'Linux'

@@ -1,0 +1,8 @@
+---
+- name: Run migrated role base_utils
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Apply base_utils role
+      ansible.builtin.include_role:
+        name: x2a.project.base_utils

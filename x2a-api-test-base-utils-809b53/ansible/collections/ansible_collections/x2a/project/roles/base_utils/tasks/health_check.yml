@@ -1,0 +1,11 @@
+---
+- name: Identify service health  # noqa: L039 - variable comes from role parameters or inventory
+  ansible.builtin.set_fact:
+    base_utils_health_service_name: "{{ base_utils_health_service | default('sshd') }}"
+
+- name: Report unhealthy service
+  ansible.builtin.assert:
+    that:
+      - (ansible_facts['services'][base_utils_health_service_name + '.service']['state'] | default('stopped')) == 'running'
+    fail_msg: "UNHEALTHY target: {{ inventory_hostname }} service {{ base_utils_health_service_name }} is not running."
+    success_msg: "All targets healthy: {{ base_utils_health_service_name }} is running."

@@ -1,0 +1,23 @@
+---
+- name: Validate ensure value when provided  # noqa: L039 - variable comes from role parameters or inventory
+  ansible.builtin.assert:
+    that:
+      - base_utils_ensure_value in ['present', 'absent', 'installed', 'latest', 'purged']
+    fail_msg: base_utils_ensure_value must be a supported package ensure value.
+  when: base_utils_ensure_value is defined
+
+- name: Validate log level when provided  # noqa: L039 - variable comes from role parameters or inventory
+  ansible.builtin.assert:
+    that:
+      - base_utils_log_level in ['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency']
+    fail_msg: base_utils_log_level must be a supported syslog severity.
+  when: base_utils_log_level is defined
+
+- name: Validate port when provided  # noqa: L039 - variable comes from role parameters or inventory
+  ansible.builtin.assert:
+    that:
+      - (base_utils_port | int) == (base_utils_port | float)
+      - base_utils_port | int >= 1
+      - base_utils_port | int <= 65535
+    fail_msg: base_utils_port must be an integer between 1 and 65535.
+  when: base_utils_port is defined

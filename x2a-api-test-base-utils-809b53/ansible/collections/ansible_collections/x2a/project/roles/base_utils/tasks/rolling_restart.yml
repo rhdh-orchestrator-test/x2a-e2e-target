@@ -1,0 +1,18 @@
+---
+- name: Restart service for rolling restart  # noqa: L039 - variable comes from role parameters or inventory
+  ansible.builtin.systemd:
+    name: "{{ base_utils_restart_service }}"
+    state: restarted
+
+- name: Gather service facts after restart
+  ansible.builtin.service_facts:
+
+- name: Verify restarted service is running  # noqa: L039 - variable comes from role parameters or inventory
+  ansible.builtin.assert:
+    that:
+      - (ansible_facts['services'][base_utils_restart_service + '.service']['state'] | default('stopped')) == 'running'
+    fail_msg: Service {{ base_utils_restart_service }} failed to restart on {{ inventory_hostname }}.
+
+- name: Wait before continuing rolling restart  # noqa: L039 - variable comes from role parameters or inventory
+  ansible.builtin.pause:
+    seconds: "{{ base_utils_restart_delay_seconds | default(30) }}"
