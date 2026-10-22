@@ -1,0 +1,21 @@
+# Unsupported pre-flight checks:
+# - stat output properties for /var/log/redis: no expected owner, group, or mode was stated.
+# - grep checks for the analyzed resources: the source recipe is not available on the target host.
+# - ss -tlnp endpoint check: no exact expected listener set was stated.
+# - Redis and Memcached checks: service units, ports, and instances were explicitly unconfirmed.
+---
+- name: Verify cache pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Confirm the Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_directory
+
+    - name: Assert the Redis log directory was created
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_directory.stat.exists
+          - cache_redis_log_directory.stat.isdir
+        fail_msg: /var/log/redis is not an existing directory
