@@ -1,0 +1,57 @@
+---
+- name: Load operating system variables
+  ansible.builtin.include_vars: "{{ ansible_facts['os_family'] }}.yml"
+  when: ansible_facts['os_family'] is defined
+
+- name: Ensure Apache is installed
+  ansible.builtin.package:
+    name: "{{ poodle_fix_apache_service_name }}"
+    state: present
+  tags:
+    - poodle_fix
+    - apache
+
+- name: Enable Apache SSL module (Debian/Ubuntu)
+  ansible.builtin.command:
+    cmd: a2enmod ssl
+    creates: /etc/apache2/mods-enabled/ssl.conf
+  when: ansible_facts['os_family'] == 'Debian'
+  notify: Restart apache2
+  tags:
+    - poodle_fix
+    - apache
+    - ssl
+
+- name: Check if Apache SSL configuration file exists
+  ansible.builtin.stat:
+    path: "{{ poodle_fix_apache_ssl_config_path }}"
+  register: poodle_fix_ssl_config_stat
+  tags:
+    - poodle_fix
+    - apache
+    - ssl
+
+- name: Fix POODLE vulnerability in Apache SSL configuration # noqa: L039 - poodle_fix_ssl_config_stat registered by prior task
+  ansible.builtin.replace:
+    path: "{{ poodle_fix_apache_ssl_config_path }}" # noqa: R114 - path from role defaults, not user input
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol {{ poodle_fix_ssl_protocol }}
+    backup: "{{ poodle_fix_backup_config }}"
+    create: false
+  when: poodle_fix_ssl_config_stat.stat.exists
+  notify:
+    - Restart apache2
+    - Restart sshd
+  tags:
+    - poodle_fix
+    - apache
+    - ssl
+
+- name: Ensure Apache is enabled and started
+  ansible.builtin.service:
+    name: "{{ poodle_fix_apache_service_name }}"
+    state: started
+    enabled: true
+  tags:
+    - poodle_fix
+    - apache

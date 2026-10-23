@@ -1,0 +1,21 @@
+---
+- name: Restart apache2
+  ansible.builtin.service:
+    name: "{{ poodle_fix_apache_service_name }}"
+    state: restarted
+  when: poodle_fix_restart_apache | bool
+
+- name: Check if sshd exists
+  ansible.builtin.stat:
+    path: /usr/sbin/sshd
+  register: poodle_fix_sshd_exists
+  listen: Restart sshd
+
+- name: Restart sshd
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
+  when:
+    - poodle_fix_restart_sshd | bool
+    - poodle_fix_sshd_exists.stat.exists
+  listen: Restart sshd

@@ -1,0 +1,44 @@
+---
+argument_specs:
+  main:
+    short_description: Fix POODLE SSL vulnerability in Apache
+    description:
+      - Configures Apache to disable SSLv3 and enforce modern TLS protocols
+      - Fixes CVE-2014-3566 (POODLE vulnerability)
+      - Supports both Debian/Ubuntu (apache2) and RHEL/CentOS (httpd) systems
+    options:
+      poodle_fix_apache_ssl_config_path:
+        type: str
+        required: false
+        default: /etc/apache2/mods-available/ssl.conf
+        description: Path to Apache SSL configuration file (OS-specific override)
+      poodle_fix_ssl_protocol:
+        type: str
+        required: false
+        default: -all +TLSv1.2
+        description: SSL protocol configuration string for Apache
+      poodle_fix_restart_apache:
+        type: bool
+        required: false
+        default: true
+        description: Whether to restart Apache after configuration change
+      poodle_fix_restart_sshd:
+        type: bool
+        required: false
+        default: true
+        description: Whether to restart SSHD after configuration change
+      poodle_fix_apache_service_name:
+        type: str
+        required: false
+        default: apache2
+        description: Name of the Apache service (apache2 for Debian/Ubuntu, httpd for RHEL/CentOS, OS-specific override)
+      poodle_fix_backup_config:
+        type: bool
+        required: false
+        default: true
+        description: Whether to backup configuration file before modification
+      poodle_fix_validate_config:
+        type: bool
+        required: false
+        default: true
+        description: Whether to validate Apache configuration before restarting

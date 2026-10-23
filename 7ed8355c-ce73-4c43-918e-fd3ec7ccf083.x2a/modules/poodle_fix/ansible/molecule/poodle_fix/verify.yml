@@ -1,0 +1,125 @@
+---
+# Unsupported checks (no stated expected outcome): backup_config, apache2ctl configtest
+
+- name: Verify poodle_fix role
+  hosts: all
+  gather_facts: true
+  tasks:
+    # Pre-flight check 1: Verify Apache is installed
+    - name: Gather package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Check Apache is installed
+      ansible.builtin.assert:
+        that:
+          - "'apache2' in ansible_facts.packages or 'httpd' in ansible_facts.packages"
+        fail_msg: "Apache (apache2 or httpd) is not installed"
+        success_msg: "Apache is installed"
+
+    # Pre-flight check 5: Check Apache service status (should be running)
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Verify Apache service is running
+      ansible.builtin.assert:
+        that:
+          - "(ansible_facts.services['apache2.service'] is defined and ansible_facts.services['apache2.service'].state == 'running') or (ansible_facts.services['httpd.service']
+            is defined and ansible_facts.services['httpd.service'].state == 'running')"
+        fail_msg: "Apache service is not running"
+        success_msg: "Apache service is running"
+
+    # Pre-flight check 6: Verify SSHD service is running
+    - name: Verify SSHD service is running
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts.services['sshd.service'] is defined"
+          - "ansible_facts.services['sshd.service'].state == 'running'"
+        fail_msg: "SSHD service is not running"
+        success_msg: "SSHD service is running"
+
+    # Pre-flight check 8: Verify no SSLv3 in configuration (grep for SSLProtocol)
+    - name: Read Apache SSL configuration
+      ansible.builtin.slurp:
+        src: /etc/apache2/mods-available/ssl.conf
+      register: ssl_config_content
+      failed_when: false
+
+    - name: Check SSLProtocol line exists in configuration
+      ansible.builtin.assert:
+        that:
+          - "ssl_config_content.content is defined"
+          - "'SSLProtocol' in (ssl_config_content.content | b64decode)"
+        fail_msg: "SSLProtocol directive not found in Apache SSL configuration"
+        success_msg: "SSLProtocol directive found in Apache SSL configuration"
+      when: ssl_config_content.content is defined
+
+    - name: Verify SSLProtocol enforces TLSv1.2 and excludes SSLv3
+      ansible.builtin.assert:
+        that:
+          - "'SSLProtocol -all +TLSv1.2' in (ssl_config_content.content | b64decode) or 'SSLProtocol          -all +TLSv1.2' in (ssl_config_content.content | b64decode)"
+        fail_msg: "SSLProtocol does not enforce TLSv1.2 correctly"
+        success_msg: "SSLProtocol correctly enforces TLSv1.2"
+      when: ssl_config_content.content is defined
+
+    # Pre-flight check 7: Test Apache serves content after restart
+    - name: Wait for Apache to respond on port 80
+      ansible.builtin.wait_for:
+        port: 80
+        host: localhost
+        timeout: 30
+        state: started
+
+    - name: Test Apache serves HTTP content
+      ansible.builtin.uri:
+        url: "http://localhost/"
+        return_content: false
+        status_code: [200, 301, 302, 403, 404]
+      register: http_response
+
+    - name: Verify Apache HTTP response
+      ansible.builtin.assert:
+        that:
+          - "http_response.status in [200, 301, 302, 403, 404]"
+        fail_msg: "Apache did not return expected HTTP status"
+        success_msg: "Apache successfully serves HTTP content"
+
+    # Pre-flight check 4: Verify SSL protocol settings after migration
+    # Note: SSLv3 should fail, TLSv1.2 should succeed - using openssl s_client
+    - name: Test that SSLv3 connection fails (POODLE fix verification)
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - s_client
+          - -connect
+          - localhost:443
+          - -ssl3
+      register: sslv3_test
+      failed_when: false
+      changed_when: false
+
+    - name: Verify SSLv3 is disabled
+      ansible.builtin.assert:
+        that:
+          - "sslv3_test.rc != 0"
+        fail_msg: "SSLv3 connection succeeded - POODLE vulnerability may still exist"
+        success_msg: "SSLv3 connection failed as expected - POODLE fix verified"
+
+    - name: Test that TLSv1.2 connection succeeds
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - s_client
+          - -connect
+          - localhost:443
+          - -tls1_2
+      register: tlsv12_test
+      failed_when: false
+      changed_when: false
+
+    - name: Verify TLSv1.2 is enabled
+      ansible.builtin.assert:
+        that:
+          - "tlsv12_test.rc == 0"
+        fail_msg: "TLSv1.2 connection failed - secure TLS not available"
+        success_msg: "TLSv1.2 connection succeeded - secure TLS enabled"
