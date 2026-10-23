@@ -1,0 +1,314 @@
+---
+# Unsupported checks (no explicit expected outcome):
+# - redis-cli --intrinsic-latency 10 (performance baseline not specified)
+# - redis-cli --latency -h 127.0.0.1 -p 6379 (acceptable latency not specified)
+# - Connection count threshold not specified
+# - Memory usage thresholds not specified
+# - Specific AUTH behavior test (expects ERR but cookbook doesn't configure auth)
+
+- name: Verify Redis cache deployment
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Verify redis-server service is running
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['redis-server.service'] is defined
+          - ansible_facts.services['redis-server.service'].state == 'running'
+        fail_msg: "redis-server service is not running"
+        success_msg: "redis-server service is running"
+
+    - name: Verify redis-server service is enabled
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['redis-server.service'].status == 'enabled'
+        fail_msg: "redis-server service is not enabled"
+        success_msg: "redis-server service is enabled"
+
+    - name: Check redis-server process is running
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - redis-server
+      register: cache_redis_process
+      changed_when: false
+      failed_when: cache_redis_process.rc != 0
+
+    - name: Verify redis-server responds to PING
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - ping
+      register: cache_redis_ping
+      changed_when: false
+      failed_when: cache_redis_ping.stdout != 'PONG'
+
+    - name: Get Redis server info
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - info
+          - server
+      register: cache_redis_info_server
+      changed_when: false
+
+    - name: Verify Redis server info contains expected fields
+      ansible.builtin.assert:
+        that:
+          - "'redis_version' in cache_redis_info_server.stdout"
+          - "'os' in cache_redis_info_server.stdout"
+        fail_msg: "Redis server info missing expected fields"
+        success_msg: "Redis server info contains expected fields"
+
+    - name: Get Redis stats info
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - info
+          - stats
+      register: cache_redis_info_stats
+      changed_when: false
+
+    - name: Get Redis replication info
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - info
+          - replication
+      register: cache_redis_info_replication
+      changed_when: false
+
+    - name: Get Redis memory info
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - info
+          - memory
+      register: cache_redis_info_memory
+      changed_when: false
+
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/redis.conf
+      register: cache_redis_conf
+
+    - name: Verify Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_conf.stat.exists
+        fail_msg: "Redis configuration file /etc/redis/redis.conf does not exist"
+        success_msg: "Redis configuration file exists"
+
+    - name: Get Redis port configuration
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - CONFIG
+          - GET
+          - port
+      register: cache_redis_port
+      changed_when: false
+
+    - name: Verify Redis port is 6379
+      ansible.builtin.assert:
+        that:
+          - "'6379' in cache_redis_port.stdout"
+        fail_msg: "Redis port is not configured to default 6379"
+        success_msg: "Redis port is configured to 6379"
+
+    - name: Get Redis bind configuration
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - CONFIG
+          - GET
+          - bind
+      register: cache_redis_bind
+      changed_when: false
+
+    - name: Get Redis requirepass configuration
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - CONFIG
+          - GET
+          - requirepass
+      register: cache_redis_requirepass
+      changed_when: false
+
+    - name: Get Redis maxmemory configuration
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - CONFIG
+          - GET
+          - maxmemory
+      register: cache_redis_maxmemory
+      changed_when: false
+
+    - name: Get Redis maxmemory-policy configuration
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - CONFIG
+          - GET
+          - maxmemory-policy
+      register: cache_redis_maxmemory_policy
+      changed_when: false
+
+    - name: Test Redis SET operation
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - SET
+          - test_key
+          - test_value
+      register: cache_redis_set
+      changed_when: false
+      failed_when: cache_redis_set.stdout != 'OK'
+
+    - name: Test Redis GET operation
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - GET
+          - test_key
+      register: cache_redis_get
+      changed_when: false
+      failed_when: cache_redis_get.stdout != 'test_value'
+
+    - name: Test Redis DEL operation
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - DEL
+          - test_key
+      register: cache_redis_del
+      changed_when: false
+      failed_when: cache_redis_del.stdout != '1'
+
+    - name: Get Redis DBSIZE
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - DBSIZE
+      register: cache_redis_dbsize
+      changed_when: false
+
+    - name: Verify Redis DBSIZE returns a number
+      ansible.builtin.assert:
+        that:
+          - cache_redis_dbsize.stdout is regex('^\d+$')
+        fail_msg: "Redis DBSIZE did not return a valid number"
+        success_msg: "Redis DBSIZE returned valid number"
+
+    - name: Check Redis log file exists
+      ansible.builtin.stat:
+        path: /var/log/redis/redis-server.log
+      register: cache_redis_log
+
+    - name: Verify Redis is listening on port 6379
+      ansible.builtin.wait_for:
+        port: 6379
+        host: 127.0.0.1
+        timeout: 5
+        state: started
+
+    - name: Check Redis PID file exists
+      ansible.builtin.stat:
+        path: /var/run/redis/redis-server.pid
+      register: cache_redis_pid_file
+
+    - name: Check Redis data directory exists
+      ansible.builtin.stat:
+        path: /var/lib/redis/
+      register: cache_redis_data_dir
+
+    - name: Verify Redis data directory exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_data_dir.stat.exists
+          - cache_redis_data_dir.stat.isdir
+        fail_msg: "Redis data directory /var/lib/redis/ does not exist"
+        success_msg: "Redis data directory exists"
+
+    - name: Get Redis memory usage
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - INFO
+          - memory
+      register: cache_redis_memory_info
+      changed_when: false
+
+    - name: Verify Redis memory info contains used_memory_human
+      ansible.builtin.assert:
+        that:
+          - "'used_memory_human' in cache_redis_memory_info.stdout"
+        fail_msg: "Redis memory info missing used_memory_human field"
+        success_msg: "Redis memory info contains used_memory_human"
+
+    - name: Get Redis client list
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - CLIENT
+          - LIST
+      register: cache_redis_clients
+      changed_when: false
+
+    - name: Get Redis clients info
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - INFO
+          - clients
+      register: cache_redis_info_clients
+      changed_when: false
+
+    - name: Trigger Redis background save
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - BGSAVE
+      register: cache_redis_bgsave
+      changed_when: false
+
+    - name: Get Redis last save time
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - LASTSAVE
+      register: cache_redis_lastsave
+      changed_when: false
+
+    - name: Verify Redis LASTSAVE returns a timestamp
+      ansible.builtin.assert:
+        that:
+          - cache_redis_lastsave.stdout is regex('^\d+$')
+        fail_msg: "Redis LASTSAVE did not return a valid timestamp"
+        success_msg: "Redis LASTSAVE returned valid timestamp"
+
+    - name: Check Redis dump file
+      ansible.builtin.stat:
+        path: /var/lib/redis/dump.rdb
+      register: cache_redis_dump
+
+    - name: Get Redis tcp_port from server info
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - INFO
+          - server
+      register: cache_redis_server_info_port
+      changed_when: false
+
+    - name: Verify Redis tcp_port is in server info
+      ansible.builtin.assert:
+        that:
+          - "'tcp_port' in cache_redis_server_info_port.stdout"
+        fail_msg: "Redis server info missing tcp_port field"
+        success_msg: "Redis server info contains tcp_port"
