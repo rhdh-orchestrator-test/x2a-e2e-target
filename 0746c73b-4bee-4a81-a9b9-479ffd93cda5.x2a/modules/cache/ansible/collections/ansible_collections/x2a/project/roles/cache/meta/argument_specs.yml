@@ -1,0 +1,29 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis as a local caching server
+    description:
+      - This role installs the Redis server package and ensures the Redis service is enabled and started on boot.
+      - It provides a basic single-instance Redis deployment with default configuration.
+      - Designed as a simple local cache dependency for testing purposes.
+    options:
+      cache_redis_package:
+        type: str
+        required: false
+        default: redis-server
+        description: The name of the Redis server package to install (OS-specific).
+      cache_redis_service:
+        type: str
+        required: false
+        default: redis-server
+        description: The name of the Redis service to manage (OS-specific).
+      cache_redis_service_state:
+        type: str
+        required: false
+        default: started
+        description: The desired state of the Redis service (started, stopped, restarted).
+      cache_redis_service_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether the Redis service should be enabled to start on boot.
