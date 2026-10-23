@@ -1,0 +1,80 @@
+[
+  {
+    "name": "base_utils",
+    "path": "site-modules/base_utils",
+    "description": "Foundation utility module providing cross-platform helper functions, custom facts, defined types, and Bolt orchestration tasks.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile::base::base",
+    "path": "site-modules/profile/manifests/base",
+    "description": "Base operating system profile applied to all node types handling common system services including NTP time synchronization via chrony, rsyslog configuration, and integration with base_utils module.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_app_stack",
+    "path": "site-modules/profile_app_stack",
+    "description": "Full-stack Python web application deployment with PostgreSQL database, systemd service management, and comprehensive logging.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile::app::stack",
+    "path": "site-modules/profile/manifests/app",
+    "description": "Thin wrapper profile that delegates to profile_app_stack module, providing environment-aware indirection layer following roles/profiles pattern.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_haproxy",
+    "path": "site-modules/profile_haproxy",
+    "description": "Enterprise HAProxy load balancer with multi-level Hiera hierarchy, dynamic backend discovery via PuppetDB queries, SSL/TLS termination, and datacenter-aware configuration.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile::loadbalancer::haproxy",
+    "path": "site-modules/profile/manifests/loadbalancer",
+    "description": "Thin wrapper profile that delegates to profile_haproxy module with environment fact awareness.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_postgresql",
+    "path": "site-modules/profile_postgresql",
+    "description": "PostgreSQL database server installation with PGDG repository management for version pinning, supporting Debian/Ubuntu platforms with version-specific package installation.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_redis_cluster",
+    "path": "site-modules/profile_redis_cluster",
+    "description": "Redis cluster deployment using puppet-redis module with PuppetDB-based node discovery for cluster membership and custom Facter fact for role detection.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "role::app_server",
+    "path": "site-modules/role/manifests",
+    "description": "Composite role combining base profile, HAProxy, application stack, and Redis cache for a full application server node.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "role::app_stack",
+    "path": "site-modules/role/manifests",
+    "description": "Application stack node role (Python app + PostgreSQL) with base profile and strict dependency ordering.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "role::haproxy",
+    "path": "site-modules/role/manifests",
+    "description": "HAProxy load balancer node role combining base OS profile with HAProxy-specific configuration.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "role::redis_cluster",
+    "path": "site-modules/role/manifests",
+    "description": "Redis cluster node role with base profile and cache profile composition.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "puppetdb_query_stub",
+    "path": "site-modules/puppetdb_query_stub",
+    "description": "Development stub for PuppetDB query function that returns empty arrays when PuppetDB is unavailable, enabling local testing without PuppetDB infrastructure.",
+    "technology": "Puppet"
+  }
+]
