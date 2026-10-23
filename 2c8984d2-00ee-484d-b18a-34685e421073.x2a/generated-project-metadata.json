@@ -1,0 +1,50 @@
+[
+  {
+    "name": "base_utils",
+    "path": "site-modules/base_utils",
+    "description": "Base utility module providing common helper types, custom functions, custom types, Facter facts, Bolt tasks and plans with cross-module function sharing, MOTD management, and OS-specific package installation.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_app_stack",
+    "path": "site-modules/profile_app_stack",
+    "description": "Full application stack profile orchestrating Python FastAPI/Uvicorn application deployment with Git repository cloning, virtualenv management, PostgreSQL database provisioning, systemd service configuration, and Prometheus monitoring integration.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_haproxy",
+    "path": "site-modules/profile_haproxy",
+    "description": "HAProxy load balancer profile with multi-backend support, dynamic PuppetDB node discovery, SSL/TLS termination, stats page with authentication, and firewall management.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_postgresql",
+    "path": "site-modules/profile_postgresql",
+    "description": "PostgreSQL installation profile with PGDG repository configuration, version pinning, OS-specific package management, and service lifecycle management.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_redis_cluster",
+    "path": "site-modules/profile_redis_cluster",
+    "description": "Redis cluster profile using puppet-redis module with PuppetDB node discovery for cluster member identification, custom Facter fact for node role detection, and AOF persistence configuration.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile",
+    "path": "site-modules/profile/manifests",
+    "description": "Thin wrapper profiles providing composition layer between roles and feature modules, delegating to profile_app_stack, profile_haproxy, and profile_redis_cluster modules with environment fact passing.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "role",
+    "path": "site-modules/role/manifests",
+    "description": "Role definitions implementing the roles-and-profiles pattern for app_server, app_stack, haproxy, and redis_cluster with Linux kernel detection and exec path defaults.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "puppetdb_query_stub",
+    "path": "site-modules/puppetdb_query_stub",
+    "description": "Stub implementation of PuppetDB query function for testing/development environments without PuppetDB, providing mock puppetdb_query function that returns empty arrays.",
+    "technology": "Puppet"
+  }
+]
