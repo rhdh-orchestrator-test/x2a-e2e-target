@@ -1,0 +1,39 @@
+---
+argument_specs:
+  main:
+    short_description: POODLE vulnerability fix for Apache SSL configuration
+    description:
+      - Configures Apache to use secure SSL/TLS protocols only
+      - Mitigates POODLE vulnerability by disabling SSLv3 and older protocols
+      - Uses ansible.builtin.replace to update SSLProtocol directive in Apache SSL configuration
+    options:
+      poodle_fix_apache_ssl_conf_path:
+        type: str
+        required: false
+        default: /etc/apache2/mods-available/ssl.conf
+        description: Path to Apache SSL configuration file to modify.
+      poodle_fix_apache_ssl_protocols:
+        type: str
+        required: false
+        default: -all +TLSv1.2 +TLSv1.3
+        description: SSL/TLS protocols to enable. Updated to include TLS 1.3 for modern security.
+      poodle_fix_apache_service_name:
+        type: str
+        required: false
+        default: apache2
+        description: Name of the Apache service (apache2 for Debian/Ubuntu, httpd for RHEL/CentOS).
+      poodle_fix_apache_backup_config:
+        type: bool
+        required: false
+        default: true
+        description: Whether to backup configuration file before modification.
+      poodle_fix_apache_restart_required:
+        type: bool
+        required: false
+        default: true
+        description: Whether to restart Apache after configuration change.
+      poodle_fix_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Control whether to suppress output from sensitive tasks.

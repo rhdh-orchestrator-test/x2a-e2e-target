@@ -1,0 +1,13 @@
+---
+# Apache SSL configuration file path
+poodle_fix_apache_ssl_conf_path: /etc/apache2/mods-available/ssl.conf
+# SSL/TLS protocols to enable (POODLE fix)
+poodle_fix_apache_ssl_protocols: -all +TLSv1.2 +TLSv1.3
+# Apache service name (apache2 for Debian/Ubuntu, httpd for RHEL/CentOS)
+poodle_fix_apache_service_name: apache2
+# Backup configuration before changes
+poodle_fix_apache_backup_config: true
+# Restart Apache after configuration change
+poodle_fix_apache_restart_required: true
+# Secure logging for sensitive operations
+poodle_fix_secure_logging: true

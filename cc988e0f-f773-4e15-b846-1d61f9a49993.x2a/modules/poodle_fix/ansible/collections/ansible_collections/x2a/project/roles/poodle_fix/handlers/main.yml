@@ -1,0 +1,8 @@
+---
+- name: Restart apache2
+  ansible.builtin.service:
+    name: "{{ poodle_fix_apache_service_name }}"
+    state: restarted
+  when: >
+    (poodle_fix_apache_service_name ~ '.service') in ansible_facts.services or
+    poodle_fix_apache_service_name in ansible_facts.services

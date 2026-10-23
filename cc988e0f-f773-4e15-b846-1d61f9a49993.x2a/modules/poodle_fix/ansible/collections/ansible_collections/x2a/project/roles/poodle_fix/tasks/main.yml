@@ -1,0 +1,28 @@
+---
+- name: Check if Apache SSL configuration file exists
+  ansible.builtin.stat:
+    path: "{{ poodle_fix_apache_ssl_conf_path }}"
+  register: poodle_fix_apache_ssl_file
+  check_mode: false
+
+- name: Fail if Apache SSL configuration file does not exist
+  ansible.builtin.fail:
+    msg: "Apache SSL configuration file does not exist: {{ poodle_fix_apache_ssl_conf_path }}. Apache may not be installed."
+  when: not poodle_fix_apache_ssl_file.stat.exists
+
+- name: Check if Apache service exists
+  ansible.builtin.service_facts:
+  check_mode: false
+
+- name: Fix POODLE vulnerability in Apache SSL configuration
+  ansible.builtin.replace:
+    path: "{{ poodle_fix_apache_ssl_conf_path }}"
+    regexp: ^SSLProtocol.*$
+    replace: SSLProtocol {{ poodle_fix_apache_ssl_protocols }}
+    backup: "{{ poodle_fix_apache_backup_config }}"
+    mode: "0644"
+    create: false
+  when:
+    - poodle_fix_apache_ssl_file.stat.exists
+    - poodle_fix_apache_restart_required | bool
+  notify: Restart apache2

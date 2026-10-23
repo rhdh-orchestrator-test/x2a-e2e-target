@@ -1,0 +1,141 @@
+{
+  "module_name": "poodle_fix",
+  "items": [
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/run_poodle_fix.yml",
+      "status": "complete",
+      "description": "Deployment entry point for the migrated role",
+      "notes": "Created run playbook for executing the poodle_fix role"
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/requirements.yml",
+      "status": "pending",
+      "description": "Test-only Podman collection dependency",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/README.md",
+      "status": "pending",
+      "description": "Developer instructions for running Molecule",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/poodle_fix/molecule.yml",
+      "status": "pending",
+      "description": "Ansible-native Molecule scenario configuration",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/poodle_fix/inventory/hosts.yml",
+      "status": "pending",
+      "description": "Disposable Podman target inventory",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/poodle_fix/create.yml",
+      "status": "pending",
+      "description": "Create and inspect disposable Podman targets",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/poodle_fix/destroy.yml",
+      "status": "pending",
+      "description": "Remove disposable Podman targets",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/poodle_fix/prepare.yml",
+      "status": "pending",
+      "description": "Bootstrap Python on the disposable Linux target",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/poodle_fix/converge.yml",
+      "status": "pending",
+      "description": "Run the deployment playbook under test",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/poodle_fix/verify.yml",
+      "status": "pending",
+      "description": "Verify migrated behavior against the source plan",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/poodle_fix/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata with galaxy_info and dependencies",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/poodle_fix/handlers/main.yml",
+      "status": "complete",
+      "description": "Handler for Apache service restart",
+      "notes": "Created handler with fixed naming (matches notify) and removed unrelated sshd restart"
+    },
+    {
+      "category": "attributes",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/poodle_fix/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables extracted from playbook (apache_ssl_conf_path, apache_ssl_protocols, etc.)",
+      "notes": "Converted hardcoded values to role variables with poodle_fix_ prefix"
+    },
+    {
+      "category": "structure",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/poodle_fix/meta/argument_specs.yml",
+      "status": "complete",
+      "description": "Role argument specs for fail-fast parameter validation (generate after defaults/main.yml)",
+      "notes": "Created argument specs documenting all role variables"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/poodle_fix/README.md",
+      "status": "complete",
+      "description": "Role documentation with usage examples and variable descriptions",
+      "notes": "Created comprehensive README with usage examples and verification steps"
+    },
+    {
+      "category": "recipes",
+      "source_path": "chef-and-ansible/poodle_fix.yml",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/poodle_fix/tasks/main.yml",
+      "status": "complete",
+      "description": "Convert legacy playbook to role tasks with FQCN modules, structured YAML, and variables",
+      "notes": "Converted playbook tasks to role tasks with FQCN, added validation and backup"
+    },
+    {
+      "category": "dependencies",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/poodle_fix/requirements.yml",
+      "status": "complete",
+      "description": "Collection dependencies (ansible.builtin >= 2.10)",
+      "notes": "Created requirements.yml with ansible.posix collection for extended module support"
+    }
+  ]
+}
