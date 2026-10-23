@@ -1,0 +1,14 @@
+---
+# Converted from cookbooks/cache/recipes/default.rb
+# Simple Redis cache installation with default configuration
+
+- name: Install Redis package
+  ansible.builtin.package:
+    name: "{{ cache_package_name }}"
+    state: present
+
+- name: Enable and start Redis service
+  ansible.builtin.service:
+    name: "{{ cache_service_name }}"
+    state: "{{ cache_service_state }}"
+    enabled: "{{ cache_service_enabled }}"

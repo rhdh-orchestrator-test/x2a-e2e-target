@@ -1,0 +1,24 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis cache server
+    description:
+      - Installs Redis in-memory cache server using distribution packages.
+      - Configures and manages the Redis service with distribution defaults.
+      - Supports multiple OS families (Debian/Ubuntu and RedHat/CentOS).
+    options:
+      cache_service_state:
+        type: str
+        required: false
+        default: started
+        description: Desired state of the Redis service (started, stopped).
+      cache_service_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis service should be enabled on boot.
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Toggle for secure logging to hide sensitive information in task output.
