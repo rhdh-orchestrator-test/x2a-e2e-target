@@ -1,0 +1,189 @@
+---
+# Unsupported pre-flight checks: Redis journal contents have no stated expected outcome.
+# Unsupported pre-flight checks: Memcached validation lacks a verified service, port, and protocol endpoint.
+- name: Verify cache pre-flight checks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Confirm Redis configuration file is present
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Assert Redis configuration file is present
+      ansible.builtin.assert:
+        that:
+          - item_redis_config['stat']['exists']
+          - item_redis_config['stat']['isreg']
+        fail_msg: Redis configuration file is missing
+
+    - name: Confirm Redis log directory attributes
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_directory
+
+    - name: Assert Redis log directory has the expected attributes
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory['stat']['exists']
+          - item_redis_log_directory['stat']['isdir']
+          - item_redis_log_directory['stat']['pw_name'] == 'redis'
+          - item_redis_log_directory['stat']['gr_name'] == 'redis'
+          - item_redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: Redis log directory is missing or has unexpected attributes
+
+    - name: Collect Redis service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert Redis service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'redis.service' in ansible_facts['services']"
+          - ansible_facts['services']['redis.service']['state'] == 'running'
+          - ansible_facts['services']['redis.service']['status'] == 'enabled'
+        fail_msg: Redis service is not enabled and active
+
+    - name: Confirm Redis is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+      register: item_redis_listener
+
+    - name: Assert Redis is listening on TCP port 6379
+      ansible.builtin.assert:
+        that:
+          - item_redis_listener['state'] == 'started'
+        fail_msg: Redis is not listening on TCP port 6379
+
+    - name: Read Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: item_redis_configuration
+
+    - name: Assert Redis configuration uses port 6379 and omits unsupported directives
+      ansible.builtin.assert:
+        that:
+          - (item_redis_configuration['content'] | b64decode) is regex('(?m)^port\\s+6379\\s*$')
+          - (item_redis_configuration['content'] | b64decode) is not regex(
+              '(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)\\b'
+            )
+        fail_msg: Redis configuration has an unexpected port or unsupported directive
+
+    - name: Check Redis authentication and server information
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - -a
+          - "{{ vault_redis_password }}"
+          - PING
+      register: item_redis_ping
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert Redis authentication returns PONG
+      ansible.builtin.assert:
+        that:
+          - item_redis_ping['rc'] == 0
+          - "'PONG' in item_redis_ping['stdout']"
+        fail_msg: Redis authentication or PING failed
+
+    - name: Check authenticated Redis server information
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - -a
+          - "{{ vault_redis_password }}"
+          - INFO
+          - server
+      register: item_redis_info
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert authenticated Redis server information is returned
+      ansible.builtin.assert:
+        that:
+          - item_redis_info['rc'] == 0
+          - item_redis_info['stdout'] | length > 0
+        fail_msg: Redis INFO server check failed
+
+    - name: Check authenticated Redis port configuration
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - -a
+          - "{{ vault_redis_password }}"
+          - CONFIG
+          - GET
+          - port
+      register: item_redis_port
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert authenticated Redis reports port 6379
+      ansible.builtin.assert:
+        that:
+          - item_redis_port['rc'] == 0
+          - item_redis_port['stdout'] is search('(?m)^6379\\s*$')
+        fail_msg: Redis CONFIG GET port did not report 6379
+
+    - name: Write and read the authenticated Redis migration check key
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - -a
+          - "{{ vault_redis_password }}"
+          - SET
+          - chef_ansible_migration_check
+          - ok
+      register: item_redis_set
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Read the authenticated Redis migration check key
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - -a
+          - "{{ vault_redis_password }}"
+          - GET
+          - chef_ansible_migration_check
+      register: item_redis_get
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Remove the authenticated Redis migration check key
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - -a
+          - "{{ vault_redis_password }}"
+          - DEL
+          - chef_ansible_migration_check
+      register: item_redis_delete
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert authenticated Redis read and write operations succeed
+      ansible.builtin.assert:
+        that:
+          - item_redis_set['rc'] == 0
+          - "'OK' in item_redis_set['stdout']"
+          - item_redis_get['rc'] == 0
+          - item_redis_get['stdout'] | trim == 'ok'
+          - item_redis_delete['rc'] == 0
+          - item_redis_delete['stdout'] | trim == '1'
+        fail_msg: Redis authenticated read/write check failed

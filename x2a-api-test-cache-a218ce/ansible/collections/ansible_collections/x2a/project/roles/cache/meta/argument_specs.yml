@@ -1,0 +1,42 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Redis and Memcached cache services
+    description:
+      - Installs and configures Redis and Memcached cache services.
+      - Removes unsupported Redis replication directives while preserving other configuration.
+    options:
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by the Redis instance.
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/redis.conf
+        description: Redis configuration file to manage.
+      cache_redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory for Redis logs.
+      cache_redis_service_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis system service name.
+      cache_memcached_service_name:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached system service name.
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide task output when handling the Redis password.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.

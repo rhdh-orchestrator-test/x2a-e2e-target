@@ -1,0 +1,69 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install Redis and Memcached packages
+  ansible.builtin.package:
+    name:
+      - redis-server
+      - memcached
+    state: present
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_directory }}" # noqa: R114 - path is a role default, not user input
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Configure Redis port
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default, not user input
+    regexp: ^port\s+
+    line: port {{ cache_redis_port }}
+    create: true
+    owner: redis
+    group: redis
+    mode: "0600"
+  notify: Restart Redis
+
+- name: Configure Redis authentication # noqa: L039 - redis_password is supplied by the attached AAP credential and validated by the preceding task
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default, not user input
+    regexp: ^requirepass\s+
+    line: requirepass {{ redis_password }}
+    create: true
+    owner: redis
+    group: redis
+    mode: "0600"
+  notify: Restart Redis
+  no_log: "{{ cache_secure_logging }}"
+
+- name: Remove unsupported Redis directives # noqa: R115 - the path is the role's fixed Redis configuration file from role defaults
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default, not user input
+    regexp: ^{{ item_cache_directive }}(?:\s|$)
+    state: absent
+  loop:
+    - replica-serve-stale-data
+    - replica-read-only
+    - repl-ping-replica-period
+    - client-output-buffer-limit
+    - replica-priority
+  loop_control:
+    loop_var: item_cache_directive
+  notify: Restart Redis
+
+- name: Enable and start Redis
+  ansible.builtin.service:
+    name: "{{ cache_redis_service_name }}"
+    state: started
+    enabled: true
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service_name }}"
+    state: started
+    enabled: true
