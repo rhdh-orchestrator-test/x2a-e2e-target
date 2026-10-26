@@ -1,0 +1,121 @@
+---
+# Unsupported pre-flight checks: the selected Redis and Memcached service names and
+# the Memcached port are not supplied; authenticated Redis checks require a secret;
+# Redis journal review has no safely identifiable service name; Memcached health
+# checking requires implementation-specific protocol and endpoint details.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify the Redis port 6379 endpoint is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+      register: redis_endpoint
+      changed_when: false
+
+    - name: Assert the Redis port 6379 endpoint is listening
+      ansible.builtin.assert:
+        that:
+          - redis_endpoint['state'] == 'started'
+        fail_msg: Redis port 6379 is not listening.
+
+    - name: Verify unauthenticated Redis access requires authentication
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - PING
+      register: redis_unauthenticated_ping
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unauthenticated Redis access is rejected
+      ansible.builtin.assert:
+        that:
+          - redis_unauthenticated_ping['rc'] != 0
+          - >-
+            (redis_unauthenticated_ping['stdout'] ~ redis_unauthenticated_ping['stderr'])
+            is search('(?i)(noauth|authentication required|auth required)')
+        fail_msg: Redis accepted a PING without authentication.
+
+    - name: Check the Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_file
+
+    - name: Assert the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_file['stat']['exists']
+          - redis_config_file['stat']['isreg']
+        fail_msg: The Redis configuration file is missing.
+
+    - name: Verify the configured Redis port
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -Eq
+          - ^port[[:space:]]+6379[[:space:]]*$
+          - /etc/redis/6379.conf
+      register: redis_port_config
+      changed_when: false
+      failed_when: false
+
+    - name: Assert Redis is configured for port 6379
+      ansible.builtin.assert:
+        that:
+          - redis_port_config['rc'] == 0
+        fail_msg: Redis configuration does not specify port 6379.
+
+    - name: Verify Redis password authentication is configured
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -Eq
+          - ^requirepass[[:space:]]+[^[:space:]#]+([[:space:]]|$)
+          - /etc/redis/6379.conf
+      register: redis_auth_config
+      changed_when: false
+      failed_when: false
+
+    - name: Assert Redis password authentication is enabled
+      ansible.builtin.assert:
+        that:
+          - redis_auth_config['rc'] == 0
+        fail_msg: Redis password authentication is not configured.
+
+    - name: Verify Redis cleanup directives are absent
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -Eq
+          - ^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)([[:space:]]|$)
+          - /etc/redis/6379.conf
+      register: redis_cleanup_directives
+      changed_when: false
+      failed_when: false
+
+    - name: Assert Redis cleanup directives are absent
+      ansible.builtin.assert:
+        that:
+          - redis_cleanup_directives['rc'] != 0
+        fail_msg: Redis replication cleanup directives remain in the configuration.
+
+    - name: Check the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert the Redis log directory has the expected metadata
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+          - redis_log_directory['stat']['pw_name'] == 'redis'
+          - redis_log_directory['stat']['gr_name'] == 'redis'
+          - redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: The Redis log directory does not have the expected metadata.
