@@ -1,26 +1,38 @@
 [
   {
-    "name": "apache-https-example",
+    "name": "website_https",
     "path": "chef-and-ansible/website_https.yml",
-    "description": "An Ansible playbook example that installs Apache on Ubuntu, generates self-signed TLS materials, configures an HTTPS virtual host and sample content, enables SSL, and restarts Apache.",
+    "description": "An Ansible playbook that installs Apache on Ubuntu, configures HTTPS with a self-signed certificate, deploys a Hello World virtual host and static content, and manages related services.",
     "technology": "Ansible"
   },
   {
-    "name": "apache-ssl-hardening-example",
+    "name": "poodle_fix",
     "path": "chef-and-ansible/poodle_fix.yml",
-    "description": "An Ansible playbook that hardens Apache SSL settings by permitting TLS 1.2 and notifying service handlers for configuration changes.",
+    "description": "An Ansible hardening playbook that disables insecure Apache SSL protocols while retaining TLS 1.2 and restarts affected services when configuration changes.",
     "technology": "Ansible"
   },
   {
-    "name": "chef-automate-infra-server-bootstrap",
+    "name": "chef_platform_bootstrap_automate",
     "path": "setup-automate/deploy-automate.sh",
-    "description": "Bootstraps Chef Automate and Chef Infra Server deployment, including host preparation and creation of a Chef Server user and organization.",
+    "description": "Bootstraps Chef Automate and Chef Infra Server, then provisions a Chef user and organization with generated PEM credentials.",
     "technology": "Chef"
   },
   {
-    "name": "chef-infra-server-bootstrap",
+    "name": "chef_platform_bootstrap_infra_server",
     "path": "setup-automate/deploy-chef-server.sh",
-    "description": "Bootstraps Chef Infra Server deployment without Automate, including host preparation and creation of a Chef Server user and organization.",
+    "description": "Bootstraps Chef Infra Server, including host tuning, CLI setup, user and organization provisioning, and PEM credential generation.",
+    "technology": "Chef"
+  },
+  {
+    "name": "website_https_compliance",
+    "path": "chef-and-ansible/tests/website_https_verify.rb",
+    "description": "Provides Chef InSpec compliance checks for HTTPS availability, expected website content, SSLv3 disablement, and TLS 1.2 support.",
+    "technology": "Chef"
+  },
+  {
+    "name": "ssh_root_login_compliance",
+    "path": "chef-and-ansible/tests/ssh_profile.rb",
+    "description": "Provides a Chef InSpec control that verifies SSH root login is disabled, with a fallback for systems without the OpenSSH server package.",
     "technology": "Chef"
   }
 ]
