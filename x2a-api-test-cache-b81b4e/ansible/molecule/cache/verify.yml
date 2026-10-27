@@ -1,0 +1,148 @@
+---
+# Unsupported pre-flight checks: Redis service name/status, INFO server output, and journal logs have no
+# stated expected result; the raw ss/netstat and grep diagnostics are covered by native checks below.
+- name: Verify cache service pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+      register: item_redis_port_check
+
+    - name: Assert Redis TCP port check succeeded
+      ansible.builtin.assert:
+        that:
+          - item_redis_port_check is succeeded
+        fail_msg: Redis is not listening on TCP port 6379.
+
+    - name: Verify Redis responds to authenticated PING
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - PING
+        chdir: /
+      environment:
+        REDISCLI_AUTH: "{{ redis_password }}"
+      register: item_redis_ping
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert Redis authenticated PING returns PONG
+      ansible.builtin.assert:
+        that:
+          - item_redis_ping.stdout | trim == 'PONG'
+        fail_msg: Redis authenticated PING did not return PONG.
+
+    - name: Verify configured Redis port
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - CONFIG
+          - GET
+          - port
+        chdir: /
+      environment:
+        REDISCLI_AUTH: "{{ redis_password }}"
+      register: item_redis_config_port
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert Redis is configured for port 6379
+      ansible.builtin.assert:
+        that:
+          - item_redis_config_port.stdout is search('(?m)^port\\s+6379\\s*$')
+        fail_msg: Redis CONFIG GET port did not report 6379.
+
+    - name: Read Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: item_redis_config
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert Redis authentication is configured
+      ansible.builtin.assert:
+        that:
+          - item_redis_config.content | b64decode is search('(?m)^\\s*requirepass\\s+\\S+')
+        fail_msg: Redis requirepass is not configured in /etc/redis/6379.conf.
+
+    - name: Assert removed Redis replication directives are absent
+      ansible.builtin.assert:
+        that:
+          - item_redis_config.content | b64decode is not search(
+              '(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)'
+            )
+        fail_msg: A removed Redis replication directive is present in /etc/redis/6379.conf.
+
+    - name: Inspect Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_directory
+
+    - name: Assert Redis log directory metadata
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory.stat.exists
+          - item_redis_log_directory.stat.isdir
+          - item_redis_log_directory.stat.mode == '0755'
+          - item_redis_log_directory.stat.pw_name == 'redis'
+          - item_redis_log_directory.stat.gr_name == 'redis'
+        fail_msg: Redis log directory metadata does not match drwxr-xr-x redis redis.
+
+    - name: Set Redis migration health-check key
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - SET
+          - migration_healthcheck
+          - ok
+        chdir: /
+      environment:
+        REDISCLI_AUTH: "{{ redis_password }}"
+      register: item_redis_set_check
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Read Redis migration health-check key
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - GET
+          - migration_healthcheck
+        chdir: /
+      environment:
+        REDISCLI_AUTH: "{{ redis_password }}"
+      register: item_redis_get_check
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert Redis migration health-check value is ok
+      ansible.builtin.assert:
+        that:
+          - item_redis_get_check.stdout | trim == 'ok'
+        fail_msg: Redis migration health-check value is not ok.
+
+    - name: Remove Redis migration health-check key
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - DEL
+          - migration_healthcheck
+        chdir: /
+      environment:
+        REDISCLI_AUTH: "{{ redis_password }}"
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"

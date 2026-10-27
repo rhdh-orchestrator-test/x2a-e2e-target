@@ -1,0 +1,73 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Redis and Memcached cache services
+    description:
+      - Installs and manages Redis and Memcached services.
+      - Configures Redis authentication and removes unsupported replication directives.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress task output when handling the Redis password.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: Redis TCP port.
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Redis instance configuration file.
+      cache_redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory used for Redis logs.
+      cache_redis_package_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis package name for the target operating system.
+      cache_redis_service_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis service name for the target operating system.
+      cache_memcached_package_name:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached package name for the target operating system.
+      cache_memcached_service_name:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached service name for the target operating system.
+      cache_memcached_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Memcached is enabled at boot.
+      cache_redis_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis is enabled at boot.
+      cache_redis_replication_directives:
+        type: list
+        elements: str
+        required: false
+        default:
+          - replica-serve-stale-data
+          - replica-read-only
+          - repl-ping-replica-period
+          - client-output-buffer-limit
+          - replica-priority
+        description: Redis directives removed from the generated instance configuration.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.

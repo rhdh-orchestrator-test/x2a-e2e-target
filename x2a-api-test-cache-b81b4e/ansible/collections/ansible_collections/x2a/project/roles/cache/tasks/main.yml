@@ -1,0 +1,56 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install cache service packages
+  ansible.builtin.package:
+    name:
+      - "{{ cache_redis_package_name }}"
+      - "{{ cache_memcached_package_name }}"
+    state: present
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_directory }}" # noqa: R114 - path is from role defaults
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Check whether Redis 6379 configuration exists
+  ansible.builtin.stat:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is from role defaults
+  register: cache_redis_config_file_stat
+
+- name: Configure Redis authentication # noqa: L039 - redis_password comes from role variables and cache_redis_config_file_stat is registered by the preceding task
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is from role defaults
+    regexp: "^\\s*requirepass\\s+"
+    line: "requirepass {{ redis_password }}"
+    create: false
+    backup: true
+  when: cache_redis_config_file_stat.stat.exists
+  notify: Restart Redis service
+  no_log: "{{ cache_secure_logging }}"
+
+- name: Remove unsupported Redis replication directives # noqa: L051 - Jinja expressions already use required spacing
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is from role defaults
+    regexp: "^(?:{{ cache_redis_replication_directives | map('regex_escape') | join('|') }})\\s+.*$"
+    replace: ""
+    backup: true
+  when: cache_redis_config_file_stat.stat.exists # noqa: L039 - cache_redis_config_file_stat is registered by the preceding stat task
+  notify: Restart Redis service
+
+- name: Start and enable Redis service
+  ansible.builtin.service:
+    name: "{{ cache_redis_service_name }}"
+    state: started
+    enabled: "{{ cache_redis_enabled }}"
+
+- name: Start and enable Memcached service
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service_name }}"
+    state: started
+    enabled: "{{ cache_memcached_enabled }}"
