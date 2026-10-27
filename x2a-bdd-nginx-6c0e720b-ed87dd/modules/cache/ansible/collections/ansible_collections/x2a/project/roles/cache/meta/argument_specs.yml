@@ -1,0 +1,43 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Redis cache support
+    description:
+      - Creates the Redis log directory and removes unsupported replication directives from the Redis configuration.
+      - Redis credentials are injected by an AAP credential type at runtime.
+    options:
+      cache_package_names:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: Optional cache package names to install when supplied by the operator.
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to hide output from tasks that handle the Redis password.
+      redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: Redis TCP port.
+      redis_config_path:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Redis configuration file to clean up.
+      redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Redis log directory.
+      redis_service_name:
+        type: str
+        required: false
+        default: redis
+        description: Redis system service name.
+      redis_password:
+        type: str
+        required: true
+        description: Redis password injected by an AAP credential type.

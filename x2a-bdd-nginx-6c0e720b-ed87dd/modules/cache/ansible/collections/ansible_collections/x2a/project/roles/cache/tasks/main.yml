@@ -1,0 +1,105 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install cache packages
+  ansible.builtin.package:
+    name: "{{ ['memcached', ('redis-server' if ansible_facts['os_family'] == 'Debian' else 'redis')] + (cache_package_names | default([])) }}"
+    state: present
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ redis_log_directory }}"  # noqa: R114 - path comes from role defaults
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Check whether the configured Redis configuration exists
+  ansible.builtin.stat:
+    path: "{{ redis_config_path }}"
+  register: redis_config
+
+- name: Check the Debian Redis configuration fallback  # noqa: L039 - redis_config is registered by the preceding stat task
+  ansible.builtin.stat:
+    path: /etc/redis/redis.conf
+  register: redis_debian_config
+  when:
+    - not redis_config.stat.exists
+    - ansible_facts['os_family'] == 'Debian'
+
+- name: Check the RedHat Redis configuration fallback  # noqa: L039 - redis_config is registered by the preceding stat task
+  ansible.builtin.stat:
+    path: /etc/redis.conf
+  register: redis_redhat_config
+  when:
+    - not redis_config.stat.exists
+    - ansible_facts['os_family'] == 'RedHat'
+
+- name: Select the installed Redis configuration  # noqa: L039,M005 - stat results are registered by preceding stat tasks and are trusted prior task data
+  ansible.builtin.set_fact:
+    redis_effective_config_path: >-
+      {{ redis_config_path if redis_config.stat.exists else
+        ('/etc/redis/redis.conf' if ansible_facts['os_family'] == 'Debian' and redis_debian_config.stat.exists else
+        ('/etc/redis.conf' if ansible_facts['os_family'] == 'RedHat' and redis_redhat_config.stat.exists else redis_config_path)) }}
+    redis_effective_config_exists: >-
+      {{ redis_config.stat.exists or
+        (ansible_facts['os_family'] == 'Debian' and redis_debian_config.stat.exists) or
+        (ansible_facts['os_family'] == 'RedHat' and redis_redhat_config.stat.exists) }}
+
+- name: Configure Redis authentication  # noqa: L039 - redis_password is validated by the preceding credential validation task
+  ansible.builtin.lineinfile:
+    path: "{{ redis_effective_config_path }}"  # noqa: R114 - path is derived from role defaults and fixed system fallbacks
+    regexp: "^\\s*#?\\s*requirepass\\s+"
+    line: "requirepass {{ redis_password }}"
+    create: false
+  when: redis_effective_config_exists | bool
+  no_log: "{{ cache_secure_logging }}"
+
+- name: Remove unsupported Redis replication directives
+  ansible.builtin.replace:
+    path: "{{ redis_effective_config_path }}"  # noqa: R114 - path is derived from role defaults and fixed system fallbacks
+    regexp: "^replica-serve-stale-data.*$"
+    replace: ""
+  when: redis_effective_config_exists | bool
+
+- name: Remove replica read-only directive
+  ansible.builtin.replace:
+    path: "{{ redis_effective_config_path }}"  # noqa: R114 - path is derived from role defaults and fixed system fallbacks
+    regexp: "^replica-read-only.*$"
+    replace: ""
+  when: redis_effective_config_exists | bool
+
+- name: Remove replica ping period directive
+  ansible.builtin.replace:
+    path: "{{ redis_effective_config_path }}"  # noqa: R114 - path is derived from role defaults and fixed system fallbacks
+    regexp: "^repl-ping-replica-period.*$"
+    replace: ""
+  when: redis_effective_config_exists | bool
+
+- name: Remove client output buffer limit directive
+  ansible.builtin.replace:
+    path: "{{ redis_effective_config_path }}"  # noqa: R114 - path is derived from role defaults and fixed system fallbacks
+    regexp: "^client-output-buffer-limit.*$"
+    replace: ""
+  when: redis_effective_config_exists | bool
+
+- name: Remove replica priority directive
+  ansible.builtin.replace:
+    path: "{{ redis_effective_config_path }}"  # noqa: R114 - path is derived from role defaults and fixed system fallbacks
+    regexp: "^replica-priority.*$"
+    replace: ""
+  when: redis_effective_config_exists | bool
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: memcached
+    enabled: true
+    state: started
+
+- name: Enable and start Redis
+  ansible.builtin.service:
+    name: "{{ redis_service_name if redis_service_name != 'redis' or ansible_facts['os_family'] != 'Debian' else 'redis-server' }}"
+    enabled: true
+    state: started

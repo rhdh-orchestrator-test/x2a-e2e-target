@@ -1,0 +1,45 @@
+# Unsupported pre-flight checks: recipe source inspection, service-unit discovery and status,
+# Redis authentication/INFO checks, configuration directive inspection, and log inspection have
+# no safe, stated expected outcome here or require a confirmed service name/secret.
+---
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Confirm Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_directory
+
+    - name: Assert Redis log directory is present
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_directory['stat']['exists']
+          - cache_redis_log_directory['stat']['isdir']
+        quiet: true
+
+    - name: Confirm reported Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_configuration
+
+    - name: Assert reported Redis configuration file is present
+      ansible.builtin.assert:
+        that:
+          - cache_redis_configuration['stat']['exists']
+          - cache_redis_configuration['stat']['isreg']
+        quiet: true
+
+    - name: Wait for the reported Redis endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+      register: cache_redis_endpoint
+
+    - name: Assert the reported Redis endpoint is available
+      ansible.builtin.assert:
+        that:
+          - cache_redis_endpoint['state'] == 'started'
+        quiet: true
