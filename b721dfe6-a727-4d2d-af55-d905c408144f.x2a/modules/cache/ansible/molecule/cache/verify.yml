@@ -1,0 +1,148 @@
+---
+# Unsupported pre-flight checks: redis-cli INFO output has no specific expected fields;
+# package-manager alternatives, distribution-specific log paths, and Unix-socket absence
+# are not asserted; the configuration/data paths are package-dependent.
+- name: Verify redis-server pre-flight checks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify redis-server package is installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert redis-server package is installed
+      ansible.builtin.assert:
+        that:
+          - "'redis-server' in ansible_facts.packages"
+        fail_msg: redis-server package is not installed
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert redis-server is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts.services['redis-server.service']['status'] == 'enabled'"
+          - "ansible_facts.services['redis-server.service']['state'] == 'running'"
+        fail_msg: redis-server is not enabled and active
+
+    - name: Check Redis responsiveness with PING
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+        chdir: /
+      register: item_redis_ping
+      changed_when: false
+
+    - name: Assert Redis responds with PONG
+      ansible.builtin.assert:
+        that:
+          - item_redis_ping.rc == 0
+          - item_redis_ping.stdout | trim == 'PONG'
+        fail_msg: Redis did not respond with PONG
+
+    - name: Check Redis server information
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - INFO
+          - server
+        chdir: /
+      register: item_redis_info_server
+      changed_when: false
+
+    - name: Assert Redis server information is available
+      ansible.builtin.assert:
+        that:
+          - item_redis_info_server.rc == 0
+          - item_redis_info_server.stdout | length > 0
+        fail_msg: Redis server information was not available
+
+    - name: Check Redis persistence information
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - INFO
+          - persistence
+        chdir: /
+      register: item_redis_info_persistence
+      changed_when: false
+
+    - name: Assert Redis persistence information is available
+      ansible.builtin.assert:
+        that:
+          - item_redis_info_persistence.rc == 0
+          - item_redis_info_persistence.stdout | length > 0
+        fail_msg: Redis persistence information was not available
+
+    - name: Verify Redis TCP port 6379 is listening
+      ansible.builtin.wait_for:
+        host: localhost
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Check package-provided Redis configuration
+      ansible.builtin.stat:
+        path: /etc/redis/redis.conf
+      register: item_redis_config
+
+    - name: Assert package-provided Redis configuration exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_config.stat.exists
+          - item_redis_config.stat.isreg
+        fail_msg: Redis configuration file does not exist
+
+    - name: Read package-provided Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/redis.conf
+      register: item_redis_config_content
+
+    - name: Assert package-provided Redis configuration uses TCP port 6379
+      ansible.builtin.assert:
+        that:
+          - >-
+            (item_redis_config_content.content | b64decode) is search('(?m)^\\s*port\\s+6379\\s*$')
+        fail_msg: Redis configuration does not specify TCP port 6379
+
+    - name: Check Redis data directory
+      ansible.builtin.stat:
+        path: /var/lib/redis
+      register: item_redis_data_dir
+
+    - name: Assert Redis data directory is available
+      ansible.builtin.assert:
+        that:
+          - item_redis_data_dir.stat.exists
+          - item_redis_data_dir.stat.isdir
+        fail_msg: Redis data directory is not available
+
+    - name: Read recent redis-server journal entries
+      ansible.builtin.command:
+        argv:
+          - journalctl
+          - -u
+          - redis-server
+          - --no-pager
+          - -n
+          - '50'
+        chdir: /
+      register: item_redis_journal
+      changed_when: false
+
+    - name: Assert Redis journal shows no startup errors
+      ansible.builtin.assert:
+        that:
+          - item_redis_journal.rc == 0
+          - >-
+            item_redis_journal.stdout is not search('(?im)(bind|permission|configuration parsing).*(error|fail)|'
+            '(error|fail).*(bind|permission|configuration parsing)')
+        fail_msg: Redis journal contains startup errors
