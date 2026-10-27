@@ -1,0 +1,100 @@
+---
+# Unsupported pre-flight checks: the Redis and Memcached service units are placeholders;
+# Memcached's unit, port, and configuration path are unspecified; log listings and
+# journal output have no stated expected result; and the restart/idempotence check is
+# intentionally not run because verification must remain read-only.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis port 6379 is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Check Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_file
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_file['stat']['exists']
+          - redis_config_file['stat']['isreg']
+
+    - name: Read Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config
+
+    - name: Assert Redis port and password configuration
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config['content'] | b64decode) is
+            search('(?m)^\\s*port\\s+6379(?:\\s|$)')
+          - >-
+            (redis_config['content'] | b64decode) is
+            search('(?m)^\\s*requirepass\\s+')
+
+    - name: Assert unwanted Redis replication directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config['content'] | b64decode) is not
+            search('(?m)^\\s*(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+
+    - name: Check Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory properties
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+          - redis_log_directory['stat']['pw_name'] == 'redis'
+          - redis_log_directory['stat']['gr_name'] == 'redis'
+          - redis_log_directory['stat']['mode'] == '0755'
+
+    - name: Authenticate to Redis and ping
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+        chdir: /
+      environment:
+        REDISCLI_AUTH: "{{ redis_password }}"
+      register: redis_authenticated_ping
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert authenticated Redis ping returns PONG
+      ansible.builtin.assert:
+        that:
+          - redis_authenticated_ping['rc'] == 0
+          - redis_authenticated_ping['stdout'] | trim == 'PONG'
+
+    - name: Check unauthenticated Redis access
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+        chdir: /
+      register: redis_unauthenticated_ping
+      changed_when: false
+
+    - name: Assert unauthenticated Redis access requires authentication
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_unauthenticated_ping['stdout'] ~ redis_unauthenticated_ping['stderr'])
+            is search('(?i)(noauth|authentication required)')

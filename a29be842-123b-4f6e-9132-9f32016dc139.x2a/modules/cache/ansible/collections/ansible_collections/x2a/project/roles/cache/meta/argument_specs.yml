@@ -1,0 +1,47 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure an authenticated Redis cache service.
+    description:
+      - Installs Redis and Memcached, creates the Redis log directory, configures password authentication, and enables both services.
+      - Removes selected replication directives from the Redis configuration.
+    options:
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by the Redis instance.
+      cache_redis_config_path:
+        type: str
+        required: false
+        default: /etc/redis/redis.conf
+        description: Path to the Redis configuration file.
+      cache_redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory where Redis writes logs.
+      cache_redis_user:
+        type: str
+        required: false
+        default: redis
+        description: Operating system user owning Redis files.
+      cache_redis_group:
+        type: str
+        required: false
+        default: redis
+        description: Operating system group owning Redis files.
+      cache_redis_service_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis systemd service name.
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide task output for operations that handle the Redis password.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.
