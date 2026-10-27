@@ -1,0 +1,85 @@
+# Unsupported pre-flight checks: INFO server has no stated expected result; the conditional
+# port check cannot be asserted without determining whether the packaged default is unchanged.
+---
+- name: Verify redis-server pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify the redis-server package is installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert the redis-server package is installed
+      ansible.builtin.assert:
+        that:
+          - "'redis-server' in ansible_facts['packages']"
+        fail_msg: The redis-server package is not installed.
+
+    - name: Collect service facts for redis-server
+      ansible.builtin.service_facts:
+
+    - name: Assert redis-server is present in service facts
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['services'] | dict2items |
+            selectattr('key', 'in', ['redis-server', 'redis-server.service']) | list | length) > 0
+        fail_msg: The redis-server service is not present.
+
+    - name: Assert redis-server is enabled at startup
+      ansible.builtin.assert:
+        that:
+          - item_redis_service['value']['status'] == 'enabled'
+        fail_msg: The redis-server service is not enabled at startup.
+      loop: "{{ ansible_facts['services'] | dict2items }}"
+      loop_control:
+        loop_var: item_redis_service
+      when: item_redis_service['key'] in ['redis-server', 'redis-server.service']
+
+    - name: Assert redis-server is active and running
+      ansible.builtin.assert:
+        that:
+          - item_redis_service['value']['state'] == 'running'
+        fail_msg: The redis-server service is not active and running.
+      loop: "{{ ansible_facts['services'] | dict2items }}"
+      loop_control:
+        loop_var: item_redis_service
+      when: item_redis_service['key'] in ['redis-server', 'redis-server.service']
+
+    - name: Check that Redis responds to the default local endpoint
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -h
+          - 127.0.0.1
+          - -p
+          - "6379"
+          - PING
+      register: redis_ping
+      changed_when: false
+
+    - name: Assert Redis responds with PONG
+      ansible.builtin.assert:
+        that:
+          - redis_ping['rc'] == 0
+          - redis_ping['stdout'] | trim == 'PONG'
+        fail_msg: Redis did not respond with PONG on the default local endpoint.
+
+    - name: Check recent redis-server service logs
+      ansible.builtin.command:
+        argv:
+          - journalctl
+          - -u
+          - redis-server
+          - --no-pager
+          - -n
+          - "50"
+      register: redis_journal
+      changed_when: false
+
+    - name: Assert recent redis-server logs contain no errors
+      ansible.builtin.assert:
+        that:
+          - redis_journal['rc'] == 0
+          - redis_journal['stdout'] | regex_search('(?i)(error|failed|failure)') is none
+        fail_msg: Recent redis-server service logs contain a package or service error.
