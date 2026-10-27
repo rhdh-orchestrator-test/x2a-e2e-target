@@ -1,0 +1,52 @@
+---
+- name: Install HAProxy packages
+  ansible.builtin.package:
+    name: "{{ [haproxy_package_name, 'logrotate'] + haproxy_extra_packages }}"
+    state: present
+
+- name: Ensure HAProxy group exists
+  ansible.builtin.group:
+    name: "{{ haproxy_group }}"
+    system: true
+    state: present
+
+- name: Ensure HAProxy user exists
+  ansible.builtin.user:
+    name: "{{ haproxy_user }}"
+    group: "{{ haproxy_group }}"
+    home: /var/lib/haproxy
+    shell: /sbin/nologin
+    system: true
+    create_home: false
+    state: present
+
+- name: Create HAProxy configuration directory
+  ansible.builtin.file:
+    path: "{{ haproxy_config_dir }}" # noqa: R114 - path from role defaults, not user input
+    owner: root
+    group: "{{ haproxy_group }}"
+    mode: "0755"
+    state: directory
+
+- name: Create HAProxy backend configuration directory
+  ansible.builtin.file:
+    path: "{{ haproxy_config_dir }}/conf.d" # noqa: R114 - path from role defaults, not user input
+    owner: root
+    group: "{{ haproxy_group }}"
+    mode: "0755"
+    state: directory
+
+- name: Create HAProxy runtime directory
+  ansible.builtin.file:
+    path: /var/lib/haproxy
+    owner: "{{ haproxy_user }}"
+    group: "{{ haproxy_group }}"
+    mode: "0750"
+    state: directory
+
+- name: Enable HAProxy SELinux connectivity
+  ansible.posix.seboolean:
+    name: haproxy_connect_any
+    state: true
+    persistent: true
+  when: haproxy_selinux_enabled | bool

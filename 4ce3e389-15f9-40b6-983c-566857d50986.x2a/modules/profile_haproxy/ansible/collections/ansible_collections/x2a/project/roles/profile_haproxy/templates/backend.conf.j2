@@ -1,0 +1,14 @@
+# Backend: {{ backend_name }}
+# Managed by Ansible — do not edit manually
+
+backend {{ backend_name }}
+    balance {{ backend_balance }}
+{% if backend_health_check %}
+    option  {{ backend_health_check }}
+{% endif %}
+{% if backend_health_interval %}
+    default-server inter {{ backend_health_interval }}
+{% endif %}
+{% for item_backend_server in backend_servers %}
+    server {{ item_backend_server['name'] }} {{ item_backend_server['address'] }}:{{ backend_port }} check weight {{ item_backend_server['weight'] }}{% if backend_ssl_enabled %} ssl verify none{% endif %}
+{% endfor %}

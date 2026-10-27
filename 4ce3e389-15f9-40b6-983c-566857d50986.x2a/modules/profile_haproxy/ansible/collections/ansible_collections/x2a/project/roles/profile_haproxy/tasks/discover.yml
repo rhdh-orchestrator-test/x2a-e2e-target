@@ -1,0 +1,9 @@
+---
+# PuppetDB exported resources are not available in Ansible. Backend members must
+# be supplied explicitly through haproxy_backends or inventory variables.
+
+- name: Report that dynamic HAProxy discovery requires explicit inventory data
+  ansible.builtin.debug:
+    msg: >-
+      HAProxy discovery was requested, but PuppetDB resource collection is not
+      available in Ansible; configure backend members explicitly.

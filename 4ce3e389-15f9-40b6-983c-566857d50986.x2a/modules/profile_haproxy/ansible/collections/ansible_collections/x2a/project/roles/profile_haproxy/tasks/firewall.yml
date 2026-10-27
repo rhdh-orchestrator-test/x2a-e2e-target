@@ -1,0 +1,10 @@
+---
+- name: Manage HAProxy firewall rules
+  ansible.builtin.debug:
+    msg: Firewall management is disabled because haproxy_firewall_provider is '{{ haproxy_firewall_provider }}'.
+  when: haproxy_firewall_provider == 'none'
+
+- name: Fail for unsupported HAProxy firewall provider
+  ansible.builtin.fail:
+    msg: "Unsupported HAProxy firewall provider: {{ haproxy_firewall_provider }}"
+  when: haproxy_firewall_provider not in ['none', 'firewalld', 'ufw']
