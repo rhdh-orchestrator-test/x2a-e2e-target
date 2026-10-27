@@ -2,13 +2,37 @@
   {
     "name": "website_https",
     "path": "chef-and-ansible/website_https.yml",
-    "description": "Provisions an Apache HTTPS \u201cHello World\u201d site, including Apache and OpenSSL packages, a self-signed certificate, TLS virtual host, static content, and required site and SSL module activation.",
+    "description": "An Ansible playbook that provisions an Apache HTTPS Hello World site, including packages, self-signed TLS certificates, virtual host configuration, website content, and service activation.",
     "technology": "Ansible"
   },
   {
     "name": "poodle_fix",
     "path": "chef-and-ansible/poodle_fix.yml",
-    "description": "Hardens Apache SSL configuration to restrict protocols to TLS 1.2 and restarts affected services after validating the change.",
+    "description": "An Ansible playbook that hardens Apache SSL protocols toward TLS 1.2 and restarts affected services after configuration changes.",
     "technology": "Ansible"
+  },
+  {
+    "name": "Chef InSpec SSH compliance profile",
+    "path": "chef-and-ansible/tests/ssh_profile.rb",
+    "description": "A Chef InSpec compliance profile that verifies SSH root login is disabled and inspects the OpenSSH server configuration and package.",
+    "technology": "Chef"
+  },
+  {
+    "name": "website_https_verify",
+    "path": "chef-and-ansible/tests/website_https_verify.rb",
+    "description": "A Chef InSpec verification profile that tests HTTPS availability, expected page content, certificate behavior, and supported TLS protocols.",
+    "technology": "Chef"
+  },
+  {
+    "name": "Chef Automate bootstrap",
+    "path": "setup-automate/deploy-automate.sh",
+    "description": "A Chef platform bootstrap script that configures host settings, deploys Chef Automate and Chef Infra Server, and provisions users, organizations, and PEM credentials.",
+    "technology": "Chef"
+  },
+  {
+    "name": "Chef Infra Server bootstrap",
+    "path": "setup-automate/deploy-chef-server.sh",
+    "description": "A Chef Infra Server bootstrap script that tunes the host, deploys the server, and provisions users, organizations, and generated PEM credentials.",
+    "technology": "Chef"
   }
 ]
