@@ -1,0 +1,73 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install Redis
+  ansible.builtin.package:
+    name: "{{ 'redis-server' if ansible_facts.os_family == 'Debian' else 'redis' }}"
+    state: present
+
+- name: Create the Redis log directory
+  ansible.builtin.file:
+    path: "{{ redis_log_directory }}"  # noqa: R114 - path from role defaults
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+
+- name: Check whether the Redis configuration exists
+  ansible.builtin.stat:
+    path: "{{ redis_config_path }}"
+  register: redis_config
+
+- name: Configure the Redis authentication password  # noqa: L039 - redis_password is validated by the preceding credential validation task
+  ansible.builtin.lineinfile:
+    path: "{{ redis_config_path }}"  # noqa: R114 - path from role defaults
+    regexp: "^requirepass\\s+"
+    line: "requirepass {{ redis_password }}"
+    create: false
+    mode: "0640"
+  notify: Restart Redis
+  no_log: "{{ cache_secure_logging }}"
+  when: redis_config.stat.exists  # noqa: L039 - redis_config is registered by the preceding stat task
+
+- name: Remove replica stale-data directive from Redis configuration
+  ansible.builtin.replace:
+    path: "{{ redis_config_path }}"  # noqa: R114 - path from role defaults
+    regexp: "^replica-serve-stale-data.*$"
+  notify: Restart Redis
+  when: redis_config.stat.exists  # noqa: L039 - redis_config is registered by the preceding stat task
+
+- name: Remove replica read-only directive from Redis configuration
+  ansible.builtin.replace:
+    path: "{{ redis_config_path }}"  # noqa: R114 - path from role defaults
+    regexp: "^replica-read-only.*$"
+  notify: Restart Redis
+  when: redis_config.stat.exists  # noqa: L039 - redis_config is registered by the preceding stat task
+
+- name: Remove replica ping period directive from Redis configuration
+  ansible.builtin.replace:
+    path: "{{ redis_config_path }}"  # noqa: R114 - path from role defaults
+    regexp: "^repl-ping-replica-period.*$"
+  notify: Restart Redis
+  when: redis_config.stat.exists  # noqa: L039 - redis_config is registered by the preceding stat task
+
+- name: Remove client output buffer limit directive from Redis configuration
+  ansible.builtin.replace:
+    path: "{{ redis_config_path }}"  # noqa: R114 - path from role defaults
+    regexp: "^client-output-buffer-limit.*$"
+  notify: Restart Redis
+  when: redis_config.stat.exists  # noqa: L039 - redis_config is registered by the preceding stat task
+
+- name: Remove replica priority directive from Redis configuration
+  ansible.builtin.replace:
+    path: "{{ redis_config_path }}"  # noqa: R114 - path from role defaults
+    regexp: "^replica-priority.*$"
+  notify: Restart Redis
+  when: redis_config.stat.exists  # noqa: L039 - redis_config is registered by the preceding stat task
+
+- name: Ensure Redis is enabled and running
+  ansible.builtin.service:
+    name: "{{ 'redis-server' if ansible_facts.os_family == 'Debian' else 'redis' }}"
+    enabled: true
+    state: started

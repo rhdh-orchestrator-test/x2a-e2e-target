@@ -1,0 +1,130 @@
+---
+# Unsupported pre-flight checks: external service names and the Memcached endpoint are unavailable.
+# Log review has no stated expected outcome; dependency-inspection commands are not tests.
+- name: Verify cache service expectations
+  hosts: all
+  gather_facts: false
+  vars:
+    cache_secure_logging: true
+  tasks:
+    - name: Verify Redis listens on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Check that unauthenticated Redis PING is rejected
+      ansible.builtin.command:
+        argv: [redis-cli, -p, "6379", PING]
+      register: cache_redis_unauthenticated_ping
+      changed_when: false
+      failed_when: false
+
+    - name: Assert that unauthenticated Redis PING is rejected
+      ansible.builtin.assert:
+        that: >-
+          cache_redis_unauthenticated_ping.rc != 0 or
+          ('NOAUTH' in cache_redis_unauthenticated_ping.stdout | upper)
+        fail_msg: Unauthenticated Redis access was not rejected.
+        success_msg: Unauthenticated Redis access was rejected.
+
+    - name: Check authenticated Redis PING
+      ansible.builtin.command:
+        argv: [redis-cli, -p, "6379", PING]
+      environment:
+        REDISCLI_AUTH: "{{ redis_password }}"
+      register: cache_redis_authenticated_ping
+      changed_when: false
+      no_log: "{{ cache_secure_logging }}"
+
+    - name: Assert authenticated Redis PING succeeds
+      ansible.builtin.assert:
+        that:
+          - cache_redis_authenticated_ping.stdout | trim == 'PONG'
+        fail_msg: Authenticated Redis PING did not return PONG.
+        success_msg: Authenticated Redis PING returned PONG.
+
+    - name: Check authenticated Redis server information
+      ansible.builtin.command:
+        argv: [redis-cli, -p, "6379", INFO, server]
+      environment:
+        REDISCLI_AUTH: "{{ redis_password }}"
+      register: cache_redis_server_info
+      changed_when: false
+      no_log: "{{ cache_secure_logging }}"
+
+    - name: Assert authenticated Redis server information succeeds
+      ansible.builtin.assert:
+        that:
+          - cache_redis_server_info.rc == 0
+          - cache_redis_server_info.stdout | length > 0
+        fail_msg: Authenticated Redis INFO server did not succeed.
+        success_msg: Authenticated Redis INFO server succeeded.
+
+    - name: Check authenticated Redis requirepass configuration
+      ansible.builtin.command:
+        argv: [redis-cli, -p, "6379", CONFIG, GET, requirepass]
+      environment:
+        REDISCLI_AUTH: "{{ redis_password }}"
+      register: cache_redis_requirepass
+      changed_when: false
+      no_log: "{{ cache_secure_logging }}"
+
+    - name: Assert authenticated Redis requirepass query succeeds
+      ansible.builtin.assert:
+        that:
+          - cache_redis_requirepass.rc == 0
+          - "'requirepass' in cache_redis_requirepass.stdout"
+        fail_msg: Authenticated Redis requirepass query did not succeed.
+        success_msg: Authenticated Redis requirepass query succeeded.
+
+    - name: Check Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config_file
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config_file.stat.exists
+          - cache_redis_config_file.stat.isreg
+        fail_msg: The Redis configuration file is missing.
+        success_msg: The Redis configuration file exists.
+
+    - name: Read Redis configuration file
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_config
+
+    - name: Assert cleaned Redis directives are absent
+      ansible.builtin.assert:
+        that: >-
+          (cache_redis_config.content | b64decode |
+          regex_search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')) is none
+        fail_msg: A cleaned Redis replication directive is still present.
+        success_msg: Cleaned Redis replication directives are absent.
+
+    - name: Assert Redis requirepass is configured without exposing its value
+      ansible.builtin.assert:
+        that: >-
+          (cache_redis_config.content | b64decode |
+          regex_search('(?m)^requirepass\\s+')) is not none
+        fail_msg: Redis requirepass is not configured.
+        success_msg: Redis requirepass is configured.
+
+    - name: Verify Redis log directory attributes
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_directory
+
+    - name: Assert Redis log directory has expected attributes
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_directory.stat.exists
+          - cache_redis_log_directory.stat.isdir
+          - cache_redis_log_directory.stat.mode == '0755'
+          - cache_redis_log_directory.stat.pw_name == 'redis'
+          - cache_redis_log_directory.stat.gr_name == 'redis'
+        fail_msg: The Redis log directory attributes are incorrect.
+        success_msg: The Redis log directory has the expected attributes.

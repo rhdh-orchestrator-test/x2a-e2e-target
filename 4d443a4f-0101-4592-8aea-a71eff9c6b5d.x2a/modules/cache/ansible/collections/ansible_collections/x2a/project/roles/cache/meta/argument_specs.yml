@@ -1,0 +1,32 @@
+---
+argument_specs:
+  main:
+    short_description: Configure an authenticated Redis cache instance
+    description:
+      - Creates the Redis log directory and configures Redis authentication on port 6379.
+      - Removes unsupported replication directives from the Redis configuration.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks handling the Redis password.
+      redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: Redis TCP port configured by this role.
+      redis_config_path:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Path to the Redis instance configuration file.
+      redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory used for Redis logs.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.
