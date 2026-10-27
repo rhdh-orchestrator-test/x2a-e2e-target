@@ -1,0 +1,117 @@
+---
+# Unsupported pre-flight checks: authenticated Redis PING requires the vaulted password;
+# service status/log inspection has an unavailable unit name; Memcached checks have unavailable
+# service and port values. The Redis service-identification command is represented by service_facts.
+- name: Verify cache services and Redis configuration
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_file
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_file.stat.exists
+          - redis_config_file.stat.isreg
+        fail_msg: Redis configuration file /etc/redis/6379.conf does not exist as a regular file.
+
+    - name: Verify Redis log directory metadata
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+          - redis_log_directory.stat.pw_name == 'redis'
+          - redis_log_directory.stat.gr_name == 'redis'
+          - redis_log_directory.stat.mode == '0755'
+        fail_msg: Redis log directory does not have the expected directory, ownership, and mode.
+
+    - name: Gather service facts for Redis service identification
+      ansible.builtin.service_facts:
+
+    - name: Assert an installed Redis service is active
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts.services | dict2items
+            | selectattr('key', 'match', '(^|/)(redis|redis-server)([^/]*)\\.service$')
+            | selectattr('value.state', 'equalto', 'running') | list | length) > 0
+        fail_msg: No active Redis service unit was found.
+
+    - name: Check that Redis is listening on TCP port 6379
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+      register: redis_listening
+      changed_when: false
+
+    - name: Assert Redis is listening on TCP port 6379
+      ansible.builtin.assert:
+        that:
+          - redis_listening.rc == 0
+          - redis_listening.stdout is search('(^|[[:space:]:])6379([[:space:]]|$)')
+        fail_msg: No listener was found for Redis TCP port 6379.
+
+    - name: Read Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config
+
+    - name: Assert Redis configuration specifies port 6379
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config.content | b64decode) is search('(?m)^\\s*port\\s+6379(?:\\s|$)')
+        fail_msg: Redis configuration does not specify TCP port 6379.
+
+    - name: Check unauthenticated Redis PING is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+      register: redis_unauthenticated_ping
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unauthenticated Redis PING is rejected
+      ansible.builtin.assert:
+        that:
+          - redis_unauthenticated_ping.rc != 0
+          - >-
+            (redis_unauthenticated_ping.stdout ~ redis_unauthenticated_ping.stderr)
+            is search('(?i)(noauth|authentication required)')
+        fail_msg: Unauthenticated Redis PING was not rejected with an authentication error.
+
+    - name: Assert removed Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config.content | b64decode) is not
+            search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)(?:\\s|$)')
+        fail_msg: A removed replication-related directive remains in the Redis configuration.
+
+    - name: Validate Redis configuration with the installed Redis binary
+      ansible.builtin.command:
+        argv:
+          - redis-server
+          - /etc/redis/6379.conf
+          - --test-memory
+          - '2'
+      register: redis_config_validation
+      changed_when: false
+
+    - name: Assert Redis configuration validation succeeds
+      ansible.builtin.assert:
+        that:
+          - redis_config_validation.rc == 0
+        fail_msg: Redis configuration validation failed.
