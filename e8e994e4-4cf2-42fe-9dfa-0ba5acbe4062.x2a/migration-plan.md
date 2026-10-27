@@ -1,123 +1,110 @@
-# MIGRATION FROM CHEF-BASED AUTOMATION AND AD HOC ANSIBLE TO ANSIBLE
+# MIGRATION FROM CHEF-RELATED EXAMPLES TO ANSIBLE
 
 ## Executive Summary
 
-This repository is a small Chef example repository, but the infrastructure configuration under review is not implemented as Chef cookbooks. The `chef-and-ansible` directory contains two Ansible playbooks, Molecule/Test Kitchen-style execution metadata, and Chef InSpec verification tests. The `setup-automate` directory contains shell scripts that bootstrap Chef Automate or Chef Infra Server. No Chef cookbook entrypoints (`recipes/default.rb`), `metadata.rb`, Berksfile, Policyfile, Chef recipes, Puppet manifests, Salt states, or PowerShell modules were found.
+This repository is primarily an Ansible and Chef ecosystem example, not a repository of Chef cookbooks. The supplied tree contains two Ansible playbooks under `chef-and-ansible/`, Chef InSpec verification controls, Test Kitchen/Vagrant configuration, and Bash scripts that bootstrap Chef Automate and Chef Infra Server. It contains no directories with the required Chef cookbook entrypoint `recipes/default.rb`, no Puppet module entrypoint `manifests/init.pp`, and no PowerShell module manifest ending in `.psd1`.
 
-The migration is therefore primarily a hardening and productionization exercise: preserve the existing Apache HTTPS demonstration in a maintainable Ansible role/playbook, replace shell-driven Chef server bootstrap if Chef is being retired, and retain or port the compliance checks. The demonstrated application stack is small and should require approximately 3–5 engineering days for a controlled proof of concept, or 1–2 weeks including secret remediation, cross-platform validation, CI integration, documentation, and team handoff. The Chef platform bootstrap scripts represent a separate and higher-risk decision: either retain Chef Automate/Infra Server as a managed dependency or remove it entirely rather than attempting a direct cookbook migration that has no source cookbooks to translate.
+Consequently, there is no one-to-one Chef cookbook migration inventory. The main migration work is to harden and operationalize the existing Ansible HTTPS example, preserve or modernize its compliance tests, and decide whether the Chef server/Automate bootstrap scripts should be retired, retained as legacy tooling, or replaced by a separately designed Ansible platform implementation. The HTTPS work is low-to-moderate complexity and can be completed in approximately 1–2 weeks. Replacing the Chef platform bootstrap and its identity/key lifecycle is a separate moderate-to-high complexity effort, estimated at 2–4 additional weeks after requirements and target platform decisions.
 
 ## Module Migration Plan
 
-This repository contains a mixed Ansible demonstration and Chef supporting automation rather than a conventional collection of Chef cookbooks. The individually migratable configuration units are listed below.
+The repository contains Ansible playbooks and Chef-related support files, but no source modules matching the requested module markers.
 
 ### MODULE INVENTORY
 
+**No modules discovered.**
+
+The repository was searched for all required module entrypoint patterns:
+
+- `**/recipes/default.rb` — no Chef cookbooks found.
+- `**/manifests/init.pp` — no Puppet modules found.
+- `**/*.psd1` — no PowerShell module manifests found.
+
+Therefore, there are no module paths to list in this inventory. In particular, `chef-and-ansible/website_https.yml`, `chef-and-ansible/poodle_fix.yml`, and the scripts under `setup-automate/` are files and are not modules/cookbooks. They are covered below as migration work items rather than module inventory entries.
+
 **CRITICAL PATH VERIFICATION:**
-Only paths present in the supplied repository tree and reviewed files are listed below. No cookbook module is inferred from filenames alone.
-
-- **website_https**:
-    - Description: An Ansible playbook that installs and pins Apache on Ubuntu, installs OpenSSL tooling, generates a private key/CSR/self-signed certificate, publishes a Hello World site, configures an HTTPS virtual host, enables SSL, and restarts services.
-    - Path: `chef-and-ansible/website_https.yml`
-    - Technology: Ansible
-    - Key Features: Ubuntu `apt` package installation, Apache 2.4.41 package pin, self-signed TLS certificate generation, virtual-host configuration, site enablement, and service handlers.
-    - Migration Complexity: Low to moderate; the functional configuration is already Ansible, but it should be refactored into an idempotent role with templates, variables, and fully qualified modules.
-
-- **poodle_fix**:
-    - Description: An Ansible remediation playbook that changes Apache SSL protocol configuration to allow TLS 1.2 only and restarts Apache and SSH.
-    - Path: `chef-and-ansible/poodle_fix.yml`
-    - Technology: Ansible
-    - Key Features: Regex-based SSL configuration replacement and service restart handlers.
-    - Migration Complexity: Low, with a security-sensitive validation requirement. The handler naming is inconsistent with the declared notification and should be corrected during refactoring.
-
-- **chef_inspec_compliance_checks**:
-    - Description: Chef InSpec verification content that checks SSH root-login policy and validates the HTTPS endpoint, response content, and TLS protocol exposure.
-    - Path: `chef-and-ansible/tests/ssh_profile.rb`, `chef-and-ansible/tests/website_https_verify.rb`
-    - Technology: Chef InSpec
-    - Key Features: SSH configuration/package assertions, HTTPS port and HTTP response checks, SSLv3 prohibition, and TLS 1.2 enablement.
-    - Migration Complexity: Low to moderate. These can remain as independent InSpec tests alongside Ansible, or be ported to Ansible assertions plus a separate security/compliance framework if Chef is being removed.
-
-- **chef_automate_bootstrap**:
-    - Description: Shell bootstrap for deploying Chef Automate with Chef Infra Server, then creating a Chef user and organization and writing PEM credentials.
-    - Path: `setup-automate/deploy-automate.sh`
-    - Technology: Bash and Chef Automate/Infra Server CLI
-    - Key Features: Host kernel tuning, remote CLI download, Automate and Infra Server deployment, user/org creation, and credential-file generation.
-    - Migration Complexity: High if Chef is to be retired; this is platform provisioning rather than a cookbook and requires an architectural replacement or an explicit decision to retain Chef services.
-
-- **chef_infra_server_bootstrap**:
-    - Description: Shell bootstrap for deploying Chef Infra Server without Automate and creating the initial Chef user and organization.
-    - Path: `setup-automate/deploy-chef-server.sh`
-    - Technology: Bash and Chef Infra Server CLI
-    - Key Features: Hostname and kernel tuning, Chef Automate CLI download, Infra Server deployment, and PEM credential generation.
-    - Migration Complexity: High if removed; low as a retained legacy dependency, provided its insecure parameter handling is corrected.
+Every path named as a module would need to be a real directory containing one of the required marker files. Because the searches returned no matches, this plan intentionally lists no module paths and does not invent cookbook directories.
 
 ### Infrastructure Files
 
-- `README.md`: Repository-level description of Chef examples. Update it to describe the actual Ansible-based demonstration and migration status.
-- `chef-and-ansible/README.md`: Explains that the examples use Chef InSpec with Ansible for continuous compliance. Preserve this conceptual boundary in the target documentation.
-- `chef-and-ansible/kitchen.yml`: Test Kitchen configuration using Vagrant, an Ansible playbook provisioner, Ubuntu 20.04, and Chef InSpec verification. Migrate to an agreed Ansible-native CI/test workflow or retain it temporarily as an integration harness.
-- `chef-and-ansible/index.html`: Static Hello World content also represented inline in `website_https.yml`. Decide whether the target playbook should deploy this file with `copy` or use a managed template.
-- `chef-and-ansible/tests/ssh_profile.rb`: InSpec SSH compliance check. Retain or port as part of the target compliance pipeline.
-- `chef-and-ansible/tests/website_https_verify.rb`: InSpec HTTPS functional and TLS verification check.
-- `setup-automate/deploy-automate.sh`: Chef platform bootstrap and a major migration boundary; do not embed its behavior in the web-server role.
-- `setup-automate/deploy-chef-server.sh`: Chef Infra Server-only bootstrap and a major migration boundary.
+- `README.md`: Repository description identifying the project as Chef-related examples. No deployable module content.
+- `chef-and-ansible/README.md`: Explains that the example uses Chef InSpec with Ansible for continuous compliance.
+- `chef-and-ansible/kitchen.yml`: Test Kitchen configuration using Vagrant, the Ansible provisioner, Ubuntu 20.04, and InSpec verification.
+- `chef-and-ansible/website_https.yml`: Existing Ansible playbook that installs Apache and TLS dependencies, creates a self-signed certificate, configures an HTTPS virtual host, deploys sample content, enables Apache SSL, and restarts services.
+- `chef-and-ansible/poodle_fix.yml`: Existing Ansible playbook that changes Apache's SSL protocol configuration to TLS 1.2 and restarts Apache and SSH.
+- `chef-and-ansible/tests/website_https_verify.rb`: InSpec acceptance checks for port 443, HTTPS response/content, SSLv3 disabled, and TLS 1.2 enabled.
+- `chef-and-ansible/tests/ssh_profile.rb`: InSpec control for disabling SSH root login, with an alternative that considers absence of the OpenSSH server compliant.
+- `chef-and-ansible/index.html`: Static sample website content. The HTTPS playbook currently embeds similar content inline instead of copying this file.
+- `setup-automate/deploy-automate.sh`: Bash bootstrap for Chef Automate plus Chef Infra Server, including user, organization, and PEM key creation.
+- `setup-automate/deploy-chef-server.sh`: Bash bootstrap for Chef Infra Server, including user, organization, and PEM key creation.
 
 ### Target Details
 
-- **Operating System**: Ubuntu 20.04 is explicitly specified in `chef-and-ansible/kitchen.yml`. The playbooks use `apt`, Debian/Ubuntu Apache paths (`/etc/apache2`), and the `apache2` service. The InSpec SSH check includes RHEL 8 compliance identifiers, but that is a control reference rather than evidence that the playbook targets RHEL. Validate whether Ubuntu 20.04 remains supported; otherwise define a current Ubuntu LTS target.
-- **Virtual Machine Technology**: Vagrant is specified as the Test Kitchen driver. The production VM platform is not specified.
-- **Cloud Platform**: Not specified. The bootstrap comments state that Chef can be deployed on an on-premises or cloud VM, but no provider-specific resources or SDKs are present.
+- **Operating System**: Ubuntu 20.04 is explicitly specified in `kitchen.yml`. The playbooks use Ubuntu/Debian `apt`, Apache paths under `/etc/apache2`, and `a2*` commands. The RHEL 8 STIG identifiers in the SSH InSpec file are control metadata, not evidence that RHEL is the deployment target. Confirm the supported Ubuntu LTS before implementation.
+- **Virtual Machine Technology**: Vagrant is the explicitly configured Test Kitchen driver. Production virtualization is not specified.
+- **Cloud Platform**: Not specified. The bootstrap comments mention on-premises or cloud VMs, but no AWS, Azure, GCP, or provider-specific resources are present.
 
 ## Migration Approach
 
+1. Confirm that the supplied repository is the complete migration scope. Since no cookbook markers exist, check whether cookbooks are maintained in another repository, branch, or dependency source.
+2. Treat `website_https.yml` as an existing Ansible baseline, not as a Chef recipe conversion. Refactor it into an Apache HTTPS role with separate tasks for packages, certificates, virtual hosts, content, and handlers.
+3. Move inline variables and content into role defaults/vars and Jinja templates. Parameterize hostname, Apache version, certificate source, virtual-host name, and web content.
+4. Replace shell-oriented `a2ensite`, `a2dissite`, and `a2enmod` operations with idempotent modules or guarded commands. Add Apache configuration validation before reload/restart.
+5. Consolidate the TLS behavior from `poodle_fix.yml` into the HTTPS role or make it a distinct, versioned hardening role. Avoid fragile replacement of an existing directive where a managed configuration fragment is safer.
+6. Retain InSpec as an acceptance gate during transition. Add Molecule or equivalent Ansible role testing if the playbook becomes a reusable role.
+7. Make an explicit decision about Chef Automate/Infra Server. Retain the scripts only as separately owned legacy tooling, or design and implement an approved Ansible-managed replacement; do not mechanically translate product bootstrap commands without defining the target control plane.
+
 ### Key Dependencies to Address
 
-- **Apache 2.4.41 Ubuntu package**: Replace the hard-coded package version with a tested variable or distribution-supported version policy. Use `ansible.builtin.apt` and verify repository availability on the selected Ubuntu release.
-- **OpenSSL and Python OpenSSL bindings**: Use `ansible.builtin.openssl_privatekey`, `openssl_csr`, and `openssl_certificate` from the supported `community.crypto` collection, with collection versions pinned in `collections/requirements.yml`.
-- **Chef InSpec**: Decide whether InSpec remains the independent compliance verifier. If Chef is retired, port the essential checks to an approved Ansible-compatible compliance tool while preserving the SSH and TLS acceptance criteria.
-- **Vagrant/Test Kitchen**: Keep temporarily for reproducible validation or replace with Molecule, CI-managed ephemeral VMs, or the organization’s standard Ansible test platform.
-- **Chef Automate and Chef Infra Server**: These are external platform dependencies, not cookbook dependencies. Either document them as retained services and secure their bootstrap, or replace their functions with Ansible Automation Platform/AWX, a secrets manager, and a separate compliance/reporting solution.
-- **Chef CLI download endpoint**: Replace unauthenticated “latest” downloads with a pinned, checksum-verified artifact from an approved repository if the scripts remain in use.
+- **Ubuntu 20.04 and `apt`**: Preserve initially, but confirm lifecycle/support status and define package update policy. The Apache package is pinned in the example, so the security and repository implications of that pin must be agreed.
+- **Apache HTTP Server**: Manage installation, modules, virtual host, configuration validation, and service state with Ansible.
+- **OpenSSL and Ansible crypto modules**: Use supported fully qualified `community.crypto` modules and provide the required Python cryptography/OpenSSL dependencies in the execution environment.
+- **Chef InSpec**: Preserve the existing HTTPS and SSH compliance intent during transition; later decide whether to keep InSpec or add equivalent Molecule checks.
+- **Vagrant/Test Kitchen**: Retain as a reproducible test harness or migrate to Molecule and a maintained Ubuntu image.
+- **Chef Automate/Infra Server CLI**: The scripts download the latest CLI from `packages.chef.io` without a version or checksum. If retained, pin and verify a supported release and document product prerequisites.
 
 ### Security Considerations
 
-- **Hard-coded credentials**: Both Chef bootstrap scripts visibly assign `userpassword='password'` and pass it to `chef-server-ctl`. Remove this immediately. Obtain credentials from Ansible Vault, an external secrets manager, or an interactive/short-lived provisioning mechanism; never commit them to source.
-- **Generated PEM credentials**: The scripts generate user and organization PEM files. Define secure ownership and mode, prevent them from entering artifacts/logs, rotate them, and migrate existing credentials if these scripts have been executed.
-- **Private key and certificate handling**: The web playbook creates `/etc/apache2/certs/apache.key`, CSR, and self-signed certificate. Use restrictive key permissions (the current certificate directory mode `0640` is not a suitable directory mode), separate public and private material, and use an enterprise CA or ACME workflow for production rather than a self-signed certificate.
-- **TLS policy**: The intended policy disables SSLv3 and permits TLS 1.2. Confirm whether TLS 1.3 is required, use a distribution-supported Apache SSL configuration, and test the resulting cipher/protocol policy. Avoid broad regex edits without validating the effective configuration.
-- **SSH service disruption**: The playbooks notify a restart of `sshd` while changing web SSL settings. This is unnecessary for the Apache change and creates avoidable access risk. Remove the SSH restart unless an SSH configuration change is actually managed and use safe restart/reload behavior.
-- **Privilege and file modes**: Playbooks run as root/become root. Limit escalation, define owners/groups/modes explicitly, and use `ansible.builtin.command` only where no idempotent module exists. Replace `a2ensite`, `a2dissite`, and `a2enmod` commands with idempotent Ansible modules or carefully guarded commands.
-- **Transport and supply chain**: The bootstrap scripts pipe a remote “latest” download through `curl`/`gunzip`. Pin versions, verify checksums/signatures, and use an internal artifact mirror.
-- **Verification gap**: The SSH InSpec check allows a package absence as an alternative assertion and should be reviewed for intent. Ensure the target test actually proves the desired `PermitRootLogin no` policy rather than passing because a package is missing.
+- **Plaintext password**: Both bootstrap scripts define `userpassword='password'`. Treat this as exposed, remove it, rotate any corresponding credential, and use Ansible Vault, an external secrets manager, or protected CI variables.
+- **Chef PEM credentials**: User and organization PEM files are generated locally. Restrict permissions, prevent repository/CI exposure, define rotation and revocation, and securely remove temporary copies.
+- **TLS private key**: The HTTPS playbook generates `/etc/apache2/certs/apache.key`. Protect it with restrictive ownership and mode. The certificate directory is created with mode `0640`, which should be reviewed because directory traversal requires execute permission.
+- **Self-signed certificate**: Appropriate for a lab example but not normally for production. Define CA issuance, SAN/hostname requirements, renewal, and secret distribution before production use.
+- **TLS policy**: Tests require SSLv3 disabled and TLS 1.2 enabled, while the playbook does not establish a complete modern cipher/TLS policy. Validate TLS 1.2/1.3 requirements and effective Apache configuration.
+- **SSH and privilege**: The playbooks run as `root` while also enabling `become`, and they restart SSH without configuring `PermitRootLogin`. Use a controlled automation account, explicit sudo policy, and a tested SSH hardening task with rollback access.
+- **Remote artifact download**: The bootstrap scripts pipe a remote latest-version download into `gunzip`. Pin versions, verify signatures/checksums, quote shell variables, and use a controlled artifact source.
 
 ### Technical Challenges
 
-- **No Chef cookbook source exists**: There are no recipes or cookbook metadata to translate. The migration team must avoid inventing cookbook behavior and instead treat the existing Ansible playbooks as the functional baseline.
-- **Inline configuration duplication**: Apache virtual-host content and website HTML are embedded as variables, while equivalent HTML also exists in `index.html`. Consolidate these into role templates/files and define a single source of truth.
-- **Idempotency and module modernization**: Raw `command` tasks for site/module activation and a compact `replace` task can produce fragile or non-obvious behavior. Refactor, check changed status, validate Apache configuration before reload, and use handlers consistently.
-- **OS/version drift**: Ubuntu 20.04 and the exact Apache package version may no longer be available or appropriate. Test on the selected supported LTS and define behavior for Debian-family variants.
-- **Certificate lifecycle**: Self-signed certificates are suitable for a lab demonstration but not production. Establish CA issuance, renewal, trust distribution, and rollback before promoting the role.
-- **Chef platform scope**: Removing Chef Infra Server/Automate is not equivalent to converting a web playbook. Inventory any external users, organizations, nodes, policies, compliance reports, and PEM consumers before decommissioning.
-- **Test framework transition**: Kitchen metadata combines Vagrant, an Ansible provisioner, and InSpec. The team needs an agreed CI path that tests both convergence and security assertions without depending on deprecated or unpinned tooling.
+- **No source cookbooks**: There is no Chef recipe/resource behavior to translate. Missing external repositories or branches would materially change the migration scope.
+- **Ansible idempotence**: Raw `command` tasks may not be idempotent and can produce unsafe repeated changes. Refactor them and use handlers only after successful configuration validation.
+- **Ubuntu-specific implementation**: Porting to RHEL or another OS requires different package names, paths, service names, and Apache module management.
+- **Certificate lifecycle**: Replacing self-signed lab certificates with production certificates requires coordination with security, PKI, and operations teams.
+- **Test mismatch**: The SSH control references RHEL 8 STIG IDs while the configured test platform is Ubuntu 20.04. Align controls with the approved OS baseline; clarify whether a missing OpenSSH package should really be considered compliant.
+- **Sample content defect**: The inline web content contains a malformed closing title tag. Use the repository's `index.html` or a validated template and align the expected InSpec content.
+- **Chef platform scope**: The bootstrap scripts omit HA, backup, upgrade, firewall, persistence, and recovery design. Replacing Chef Automate/Infra Server is a platform project, not a simple playbook conversion.
 
 ### Migration Order
 
-1. **Inventory and security containment**: Confirm that the repository contains no hidden cookbooks or external dependencies, remove/rotate the visible bootstrap password if used, and decide whether Chef services are retained.
-2. **Website HTTPS baseline**: Refactor `website_https.yml` into an Ansible role with variables, templates, package/version policy, certificate handling, Apache validation, and safe handlers. This is the lowest-risk functional unit and establishes the target conventions.
-3. **TLS hardening**: Integrate the `poodle_fix` behavior into the web role or a dedicated security role, correct handler notifications, and validate effective TLS behavior with the existing InSpec tests.
-4. **Compliance test transition**: Keep InSpec as an acceptance gate during the transition, then port or standardize the SSH and HTTPS controls in the selected Ansible compliance pipeline.
-5. **Bootstrap platform decision**: If Chef Automate/Infra Server remains, secure and parameterize the scripts. If it is being retired, design replacements for node orchestration, secrets, compliance reporting, and identity before decommissioning either bootstrap path.
-6. **CI and operational handoff**: Replace or formalize Kitchen/Vagrant testing, pin Ansible collections and runtime versions, document inventories and secret inputs, and run staged deployment against disposable and then representative hosts.
+1. Confirm repository scope and document that no Chef/Puppet/PowerShell modules were found.
+2. Refactor and test the Apache HTTPS playbook as an Ansible role on Ubuntu 20.04.
+3. Integrate the TLS hardening behavior and correct certificate/file permissions.
+4. Preserve InSpec acceptance tests while adding role-level CI/Molecule coverage and align the SSH control with the target OS.
+5. Decide whether Chef Automate and Chef Infra Server remain. If retained, secure and parameterize their bootstrap separately; if retired, implement the approved replacement with identity, key rotation, backup, and upgrade procedures.
+6. Pilot in disposable Vagrant/CI hosts, then non-production, then production with rollback and certificate-renewal runbooks.
 
 ### Assumptions
 
-- The supplied tree is complete; no nested Chef cookbook directories, `metadata.rb`, Berksfile, Policyfile, or Chef recipes are present outside the listed paths.
-- The user’s request refers to Chef examples, but the web configuration itself is already Ansible and is not a Chef cookbook migration.
-- Ubuntu 20.04 is the intended lab target because it is the only explicit platform declaration.
-- Vagrant is used for testing; the production virtualization/cloud platform is unknown.
-- The self-signed certificate and Hello World content are demonstration assets, not production requirements.
-- The Chef Automate and Chef Infra Server scripts may be examples rather than actively used production provisioning. Execution history, generated PEM files, and external consumers must be checked separately.
-- The visible placeholder password may have been used as a real credential; credential rotation is required unless proven otherwise.
-- No external inventory, variable files, Ansible Vault files, CI definitions, or secret stores were included in the reviewed tree.
-- The final target may retain Chef InSpec for compliance verification; a decision is required before removing Chef tooling.
-- Apache configuration syntax, package availability, certificate policy, and SSH service naming must be validated on the actual target image before production rollout.
-- Timeline estimates assume one engineer familiar with Ansible and access to disposable Ubuntu test hosts; security review, platform replacement, or unknown external Chef consumers can extend the schedule substantially.
+- The supplied repository tree is complete for this task.
+- No external Chef cookbook repository, branch, submodule, or dependency source is in scope.
+- Ubuntu 20.04 is the initial target because it is explicitly declared in `kitchen.yml`.
+- Vagrant is a test driver, not necessarily the production VM platform.
+- Self-signed certificates are intended for testing only.
+- The literal bootstrap password may have been used elsewhere and should be treated as compromised.
+- No cloud platform, production inventory, CI system, PKI, secrets manager, HA requirement, or network topology was provided.
+- The Chef product versions are unspecified because the scripts download `latest`; compatibility and support must be established before reuse.
+- The InSpec files are compliance tests and not Chef cookbooks or modules.
+- The migration estimate excludes discovery of missing repositories and a full Chef platform replacement program.
+
+## Coordination Guidance
+
+Assign an Ansible owner for the role and collection versions, a web/platform owner for Apache behavior, a security owner for TLS/SSH and credential rotation, and a Chef platform owner for the Automate/Infra Server disposition. Track scope confirmation, HTTPS role refactoring, test migration, secret remediation, target OS approval, and Chef platform replacement as separate work items. Require CI and disposable-host acceptance tests, peer review for privileged tasks, artifact verification, and a documented rollback procedure before rollout.
