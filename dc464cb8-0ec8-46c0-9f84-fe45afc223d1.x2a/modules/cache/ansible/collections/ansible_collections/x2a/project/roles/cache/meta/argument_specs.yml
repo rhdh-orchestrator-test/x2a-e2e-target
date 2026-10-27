@@ -1,0 +1,72 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis and Memcached cache services
+    description:
+      - Installs and starts Redis and Memcached and configures Redis authentication.
+      - Removes unsupported Redis replication directives from the Redis configuration.
+    options:
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: Redis TCP port.
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Redis configuration file path.
+      cache_redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Redis log directory.
+      cache_redis_user:
+        type: str
+        required: false
+        default: redis
+        description: Redis service account owner.
+      cache_redis_group:
+        type: str
+        required: false
+        default: redis
+        description: Redis service account group.
+      cache_redis_package:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis package name.
+      cache_redis_service:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis service name.
+      cache_memcached_package:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached package name.
+      cache_memcached_service:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached service name.
+      cache_redis_password:
+        type: str
+        required: false
+        default: "{{ redis_password }}"
+        description: Redis authentication password supplied by the AAP credential.
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether tasks handling the Redis password suppress output.
+      cache_memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: Memcached TCP port.
+      redis_password:
+        type: str
+        required: true
+        description: Redis password injected by the AAP credential type.

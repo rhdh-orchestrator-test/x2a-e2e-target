@@ -1,0 +1,40 @@
+---
+# Unsupported pre-flight checks: the Redis and Memcached service names are unconfirmed;
+# Memcached package, port, and configuration are unspecified; ownership/mode expectations
+# for /var/log/redis are unconfirmed; logging inspection has no stated expected outcome;
+# Redis authentication checks require a secret and have no safe credential source here.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify the Redis endpoint accepts TCP connections on port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Check that the Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_file
+
+    - name: Assert that the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_file['stat']['exists']
+          - redis_config_file['stat']['isreg']
+        fail_msg: "/etc/redis/6379.conf must exist as a regular file."
+
+    - name: Read the Redis configuration for removed-directive verification
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert that reported replication directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content['content'] | b64decode) is not
+            regex('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: "Reported replication directives must be absent from /etc/redis/6379.conf."
