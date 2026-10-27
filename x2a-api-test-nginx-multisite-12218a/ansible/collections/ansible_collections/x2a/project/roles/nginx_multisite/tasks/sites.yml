@@ -1,0 +1,65 @@
+---
+- name: Render Nginx virtual host configurations
+  ansible.builtin.template:
+    src: site.conf.j2
+    dest: /etc/nginx/sites-available/{{ item_nginx_site['key'] }} # noqa: R114 - path uses role-defined site names
+    mode: "0644"
+    backup: true
+  loop:
+    - key: test.cluster.local
+      value:
+        document_root: /opt/server/test
+        ssl_enabled: true
+    - key: ci.cluster.local
+      value:
+        document_root: /opt/server/ci
+        ssl_enabled: true
+    - key: status.cluster.local
+      value:
+        document_root: /opt/server/status
+        ssl_enabled: true
+  loop_control:
+    loop_var: item_nginx_site
+  notify: Reload nginx
+  vars:
+    server_name: "{{ item_nginx_site['key'] }}"
+    document_root: "{{ item_nginx_site['value']['document_root'] }}"
+    ssl_enabled: "{{ item_nginx_site['value']['ssl_enabled'] }}"
+    cert_file: /etc/ssl/certs/{{ item_nginx_site['key'] }}.crt
+    key_file: /etc/ssl/private/{{ item_nginx_site['key'] }}.key
+
+- name: Enable Nginx virtual hosts
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/{{ item_nginx_site['key'] }} # noqa: R114 - source uses role-defined site names
+    dest: /etc/nginx/sites-enabled/{{ item_nginx_site['key'] }} # noqa: R114 - path uses role-defined site names
+    state: link
+    force: true
+  loop:
+    - key: test.cluster.local
+      value: true
+    - key: ci.cluster.local
+      value: true
+    - key: status.cluster.local
+      value: true
+  loop_control:
+    loop_var: item_nginx_site
+  notify: Reload nginx
+
+- name: Remove default Nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload nginx
+
+- name: Validate Nginx configuration
+  ansible.builtin.command:
+    argv:
+      - nginx
+      - -t
+  changed_when: false
+
+- name: Enable and start Nginx
+  ansible.builtin.service:
+    name: nginx
+    enabled: true
+    state: started

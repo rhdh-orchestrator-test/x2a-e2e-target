@@ -1,0 +1,105 @@
+---
+- name: Install SSL packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create ssl-cert group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Create certificate directory
+  ansible.builtin.file:
+    path: /etc/ssl/certs
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create private key directory
+  ansible.builtin.file:
+    path: /etc/ssl/private
+    state: directory
+    owner: root
+    group: ssl-cert
+    mode: "0710"
+
+- name: Check existing site certificates
+  ansible.builtin.stat:
+    path: /etc/ssl/certs/{{ item_ssl_site['key'] }}.crt # noqa: R114 - path uses role-defined site names
+  loop:
+    - key: test.cluster.local
+      value: true
+    - key: ci.cluster.local
+      value: true
+    - key: status.cluster.local
+      value: true
+  loop_control:
+    loop_var: item_ssl_site
+  register: nginx_multisite_certificate_status
+
+- name: Check existing site private keys
+  ansible.builtin.stat:
+    path: /etc/ssl/private/{{ item_ssl_site['key'] }}.key # noqa: R114 - path uses role-defined site names
+  loop:
+    - key: test.cluster.local
+      value: true
+    - key: ci.cluster.local
+      value: true
+    - key: status.cluster.local
+      value: true
+  loop_control:
+    loop_var: item_ssl_site
+  register: nginx_multisite_key_status
+
+- name: Generate self-signed site certificates # noqa: L039 - key status is registered by the prior private key status task
+  ansible.builtin.command: # noqa: R101 - command arguments use role-defined site names
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -nodes
+      - -days
+      - "365"
+      - -newkey
+      - rsa:2048
+      - -keyout
+      - /etc/ssl/private/{{ item_ssl_site['key'] }}.key
+      - -out
+      - /etc/ssl/certs/{{ item_ssl_site['key'] }}.crt
+      - -subj
+      - /C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN={{ item_ssl_site['key'] }}/emailAddress=admin@example.com
+  when: >-
+    not item_ssl_site['value']['stat']['exists'] or
+    not item_ssl_site['value']['stat']['isreg'] or
+    not (
+      nginx_multisite_key_status['results'] |
+      selectattr("item['key']", 'equalto', item_ssl_site['key']) |
+      map(attribute='stat.exists') |
+      first |
+      default(false)
+    )
+  loop: "{{ nginx_multisite_certificate_status['results'] }}"
+  loop_control:
+    loop_var: item_ssl_site
+  notify: Reload nginx
+
+- name: Set private key ownership and permissions
+  ansible.builtin.file:
+    path: /etc/ssl/private/{{ item_ssl_site['key'] }}.key # noqa: R114 - path uses role-defined site names
+    state: file
+    owner: root
+    group: ssl-cert
+    mode: "0640"
+  loop:
+    - key: test.cluster.local
+      value: true
+    - key: ci.cluster.local
+      value: true
+    - key: status.cluster.local
+      value: true
+  loop_control:
+    loop_var: item_ssl_site

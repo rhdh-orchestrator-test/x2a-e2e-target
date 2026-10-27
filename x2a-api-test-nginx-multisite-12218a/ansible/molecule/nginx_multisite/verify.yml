@@ -1,0 +1,230 @@
+---
+# Unsupported pre-flight checks: HTTP response headers, certificate subject/issuer and dates,
+# private-key ownership/mode, symlink targets, UFW output, TLS SNI output, sysctl values,
+# and service journal output have no stated expected result in the plan.
+- name: Verify nginx multisite deployment
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Verify required packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts['packages']
+        fail_msg: "A required package is not installed."
+      loop:
+        - nginx
+        - fail2ban
+        - ufw
+        - openssl
+        - ca-certificates
+      loop_control:
+        loop_var: item_package
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Verify nginx, Fail2ban, and SSH are active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services'].get('nginx.service', {}).get('state') == 'running'
+          - ansible_facts['services'].get('fail2ban.service', {}).get('state') == 'running'
+          - ansible_facts['services'].get('ssh.service', {}).get('state') == 'running'
+        fail_msg: "One or more required services are not active."
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv: [nginx, -t]
+      register: item_nginx_test
+      changed_when: false
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that: item_nginx_test['rc'] == 0
+        fail_msg: "The nginx configuration test failed."
+
+    - name: Dump nginx configuration for hostname checks
+      ansible.builtin.command:
+        argv: [nginx, -T]
+      register: item_nginx_dump
+      changed_when: false
+
+    - name: Assert configured hostnames occur in nginx configuration
+      ansible.builtin.assert:
+        that:
+          - "'test.cluster.local' in item_nginx_dump['stdout']"
+          - "'ci.cluster.local' in item_nginx_dump['stdout']"
+          - "'status.cluster.local' in item_nginx_dump['stdout']"
+        fail_msg: "A configured hostname is missing from nginx configuration."
+
+    - name: Read main and security nginx configuration
+      ansible.builtin.slurp:
+        src: "{{ item_nginx_file['path'] }}"
+      register: item_nginx_files
+      loop:
+        - path: /etc/nginx/nginx.conf
+        - path: /etc/nginx/conf.d/security.conf
+      loop_control:
+        loop_var: item_nginx_file
+
+    - name: Verify main nginx configuration directives
+      ansible.builtin.assert:
+        that:
+          - "(item_nginx_files['results'][0]['content'] | b64decode) is search('user www-data')"
+          - "(item_nginx_files['results'][0]['content'] | b64decode) is search('worker_processes auto')"
+          - "(item_nginx_files['results'][0]['content'] | b64decode) is search('worker_connections 768')"
+          - "(item_nginx_files['results'][0]['content'] | b64decode) is search('keepalive_timeout 65')"
+          - "(item_nginx_files['results'][0]['content'] | b64decode) is search('gzip on')"
+        fail_msg: "An expected main nginx directive is missing."
+
+    - name: Verify nginx security configuration directives
+      ansible.builtin.assert:
+        that:
+          - "(item_nginx_files['results'][1]['content'] | b64decode) is search('server_tokens off')"
+          - "(item_nginx_files['results'][1]['content'] | b64decode) is search('ssl_protocols TLSv1.2 TLSv1.3')"
+          - "(item_nginx_files['results'][1]['content'] | b64decode) is search('client_max_body_size 1k')"
+          - "(item_nginx_files['results'][1]['content'] | b64decode) is search('send_timeout 10')"
+        fail_msg: "An expected nginx security directive is missing."
+
+    - name: Check explicitly required deployment paths
+      ansible.builtin.stat:
+        path: "{{ item_deployment_path['path'] }}"
+      register: item_deployment_paths
+      loop:
+        - {path: /etc/nginx/nginx.conf}
+        - {path: /etc/nginx/conf.d/security.conf}
+        - {path: /etc/nginx/sites-available/test.cluster.local}
+        - {path: /etc/nginx/sites-available/ci.cluster.local}
+        - {path: /etc/nginx/sites-available/status.cluster.local}
+        - {path: /etc/nginx/sites-enabled/test.cluster.local}
+        - {path: /etc/nginx/sites-enabled/ci.cluster.local}
+        - {path: /etc/nginx/sites-enabled/status.cluster.local}
+        - {path: /etc/fail2ban/jail.local}
+        - {path: /etc/sysctl.d/99-security.conf}
+        - {path: /etc/ssl/certs/test.cluster.local.crt}
+        - {path: /etc/ssl/certs/ci.cluster.local.crt}
+        - {path: /etc/ssl/certs/status.cluster.local.crt}
+        - {path: /etc/ssl/private/test.cluster.local.key}
+        - {path: /etc/ssl/private/ci.cluster.local.key}
+        - {path: /etc/ssl/private/status.cluster.local.key}
+        - {path: /opt/server/test/index.html}
+        - {path: /opt/server/ci/index.html}
+        - {path: /opt/server/status/index.html}
+        - {path: /opt/server/test}
+        - {path: /opt/server/ci}
+        - {path: /opt/server/status}
+        - {path: /var/log/nginx/test.cluster.local_access.log}
+        - {path: /var/log/nginx/test.cluster.local_error.log}
+        - {path: /var/log/nginx/ci.cluster.local_access.log}
+        - {path: /var/log/nginx/ci.cluster.local_error.log}
+        - {path: /var/log/nginx/status.cluster.local_access.log}
+        - {path: /var/log/nginx/status.cluster.local_error.log}
+      loop_control:
+        loop_var: item_deployment_path
+
+    - name: Assert explicitly required deployment paths exist
+      ansible.builtin.assert:
+        that: item_deployment_result['stat']['exists']
+        fail_msg: "An explicitly required deployment path is missing."
+      loop: "{{ item_deployment_paths['results'] }}"
+      loop_control:
+        loop_var: item_deployment_result
+
+    - name: Verify the default nginx site was removed
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: item_default_site
+
+    - name: Assert the default nginx site does not exist
+      ansible.builtin.assert:
+        that: not item_default_site['stat']['exists']
+        fail_msg: "The default nginx site still exists."
+
+    - name: Verify configured listening ports
+      ansible.builtin.command:
+        argv: [ss, -tlnp]
+      register: item_listening_ports
+      changed_when: false
+
+    - name: Assert nginx and SSH listening ports are present
+      ansible.builtin.assert:
+        that:
+          - item_listening_ports['stdout'] is search(':80\\s')
+          - item_listening_ports['stdout'] is search(':443\\s')
+          - item_listening_ports['stdout'] is search(':22\\s')
+        fail_msg: "An explicitly checked listening port is unavailable."
+
+    - name: Check Fail2ban ping and overall status
+      ansible.builtin.command:
+        argv: [fail2ban-client, "{{ item_fail2ban_basic['command'] }}"]
+      register: item_fail2ban_basic_results
+      changed_when: false
+      loop:
+        - {command: ping}
+        - {command: status}
+      loop_control:
+        loop_var: item_fail2ban_basic
+
+    - name: Check each explicitly named Fail2ban jail
+      ansible.builtin.command:
+        argv:
+          - fail2ban-client
+          - status
+          - "{{ item_fail2ban_jail['jail'] }}"
+      register: item_fail2ban_jail_results
+      changed_when: false
+      loop:
+        - {jail: sshd}
+        - {jail: nginx-http-auth}
+        - {jail: nginx-limit-req}
+        - {jail: nginx-botsearch}
+      loop_control:
+        loop_var: item_fail2ban_jail
+
+    - name: Assert Fail2ban checks succeeded
+      ansible.builtin.assert:
+        that: item_fail2ban_check['rc'] == 0
+        fail_msg: "A Fail2ban pre-flight check failed."
+      loop: "{{ item_fail2ban_basic_results['results'] + item_fail2ban_jail_results['results'] }}"
+      loop_control:
+        loop_var: item_fail2ban_check
+
+    - name: Read Fail2ban jail configuration
+      ansible.builtin.slurp:
+        src: /etc/fail2ban/jail.local
+      register: item_fail2ban_config
+
+    - name: Verify reported Fail2ban defaults
+      ansible.builtin.assert:
+        that:
+          - "(item_fail2ban_config['content'] | b64decode) is search('bantime = 3600')"
+          - "(item_fail2ban_config['content'] | b64decode) is search('findtime = 600')"
+          - "(item_fail2ban_config['content'] | b64decode) is search('maxretry = 3')"
+          - "(item_fail2ban_config['content'] | b64decode) is search('backend = auto')"
+        fail_msg: "An expected Fail2ban default is missing."
+
+    - name: Read SSH configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: item_ssh_config
+
+    - name: Assert SSH hardening directives
+      ansible.builtin.assert:
+        that:
+          - "(item_ssh_config['content'] | b64decode) is search('^PermitRootLogin no$', multiline=True)"
+          - "(item_ssh_config['content'] | b64decode) is search('^PasswordAuthentication no$', multiline=True)"
+        fail_msg: "An expected SSH hardening directive is missing."
+
+    - name: Validate SSH configuration
+      ansible.builtin.command:
+        argv: [sshd, -t]
+      register: item_sshd_test
+      changed_when: false
+
+    - name: Assert SSH configuration is valid
+      ansible.builtin.assert:
+        that: item_sshd_test['rc'] == 0
+        fail_msg: "The SSH configuration test failed."

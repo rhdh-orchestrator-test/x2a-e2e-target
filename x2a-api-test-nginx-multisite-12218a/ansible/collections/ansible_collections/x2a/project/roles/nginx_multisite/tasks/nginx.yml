@@ -1,0 +1,76 @@
+---
+- name: Install Nginx
+  ansible.builtin.package:
+    name: nginx
+    state: present
+
+- name: Create Nginx configuration directories # noqa: R114 - paths are fixed role-defined loop values
+  ansible.builtin.file:
+    path: "{{ item_nginx_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /etc/nginx/conf.d
+    - /etc/nginx/sites-available
+    - /etc/nginx/sites-enabled
+  loop_control:
+    loop_var: item_nginx_config_dir
+
+- name: Deploy Nginx main configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+
+- name: Deploy Nginx security configuration
+  ansible.builtin.template:
+    src: security.conf.j2
+    dest: /etc/nginx/conf.d/security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+
+- name: Create site document roots
+  ansible.builtin.file:
+    path: "{{ item_nginx_site['value']['document_root'] }}" # noqa: R114 - path from role-defined site configuration
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755"
+    recurse: true
+  loop:
+    - key: test.cluster.local
+      value:
+        document_root: /opt/server/test
+    - key: ci.cluster.local
+      value:
+        document_root: /opt/server/ci
+    - key: status.cluster.local
+      value:
+        document_root: /opt/server/status
+  loop_control:
+    loop_var: item_nginx_site
+
+- name: Deploy site index files
+  ansible.builtin.copy:
+    content: "{{ item_nginx_site['key'] }} "
+    dest: "{{ item_nginx_site['value']['document_root'] }}/index.html" # noqa: R114 - path from role-defined site configuration
+    owner: www-data
+    group: www-data
+    mode: "0644"
+    backup: true
+  loop:
+    - key: test.cluster.local
+      value:
+        document_root: /opt/server/test
+    - key: ci.cluster.local
+      value:
+        document_root: /opt/server/ci
+    - key: status.cluster.local
+      value: /opt/server/status
+  loop_control:
+    loop_var: item_nginx_site

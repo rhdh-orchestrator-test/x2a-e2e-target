@@ -1,0 +1,30 @@
+---
+# handlers file for x2a.project.nginx_multisite
+- name: Restart fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: restarted
+
+- name: Reload nginx multisite sysctl
+  ansible.builtin.command:
+    argv:
+      - sysctl
+      - --system
+
+- name: Restart SSH
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
+
+- name: Reload nginx
+  ansible.builtin.command:
+    argv:
+      - nginx
+      - -t
+  listen: Reload nginx
+  notify: Reload nginx service
+
+- name: Reload nginx service
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded
