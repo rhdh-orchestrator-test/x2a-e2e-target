@@ -1,0 +1,96 @@
+---
+- name: Install local PostgreSQL packages
+  ansible.builtin.package:
+    name:
+      - postgresql
+      - postgresql-contrib
+      - python3-psycopg2
+    state: present
+  when: profile_app_stack_db_host == 'localhost'
+
+- name: Ensure local PostgreSQL service is running
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+  when: profile_app_stack_db_host == 'localhost'
+
+- name: Check whether application PostgreSQL role exists
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/psql
+      - -tAc
+      - "SELECT 1 FROM pg_roles WHERE rolname = '{{ profile_app_stack_db_user }}'"
+  when: profile_app_stack_db_host == 'localhost'
+  register: profile_app_stack_role_check
+  changed_when: false
+  become: true
+  become_user: postgres
+  no_log: "{{ profile_app_stack_secure_logging }}"
+
+- name: Create application PostgreSQL role
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/psql
+      - -c
+      - CREATE USER {{ profile_app_stack_db_user }} WITH PASSWORD '{{ db_password }}';
+  when:
+    - profile_app_stack_db_host == 'localhost'
+    - profile_app_stack_role_check.stdout | trim != '1'
+  register: profile_app_stack_create_role
+  become: true
+  become_user: postgres
+  no_log: "{{ profile_app_stack_secure_logging }}"
+
+- name: Check whether application database exists
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/psql
+      - -tAc
+      - "SELECT 1 FROM pg_database WHERE datname = '{{ profile_app_stack_db_name }}'"
+  when: profile_app_stack_db_host == 'localhost'
+  register: profile_app_stack_database_check
+  changed_when: false
+  become: true
+  become_user: postgres
+
+- name: Create application database
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/createdb
+      - -O
+      - "{{ profile_app_stack_db_user }}"
+      - "{{ profile_app_stack_db_name }}"
+  when:
+    - profile_app_stack_db_host == 'localhost'
+    - profile_app_stack_database_check.stdout | trim != '1'
+  register: profile_app_stack_create_database
+  become: true
+  become_user: postgres
+
+- name: Grant application database privileges
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/psql
+      - -c
+      - GRANT ALL PRIVILEGES ON DATABASE {{ profile_app_stack_db_name }} TO {{ profile_app_stack_db_user }};
+  when: profile_app_stack_db_host == 'localhost'
+  changed_when: false
+  become: true
+  become_user: postgres
+
+- name: Install database backup script
+  ansible.builtin.copy:
+    src: backup.sh
+    dest: /usr/local/bin/db-backup.sh
+    owner: root
+    group: "{{ profile_app_stack_app_group }}"
+    mode: "0750"
+    backup: true
+
+- name: Schedule database backup
+  ansible.builtin.cron:
+    name: database_backup
+    user: root
+    minute: "30"
+    hour: "2"
+    job: /usr/local/bin/db-backup.sh {{ profile_app_stack_db_name }} {{ profile_app_stack_db_host }}

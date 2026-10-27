@@ -1,0 +1,101 @@
+---
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ profile_app_stack_app_dir }}" # noqa: R114 - role default path is trusted
+    state: directory
+    owner: "{{ profile_app_stack_app_user }}"
+    group: "{{ profile_app_stack_app_group }}"
+    mode: "0755"
+
+- name: Check out application repository
+  ansible.builtin.git:
+    repo: "{{ profile_app_stack_app_repo }}"
+    dest: "{{ profile_app_stack_app_dir }}" # noqa: R114 - role default path is trusted
+    version: "{{ profile_app_stack_app_revision }}"
+    update: true
+    force: false
+  register: profile_app_stack_repository
+  become: true
+  become_user: "{{ profile_app_stack_app_user }}"
+
+- name: Create application virtual environment
+  ansible.builtin.command:
+    argv:
+      - "{{ profile_app_stack_python_version }}"
+      - -m
+      - venv
+      - "{{ profile_app_stack_app_dir }}/venv"
+  become: true
+  become_user: "{{ profile_app_stack_app_user }}"
+  args:
+    creates: "{{ profile_app_stack_app_dir }}/venv/bin/activate" # noqa: R114 - role default path is trusted
+
+- name: Install configured Python packages
+  ansible.builtin.pip:
+    name: "{{ profile_app_stack_pip_packages }}"
+    virtualenv: "{{ profile_app_stack_app_dir }}/venv"
+  when: profile_app_stack_pip_packages | length > 0
+  notify: Restart application service
+  become: true
+  become_user: "{{ profile_app_stack_app_user }}"
+
+- name: Install application requirements
+  ansible.builtin.pip:
+    requirements: "{{ profile_app_stack_app_dir }}/requirements.txt"
+    virtualenv: "{{ profile_app_stack_app_dir }}/venv"
+  notify: Restart application service
+  become: true
+  become_user: "{{ profile_app_stack_app_user }}"
+
+- name: Render application environment file
+  ansible.builtin.template:
+    src: app.env.j2
+    dest: "{{ profile_app_stack_app_dir }}/.env" # noqa: R114 - role default path is trusted
+    owner: "{{ profile_app_stack_app_user }}"
+    group: "{{ profile_app_stack_app_group }}"
+    mode: "0600"
+    backup: true
+  notify: Restart application service
+  no_log: "{{ profile_app_stack_secure_logging }}"
+  vars:
+    app_name: "{{ profile_app_stack_app_name }}"
+    app_port: "{{ profile_app_stack_app_port }}"
+    db_url: postgresql://{{ db_user }}:{{ db_password }}@{{ db_host }}:{{ db_port }}/{{ db_name }}
+    secret_key: "{{ secret_key }}"
+    log_level: "{{ profile_app_stack_log_level }}"
+    log_dir: "{{ profile_app_stack_log_dir }}"
+    worker_count: "{{ profile_app_stack_worker_count }}"
+    environment: "{{ profile_app_stack_environment }}"
+
+- name: Install application health check script
+  ansible.builtin.template:
+    src: healthcheck.sh.j2
+    dest: /usr/local/bin/app-healthcheck.sh
+    owner: root
+    group: root
+    mode: "0755"
+    backup: true
+
+- name: Check for application migrations
+  ansible.builtin.stat:
+    path: "{{ profile_app_stack_app_dir }}/migrations/env.py" # noqa: R114 - role default path is trusted
+  register: profile_app_stack_migrations
+
+- name: Run database migrations
+  ansible.builtin.command:
+    argv:
+      - "{{ profile_app_stack_app_dir }}/venv/bin/python"
+      - -m
+      - alembic
+      - upgrade
+      - head
+  when:
+    - profile_app_stack_migrations.stat.exists
+    - profile_app_stack_repository.changed
+  become: true
+  become_user: "{{ profile_app_stack_app_user }}"
+  no_log: "{{ profile_app_stack_secure_logging }}"
+  environment:
+    DATABASE_URL: postgresql://{{ db_user }}:{{ db_password }}@{{ db_host }}:{{ db_port }}/{{ db_name }}
+  args:
+    chdir: "{{ profile_app_stack_app_dir }}" # noqa: R114 - role default path is trusted

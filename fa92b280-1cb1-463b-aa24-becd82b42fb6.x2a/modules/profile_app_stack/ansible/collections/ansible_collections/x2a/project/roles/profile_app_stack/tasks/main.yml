@@ -1,0 +1,24 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Load common variables
+  ansible.builtin.include_vars: common.yml
+
+- name: Load environment-specific variables
+  ansible.builtin.include_vars: "{{ profile_app_stack_environment }}.yml"
+
+- name: Run Python runtime phase
+  ansible.builtin.include_tasks: python.yml
+
+- name: Run database phase
+  ansible.builtin.include_tasks: database.yml
+
+- name: Run application deployment phase
+  ansible.builtin.include_tasks: app.yml
+
+- name: Run service management phase
+  ansible.builtin.include_tasks: service.yml
+
+- name: Run monitoring phase
+  ansible.builtin.include_tasks: monitoring.yml

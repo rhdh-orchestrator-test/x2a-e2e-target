@@ -1,0 +1,130 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy and manage the test-app Python application stack
+    description:
+      - Installs the Python runtime, provisions optional local PostgreSQL, deploys the application, and configures monitoring.
+    options:
+      profile_app_stack_app_name:
+        type: str
+        required: false
+        default: myapp-api
+        description: Application and systemd service name.
+      profile_app_stack_app_repo:
+        type: str
+        required: false
+        default: https://github.com/example-org/myapp-api.git
+        description: Git repository containing the application.
+      profile_app_stack_app_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      profile_app_stack_app_port:
+        type: int
+        required: false
+        default: 8000
+        description: Application listening port.
+      profile_app_stack_app_dir:
+        type: str
+        required: false
+        default: /opt/myapp-api
+        description: Application checkout directory.
+      profile_app_stack_app_user:
+        type: str
+        required: false
+        default: myapp
+        description: Application service account.
+      profile_app_stack_app_group:
+        type: str
+        required: false
+        default: myapp
+        description: Application service group.
+      profile_app_stack_python_version:
+        type: str
+        required: false
+        default: python3
+        description: Python package and interpreter name.
+      profile_app_stack_pip_packages:
+        type: list
+        elements: str
+        required: false
+        default:
+          - uvicorn
+          - gunicorn
+          - psycopg2-binary
+        description: Additional Python packages.
+      profile_app_stack_worker_count:
+        type: int
+        required: false
+        default: 2
+        description: Number of application workers.
+      profile_app_stack_worker_class:
+        type: str
+        required: false
+        default: uvicorn.workers.UvicornWorker
+        description: Gunicorn worker class.
+      profile_app_stack_max_requests:
+        type: int
+        required: false
+        default: 1000
+        description: Maximum requests handled per worker.
+      profile_app_stack_graceful_timeout:
+        type: int
+        required: false
+        default: 30
+        description: Graceful shutdown timeout in seconds.
+      profile_app_stack_log_dir:
+        type: str
+        required: false
+        default: /var/log/myapp-api
+        description: Application log directory.
+      profile_app_stack_log_level:
+        type: str
+        required: false
+        default: info
+        description: Application log level.
+      profile_app_stack_log_max_size:
+        type: str
+        required: false
+        default: 100M
+        description: Maximum log file size before rotation.
+      profile_app_stack_log_rotate_count:
+        type: int
+        required: false
+        default: 7
+        description: Number of rotated logs to retain.
+      profile_app_stack_environment:
+        type: str
+        required: false
+        default: staging
+        description: Deployment environment used for configuration and monitoring.
+      profile_app_stack_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide task output for operations handling credentials.
+      db_host:
+        type: str
+        required: true
+        description: Database host injected by an AAP credential type.
+      db_port:
+        type: int
+        required: true
+        description: Database port injected by an AAP credential type.
+      db_name:
+        type: str
+        required: true
+        description: Database name injected by an AAP credential type.
+      db_user:
+        type: str
+        required: true
+        description: Database user injected by an AAP credential type.
+      db_password:
+        type: str
+        required: true
+        description: Database password injected by an AAP credential type.
+      secret_key:
+        type: str
+        required: true
+        description: Application secret key injected by an AAP credential type.
