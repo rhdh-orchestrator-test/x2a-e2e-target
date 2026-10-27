@@ -1,0 +1,8 @@
+---
+- name: Run migrated role chef_platform_bootstrap
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Apply chef_platform_bootstrap role
+      ansible.builtin.include_role:
+        name: x2a.project.chef_platform_bootstrap

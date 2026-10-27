@@ -1,0 +1,42 @@
+---
+# Unsupported pre-flight checks: content listings, recipe/attribute/provider/template/static-file
+# listings, and credential-pattern grep have no stated expected result.
+- name: Verify cookbook pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check that the cookbook path exists
+      ansible.builtin.stat:
+        path: setup-automate
+      register: cookbook_path
+
+    - name: Assert that the cookbook path exists
+      ansible.builtin.assert:
+        that:
+          - cookbook_path['stat']['exists']
+          - cookbook_path['stat']['isdir']
+        fail_msg: The setup-automate cookbook path must exist as a directory.
+
+    - name: Check that the expected entry recipe exists
+      ansible.builtin.stat:
+        path: setup-automate/recipes/default.rb
+      register: entry_recipe
+
+    - name: Assert that the expected entry recipe exists
+      ansible.builtin.assert:
+        that:
+          - entry_recipe['stat']['exists']
+          - entry_recipe['stat']['isreg']
+        fail_msg: The expected setup-automate/recipes/default.rb file must exist.
+
+    - name: Check that Chef metadata exists
+      ansible.builtin.stat:
+        path: setup-automate/metadata.rb
+      register: chef_metadata
+
+    - name: Assert that Chef metadata exists
+      ansible.builtin.assert:
+        that:
+          - chef_metadata['stat']['exists']
+          - chef_metadata['stat']['isreg']
+        fail_msg: The setup-automate/metadata.rb file must exist.
