@@ -1,0 +1,12 @@
+---
+- name: Install Redis packages on Debian
+  ansible.builtin.package:
+    name: redis-server
+    state: present
+  when: ansible_facts['os_family'] == 'Debian' and redis_cluster_manage_package
+
+- name: Install Redis packages on non-Debian systems
+  ansible.builtin.package:
+    name: redis
+    state: present
+  when: ansible_facts['os_family'] != 'Debian' and redis_cluster_manage_package

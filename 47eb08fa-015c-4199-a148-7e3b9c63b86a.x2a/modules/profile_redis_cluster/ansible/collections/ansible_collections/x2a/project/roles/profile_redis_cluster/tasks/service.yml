@@ -1,0 +1,11 @@
+---
+- name: Select Redis service name
+  ansible.builtin.set_fact:
+    redis_cluster_service_name: "{{ 'redis-server' if ansible_facts['os_family'] == 'Debian' else 'redis' }}"
+
+- name: Ensure Redis service is enabled and running
+  ansible.builtin.service:
+    name: "{{ redis_cluster_service_name }}" # noqa: R114 - service name is fixed by OS family
+    state: "{{ 'started' if redis_cluster_service_ensure == 'running' else redis_cluster_service_ensure }}"
+    enabled: "{{ redis_cluster_service_enable }}"
+  when: redis_cluster_service_manage | bool

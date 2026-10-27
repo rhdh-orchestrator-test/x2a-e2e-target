@@ -1,0 +1,12 @@
+---
+- name: Remove Debian legacy Redis systemd ulimit drop-in
+  ansible.builtin.file:
+    path: /etc/systemd/system/redis-server.service.d/limit.conf
+    state: absent
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Remove RedHat legacy Redis systemd ulimit drop-in
+  ansible.builtin.file:
+    path: /etc/systemd/system/redis.service.d/limit.conf
+    state: absent
+  when: ansible_facts['os_family'] == 'RedHat'

@@ -1,0 +1,136 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure a Redis server for a cluster profile
+    description:
+      - Installs Redis using the platform package manager.
+      - Configures the default Redis instance with persistence, authentication, and memory settings.
+    options:
+      redis_cluster_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by Redis.
+      redis_cluster_redis_password:
+        type: str
+        required: false
+        default: "{{ redis_password }}"
+        description: Redis authentication password supplied by the AAP credential.
+      redis_cluster_maxmemory_mb:
+        type: int
+        required: false
+        default: 256
+        description: Maximum Redis memory in megabytes.
+      redis_cluster_maxmemory_policy:
+        type: str
+        required: false
+        default: allkeys-lru
+        description: Redis memory eviction policy.
+      redis_cluster_bind:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: Redis bind address.
+      redis_cluster_appendonly:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis append-only persistence is enabled.
+      redis_cluster_appendfsync:
+        type: str
+        required: false
+        default: everysec
+        description: Append-only file fsync policy.
+      redis_cluster_manage_package:
+        type: bool
+        required: false
+        default: true
+        description: Whether to install Redis packages.
+      redis_cluster_default_install:
+        type: bool
+        required: false
+        default: true
+        description: Whether the default Redis instance is installed and configured.
+      redis_cluster_instances:
+        type: list
+        required: false
+        default: []
+        description: Additional Redis instances; empty by default.
+      redis_cluster_manage_repo:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis repository management is enabled.
+      redis_cluster_config_file_mode:
+        type: str
+        required: false
+        default: "0640"
+        description: Mode for the Redis configuration files.
+      redis_cluster_service_manage:
+        type: bool
+        required: false
+        default: true
+        description: Whether the Redis service is managed.
+      redis_cluster_service_ensure:
+        type: str
+        required: false
+        default: running
+        choices:
+          - started
+          - stopped
+        description: Desired Redis service state.
+      redis_cluster_service_enable:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis is enabled at boot.
+      redis_cluster_service_user:
+        type: str
+        required: false
+        default: redis
+        description: Redis service user.
+      redis_cluster_service_group:
+        type: str
+        required: false
+        default: redis
+        description: Redis service group.
+      redis_cluster_notify_service:
+        type: bool
+        required: false
+        default: true
+        description: Whether configuration changes notify the Redis service handler.
+      redis_cluster_ulimit_managed:
+        type: bool
+        required: false
+        default: true
+        description: Whether legacy Redis ulimit drop-ins are managed.
+      redis_cluster_managed_by_cluster_manager:
+        type: bool
+        required: false
+        default: false
+        description: Whether an external cluster manager owns Redis service management.
+      redis_cluster_manage_service_file:
+        type: bool
+        required: false
+        default: false
+        description: Whether the Redis service file is managed.
+      redis_cluster_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis cluster mode is enabled.
+      redis_cluster_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide tasks that render or handle the Redis password.
+      redis_cluster_manage_ntp:
+        type: bool
+        required: false
+        default: true
+        description: Whether the base profile manages chrony.
+      redis_cluster_manage_syslog:
+        type: bool
+        required: false
+        default: true
+        description: Whether the base profile manages rsyslog.

@@ -1,0 +1,8 @@
+#!/bin/sh
+# Local fact equivalent of the Puppet redis_role fact.
+if [ "$(uname -s)" = "Linux" ] && [ -f /etc/redis/conf.d/replica.conf ] \
+  && grep -q 'replicaof' /etc/redis/conf.d/replica.conf; then
+  printf '%s\n' replica
+else
+  printf '%s\n' primary
+fi

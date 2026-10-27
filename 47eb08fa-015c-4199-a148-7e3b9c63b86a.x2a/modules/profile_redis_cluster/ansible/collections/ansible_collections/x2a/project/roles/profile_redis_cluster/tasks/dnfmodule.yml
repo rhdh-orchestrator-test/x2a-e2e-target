@@ -1,0 +1,45 @@
+---
+- name: Create Ansible state directory for Redis DNF module tracking
+  ansible.builtin.file:
+    path: /var/lib/ansible
+    state: directory
+    mode: "0755"
+
+- name: Validate Redis DNF module stream when requested
+  ansible.builtin.assert: # noqa: L039 - optional stream is supplied by role input only when DNF stream management is enabled
+    that:
+      - redis_cluster_dnf_module_stream is match('^[A-Za-z0-9_.+-]+(:[A-Za-z0-9_.+-]+)?$')
+    fail_msg: "redis_cluster_dnf_module_stream must contain only a valid DNF module stream name"
+  when:
+    - ansible_facts['os_family'] == 'RedHat'
+    - redis_cluster_dnf_module_stream is defined
+    - redis_cluster_dnf_module_stream | length > 0
+
+- name: Configure Redis DNF module stream when requested # noqa: L039 - optional stream is supplied by role input only when DNF stream management is enabled
+  ansible.builtin.command: # noqa: R101 - command argument is restricted by the validation task above
+    argv:
+      - dnf
+      - module
+      - enable
+      - "{{ redis_cluster_dnf_module_stream }}"
+      - -y
+    creates: "/var/lib/ansible/redis-dnf-module-{{ redis_cluster_dnf_module_stream }}"
+  when:
+    - ansible_facts['os_family'] == 'RedHat'
+    - redis_cluster_dnf_module_stream is defined
+    - redis_cluster_dnf_module_stream | length > 0
+  register: redis_cluster_dnf_result
+  changed_when: redis_cluster_dnf_result.rc == 0
+
+- name: Record enabled Redis DNF module stream # noqa: L039 - registered result is produced by the preceding command task
+  ansible.builtin.file: # noqa: R114 - path uses the validated DNF module stream under the fixed Ansible state directory
+    path: "/var/lib/ansible/redis-dnf-module-{{ redis_cluster_dnf_module_stream }}"
+    state: touch
+    mode: "0644"
+    access_time: preserve
+    modification_time: preserve
+  when:
+    - ansible_facts['os_family'] == 'RedHat'
+    - redis_cluster_dnf_module_stream is defined
+    - redis_cluster_dnf_module_stream | length > 0
+    - redis_cluster_dnf_result is changed

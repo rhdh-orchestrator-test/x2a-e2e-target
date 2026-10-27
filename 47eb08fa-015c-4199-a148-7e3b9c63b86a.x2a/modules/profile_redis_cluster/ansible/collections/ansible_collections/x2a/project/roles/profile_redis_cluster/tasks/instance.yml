@@ -1,0 +1,34 @@
+---
+- name: Select Redis platform paths # noqa: L033 - intentional platform-specific fact initialization
+  ansible.builtin.set_fact:
+    redis_cluster_config_dir: /etc/redis
+    redis_cluster_config_file: "{{ '/etc/redis/redis.conf' if ansible_facts['os_family'] == 'Debian' or (ansible_facts['os_family'] == 'RedHat' and (ansible_facts['distribution_major_version']
+      | int) >= 9) else '/etc/redis.conf' }}"
+    redis_cluster_pid_file: "{{ '/var/run/redis/redis-server.pid' if ansible_facts['os_family'] == 'Debian' else '/var/run/redis_6379.pid' }}"
+    redis_cluster_log_file: /var/log/redis/redis.log
+    redis_cluster_data_dir: /var/lib/redis
+    redis_cluster_unix_socket: /var/run/redis/redis.sock
+    redis_cluster_daemonize: "{{ ansible_facts['os_family'] == 'Debian' }}"
+
+- name: Render Redis source configuration
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: "{{ redis_cluster_config_file }}.puppet" # noqa: R114 - path is derived from fixed role-selected OS path
+    owner: root
+    group: redis
+    mode: "{{ redis_cluster_config_file_mode }}"
+    backup: true
+  notify: Restart Redis service
+  no_log: "{{ redis_cluster_secure_logging }}"
+
+- name: Copy Redis source configuration to active configuration
+  ansible.builtin.copy:
+    src: "{{ redis_cluster_config_file }}.puppet" # noqa: R114 - source is the role-selected fixed configuration path
+    dest: "{{ redis_cluster_config_file }}" # noqa: R114 - path is derived from fixed role-selected OS path
+    owner: root
+    group: redis
+    mode: "{{ redis_cluster_config_file_mode }}"
+    remote_src: true
+    backup: true
+  notify: Restart Redis service
+  no_log: "{{ redis_cluster_secure_logging }}"

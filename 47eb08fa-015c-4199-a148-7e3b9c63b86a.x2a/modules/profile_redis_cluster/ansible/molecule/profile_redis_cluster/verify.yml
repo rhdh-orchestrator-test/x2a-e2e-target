@@ -1,0 +1,139 @@
+# Unsupported pre-flight checks: OS/package/service name diagnostics without a stated result;
+# directory and configuration modes/ownership without stated values; Redis TCP and Unix-socket
+# authentication checks because verification must not contain the password; CONFIG GET value
+# checks because their expected values are not stated; optional cluster-peer checks because
+# cluster behavior is not required by the supplied configuration.
+---
+- name: Verify Redis cluster profile pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Confirm the host is a supported Linux operating system
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['system'] == 'Linux'
+          - ansible_facts['os_family'] in ['Debian', 'RedHat']
+        fail_msg: The host is not a supported Linux operating system.
+
+    - name: Gather installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Confirm the default Redis package is installed
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['os_family'] == 'Debian' and
+            'redis-server' in ansible_facts['packages']) or
+            (ansible_facts['os_family'] == 'RedHat' and
+            'redis' in ansible_facts['packages'])
+        fail_msg: The expected default Redis package is not installed.
+
+    - name: Check the default Redis directories
+      ansible.builtin.stat:
+        path: "{{ item_redis_path }}"
+      loop:
+        - /var/log/redis
+        - /var/lib/redis
+      loop_control:
+        loop_var: item_redis_path
+      register: redis_directory_checks
+
+    - name: Confirm the default Redis directories exist
+      ansible.builtin.assert:
+        that:
+          - item_redis_directory['stat']['exists']
+          - item_redis_directory['stat']['isdir']
+        loop: "{{ redis_directory_checks['results'] }}"
+        loop_control:
+          loop_var: item_redis_directory
+
+    - name: Check the target Redis configuration paths
+      ansible.builtin.stat:
+        path: "{{ item_redis_config_path }}"
+      loop:
+        - /etc/redis/redis.conf
+        - /etc/redis.conf
+      loop_control:
+        loop_var: item_redis_config_path
+      register: redis_configuration_checks
+
+    - name: Confirm a default Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_configuration_checks['results'][0]['stat']['exists'] and
+            redis_configuration_checks['results'][0]['stat']['isreg']) or
+            (redis_configuration_checks['results'][1]['stat']['exists'] and
+            redis_configuration_checks['results'][1]['stat']['isreg'])
+        fail_msg: Redis configuration file not found.
+
+    - name: Check the source Redis configuration paths
+      ansible.builtin.stat:
+        path: "{{ item_redis_source_path }}"
+      loop:
+        - /etc/redis/redis.conf.puppet
+        - /etc/redis.conf.puppet
+      loop_control:
+        loop_var: item_redis_source_path
+      register: redis_source_configuration_checks
+
+    - name: Confirm a source Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_source_configuration_checks['results'][0]['stat']['exists'] and
+            redis_source_configuration_checks['results'][0]['stat']['isreg']) or
+            (redis_source_configuration_checks['results'][1]['stat']['exists'] and
+            redis_source_configuration_checks['results'][1]['stat']['isreg'])
+        fail_msg: Redis source configuration file not found.
+
+    - name: Check legacy Redis systemd limit drop-ins
+      ansible.builtin.stat:
+        path: "{{ item_redis_dropin }}"
+      loop:
+        - /etc/systemd/system/redis-server.service.d/limit.conf
+        - /etc/systemd/system/redis.service.d/limit.conf
+      loop_control:
+        loop_var: item_redis_dropin
+      register: redis_dropin_checks
+
+    - name: Confirm legacy Redis systemd limit drop-ins are absent
+      ansible.builtin.assert:
+        that:
+          - not item_redis_dropin_check['stat']['exists']
+        loop: "{{ redis_dropin_checks['results'] }}"
+        loop_control:
+          loop_var: item_redis_dropin_check
+
+    - name: Validate Redis configuration memory support
+      ansible.builtin.command:
+        argv:
+          - redis-server
+          - --test-memory
+          - '2'
+      register: redis_memory_validation
+      changed_when: false
+
+    - name: Confirm Redis configuration memory validation succeeds
+      ansible.builtin.assert:
+        that:
+          - redis_memory_validation['rc'] == 0
+        fail_msg: Redis configuration memory validation failed.
+
+    - name: Gather Redis service facts
+      ansible.builtin.service_facts:
+
+    - name: Confirm the default Redis service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['os_family'] == 'Debian' and
+            'redis-server.service' in ansible_facts['services'] and
+            ansible_facts['services']['redis-server.service']['enabled'] == 'yes' and
+            ansible_facts['services']['redis-server.service']['state'] == 'running') or
+            (ansible_facts['os_family'] == 'RedHat' and
+            'redis.service' in ansible_facts['services'] and
+            ansible_facts['services']['redis.service']['enabled'] == 'yes' and
+            ansible_facts['services']['redis.service']['state'] == 'running')
+        fail_msg: The default Redis service is not enabled and active.

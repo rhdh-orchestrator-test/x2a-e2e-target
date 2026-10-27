@@ -1,0 +1,43 @@
+---
+- name: Select Redis platform paths # noqa: L033 - intentional platform-specific fact initialization
+  ansible.builtin.set_fact:
+    redis_cluster_config_dir: /etc/redis
+    redis_cluster_config_file: "{{ '/etc/redis/redis.conf' if ansible_facts['os_family'] == 'Debian' or (ansible_facts['os_family'] == 'RedHat' and (ansible_facts['distribution_major_version'] | int) >= 9) else '/etc/redis.conf' }}"
+    redis_cluster_pid_file: "{{ '/var/run/redis/redis-server.pid' if ansible_facts['os_family'] == 'Debian' else '/var/run/redis_6379.pid' }}"
+    redis_cluster_log_file: /var/log/redis/redis.log
+    redis_cluster_data_dir: /var/lib/redis
+    redis_cluster_unix_socket: /var/run/redis/redis.sock
+    redis_cluster_daemonize: "{{ ansible_facts['os_family'] == 'Debian' }}"
+
+- name: Create Redis configuration directory
+  ansible.builtin.file:
+    path: "{{ redis_cluster_config_dir }}" # noqa: R114 - role-controlled OS configuration path
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "{{ '0755' if ansible_facts['os_family'] == 'Debian' else '0750' }}"
+
+- name: Create Redis data directory
+  ansible.builtin.file:
+    path: /var/lib/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0750"
+
+- name: Ensure Debian Redis defaults file exists
+  ansible.builtin.file:
+    path: /etc/default/redis-server
+    state: touch
+    owner: root
+    group: root
+    mode: "0644"
+  when: ansible_facts['os_family'] == 'Debian'
