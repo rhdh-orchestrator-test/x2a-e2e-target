@@ -1,0 +1,129 @@
+---
+# Unsupported pre-flight checks: authenticated Redis and functional tests require a
+# password that is intentionally not embedded here; Redis journal inspection needs
+# a verified unit name; memcached checks are undefined until its dependency is verified.
+- name: Verify cache service expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Confirm Redis instance configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Assert Redis instance configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat.stat.exists
+          - redis_config_stat.stat.isreg
+        fail_msg: Redis instance configuration file is missing
+
+    - name: Confirm Redis log directory metadata
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_dir_stat
+
+    - name: Assert Redis log directory has the expected metadata
+      ansible.builtin.assert:
+        that:
+          - redis_log_dir_stat.stat.exists
+          - redis_log_dir_stat.stat.isdir
+          - redis_log_dir_stat.stat.pw_name == 'redis'
+          - redis_log_dir_stat.stat.gr_name == 'redis'
+          - redis_log_dir_stat.stat.mode == '0755'
+        fail_msg: Redis log directory is missing or has unexpected metadata
+
+    - name: Confirm the Redis user exists
+      ansible.builtin.getent:
+        database: passwd
+        key: redis
+        fail_key: false
+
+    - name: Assert the Redis user exists
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.getent_passwd['redis'] is defined
+        fail_msg: Redis user does not exist
+
+    - name: Confirm the Redis group exists
+      ansible.builtin.getent:
+        database: group
+        key: redis
+        fail_key: false
+
+    - name: Assert the Redis group exists
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.getent_group['redis'] is defined
+        fail_msg: Redis group does not exist
+
+    - name: Gather service unit facts for the Redis service
+      ansible.builtin.service_facts:
+
+    - name: Assert a Redis service is active and enabled
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts.services | dict2items |
+            selectattr('key', 'match', '^redis.*\\.service$') |
+            selectattr('value.state', 'equalto', 'running') | list | length) > 0
+          - >-
+            (ansible_facts.services | dict2items |
+            selectattr('key', 'match', '^redis.*\\.service$') |
+            selectattr('value.status', 'equalto', 'enabled') | list | length) > 0
+        fail_msg: No active and enabled Redis service unit was found
+
+    - name: Wait for Redis instance 6379 to listen on localhost
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+      register: redis_port_check
+
+    - name: Assert Redis instance 6379 is listening
+      ansible.builtin.assert:
+        that:
+          - redis_port_check is succeeded
+
+    - name: Read Redis instance configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert Redis port and authentication are configured
+      ansible.builtin.assert:
+        that:
+          - redis_config_content['content'] | b64decode is search('(?m)^port\\s+6379\\s*$')
+          - redis_config_content['content'] | b64decode is search('(?m)^requirepass\\s+\\S+')
+        fail_msg: Redis port or authentication configuration is missing
+
+    - name: Assert removed Redis directive families are not active
+      ansible.builtin.assert:
+        that:
+          - >-
+            redis_config_content['content'] | b64decode is not
+            search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: A removed Redis directive family is still active
+
+    - name: Test that unauthenticated Redis access is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -h
+          - 127.0.0.1
+          - -p
+          - '6379'
+          - PING
+      changed_when: false
+      failed_when: false
+      register: redis_unauthenticated_ping
+
+    - name: Assert unauthenticated Redis access is rejected
+      ansible.builtin.assert:
+        that:
+          - redis_unauthenticated_ping.rc != 0
+          - >-
+            (redis_unauthenticated_ping['stdout'] ~ redis_unauthenticated_ping['stderr'])
+            is search('NOAUTH|AUTHENTICATION', ignorecase=true)
+        fail_msg: Unauthenticated Redis access was not rejected

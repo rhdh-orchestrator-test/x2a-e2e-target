@@ -1,0 +1,22 @@
+---
+# argument spec file for x2a.project.cache
+argument_specs:
+  main:
+    short_description: Configure Redis cache service.
+    options:
+      cache_redis_port:
+        type: int
+        description: TCP port for the Redis instance.
+        default: 6379
+      cache_secure_logging:
+        type: bool
+        description: Suppress sensitive task output.
+        default: true
+      cache_my_variable:
+        type: str
+        description: A simple string argument for demonstration.
+        default: default_value
+      redis_password:
+        type: str
+        description: Password required to authenticate to Redis.
+        required: true

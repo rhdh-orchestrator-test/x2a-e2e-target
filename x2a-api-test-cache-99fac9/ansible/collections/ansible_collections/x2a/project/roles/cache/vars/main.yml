@@ -1,0 +1,5 @@
+---
+# vars file for x2a.project.cache
+cache_redis_package: "{{ 'redis-server' if ansible_facts.os_family == 'Debian' else 'redis' }}"
+cache_redis_service: "{{ 'redis-server' if ansible_facts.os_family == 'Debian' else 'redis' }}"
+cache_redis_config_path: "{{ '/etc/redis/redis.conf' if ansible_facts.os_family == 'Debian' else '/etc/redis.conf' }}"
