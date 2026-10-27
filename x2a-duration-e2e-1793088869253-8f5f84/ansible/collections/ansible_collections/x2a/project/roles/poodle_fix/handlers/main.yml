@@ -1,0 +1,12 @@
+---
+- name: Restart apache
+  ansible.builtin.service:
+    name: apache2
+    state: restarted
+  when: "'apache2.service' in ansible_facts.services"
+
+- name: Restart sshd
+  ansible.builtin.service:
+    name: "{{ 'ssh' if 'ssh.service' in ansible_facts.services else 'sshd' }}"
+    state: restarted
+  when: "'ssh.service' in ansible_facts.services or 'sshd.service' in ansible_facts.services"

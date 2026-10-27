@@ -1,0 +1,19 @@
+---
+- name: Gather service facts for guarded restarts
+  ansible.builtin.service_facts:
+
+- name: Check whether Apache SSL configuration exists
+  ansible.builtin.stat:
+    path: /etc/apache2/mods-available/ssl.conf
+  register: apache_ssl_config
+
+- name: Fix SSL in Apache  # noqa: L039 - apache_ssl_config is registered by the prior stat task
+  ansible.builtin.replace:
+    path: /etc/apache2/mods-available/ssl.conf
+    regexp: "^SSLProtocol.*$"
+    replace: "SSLProtocol -all +TLSv1.2"
+    create: false
+  when: apache_ssl_config.stat.exists
+  notify:
+    - Restart apache
+    - Restart sshd
