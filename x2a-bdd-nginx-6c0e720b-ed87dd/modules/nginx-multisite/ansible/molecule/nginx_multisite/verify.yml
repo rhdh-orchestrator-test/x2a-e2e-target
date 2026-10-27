@@ -1,0 +1,219 @@
+---
+# Unsupported pre-flight checks: exact sysctl values, UFW rule details, certificate
+# validity duration, service-log contents, and the configured SSH service port are not
+# asserted because the pre-flight section does not provide machine-checkable values.
+- name: Verify nginx multisite deployment
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts['packages']
+        loop:
+          - nginx
+          - fail2ban
+          - ufw
+          - openssl
+          - ca-certificates
+        loop_control:
+          loop_var: item_package
+        fail_msg: "A required package is not installed."
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert nginx and fail2ban are enabled and running
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services'][item_service['name']]['state'] == 'running'
+          - ansible_facts['services'][item_service['name']]['status'] == 'enabled'
+        loop:
+          - name: nginx.service
+          - name: fail2ban.service
+        loop_control:
+          loop_var: item_service
+        fail_msg: "A required service is not enabled and running."
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      changed_when: false
+
+    - name: Check required deployment paths
+      ansible.builtin.stat:
+        path: "{{ item_config_path }}"
+      loop:
+        - /etc/nginx/nginx.conf
+        - /etc/nginx/conf.d/security.conf
+        - /etc/nginx/sites-available/test.cluster.local
+        - /etc/nginx/sites-available/ci.cluster.local
+        - /etc/nginx/sites-available/status.cluster.local
+        - /etc/nginx/sites-enabled/test.cluster.local
+        - /etc/nginx/sites-enabled/ci.cluster.local
+        - /etc/nginx/sites-enabled/status.cluster.local
+        - /opt/server/test
+        - /opt/server/test/index.html
+        - /opt/server/ci
+        - /opt/server/ci/index.html
+        - /opt/server/status
+        - /opt/server/status/index.html
+        - /etc/ssl/certs/test.cluster.local.crt
+        - /etc/ssl/certs/ci.cluster.local.crt
+        - /etc/ssl/certs/status.cluster.local.crt
+        - /etc/ssl/private/test.cluster.local.key
+        - /etc/ssl/private/ci.cluster.local.key
+        - /etc/ssl/private/status.cluster.local.key
+        - /etc/fail2ban/jail.local
+        - /etc/sysctl.d/99-security.conf
+        - /etc/ssh/sshd_config
+      loop_control:
+        loop_var: item_config_path
+      register: required_config_files
+
+    - name: Assert required deployment paths exist
+      ansible.builtin.assert:
+        that:
+          - item_config_stat['stat']['exists']
+        loop: "{{ required_config_files['results'] }}"
+        loop_control:
+          loop_var: item_config_stat
+        fail_msg: "A required deployment path is missing."
+
+    - name: Assert enabled site entries are symbolic links
+      ansible.builtin.assert:
+        that:
+          - item_site_link['stat']['islnk']
+        loop: "{{ required_config_files['results'][5:8] }}"
+        loop_control:
+          loop_var: item_site_link
+        fail_msg: "An enabled virtual-host entry is not a symbolic link."
+
+    - name: Check default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: default_nginx_site
+
+    - name: Assert default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not default_nginx_site['stat']['exists']
+
+    - name: Read virtual-host configuration files
+      ansible.builtin.slurp:
+        src: "{{ item_vhost['path'] }}"
+      loop:
+        - path: /etc/nginx/sites-available/test.cluster.local
+          name: test.cluster.local
+        - path: /etc/nginx/sites-available/ci.cluster.local
+          name: ci.cluster.local
+        - path: /etc/nginx/sites-available/status.cluster.local
+          name: status.cluster.local
+      loop_control:
+        loop_var: item_vhost
+      register: vhost_configurations
+
+    - name: Assert each virtual-host configuration names its site
+      ansible.builtin.assert:
+        that:
+          - item_vhost_config['item']['name'] in (item_vhost_config['content'] | b64decode)
+        loop: "{{ vhost_configurations['results'] }}"
+        loop_control:
+          loop_var: item_vhost_config
+        fail_msg: "A virtual-host configuration does not contain its expected hostname."
+
+    - name: Check certificate subjects and validity metadata
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - -in
+          - "{{ item_certificate['path'] }}"
+          - -noout
+          - -subject
+          - -dates
+      changed_when: false
+      loop:
+        - path: /etc/ssl/certs/test.cluster.local.crt
+          name: test.cluster.local
+        - path: /etc/ssl/certs/ci.cluster.local.crt
+          name: ci.cluster.local
+        - path: /etc/ssl/certs/status.cluster.local.crt
+          name: status.cluster.local
+      loop_control:
+        loop_var: item_certificate
+      register: certificate_details
+
+    - name: Assert each certificate has its corresponding common name
+      ansible.builtin.assert:
+        that:
+          - "'CN=' ~ item_certificate_detail['item']['name'] in item_certificate_detail['stdout']"
+        loop: "{{ certificate_details['results'] }}"
+        loop_control:
+          loop_var: item_certificate_detail
+        fail_msg: "A certificate does not contain its expected common name."
+
+    - name: Assert private key ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - item_key['stat']['pw_name'] == 'root'
+          - item_key['stat']['gr_name'] == 'ssl-cert'
+          - item_key['stat']['mode'] == '0640'
+        loop: "{{ required_config_files['results'][17:20] }}"
+        loop_control:
+          loop_var: item_key
+        fail_msg: "A TLS private key does not have the expected ownership or mode."
+
+    - name: Check HTTPS virtual-host responses
+      ansible.builtin.uri:
+        url: https://127.0.0.1/
+        headers:
+          Host: "{{ item_https_site }}"
+        validate_certs: false
+        status_code: 200
+      loop:
+        - test.cluster.local
+        - ci.cluster.local
+        - status.cluster.local
+      loop_control:
+        loop_var: item_https_site
+
+    - name: Wait for nginx HTTP and HTTPS listeners
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ item_listener_port }}"
+        state: started
+        timeout: 10
+      loop:
+        - 80
+        - 443
+      loop_control:
+        loop_var: item_listener_port
+
+    - name: Check SSH effective configuration
+      ansible.builtin.command:
+        argv:
+          - sshd
+          - -T
+      changed_when: false
+      register: sshd_effective_config
+
+    - name: Assert SSH root login and password authentication are disabled
+      ansible.builtin.assert:
+        that:
+          - "'permitrootlogin no' in sshd_effective_config['stdout'].splitlines()"
+          - "'passwordauthentication no' in sshd_effective_config['stdout'].splitlines()"
+
+    - name: Verify security sysctl configuration loads
+      ansible.builtin.command:
+        argv:
+          - sysctl
+          - -p
+          - /etc/sysctl.d/99-security.conf
+      changed_when: false

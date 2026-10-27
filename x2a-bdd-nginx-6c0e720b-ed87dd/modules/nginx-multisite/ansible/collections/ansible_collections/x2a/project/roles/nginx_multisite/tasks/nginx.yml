@@ -1,0 +1,68 @@
+---
+- name: Install Nginx
+  ansible.builtin.package:
+    name: nginx
+    state: present
+
+- name: Ensure Nginx runtime user exists
+  ansible.builtin.user:
+    name: www-data
+    system: true
+    state: present
+
+- name: Ensure Nginx configuration directories exist # noqa: R114 - paths are fixed role-defined Nginx configuration directories
+  ansible.builtin.file:
+    path: "{{ item_nginx_config_dir }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /etc/nginx/conf.d
+    - /etc/nginx/sites-available
+    - /etc/nginx/sites-enabled
+  loop_control:
+    loop_var: item_nginx_config_dir
+
+- name: Deploy Nginx main configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+
+- name: Deploy Nginx security configuration
+  ansible.builtin.template:
+    src: security.conf.j2
+    dest: /etc/nginx/conf.d/security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+
+- name: Enable and start Nginx
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true
+
+- name: Create site document roots
+  ansible.builtin.file:
+    path: "{{ item_nginx_site['value']['document_root'] }}" # noqa: R114 - path from role-defined sites dictionary
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755"
+    recurse: true
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_site
+
+- name: Create site index files when cookbook sources are unavailable
+  ansible.builtin.file:
+    path: "{{ item_nginx_index['value']['document_root'] }}/index.html" # noqa: R114 - path from role-defined sites dictionary
+    state: touch
+    owner: www-data
+    group: www-data
+    mode: "0644"
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_index
