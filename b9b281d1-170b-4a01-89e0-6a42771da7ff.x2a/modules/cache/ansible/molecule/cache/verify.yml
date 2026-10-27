@@ -1,0 +1,140 @@
+---
+# Unsupported pre-flight diagnostics without a stated expected outcome: CONFIG GET bind,
+# CONFIG GET dir, CONFIG GET dbfilename, and recent redis-server journal entries.
+- name: Verify Redis cache
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Confirm redis-server package is installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert redis-server package is installed
+      ansible.builtin.assert:
+        that:
+          - "'redis-server' in ansible_facts['packages']"
+        fail_msg: redis-server package is not installed
+        success_msg: redis-server package is installed
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert redis-server service is enabled and running
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['redis-server.service']['status'] == 'enabled'"
+          - "ansible_facts['services']['redis-server.service']['state'] == 'running'"
+        fail_msg: redis-server service is not enabled and running
+        success_msg: redis-server service is enabled and running
+
+    - name: Show redis-server active and enablement state
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - redis-server
+          - --property=ActiveState,UnitFileState
+      changed_when: false
+      register: item_redis_systemctl
+
+    - name: Assert redis-server systemd state
+      ansible.builtin.assert:
+        that:
+          - "'ActiveState=active' in item_redis_systemctl['stdout']"
+          - "'UnitFileState=enabled' in item_redis_systemctl['stdout']"
+        fail_msg: redis-server systemd state does not show active and enabled
+        success_msg: redis-server systemd state shows active and enabled
+
+    - name: Confirm Redis responds to PING
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - PING
+      changed_when: false
+      register: item_redis_ping
+
+    - name: Assert Redis PING response
+      ansible.builtin.assert:
+        that:
+          - "item_redis_ping['stdout'] | trim == 'PONG'"
+        fail_msg: Redis did not return PONG to PING
+        success_msg: Redis returned PONG to PING
+
+    - name: Read Redis server information
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - INFO
+          - server
+      changed_when: false
+      register: item_redis_info_server
+
+    - name: Assert Redis server information is returned
+      ansible.builtin.assert:
+        that:
+          - "'# Server' in item_redis_info_server['stdout']"
+        fail_msg: Redis server information was not returned
+        success_msg: Redis server information was returned
+
+    - name: Read Redis statistics
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - INFO
+          - stats
+      changed_when: false
+      register: item_redis_info_stats
+
+    - name: Assert Redis statistics are returned
+      ansible.builtin.assert:
+        that:
+          - "'# Stats' in item_redis_info_stats['stdout']"
+        fail_msg: Redis statistics were not returned
+        success_msg: Redis statistics were returned
+
+    - name: Read effective Redis port
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - CONFIG
+          - GET
+          - port
+      changed_when: false
+      register: item_redis_port
+
+    - name: Confirm Redis listens on port 6379 when it is effective
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+      changed_when: false
+      register: item_redis_listeners
+      when: "'6379' in item_redis_port['stdout_lines']"
+
+    - name: Assert Redis listens on the expected port
+      ansible.builtin.assert:
+        that:
+          - "item_redis_listeners['stdout'] is search(':6379\\b')"
+          - "item_redis_listeners['stdout'] is search('redis')"
+        fail_msg: Redis is not listening on port 6379
+        success_msg: Redis is listening on port 6379
+      when: "'6379' in item_redis_port['stdout_lines']"
+
+    - name: Confirm local Redis connectivity on port 6379
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -h
+          - 127.0.0.1
+          - -p
+          - '6379'
+          - PING
+      changed_when: false
+      register: item_redis_local_ping
+
+    - name: Assert local Redis connectivity
+      ansible.builtin.assert:
+        that:
+          - "item_redis_local_ping['stdout'] | trim == 'PONG'"
+        fail_msg: Redis did not respond on local port 6379
+        success_msg: Redis responded on local port 6379
