@@ -1,0 +1,50 @@
+---
+- name: Install memcached
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Enable and start memcached
+  ansible.builtin.service:
+    name: memcached
+    enabled: true
+    state: started
+
+- name: Configure Redis using the validated Redis collection role
+  ansible.builtin.include_role:
+    name: eloy.redis.redis  # noqa: L038 - eloy.redis is declared in this role's requirements.yml and provides the required external role
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_port: 6379
+    redis_install_method: package
+    redis_version: "7.2"
+    redis_requirepass: "{{ redis_password }}"
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_replication_enabled: false
+    redis_rdb_enabled: true
+    redis_aof_enabled: false
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Remove unsupported replication directives from Redis configuration
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^{{ item_cache_directive }}.*$
+    state: absent
+  loop:
+    - replica-serve-stale-data
+    - replica-read-only
+    - repl-ping-replica-period
+    - client-output-buffer-limit
+    - replica-priority
+  loop_control:
+    loop_var: item_cache_directive
+  notify: Restart Redis service

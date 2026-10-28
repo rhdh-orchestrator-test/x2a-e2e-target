@@ -1,0 +1,16 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis cache services
+    description:
+      - Configures Redis with authentication and cache service settings.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Controls whether tasks handling the Redis password suppress output.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.
