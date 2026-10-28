@@ -1,0 +1,62 @@
+---
+# Unsupported pre-flight checks: the replacement Redis service unit is not named;
+# authenticated redis-cli checks require the deployment's Vault credential; INFO,
+# CONFIG GET, journal, write/read/delete, process, and lsof diagnostics have no
+# stated expected outcome or require that undisclosed credential.
+- name: Verify cache deployment
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_file
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_file.stat.exists
+          - redis_config_file.stat.isreg
+        fail_msg: Redis configuration file /etc/redis/6379.conf is missing
+
+    - name: Read Redis configuration for cleanup verification
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert replication cleanup directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            redis_config_content.content | b64decode is not
+            regex('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: Redis configuration contains a directive scheduled for cleanup
+
+    - name: Verify Redis log directory metadata
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory has expected metadata
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+          - redis_log_directory.stat.pw_name == 'redis'
+          - redis_log_directory.stat.gr_name == 'redis'
+          - redis_log_directory.stat.mode == '0755'
+        fail_msg: Redis log directory metadata does not match the pre-flight expectation
+
+    - name: Verify Redis is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+      register: redis_endpoint
+
+    - name: Assert Redis endpoint is listening
+      ansible.builtin.assert:
+        that:
+          - redis_endpoint is succeeded
+        fail_msg: Redis is not listening on TCP port 6379

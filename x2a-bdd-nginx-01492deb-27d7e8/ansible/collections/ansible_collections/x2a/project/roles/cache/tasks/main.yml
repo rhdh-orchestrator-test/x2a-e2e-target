@@ -1,0 +1,52 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install Redis package
+  ansible.builtin.package:
+    name: "{{ cache_redis_package }}"
+    state: present
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_directory }}" # noqa: R114 - path is a role default controlled by the operator
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Ensure Redis configuration directory exists
+  ansible.builtin.file:
+    path: "{{ cache_redis_config_file | dirname }}" # noqa: R114 - path is a role default controlled by the operator
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+
+- name: Configure Redis server  # noqa: L039 - redis_password is validated by the preceding credential validation task
+  ansible.builtin.blockinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default for the fixed Redis configuration
+    create: true
+    owner: redis
+    group: redis
+    mode: "0644"
+    marker: "# {mark} ANSIBLE MANAGED REDIS SETTINGS"
+    block: |
+      port {{ cache_redis_port }}
+      requirepass {{ redis_password }}
+  notify: Restart Redis
+  no_log: "{{ cache_secure_logging }}"
+
+- name: Remove unsupported replication directives from Redis configuration
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default for the fixed Redis configuration
+    regexp: ^((replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority).*)$ ?
+    replace: ""
+  notify: Restart Redis
+
+- name: Enable and start Redis service
+  ansible.builtin.service:
+    name: "{{ cache_redis_service }}"
+    enabled: true
+    state: started
