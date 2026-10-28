@@ -1,0 +1,64 @@
+---
+- name: Install cache service packages
+  ansible.builtin.package:
+    name:
+      - "{{ cache_memcached_package }}"
+      - "{{ cache_redis_package }}"
+    state: present
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_directory }}" # noqa: R114 - path is controlled by role defaults
+    state: directory
+    owner: "{{ cache_redis_log_owner }}"
+    group: "{{ cache_redis_log_group }}"
+    mode: "{{ cache_redis_log_mode }}"
+    recurse: true
+
+- name: Configure Redis port
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is controlled by role defaults
+    regexp: "^\\s*port\\s+"
+    line: port {{ cache_redis_port }}
+    create: true
+    mode: "0644"
+    backup: true
+
+- name: Configure Redis authentication
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is controlled by role defaults
+    regexp: "^\\s*requirepass\\s+"
+    line: requirepass {{ cache_redis_password }}
+    create: true
+    mode: "0644"
+    backup: true
+  when: cache_redis_password | length > 0
+  no_log: "{{ cache_secure_logging }}"
+
+- name: Remove unsupported Redis replica directives  # noqa: R115 - path is controlled by role defaults and only matching configuration directives are removed
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is controlled by role defaults
+    regexp: ^{{ item_cache_directive }}.*$
+    state: absent
+    backup: true
+  when: ansible_facts['os_family'] is defined
+  loop:
+    - replica-serve-stale-data
+    - replica-read-only
+    - repl-ping-replica-period
+    - client-output-buffer-limit
+    - replica-priority
+  loop_control:
+    loop_var: item_cache_directive
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service }}"
+    state: started
+    enabled: true
+
+- name: Enable and start Redis
+  ansible.builtin.service:
+    name: "{{ cache_redis_service }}"
+    state: started
+    enabled: true

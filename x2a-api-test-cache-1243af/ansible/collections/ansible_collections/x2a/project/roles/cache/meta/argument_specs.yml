@@ -1,0 +1,78 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Memcached and Redis caching services
+    description:
+      - Installs and enables Memcached and Redis.
+      - Configures the Redis listener, optional authentication, log directory, and compatible directives.
+    options:
+      cache_memcached_package:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached package name.
+      cache_memcached_service:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached service name.
+      cache_memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: Memcached listening port.
+      cache_memcached_bind_address:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: Memcached bind address.
+      cache_redis_package:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis package name.
+      cache_redis_service:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis service name.
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Redis instance configuration file.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: Redis listening port.
+      cache_redis_password:
+        type: str
+        required: false
+        default: ""
+        description: Optional Redis authentication password.
+      cache_redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Redis log directory.
+      cache_redis_log_owner:
+        type: str
+        required: false
+        default: redis
+        description: Redis log directory owner.
+      cache_redis_log_group:
+        type: str
+        required: false
+        default: redis
+        description: Redis log directory group.
+      cache_redis_log_mode:
+        type: str
+        required: false
+        default: "0755"
+        description: Redis log directory permissions.
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks handling the Redis password.

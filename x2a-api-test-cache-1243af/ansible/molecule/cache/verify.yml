@@ -1,0 +1,72 @@
+---
+# Unsupported pre-flight checks: source-recipe inspection, package/unit discovery, service status and logs,
+# password-authenticated redis-cli checks, Memcached checks, and implementation-specific config validation
+# have no portable stated outcome for this scenario or require information not confirmed by the plan.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+        fail_msg: Redis log directory is missing
+
+    - name: Verify Redis 6379 configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_file
+
+    - name: Assert Redis 6379 configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_file.stat.exists
+          - redis_config_file.stat.isreg
+        fail_msg: Redis 6379 configuration file is missing
+
+    - name: Read Redis 6379 configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config
+
+    - name: Assert Redis listens on port 6379
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config.content | b64decode) is search('(?m)^[[:space:]]*port[[:space:]]+6379([[:space:]]|$)')
+        fail_msg: Redis configuration does not set port 6379
+
+    - name: Assert Redis authentication directive is configured
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config.content | b64decode) is search('(?m)^[[:space:]]*requirepass[[:space:]]+[^[:space:]]+')
+        fail_msg: Redis authentication directive is not configured
+
+    - name: Assert reported Redis cleanup directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config.content | b64decode) is not search('(?m)^[[:space:]]*replica-serve-stale-data')
+          - >-
+            (redis_config.content | b64decode) is not search('(?m)^[[:space:]]*replica-read-only')
+          - >-
+            (redis_config.content | b64decode) is not search('(?m)^[[:space:]]*repl-ping-replica-period')
+          - >-
+            (redis_config.content | b64decode) is not search('(?m)^[[:space:]]*client-output-buffer-limit')
+          - >-
+            (redis_config.content | b64decode) is not search('(?m)^[[:space:]]*replica-priority')
+        fail_msg: One or more reported Redis cleanup directives are present
+
+    - name: Verify Redis port 6379 is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
