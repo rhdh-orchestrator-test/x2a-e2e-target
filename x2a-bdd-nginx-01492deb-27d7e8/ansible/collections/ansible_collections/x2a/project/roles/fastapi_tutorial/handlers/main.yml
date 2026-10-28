@@ -1,0 +1,7 @@
+---
+- name: Handle systemd service changes
+  ansible.builtin.systemd:
+    name: "{{ fastapi_tutorial_service_name }}"
+    daemon_reload: true
+    state: started
+  listen: fastapi_tutorial service changed
