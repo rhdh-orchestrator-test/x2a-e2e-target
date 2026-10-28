@@ -1,0 +1,65 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Redis cache services
+    description:
+      - Installs and configures the Redis cache service through the eloy.redis collection.
+      - Creates the Redis log directory and removes unwanted replication directives.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks that handle Redis credentials.
+      redis_password:
+        type: str
+        required: false
+        default: ""
+        description: Redis authentication password injected by an AAP credential type.
+      redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by Redis.
+      redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis clustering is enabled.
+      redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel is enabled.
+      redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      redis_instances:
+        type: list
+        elements: dict
+        required: false
+        default:
+          - name: redis-6379
+            port: 6379
+            mode: standalone
+            replication_enabled: false
+        description: Redis instances to configure.
+        options:
+          name:
+            type: str
+            required: true
+            description: Redis instance name.
+          port:
+            type: int
+            required: true
+            description: Redis TCP port.
+          mode:
+            type: str
+            required: true
+            description: Redis deployment mode.
+          replication_enabled:
+            type: bool
+            required: true
+            description: Whether replication is enabled for the instance.

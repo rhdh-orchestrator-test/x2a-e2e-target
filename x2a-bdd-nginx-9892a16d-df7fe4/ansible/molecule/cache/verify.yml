@@ -1,0 +1,89 @@
+---
+# Unsupported pre-flight checks: the Chef recipe source is not part of the disposable hosts;
+# authenticated Redis checks require a secret that is not available to this verification play;
+# Redis INFO/CONFIG checks require that same secret; service and journal checks use an
+# unresolved service name; Memcached checks are pending dependency inspection.
+
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify the Redis configuration file for instance redis-6379
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_file
+
+    - name: Assert the Redis configuration file exists for instance redis-6379
+      ansible.builtin.assert:
+        that:
+          - redis_config_file['stat']['exists']
+          - redis_config_file['stat']['isreg']
+        fail_msg: Redis configuration file is missing or is not a regular file.
+
+    - name: Verify the Redis log directory for instance redis-6379
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert the Redis log directory has the expected ownership and mode
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+          - redis_log_directory['stat']['pw_name'] == 'redis'
+          - redis_log_directory['stat']['gr_name'] == 'redis'
+          - redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: Redis log directory is missing or has unexpected ownership or mode.
+
+    - name: Check the Redis listener for instance redis-6379
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: redis_listeners
+      changed_when: false
+      failed_when: false
+
+    - name: Assert Redis is listening on TCP port 6379
+      ansible.builtin.assert:
+        that:
+          - redis_listeners['rc'] == 0
+          - redis_listeners['stdout'] is search('(?m):6379\\s')
+          - redis_listeners['stdout'] is search('(?i)redis')
+        fail_msg: Redis is not identified as listening on TCP port 6379.
+
+    - name: Check unauthenticated Redis connectivity for instance redis-6379
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -h
+          - 127.0.0.1
+          - -p
+          - '6379'
+          - PING
+      register: unauthenticated_redis_ping
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unauthenticated Redis access requires authentication
+      ansible.builtin.assert:
+        that:
+          - >-
+            (unauthenticated_redis_ping['stdout'] ~ ' ' ~ unauthenticated_redis_ping['stderr'])
+            is search('(?i)(noauth|authentication required|without authentication)')
+        fail_msg: Redis accepted or did not reject an unauthenticated PING.
+
+    - name: Read the Redis configuration for removed directive families
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+      when: redis_config_file['stat']['exists']
+
+    - name: Assert removed Redis directive families are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content['content'] | b64decode)
+            is not search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: A removed Redis directive family is present in the configuration.
+      when: redis_config_file['stat']['exists']
