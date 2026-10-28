@@ -1,0 +1,72 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install Redis package
+  ansible.builtin.package:
+    name: "{{ 'redis-server' if ansible_facts.os_family == 'Debian' else 'redis' }}"
+    state: present
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_dir }}" # noqa: R114 - path is a role default for the Redis log directory
+    state: directory
+    owner: "{{ cache_redis_log_owner }}"
+    group: "{{ cache_redis_log_group }}"
+    mode: "0755"
+    recurse: true
+
+- name: Check whether the Redis configuration file exists
+  ansible.builtin.stat:
+    path: "{{ cache_redis_config_file }}"
+  register: cache_redis_config_stat
+
+- name: Configure Redis authentication password # noqa: L039 - cache_redis_config_stat is registered by the preceding stat task; redis_password is a role variable
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default for the Redis configuration file
+    regexp: "^\\s*#?\\s*requirepass\\s+"
+    line: "requirepass {{ redis_password }}"
+    state: present
+    create: false
+  when: cache_redis_config_stat.stat.exists
+  no_log: "{{ cache_secure_logging }}"
+
+- name: Remove replica serve stale data directive # noqa: L039 - cache_redis_config_stat is registered by the preceding stat task
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114, R115 - path is a role default for the Redis configuration file
+    regexp: "^replica-serve-stale-data.*$"
+    state: absent
+    create: false
+  when: cache_redis_config_stat.stat.exists
+
+- name: Remove replica read only directive # noqa: L039 - cache_redis_config_stat is registered by the preceding stat task
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114, R115 - path is a role default for the Redis configuration file
+    regexp: "^replica-read-only.*$"
+    state: absent
+    create: false
+  when: cache_redis_config_stat.stat.exists
+
+- name: Remove replica ping period directive # noqa: L039 - cache_redis_config_stat is registered by the preceding stat task
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114, R115 - path is a role default for the Redis configuration file
+    regexp: "^repl-ping-replica-period.*$"
+    state: absent
+    create: false
+  when: cache_redis_config_stat.stat.exists
+
+- name: Remove client output buffer limit directive # noqa: L039 - cache_redis_config_stat is registered by the preceding stat task
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114, R115 - path is a role default for the Redis configuration file
+    regexp: "^client-output-buffer-limit.*$"
+    state: absent
+    create: false
+  when: cache_redis_config_stat.stat.exists
+
+- name: Remove replica priority directive # noqa: L039 - cache_redis_config_stat is registered by the preceding stat task
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114, R115 - path is a role default for the Redis configuration file
+    regexp: "^replica-priority.*$"
+    state: absent
+    create: false
+  when: cache_redis_config_stat.stat.exists

@@ -1,0 +1,41 @@
+---
+argument_specs:
+  main:
+    short_description: Configure the Redis cache service
+    description:
+      - Creates the Redis log directory and applies the cache cookbook's Redis configuration adjustments.
+    options:
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port configured for the Redis instance.
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Redis configuration file to adjust.
+      cache_redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Redis log directory.
+      cache_redis_log_owner:
+        type: str
+        required: false
+        default: redis
+        description: Owner of the Redis log directory.
+      cache_redis_log_group:
+        type: str
+        required: false
+        default: redis
+        description: Group of the Redis log directory.
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide task output when handling the Redis password credential.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.

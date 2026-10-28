@@ -1,0 +1,174 @@
+---
+# Unsupported pre-flight checks: service status and journal review require the dependency's
+# service name; INFO has no stated expected output; Memcached has no supplied endpoint.
+- name: Verify cache instance pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis port 6379 is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Verify Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_config['stat']['exists']
+          - item_redis_config['stat']['isreg']
+        fail_msg: Redis configuration file is missing or is not a regular file.
+
+    - name: Inspect Redis log directory metadata
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_directory
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory['stat']['isdir']
+          - item_redis_log_directory['stat']['pw_name'] == 'redis'
+          - item_redis_log_directory['stat']['gr_name'] == 'redis'
+          - item_redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: Redis log directory does not have the expected ownership or mode.
+
+    - name: Verify Redis password directive is configured
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -Eq
+          - ^[[:space:]]*requirepass[[:space:]]+
+          - /etc/redis/6379.conf
+      register: item_redis_requirepass
+      changed_when: false
+
+    - name: Assert Redis password directive is configured
+      ansible.builtin.assert:
+        that:
+          - item_redis_requirepass['rc'] == 0
+        fail_msg: Redis requirepass directive is not configured.
+
+    - name: Verify authenticated Redis PING
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - -a
+          - "{{ cache_redis_password }}"
+          - PING
+      register: item_redis_ping
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert authenticated Redis PING succeeds
+      ansible.builtin.assert:
+        that:
+          - item_redis_ping['rc'] == 0
+          - item_redis_ping['stdout'] | trim == 'PONG'
+        fail_msg: Authenticated Redis PING did not return PONG.
+
+    - name: Verify unauthenticated Redis PING is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+      register: item_redis_unauthenticated_ping
+      changed_when: false
+
+    - name: Assert unauthenticated Redis access requires authentication
+      ansible.builtin.assert:
+        that:
+          - >-
+            ('NOAUTH Authentication required' in item_redis_unauthenticated_ping['stdout']) or
+            ('NOAUTH Authentication required' in item_redis_unauthenticated_ping['stderr'])
+        fail_msg: Unauthenticated Redis access was not rejected.
+
+    - name: Verify temporary authenticated Redis key value operation
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - -a
+          - "{{ cache_redis_password }}"
+          - SET
+          - migration_check
+          - ok
+      register: item_redis_set
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert temporary Redis SET succeeds
+      ansible.builtin.assert:
+        that:
+          - item_redis_set['rc'] == 0
+          - item_redis_set['stdout'] | trim == 'OK'
+        fail_msg: Authenticated Redis SET did not return OK.
+
+    - name: Verify temporary authenticated Redis value retrieval
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - -a
+          - "{{ cache_redis_password }}"
+          - GET
+          - migration_check
+      register: item_redis_get
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert temporary Redis GET returns the expected value
+      ansible.builtin.assert:
+        that:
+          - item_redis_get['rc'] == 0
+          - item_redis_get['stdout'] | trim == 'ok'
+        fail_msg: Authenticated Redis GET did not return the expected value.
+
+    - name: Verify temporary authenticated Redis key deletion
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - -a
+          - "{{ cache_redis_password }}"
+          - DEL
+          - migration_check
+      register: item_redis_del
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert temporary Redis DEL removes one key
+      ansible.builtin.assert:
+        that:
+          - item_redis_del['rc'] == 0
+          - item_redis_del['stdout'] | trim == '(integer) 1'
+        fail_msg: Authenticated Redis DEL did not remove the temporary key.
+
+    - name: Verify unwanted Redis directives are absent
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -nE
+          - ^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)
+          - /etc/redis/6379.conf
+      register: item_redis_unwanted_directives
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unwanted Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - item_redis_unwanted_directives['rc'] == 1
+        fail_msg: Unwanted replication-related Redis directives are present.
