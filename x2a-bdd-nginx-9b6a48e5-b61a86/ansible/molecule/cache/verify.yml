@@ -1,0 +1,103 @@
+---
+# Unsupported pre-flight checks: service/process diagnostics, Redis config validation,
+# Redis log inspection, and Memcached dependency inspection have no stated result or
+# require values unavailable from the supplied plan.
+- name: Verify cache pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis listens on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Check Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config['stat']['exists']
+          - cache_redis_config['stat']['isreg']
+        fail_msg: Redis configuration file is missing or is not a regular file.
+
+    - name: Read Redis configuration for expected directives
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_config_content
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert Redis port and authentication are configured
+      ansible.builtin.assert:
+        that:
+          - (cache_redis_config_content['content'] | b64decode) is regex('(?m)^port\\s+6379(?:\\s|$)')
+          - (cache_redis_config_content['content'] | b64decode) is regex('(?m)^requirepass\\s+\\S+')
+        fail_msg: Redis port 6379 or authentication configuration is missing.
+
+    - name: Verify authenticated Redis PING returns PONG
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - PING
+      environment:
+        REDISCLI_AUTH: "{{ redis_requirepass }}"
+      register: cache_authenticated_ping
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert authenticated Redis PING returns PONG
+      ansible.builtin.assert:
+        that:
+          - cache_authenticated_ping['rc'] == 0
+          - cache_authenticated_ping['stdout'] | trim == 'PONG'
+        fail_msg: Authenticated Redis PING did not return PONG.
+
+    - name: Verify unauthenticated Redis PING is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - PING
+      register: cache_unauthenticated_ping
+      changed_when: false
+
+    - name: Assert unauthenticated Redis PING requires authentication
+      ansible.builtin.assert:
+        that:
+          - cache_unauthenticated_ping['rc'] != 0
+          - >-
+            ('authentication required' in
+            ((cache_unauthenticated_ping['stdout'] ~ ' ' ~ cache_unauthenticated_ping['stderr']) | lower))
+        fail_msg: Unauthenticated Redis PING was not rejected for authentication.
+
+    - name: Assert replication directives are absent from Redis configuration
+      ansible.builtin.assert:
+        that:
+          - (cache_redis_config_content['content'] | b64decode) is not regex('(?m)^replica-serve-stale-data')
+          - (cache_redis_config_content['content'] | b64decode) is not regex('(?m)^replica-read-only')
+          - (cache_redis_config_content['content'] | b64decode) is not regex('(?m)^repl-ping-replica-period')
+          - (cache_redis_config_content['content'] | b64decode) is not regex('(?m)^client-output-buffer-limit')
+          - (cache_redis_config_content['content'] | b64decode) is not regex('(?m)^replica-priority')
+        fail_msg: A prohibited replication directive is present in the Redis configuration.
+
+    - name: Check Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_directory
+
+    - name: Assert Redis log directory properties
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_directory['stat']['exists']
+          - cache_redis_log_directory['stat']['isdir']
+          - cache_redis_log_directory['stat']['pw_name'] == 'redis'
+          - cache_redis_log_directory['stat']['gr_name'] == 'redis'
+          - cache_redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: Redis log directory does not have the expected properties.
