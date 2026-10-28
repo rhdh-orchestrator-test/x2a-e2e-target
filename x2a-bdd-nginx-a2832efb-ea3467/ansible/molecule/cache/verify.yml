@@ -1,0 +1,80 @@
+# Unsupported pre-flight checks: resolved Redis/Memcached service names and Memcached port are unavailable;
+# Redis logging/journal output and the unvalidated INFO/server listing have no stated assertion outcome.
+---
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis instance 6379 configuration exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config
+
+    - name: Assert Redis instance 6379 configuration exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config.stat.exists
+          - cache_redis_config.stat.isreg
+        fail_msg: Redis instance 6379 configuration file is missing.
+
+    - name: Read Redis instance 6379 configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_config_content
+
+    - name: Assert Redis instance 6379 uses port 6379
+      ansible.builtin.assert:
+        that:
+          - >-
+            (cache_redis_config_content.content | b64decode) is
+            regex_search('(?m)^port\\s+6379(?:\\s|$)')
+        fail_msg: Redis instance 6379 does not declare TCP port 6379.
+
+    - name: Assert removed Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (cache_redis_config_content.content | b64decode) is not
+            regex_search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: A removed replication-related directive is present in the Redis configuration.
+
+    - name: Verify Redis instance 6379 listener
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Verify Redis authentication and connectivity
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - PING
+      environment:
+        REDISCLI_AUTH: "{{ redis_password }}"
+      register: cache_redis_ping
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert Redis authentication succeeds
+      ansible.builtin.assert:
+        that:
+          - cache_redis_ping.stdout | trim == 'PONG'
+        fail_msg: Redis authentication or connectivity check failed.
+
+    - name: Verify Redis log directory properties
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_directory
+
+    - name: Assert Redis log directory has expected properties
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_directory.stat.exists
+          - cache_redis_log_directory.stat.isdir
+          - cache_redis_log_directory.stat.pw_name == 'redis'
+          - cache_redis_log_directory.stat.gr_name == 'redis'
+          - cache_redis_log_directory.stat.mode == '0755'
+        fail_msg: Redis log directory does not have the expected properties.

@@ -1,0 +1,78 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Redis cache services
+    description:
+      - Installs and configures a standalone Redis cache and its logging directory.
+      - The Redis authentication password is injected by an AAP credential type.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks that handle the Redis password.
+      cache_redis_password:
+        type: str
+        required: false
+        default: "{{ redis_password }}"
+        description: Redis authentication password supplied by the AAP credential variable.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port for the Redis instance.
+      cache_redis_version:
+        type: str
+        required: false
+        default: "7.2"
+        description: Redis version requested from the Redis collection role.
+      cache_redis_install_method:
+        type: str
+        required: false
+        default: package
+        description: Installation method used by the Redis collection role.
+      cache_redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis cluster mode is enabled.
+      cache_redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel mode is enabled.
+      cache_redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      cache_redis_aof_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis AOF persistence is enabled.
+      cache_redis_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis RDB persistence is enabled.
+      cache_redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Redis log directory.
+      cache_redis_log_owner:
+        type: str
+        required: false
+        default: redis
+        description: Owner of the Redis log directory.
+      cache_redis_log_group:
+        type: str
+        required: false
+        default: redis
+        description: Group of the Redis log directory.
+      cache_redis_log_mode:
+        type: str
+        required: false
+        default: "0755"
+        description: Permissions for the Redis log directory.

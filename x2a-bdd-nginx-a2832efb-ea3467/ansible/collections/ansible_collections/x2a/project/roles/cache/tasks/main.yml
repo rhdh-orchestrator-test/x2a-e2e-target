@@ -1,0 +1,47 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Redis cache with the supported collection role  # noqa: L038 - external eloy.redis.redis role is not present in this codebase or declared dependency
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_version: "{{ cache_redis_version }}"
+    redis_install_method: "{{ cache_redis_install_method }}"
+    redis_port: "{{ cache_redis_port }}"
+    redis_requirepass: "{{ cache_redis_password }}"
+    redis_cluster_enabled: "{{ cache_redis_cluster_enabled }}"
+    redis_sentinel_enabled: "{{ cache_redis_sentinel_enabled }}"
+    redis_replication_enabled: "{{ cache_redis_replication_enabled }}"
+    redis_aof_enabled: "{{ cache_redis_aof_enabled }}"
+    redis_rdb_enabled: "{{ cache_redis_rdb_enabled }}"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_directory }}" # noqa: R114 - path comes from role defaults
+    state: directory
+    owner: "{{ cache_redis_log_owner }}"
+    group: "{{ cache_redis_log_group }}"
+    mode: "{{ cache_redis_log_mode }}"
+    recurse: true
+
+- name: Check whether the Redis instance configuration exists
+  ansible.builtin.stat:
+    path: /etc/redis/6379.conf
+  register: cache_redis_config_stat
+
+- name: Remove unsupported replication directives from Redis configuration  # noqa: L039 - cache_redis_config_stat is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: /etc/redis/6379.conf
+    regexp: ^((replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority).*)$ ?
+    replace: ""
+    backup: true
+  when: cache_redis_config_stat.stat.exists
+  notify: Restart Redis cache service
+
+- name: Ensure Redis cache service is enabled and started
+  ansible.builtin.service:
+    name: redis-server
+    enabled: true
+    state: started
