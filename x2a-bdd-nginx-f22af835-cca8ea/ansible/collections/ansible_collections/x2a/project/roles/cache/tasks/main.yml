@@ -1,0 +1,42 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install Redis package
+  ansible.builtin.package:
+    name: "{{ 'redis-server' if ansible_facts['os_family'] == 'Debian' else 'redis' }}"
+    state: present
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_directory }}"  # noqa: R114 - path from role defaults
+    state: directory
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "{{ cache_redis_log_mode }}"
+    recurse: true
+
+- name: Configure Redis authentication  # noqa: L039 - redis_password is validated by the preceding credential validation task
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_path }}"  # noqa: R114 - path from role defaults
+    regexp: ^requirepass\s+
+    line: requirepass {{ redis_password }}
+    create: false
+    backup: true
+  no_log: "{{ cache_secure_logging }}"
+
+- name: Remove obsolete Redis replication directives  # noqa: R115 - loop values are role-defined fixed directives
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_path }}"  # noqa: R114 - path from role defaults
+    regexp: ^{{ item_cache_directive }}.*$
+    state: absent
+    backup: true
+  when: ansible_facts['distribution'] is defined
+  loop:
+    - replica-serve-stale-data
+    - replica-read-only
+    - repl-ping-replica-period
+    - client-output-buffer-limit
+    - replica-priority
+  loop_control:
+    loop_var: item_cache_directive

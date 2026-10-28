@@ -1,0 +1,143 @@
+---
+# Unsupported pre-flight checks: service-unit discovery, Redis journal/log-behavior inspection,
+# and all Memcached checks have no stated expected outcome or require unavailable dependency details.
+- name: Verify cache pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis TCP port 6379 is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Verify a Redis process is running
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -f
+          - redis-server
+      register: cache_redis_process
+      changed_when: false
+      failed_when: false
+
+    - name: Assert that a Redis process is running
+      ansible.builtin.assert:
+        that:
+          - cache_redis_process.rc == 0
+          - cache_redis_process.stdout | length > 0
+        fail_msg: Redis process was not found.
+
+    - name: Verify Redis responds to authenticated PING
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - -a
+          - "{{ redis_password }}"
+          - PING
+      register: cache_redis_ping
+      changed_when: false
+      failed_when: false
+      no_log: "{{ redis_secure_logging | default(true) }}"
+
+    - name: Assert Redis authenticated PING returns PONG
+      ansible.builtin.assert:
+        that:
+          - cache_redis_ping.rc == 0
+          - cache_redis_ping.stdout | trim == 'PONG'
+        fail_msg: Redis authenticated PING did not return PONG.
+
+    - name: Verify Redis INFO server response
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - -a
+          - "{{ redis_password }}"
+          - INFO
+          - server
+      register: cache_redis_info
+      changed_when: false
+      failed_when: false
+      no_log: "{{ redis_secure_logging | default(true) }}"
+
+    - name: Assert Redis INFO server returns server information
+      ansible.builtin.assert:
+        that:
+          - cache_redis_info.rc == 0
+          - cache_redis_info.stdout | trim | length > 0
+        fail_msg: Redis INFO server returned no server information.
+
+    - name: Verify Redis requirepass configuration
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - -a
+          - "{{ redis_password }}"
+          - CONFIG
+          - GET
+          - requirepass
+      register: cache_redis_requirepass
+      changed_when: false
+      failed_when: false
+      no_log: "{{ redis_secure_logging | default(true) }}"
+
+    - name: Assert Redis requirepass is configured and non-empty
+      ansible.builtin.assert:
+        that:
+          - cache_redis_requirepass.rc == 0
+          - cache_redis_requirepass.stdout is search('requirepass')
+          - (cache_redis_requirepass.stdout_lines | last | default('') | trim | length) > 0
+        fail_msg: Redis requirepass is missing or empty.
+
+    - name: Verify Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config.stat.exists
+          - cache_redis_config.stat.isreg
+        fail_msg: Redis configuration file /etc/redis/6379.conf does not exist.
+
+    - name: Read Redis configuration for directive cleanup verification
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_config_content
+
+    - name: Assert targeted Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config_content.content | b64decode is not search(item_redis_directive)
+        fail_msg: A targeted Redis replication directive is present in the configuration.
+      loop:
+        - '^replica-serve-stale-data.*$'
+        - '^replica-read-only.*$'
+        - '^repl-ping-replica-period.*$'
+        - '^client-output-buffer-limit.*$'
+        - '^replica-priority.*$'
+      loop_control:
+        loop_var: item_redis_directive
+
+    - name: Verify Redis log directory properties
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_directory
+
+    - name: Assert Redis log directory exists with expected ownership and mode
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_directory.stat.exists
+          - cache_redis_log_directory.stat.isdir
+          - cache_redis_log_directory.stat.pw_name == 'redis'
+          - cache_redis_log_directory.stat.gr_name == 'redis'
+          - cache_redis_log_directory.stat.mode == '0755'
+        fail_msg: Redis log directory properties do not match the pre-flight expectations.
