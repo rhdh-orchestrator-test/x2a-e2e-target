@@ -1,0 +1,97 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Redis cache  # noqa: L038 - role is declared in the role requirements
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_redis_secure_logging }}"
+  vars:
+    redis_port: "{{ cache_redis_port }}"
+    redis_requirepass: "{{ redis_password }}"
+    redis_cluster_enabled: "{{ cache_redis_cluster_enabled }}"
+    redis_sentinel_enabled: "{{ cache_redis_sentinel_enabled }}"
+    redis_replication_enabled: "{{ cache_redis_replication_enabled }}"
+
+- name: Ensure Redis log directory exists
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Check whether the Redis configuration exists
+  ansible.builtin.stat:
+    path: "/etc/redis/{{ cache_redis_port }}.conf"
+  register: cache_redis_config
+
+- name: Remove replica stale-data directive  # noqa: L039, R114, R115 - config path uses trusted role-default port; condition uses the prior stat result
+  ansible.builtin.lineinfile:
+    path: "/etc/redis/{{ cache_redis_port }}.conf"
+    regexp: "^\\s*replica-serve-stale-data\\b.*$"
+    state: absent
+    create: false
+  register: cache_remove_stale_data
+  when: cache_redis_config.stat.exists
+
+- name: Remove replica read-only directive  # noqa: L039, R114, R115 - config path uses trusted role-default port; condition uses the prior stat result
+  ansible.builtin.lineinfile:
+    path: "/etc/redis/{{ cache_redis_port }}.conf"
+    regexp: "^\\s*replica-read-only\\b.*$"
+    state: absent
+    create: false
+  register: cache_remove_read_only
+  when: cache_redis_config.stat.exists
+
+- name: Remove replica ping period directive  # noqa: L039, R114, R115 - config path uses trusted role-default port; condition uses the prior stat result
+  ansible.builtin.lineinfile:
+    path: "/etc/redis/{{ cache_redis_port }}.conf"
+    regexp: "^\\s*repl-ping-replica-period\\b.*$"
+    state: absent
+    create: false
+  register: cache_remove_ping_period
+  when: cache_redis_config.stat.exists
+
+- name: Remove client output buffer limit directive  # noqa: L039, R114, R115 - config path uses trusted role-default port; condition uses the prior stat result
+  ansible.builtin.lineinfile:
+    path: "/etc/redis/{{ cache_redis_port }}.conf"
+    regexp: "^\\s*client-output-buffer-limit\\b.*$"
+    state: absent
+    create: false
+  register: cache_remove_buffer_limit
+  when: cache_redis_config.stat.exists
+
+- name: Remove replica priority directive  # noqa: L039, R114, R115 - config path uses trusted role-default port; condition uses the prior stat result
+  ansible.builtin.lineinfile:
+    path: "/etc/redis/{{ cache_redis_port }}.conf"
+    regexp: "^\\s*replica-priority\\b.*$"
+    state: absent
+    create: false
+  register: cache_remove_priority
+  when: cache_redis_config.stat.exists
+
+- name: Gather service facts for the Redis restart  # noqa: L039 - registered by the preceding directive-removal tasks
+  ansible.builtin.service_facts:
+  when: >-
+    cache_remove_stale_data.changed or
+    cache_remove_read_only.changed or
+    cache_remove_ping_period.changed or
+    cache_remove_buffer_limit.changed or
+    cache_remove_priority.changed
+
+- name: Restart Redis after removing unsupported directives  # noqa: L039 - registered by the preceding directive-removal tasks
+  ansible.builtin.service:
+    name: "{{ 'redis-server' if 'redis-server.service' in ansible_facts.services else 'redis' }}"
+    state: restarted
+  when:
+    - >-
+      cache_remove_stale_data.changed or
+      cache_remove_read_only.changed or
+      cache_remove_ping_period.changed or
+      cache_remove_buffer_limit.changed or
+      cache_remove_priority.changed
+    - >-
+      'redis-server.service' in ansible_facts.services or
+      'redis.service' in ansible_facts.services

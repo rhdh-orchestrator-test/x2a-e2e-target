@@ -1,0 +1,109 @@
+---
+# Unsupported pre-flight checks: service-unit discovery/status, Redis INFO, logfile and journal
+# inspection, Memcached discovery/status/listening checks, and authenticated Redis checks that
+# require the vault credential (PING and CONFIG GET port). No expected outcome was supplied for
+# the diagnostic-only checks; the authenticated checks cannot be performed without a credential.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Confirm the cache cookbook recipe is present
+      ansible.builtin.stat:
+        path: cookbooks/cache/recipes/default.rb
+      register: cache_recipe
+
+    - name: Assert that the cache cookbook recipe exists
+      ansible.builtin.assert:
+        that:
+          - cache_recipe['stat']['exists']
+          - cache_recipe['stat']['isreg']
+        fail_msg: The cache cookbook recipe must be present as specified by the pre-flight check.
+
+    - name: Confirm the Redis process for instance redis-6379
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -a
+          - redis-server
+      register: redis_process
+      changed_when: false
+
+    - name: Assert that the Redis process is running
+      ansible.builtin.assert:
+        that:
+          - redis_process['rc'] == 0
+        fail_msg: A redis-server process must be running for instance redis-6379.
+
+    - name: Confirm the Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config
+
+    - name: Assert that the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config['stat']['exists']
+          - redis_config['stat']['isreg']
+        fail_msg: The Redis configuration file /etc/redis/6379.conf must exist.
+
+    - name: Verify the configured Redis port for instance redis-6379
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - ^[[:space:]]*port[[:space:]]+6379([[:space:]]|$)
+          - /etc/redis/6379.conf
+      register: redis_configured_port
+      changed_when: false
+
+    - name: Assert that Redis is configured for port 6379
+      ansible.builtin.assert:
+        that:
+          - redis_configured_port['rc'] == 0
+        fail_msg: Redis must have an active port directive configured for port 6379.
+
+    - name: Check that unwanted Redis replication directives are absent
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - ^[[:space:]]*(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)
+          - /etc/redis/6379.conf
+      register: unwanted_redis_directives
+      changed_when: false
+      failed_when: false
+
+    - name: Assert that unwanted Redis replication directives are absent
+      ansible.builtin.assert:
+        that:
+          - unwanted_redis_directives['rc'] == 1
+        fail_msg: The selected unwanted Redis replication directives must be absent.
+
+    - name: Inspect the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert the Redis log directory properties
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+          - redis_log_directory['stat']['mode'] == '0755'
+          - redis_log_directory['stat']['pw_name'] == 'redis'
+          - redis_log_directory['stat']['gr_name'] == 'redis'
+        fail_msg: The Redis log directory must be drwxr-xr-x and owned by redis:redis.
+
+    - name: Verify that Redis is listening on TCP port 6379
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+      register: redis_listeners
+      changed_when: false
+
+    - name: Assert that Redis is listening on TCP port 6379
+      ansible.builtin.assert:
+        that:
+          - redis_listeners['stdout'] is search(':6379([[:space:]]|$)')
+        fail_msg: Redis must be listening on TCP port 6379.
