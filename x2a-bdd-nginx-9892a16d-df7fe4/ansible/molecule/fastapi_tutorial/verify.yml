@@ -1,0 +1,236 @@
+---
+# Unsupported: diagnostic-only version/list/status/log commands, secret-bearing database
+# credential tests, and checks without a stated expected result.
+- name: Verify fastapi-tutorial application and PostgreSQL
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Confirm required packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts['packages']
+        fail_msg: "A required package is not installed."
+      loop:
+        - python3
+        - python3-pip
+        - python3-venv
+        - git
+        - postgresql
+        - postgresql-contrib
+        - libpq-dev
+      loop_control:
+        loop_var: item_package
+
+    - name: Inspect application directory
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: fastapi_directory
+
+    - name: Confirm application directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - fastapi_directory['stat']['exists']
+          - fastapi_directory['stat']['isdir']
+          - fastapi_directory['stat']['pw_name'] == 'root'
+          - fastapi_directory['stat']['gr_name'] == 'root'
+          - fastapi_directory['stat']['mode'] == '0755'
+
+    - name: Inspect application requirements file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: fastapi_requirements
+
+    - name: Confirm application requirements file exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_requirements['stat']['exists']
+          - fastapi_requirements['stat']['isreg']
+
+    - name: Inspect Python virtual environment interpreter
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/python
+      register: fastapi_python
+
+    - name: Confirm virtual environment interpreter is executable
+      ansible.builtin.assert:
+        that:
+          - fastapi_python['stat']['exists']
+          - fastapi_python['stat']['isreg']
+          - fastapi_python['stat']['executable']
+
+    - name: Inspect application environment file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/.env
+      register: fastapi_environment
+
+    - name: Confirm application environment file ownership and mode
+      ansible.builtin.assert:
+        that:
+          - fastapi_environment['stat']['exists']
+          - fastapi_environment['stat']['isreg']
+          - fastapi_environment['stat']['pw_name'] == 'root'
+          - fastapi_environment['stat']['gr_name'] == 'root'
+          - fastapi_environment['stat']['mode'] == '0644'
+
+    - name: Confirm non-secret application environment settings
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - '^(PROJECT_NAME|API_VERSION)='
+          - /opt/fastapi-tutorial/.env
+      register: fastapi_environment_settings
+      changed_when: false
+
+    - name: Assert non-secret application environment settings are present
+      ansible.builtin.assert:
+        that:
+          - fastapi_environment_settings['rc'] == 0
+          - "'PROJECT_NAME=' in fastapi_environment_settings['stdout']"
+          - "'API_VERSION=' in fastapi_environment_settings['stdout']"
+
+    - name: Inspect FastAPI systemd unit
+      ansible.builtin.stat:
+        path: /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_unit_file
+
+    - name: Confirm FastAPI systemd unit ownership and mode
+      ansible.builtin.assert:
+        that:
+          - fastapi_unit_file['stat']['exists']
+          - fastapi_unit_file['stat']['isreg']
+          - fastapi_unit_file['stat']['pw_name'] == 'root'
+          - fastapi_unit_file['stat']['gr_name'] == 'root'
+          - fastapi_unit_file['stat']['mode'] == '0644'
+
+    - name: Validate FastAPI systemd unit
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_unit_validation
+      changed_when: false
+
+    - name: Assert FastAPI systemd unit is valid
+      ansible.builtin.assert:
+        that:
+          - fastapi_unit_validation['rc'] == 0
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Confirm FastAPI service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['fastapi-tutorial.service']['status'] == 'enabled'
+          - ansible_facts['services']['fastapi-tutorial.service']['state'] == 'running'
+
+    - name: Confirm PostgreSQL service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['postgresql.service']['status'] == 'enabled'
+          - ansible_facts['services']['postgresql.service']['state'] == 'running'
+
+    - name: Confirm FastAPI systemd service values
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - '^(User|WorkingDirectory|ExecStart|Restart)='
+          - /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_service_values
+      changed_when: false
+
+    - name: Assert expected FastAPI systemd service values
+      ansible.builtin.assert:
+        that:
+          - fastapi_service_values['rc'] == 0
+          - "'User=root' in fastapi_service_values['stdout']"
+          - "'WorkingDirectory=/opt/fastapi-tutorial' in fastapi_service_values['stdout']"
+          - "'ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000' in fastapi_service_values['stdout']"
+          - "'Restart=always' in fastapi_service_values['stdout']"
+
+    - name: Wait for FastAPI to accept connections on port 8000
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 8000
+        state: started
+        timeout: 30
+
+    - name: Check FastAPI root endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8000/
+        status_code: 200
+      register: fastapi_root
+
+    - name: Assert FastAPI root endpoint is successful
+      ansible.builtin.assert:
+        that:
+          - fastapi_root['status'] == 200
+
+    - name: Check FastAPI OpenAPI endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8000/openapi.json
+        status_code: 200
+      register: fastapi_openapi
+
+    - name: Assert FastAPI OpenAPI endpoint is successful
+      ansible.builtin.assert:
+        that:
+          - fastapi_openapi['status'] == 200
+
+    - name: Confirm PostgreSQL role exists
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT rolname FROM pg_roles WHERE rolname = 'fastapi';
+      register: fastapi_role
+      changed_when: false
+
+    - name: Assert PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_role['rc'] == 0
+          - fastapi_role['stdout'] | trim == 'fastapi'
+
+    - name: Confirm PostgreSQL database owner
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT datname || '|' || pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db';
+      register: fastapi_database
+      changed_when: false
+
+    - name: Assert PostgreSQL database and owner
+      ansible.builtin.assert:
+        that:
+          - fastapi_database['rc'] == 0
+          - fastapi_database['stdout'] | trim == 'fastapi_db|fastapi'
+
+    - name: Confirm PostgreSQL database privileges
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT has_database_privilege('fastapi', 'fastapi_db', 'ALL');
+      register: fastapi_privileges
+      changed_when: false
+
+    - name: Assert PostgreSQL role has all database privileges
+      ansible.builtin.assert:
+        that:
+          - fastapi_privileges['rc'] == 0
+          - fastapi_privileges['stdout'] | trim == 't'

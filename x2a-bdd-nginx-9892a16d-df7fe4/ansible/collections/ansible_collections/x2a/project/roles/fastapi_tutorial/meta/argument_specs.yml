@@ -1,0 +1,54 @@
+---
+argument_specs:
+  main:
+    short_description: Configure the FastAPI tutorial application with PostgreSQL.
+    description:
+      - Installs the FastAPI tutorial application and its Python dependencies.
+      - Configures PostgreSQL database access and manages the systemd service.
+    options:
+      fastapi_tutorial_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks that handle the database password.
+      fastapi_tutorial_app_path:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Installation path for the FastAPI tutorial application.
+      fastapi_tutorial_repository:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository containing the FastAPI tutorial application.
+      fastapi_tutorial_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      fastapi_tutorial_database_url_host:
+        type: str
+        required: false
+        default: localhost
+        description: Database host used in the application connection URL.
+      fastapi_tutorial_service_name:
+        type: str
+        required: false
+        default: fastapi-tutorial
+        description: Systemd service name for the FastAPI application.
+      username:
+        type: str
+        required: true
+        description: PostgreSQL username injected by the AAP credential type.
+      password:
+        type: str
+        required: true
+        description: PostgreSQL password injected by the AAP credential type.
+      database:
+        type: str
+        required: true
+        description: PostgreSQL database name injected by the AAP credential type.
+      host:
+        type: str
+        required: true
+        description: PostgreSQL host injected by the AAP credential type.
