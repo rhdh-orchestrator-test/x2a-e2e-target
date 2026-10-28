@@ -1,0 +1,101 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure the FastAPI Tutorial application.
+    description:
+      - Deploys the FastAPI Tutorial repository in a Python virtual environment.
+      - Configures PostgreSQL database access and manages the Uvicorn systemd service.
+    options:
+      fastapi_tutorial_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide task output when handling the database password.
+      fastapi_tutorial_repository:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository URL for the application.
+      fastapi_tutorial_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      fastapi_tutorial_app_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Application installation directory.
+      fastapi_tutorial_venv_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial/venv
+        description: Python virtual environment directory.
+      fastapi_tutorial_env_file:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial/.env
+        description: Application environment file path.
+      fastapi_tutorial_service_name:
+        type: str
+        required: false
+        default: fastapi-tutorial
+        description: Systemd service name.
+      fastapi_tutorial_service_file:
+        type: str
+        required: false
+        default: /etc/systemd/system/fastapi-tutorial.service
+        description: Systemd unit file path.
+      fastapi_tutorial_bind_host:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: Host address for Uvicorn.
+      fastapi_tutorial_bind_port:
+        type: int
+        required: false
+        default: 8000
+        description: TCP port for Uvicorn.
+      fastapi_tutorial_project_name:
+        type: str
+        required: false
+        default: FastAPI Tutorial
+        description: Application project name.
+      fastapi_tutorial_api_version:
+        type: str
+        required: false
+        default: 1.0.0
+        description: Application API version.
+      fastapi_tutorial_db_user:
+        type: str
+        required: false
+        default: "{{ db_username }}"
+        description: PostgreSQL username supplied by the AAP credential.
+      fastapi_tutorial_db_name:
+        type: str
+        required: false
+        default: "{{ database_name }}"
+        description: PostgreSQL database name supplied by the AAP credential.
+      fastapi_tutorial_db_host:
+        type: str
+        required: false
+        default: "{{ db_host }}"
+        description: PostgreSQL host supplied by the AAP credential.
+      fastapi_tutorial_db_port:
+        type: str
+        required: false
+        default: "{{ db_port }}"
+        description: PostgreSQL port supplied by the AAP credential.
+      fastapi_tutorial_system_packages:
+        type: list
+        elements: str
+        required: false
+        default:
+          - python3
+          - python3-pip
+          - python3-venv
+          - git
+          - postgresql
+          - postgresql-contrib
+          - libpq-dev
+        description: System packages required by the application.
