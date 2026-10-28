@@ -1,0 +1,81 @@
+---
+- name: Install security packages
+  ansible.builtin.package:
+    name:
+      - fail2ban
+      - ufw
+      - openssh-server
+    state: present
+
+- name: Configure fail2ban
+  ansible.builtin.template:
+    src: fail2ban.jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: "0644"
+    backup: true
+  when: nginx_multisite_fail2ban_enabled | bool
+  notify: Restart fail2ban
+
+- name: Enable and start fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: true
+    state: started
+  when: nginx_multisite_fail2ban_enabled | bool
+
+- name: Set UFW default incoming policy
+  community.general.ufw:
+    direction: incoming
+    default: deny
+  when: nginx_multisite_ufw_enabled | bool
+
+- name: Allow SSH through UFW
+  community.general.ufw:
+    rule: allow
+    name: ssh
+  when: nginx_multisite_ufw_enabled | bool
+
+- name: Allow HTTP through UFW
+  community.general.ufw:
+    rule: allow
+    port: "80"
+    proto: tcp
+  when: nginx_multisite_ufw_enabled | bool
+
+- name: Allow HTTPS through UFW
+  community.general.ufw:
+    rule: allow
+    port: "443"
+    proto: tcp
+  when: nginx_multisite_ufw_enabled | bool
+
+- name: Enable UFW non-interactively
+  community.general.ufw:
+    state: enabled
+  when: nginx_multisite_ufw_enabled | bool
+
+- name: Configure kernel security settings
+  ansible.builtin.template:
+    src: sysctl-security.conf.j2
+    dest: /etc/sysctl.d/99-security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload security sysctl
+
+- name: Disable root SSH login
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PermitRootLogin.*
+    line: PermitRootLogin no
+    backup: true
+  when: nginx_multisite_ssh_disable_root | bool
+  notify: Restart SSH
+
+- name: Disable SSH password authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PasswordAuthentication.*
+    line: PasswordAuthentication no
+    backup: true
+  when: not nginx_multisite_ssh_password_auth | bool
+  notify: Restart SSH
