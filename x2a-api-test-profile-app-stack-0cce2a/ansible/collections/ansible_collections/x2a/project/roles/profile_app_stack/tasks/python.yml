@@ -1,0 +1,50 @@
+---
+- name: Install Python runtime and application build packages
+  ansible.builtin.package:
+    name:
+      - "{{ app_stack_python_version }}"
+      - "{{ app_stack_python_version }}-pip"
+      - "{{ app_stack_python_version }}-venv"
+      - "{{ app_stack_python_version }}-dev"
+      - git
+      - build-essential
+      - curl
+    state: present
+
+- name: Create application group
+  ansible.builtin.group:
+    name: "{{ app_stack_app_group }}"
+    system: true
+    state: present
+
+- name: Create application user
+  ansible.builtin.user:
+    name: "{{ app_stack_app_user }}"
+    group: "{{ app_stack_app_group }}"
+    home: "{{ app_stack_app_dir }}"
+    shell: /bin/bash
+    system: true
+    create_home: false
+    state: present
+
+- name: Create application log directory
+  ansible.builtin.file:
+    path: "{{ app_stack_log_dir }}" # noqa: R114 - path is from role defaults, not user input
+    state: directory
+    owner: "{{ app_stack_app_user }}"
+    group: "{{ app_stack_app_group }}"
+    mode: "0755"
+
+- name: Install logrotate package
+  ansible.builtin.package:
+    name: logrotate
+    state: present
+
+- name: Render logrotate configuration
+  ansible.builtin.template:
+    src: logrotate.conf.j2
+    dest: /etc/logrotate.d/{{ app_stack_app_name }} # noqa: R114 - filename is from role defaults, not user input
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true

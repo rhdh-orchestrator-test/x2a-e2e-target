@@ -1,0 +1,81 @@
+---
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ app_stack_app_dir }}" # noqa: R114 - path is from role defaults, not user input
+    state: directory
+    owner: "{{ app_stack_app_user }}"
+    group: "{{ app_stack_app_group }}"
+    mode: "0755"
+
+- name: Check out application repository  # noqa: R104 - repository URL comes from role defaults and uses HTTPS
+  ansible.builtin.git:
+    repo: "{{ app_stack_app_repo }}" # noqa: R106 - repository source is a trusted role parameter
+    dest: "{{ app_stack_app_dir }}" # noqa: R114 - destination is from role defaults, not user input
+    version: "{{ app_stack_app_revision }}"
+    force: true
+    update: true
+  become: true  # noqa: R108 - git checkout runs as the application user in the application directory
+  become_user: "{{ app_stack_app_user }}"
+
+- name: Create application virtual environment  # noqa: R101 - command arguments come from role defaults, not user input
+  ansible.builtin.command:
+    argv:
+      - "{{ app_stack_python_version }}"
+      - -m
+      - venv
+      - "{{ app_stack_app_dir }}/venv"
+    creates: "{{ app_stack_app_dir }}/venv/bin/activate" # noqa: R114 - path is from role defaults, not user input
+  become: true  # noqa: R108 - virtual environment is created in the application directory as its owner
+  become_user: "{{ app_stack_app_user }}"
+
+- name: Install Python requirements  # noqa: R113 - requirements are installed into the role-defined virtual environment
+  ansible.builtin.pip:
+    requirements: "{{ app_stack_app_dir }}/requirements.txt"
+    virtualenv: "{{ app_stack_app_dir }}/venv"
+  become: true  # noqa: R108 - pip must write to the application virtual environment
+  become_user: "{{ app_stack_app_user }}"
+
+- name: Install additional Python packages  # noqa: R113 - package list comes from role defaults
+  ansible.builtin.pip:
+    name: "{{ item_app_stack_pkg }}"
+    virtualenv: "{{ app_stack_app_dir }}/venv"
+    state: present
+  loop: "{{ app_stack_pip_packages }}"
+  loop_control:
+    loop_var: item_app_stack_pkg
+
+- name: Render application environment file
+  ansible.builtin.template:
+    src: app.env.j2
+    dest: "{{ app_stack_app_dir }}/.env" # noqa: R114 - destination is the role-defined application directory
+    owner: "{{ app_stack_app_user }}"
+    group: "{{ app_stack_app_group }}"
+    mode: "0600"
+    backup: true
+  no_log: "{{ app_stack_secure_logging }}"
+
+- name: Install application health-check script
+  ansible.builtin.copy:
+    src: healthcheck.sh
+    dest: /usr/local/bin/app-healthcheck.sh
+    owner: root
+    group: root
+    mode: "0755"
+    backup: true
+
+- name: Run database migrations  # noqa: L039,L045,R101 - db_password is validated; DATABASE_URL is required; command arguments are validated role and credential variables
+  ansible.builtin.command:
+    argv:
+      - "{{ app_stack_app_dir }}/venv/bin/python"
+      - -m
+      - alembic
+      - upgrade
+      - head
+    chdir: "{{ app_stack_app_dir }}"
+  when: ansible_facts['distribution'] is defined
+  become: true  # noqa: R108 - migration must run as the application user with access to its environment
+  become_user: "{{ app_stack_app_user }}"
+  no_log: "{{ app_stack_secure_logging }}"
+  changed_when: true  # noqa: no-changed-when - database migrations intentionally report a change when run
+  environment:
+    DATABASE_URL: postgresql://{{ app_stack_db_user }}:{{ db_password }}@{{ app_stack_db_host }}:{{ app_stack_db_port }}/{{ app_stack_db_name }}

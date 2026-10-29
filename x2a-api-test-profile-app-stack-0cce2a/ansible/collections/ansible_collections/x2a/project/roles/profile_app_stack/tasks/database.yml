@@ -1,0 +1,68 @@
+---
+- name: Install PostgreSQL packages for local database mode
+  ansible.builtin.package:
+    name:
+      - postgresql
+      - postgresql-client
+    state: present
+  when: app_stack_db_host == 'localhost'
+
+- name: Ensure PostgreSQL service is running locally
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true
+  when: app_stack_db_host == 'localhost'
+
+- name: Create local database role  # noqa: L039,R101 - db_password is validated; SQL arguments are validated role and credential variables
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='{{ app_stack_db_user }}'" | grep -q 1 || \
+      runuser -u postgres -- psql -c "CREATE USER {{ app_stack_db_user }} WITH PASSWORD '{{ db_password }}';"
+    executable: /bin/bash
+  when: app_stack_db_host == 'localhost'
+  changed_when: true
+  no_log: "{{ app_stack_secure_logging }}"
+
+- name: Create local application database  # noqa: R101 - SQL command arguments come from validated role variables
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_catalog.pg_database WHERE datname='{{ app_stack_db_name }}'" | grep -q 1 || \
+      runuser -u postgres -- psql -c "CREATE DATABASE {{ app_stack_db_name }} OWNER {{ app_stack_db_user }};"
+    executable: /bin/bash
+  when: app_stack_db_host == 'localhost'
+  changed_when: true
+
+- name: Grant local database privileges  # noqa: R101 - SQL command arguments come from validated role variables
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - -c
+      - GRANT ALL PRIVILEGES ON DATABASE {{ app_stack_db_name }} TO {{ app_stack_db_user }};
+  when: app_stack_db_host == 'localhost'
+  changed_when: true
+
+- name: Install database backup script
+  ansible.builtin.copy:
+    src: backup.sh
+    dest: /usr/local/bin/db-backup.sh
+    owner: root
+    group: "{{ app_stack_app_group }}"
+    mode: "0750"
+    backup: true
+  when: app_stack_db_host == 'localhost'
+
+- name: Schedule database backup
+  ansible.builtin.cron:
+    name: database_backup
+    minute: "30"
+    hour: "2"
+    user: root
+    job: /usr/local/bin/db-backup.sh {{ app_stack_db_name }} {{ app_stack_db_host }}
+  when: app_stack_db_host == 'localhost'

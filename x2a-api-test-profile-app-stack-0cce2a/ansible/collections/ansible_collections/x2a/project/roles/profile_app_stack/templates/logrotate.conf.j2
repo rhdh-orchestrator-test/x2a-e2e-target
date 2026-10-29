@@ -1,0 +1,8 @@
+{{ app_stack_log_dir }}/*.log {
+  size {{ app_stack_log_max_size }}
+  rotate {{ app_stack_log_rotate_count }}
+  missingok
+  notifempty
+  compress
+  copytruncate
+}

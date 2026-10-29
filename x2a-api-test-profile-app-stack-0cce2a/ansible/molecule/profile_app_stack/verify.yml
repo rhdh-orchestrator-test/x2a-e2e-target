@@ -1,0 +1,192 @@
+---
+# Unsupported pre-flight checks: ansible-inventory output, unresolved endpoint and health URL,
+# unspecified configuration/migration commands, crontab contents, unrealized-resource provenance,
+# and secret-storage/output/process-listing inspection have no safe expected outcome here.
+- name: Verify profile_app_stack pre-flight checks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Confirm the target kernel is Linux
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['kernel'] | lower == 'linux'
+        fail_msg: The target kernel is not Linux.
+
+    - name: Confirm the application user exists
+      ansible.builtin.getent:
+        database: passwd
+        key: appuser
+
+    - name: Confirm the configured application group exists
+      ansible.builtin.getent:
+        database: group
+        key: "{{ app_stack_app_group }}"
+      when: app_stack_app_group is defined
+
+    - name: Confirm the application directory exists
+      ansible.builtin.stat:
+        path: /opt/test-app
+      register: item_app_directory
+
+    - name: Assert the application directory exists
+      ansible.builtin.assert:
+        that:
+          - item_app_directory['stat']['isdir'] | default(false)
+
+    - name: Confirm the application directory is writable
+      ansible.builtin.command:
+        argv:
+          - test
+          - -w
+          - /opt/test-app
+      register: item_app_directory_writable
+      changed_when: false
+
+    - name: Assert the application directory is writable
+      ansible.builtin.assert:
+        that:
+          - item_app_directory_writable['rc'] == 0
+
+    - name: Confirm the systemd unit file exists
+      ansible.builtin.stat:
+        path: /etc/systemd/system/test-app.service
+      register: item_app_unit
+
+    - name: Assert the systemd unit file exists
+      ansible.builtin.assert:
+        that:
+          - item_app_unit['stat']['isreg'] | default(false)
+
+    - name: Validate the application systemd unit
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - /etc/systemd/system/test-app.service
+      register: item_app_unit_validation
+      changed_when: false
+
+    - name: Assert the application systemd unit is valid
+      ansible.builtin.assert:
+        that:
+          - item_app_unit_validation['rc'] == 0
+
+    - name: Collect service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert test-app is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['test-app.service']['status'] == 'enabled'"
+          - "ansible_facts['services']['test-app.service']['state'] == 'running'"
+
+    - name: Check the application repository reference
+      ansible.builtin.command:
+        argv:
+          - git
+          - ls-remote
+          - file:///tmp/test-app-repo
+      register: item_app_repository
+      changed_when: false
+
+    - name: Assert the application repository is reachable
+      ansible.builtin.assert:
+        that:
+          - item_app_repository['rc'] == 0
+
+    - name: Check the Python runtime
+      ansible.builtin.command:
+        argv:
+          - python3
+          - --version
+      register: item_python_runtime
+      changed_when: false
+
+    - name: Assert Python 3 is available
+      ansible.builtin.assert:
+        that:
+          - item_python_runtime['rc'] == 0
+
+    - name: Confirm the application log directory exists
+      ansible.builtin.stat:
+        path: /var/log/test-app
+      register: item_app_log_directory
+
+    - name: Assert the application log directory exists
+      ansible.builtin.assert:
+        that:
+          - item_app_log_directory['stat']['isdir'] | default(false)
+
+    - name: Resolve the effective database host
+      ansible.builtin.getent:
+        database: hosts
+        key: "{{ app_stack_db_host }}"
+      when: app_stack_db_host is defined
+
+    - name: Check local PostgreSQL readiness
+      ansible.builtin.command:
+        argv:
+          - pg_isready
+          - -h
+          - "{{ app_stack_db_host }}"
+          - -p
+          - "{{ app_stack_db_port }}"
+          - -d
+          - testdb
+      register: item_postgresql_readiness
+      changed_when: false
+      when:
+        - app_stack_db_host is defined
+        - app_stack_db_port is defined
+        - app_stack_db_host == 'localhost'
+
+    - name: Assert local PostgreSQL is ready
+      ansible.builtin.assert:
+        that:
+          - item_postgresql_readiness['rc'] == 0
+      when:
+        - app_stack_db_host is defined
+        - app_stack_db_port is defined
+        - app_stack_db_host == 'localhost'
+
+    - name: Confirm the application health-check script is executable
+      ansible.builtin.stat:
+        path: /usr/local/bin/app-healthcheck.sh
+      register: item_app_healthcheck
+
+    - name: Assert the application health-check script is executable
+      ansible.builtin.assert:
+        that:
+          - item_app_healthcheck['stat']['isreg'] | default(false)
+          - item_app_healthcheck['stat']['executable'] | default(false)
+
+    - name: Confirm the database backup script is executable
+      ansible.builtin.stat:
+        path: /usr/local/bin/db-backup.sh
+      register: item_db_backup
+
+    - name: Assert the database backup script is executable
+      ansible.builtin.assert:
+        that:
+          - item_db_backup['stat']['isreg'] | default(false)
+          - item_db_backup['stat']['executable'] | default(false)
+
+    - name: Validate the application logrotate configuration
+      ansible.builtin.command:
+        argv:
+          - logrotate
+          - --debug
+          - /etc/logrotate.d/test-app
+      register: item_logrotate_validation
+      changed_when: false
+
+    - name: Assert the application logrotate configuration is valid
+      ansible.builtin.assert:
+        that:
+          - item_logrotate_validation['rc'] == 0
+
+    - name: Confirm no optional pip packages are configured for supplied test data
+      ansible.builtin.assert:
+        that:
+          - app_stack_pip_packages is defined
+          - app_stack_pip_packages == []

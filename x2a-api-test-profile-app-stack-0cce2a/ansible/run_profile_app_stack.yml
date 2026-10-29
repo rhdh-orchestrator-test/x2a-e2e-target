@@ -1,0 +1,8 @@
+---
+- name: Run migrated role profile_app_stack
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Apply profile_app_stack role
+      ansible.builtin.include_role:
+        name: x2a.project.profile_app_stack

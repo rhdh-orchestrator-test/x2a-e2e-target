@@ -1,0 +1,11 @@
+---
+- name: Schedule application health check
+  ansible.builtin.cron:
+    name: app_health_check
+    minute: "*/2"
+    user: root
+    job: /usr/local/bin/app-healthcheck.sh http://localhost:{{ app_stack_app_port }}/health
+
+- name: Document that virtual monitoring resources are not realized by this role
+  ansible.builtin.debug:
+    msg: Prometheus virtual resources remain unmanaged unless provided by another role.

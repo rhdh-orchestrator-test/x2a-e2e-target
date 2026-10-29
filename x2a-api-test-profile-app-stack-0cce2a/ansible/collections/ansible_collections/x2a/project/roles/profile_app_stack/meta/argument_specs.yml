@@ -1,0 +1,121 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy and manage a Python application stack
+    description:
+      - Installs Python dependencies, provisions optional local PostgreSQL, deploys the application, and manages systemd and health checks.
+    options:
+      app_stack_app_name:
+        type: str
+        required: false
+        default: myapp-api
+        description: Application and systemd service name.
+      app_stack_app_repo:
+        type: str
+        required: false
+        default: https://github.com/example-org/myapp-api.git
+        description: Application Git repository URL.
+      app_stack_app_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      app_stack_app_port:
+        type: int
+        required: false
+        default: 8000
+        description: Application listening port.
+      app_stack_app_dir:
+        type: str
+        required: false
+        default: /opt/myapp-api
+        description: Application installation directory.
+      app_stack_app_user:
+        type: str
+        required: false
+        default: myapp
+        description: Application runtime user.
+      app_stack_app_group:
+        type: str
+        required: false
+        default: myapp
+        description: Application runtime group.
+      app_stack_python_version:
+        type: str
+        required: false
+        default: python3
+        description: Python executable or package name.
+      app_stack_pip_packages:
+        type: list
+        elements: str
+        required: false
+        default:
+          - uvicorn
+          - gunicorn
+          - psycopg2-binary
+        description: Additional packages installed in the virtual environment.
+      app_stack_db_host:
+        type: str
+        required: false
+        default: localhost
+        description: PostgreSQL host.
+      app_stack_db_port:
+        type: int
+        required: false
+        default: 5432
+        description: PostgreSQL port.
+      app_stack_db_name:
+        type: str
+        required: false
+        default: myapp_db
+        description: Application database name.
+      app_stack_db_user:
+        type: str
+        required: false
+        default: myapp_app
+        description: Application database user.
+      app_stack_worker_count:
+        type: int
+        required: false
+        default: 2
+        description: Number of application workers.
+      app_stack_worker_class:
+        type: str
+        required: false
+        default: uvicorn.workers.UvicornWorker
+        description: Gunicorn worker class.
+      app_stack_max_requests:
+        type: int
+        required: false
+        default: 1000
+        description: Maximum requests per worker.
+      app_stack_graceful_timeout:
+        type: int
+        required: false
+        default: 30
+        description: Worker graceful shutdown timeout.
+      app_stack_log_dir:
+        type: str
+        required: false
+        default: /var/log/myapp-api
+        description: Application log directory.
+      app_stack_log_level:
+        type: str
+        required: false
+        default: info
+        description: Application log level.
+      app_stack_log_max_size:
+        type: str
+        required: false
+        default: 100M
+        description: Maximum log file size before rotation.
+      app_stack_log_rotate_count:
+        type: int
+        required: false
+        default: 7
+        description: Number of rotated log files to retain.
+      app_stack_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide task output for operations handling credentials.

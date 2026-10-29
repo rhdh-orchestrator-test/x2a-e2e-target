@@ -1,0 +1,27 @@
+---
+app_stack_app_name: myapp-api
+app_stack_app_repo: https://github.com/example-org/myapp-api.git
+app_stack_app_revision: main
+app_stack_app_port: 8000
+app_stack_app_dir: /opt/myapp-api
+app_stack_app_user: myapp
+app_stack_app_group: myapp
+app_stack_python_version: python3
+app_stack_pip_packages:
+  - uvicorn
+  - gunicorn
+  - psycopg2-binary
+app_stack_db_host: localhost
+app_stack_db_port: 5432
+app_stack_db_name: myapp_db
+app_stack_db_user: myapp_app
+app_stack_db_password: "{{ db_password }}"
+app_stack_worker_count: 2
+app_stack_worker_class: uvicorn.workers.UvicornWorker
+app_stack_max_requests: 1000
+app_stack_graceful_timeout: 30
+app_stack_log_dir: /var/log/myapp-api
+app_stack_log_level: info
+app_stack_log_max_size: 100M
+app_stack_log_rotate_count: 7
+app_stack_secure_logging: true

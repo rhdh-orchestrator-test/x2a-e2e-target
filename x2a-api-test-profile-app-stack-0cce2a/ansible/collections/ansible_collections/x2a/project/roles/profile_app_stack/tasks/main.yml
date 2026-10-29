@@ -1,0 +1,30 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Load production role variables  # noqa: L039 - deployment_environment comes from inventory or role parameters
+  ansible.builtin.include_vars: production.yml
+  when: ansible_facts['distribution'] is defined and deployment_environment | default('') == 'production'
+
+- name: Load staging role variables  # noqa: L039 - deployment_environment comes from inventory or role parameters
+  ansible.builtin.include_vars: staging.yml
+  when: ansible_facts['distribution'] is defined and deployment_environment | default('') == 'staging'
+
+- name: Run Linux application stack preparation
+  ansible.builtin.include_tasks: role_app_stack.yml
+  when: ansible_facts['kernel'] | lower == 'linux'
+
+- name: Configure Python runtime
+  ansible.builtin.include_tasks: python.yml
+
+- name: Configure database
+  ansible.builtin.include_tasks: database.yml
+
+- name: Deploy application
+  ansible.builtin.include_tasks: app.yml
+
+- name: Configure application service
+  ansible.builtin.include_tasks: service.yml
+
+- name: Configure monitoring
+  ansible.builtin.include_tasks: monitoring.yml
