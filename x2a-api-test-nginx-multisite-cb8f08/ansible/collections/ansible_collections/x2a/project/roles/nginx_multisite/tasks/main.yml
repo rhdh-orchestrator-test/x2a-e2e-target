@@ -1,0 +1,7 @@
+---
+- name: Load nginx multisite defaults
+  ansible.builtin.include_vars: "{{ role_path }}/defaults/main.yml"
+  tags: always
+
+- name: Apply security recipe
+  ansible.builtin.include_tasks: default.yml
