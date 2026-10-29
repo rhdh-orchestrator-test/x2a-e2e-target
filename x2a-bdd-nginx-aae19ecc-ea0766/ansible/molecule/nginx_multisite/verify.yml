@@ -1,0 +1,84 @@
+---
+# Unsupported pre-flight checks: link targets, configuration-content greps, filesystem
+# listings, certificate/stat output, HTTPS headers/content, listening ports, firewall
+# output, fail2ban-client output, sysctl output, log tails, and journal output do not
+# state an expected result in the migration plan.
+- name: Verify nginx multisite pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Check installed packages
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are installed
+      ansible.builtin.assert:
+        that:
+          - "'nginx' in ansible_facts['packages']"
+          - "'fail2ban' in ansible_facts['packages']"
+          - "'ufw' in ansible_facts['packages']"
+          - "'openssl' in ansible_facts['packages']"
+          - "'ca-certificates' in ansible_facts['packages']"
+        fail_msg: Required pre-flight packages are not all installed.
+
+    - name: Gather service status for pre-flight checks
+      ansible.builtin.service_facts:
+
+    - name: Assert required services are active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['nginx.service']['state'] == 'running'"
+          - "ansible_facts['services']['fail2ban.service']['state'] == 'running'"
+          - "ansible_facts['services']['ssh.service']['state'] == 'running'"
+        fail_msg: A required pre-flight service is not active.
+
+    - name: Check nginx configuration syntax
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      changed_when: false
+      register: nginx_syntax_check
+
+    - name: Assert nginx configuration syntax is valid
+      ansible.builtin.assert:
+        that:
+          - nginx_syntax_check['rc'] == 0
+        fail_msg: Nginx configuration syntax check failed.
+
+    - name: Check HTTP redirect for each configured site
+      ansible.builtin.uri:
+        url: http://127.0.0.1/
+        headers:
+          Host: "{{ item_site }}"
+        follow_redirects: none
+        return_content: false
+        status_code: 301
+      loop:
+        - test.cluster.local
+        - ci.cluster.local
+        - status.cluster.local
+      loop_control:
+        loop_var: item_site
+      register: http_redirect_checks
+
+    - name: Assert HTTP redirects target HTTPS for each configured site
+      ansible.builtin.assert:
+        that:
+          - item_redirect['status'] == 301
+          - item_redirect['location'] == 'https://' ~ item_redirect['item'] ~ '/'
+      loop: "{{ http_redirect_checks['results'] }}"
+      loop_control:
+        loop_var: item_redirect
+
+    - name: Read SSH hardening configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: sshd_config_content
+
+    - name: Assert SSH hardening settings are disabled as specified
+      ansible.builtin.assert:
+        that:
+          - "(sshd_config_content['content'] | b64decode) is search('(?m)^PermitRootLogin no$')"
+          - "(sshd_config_content['content'] | b64decode) is search('(?m)^PasswordAuthentication no$')"
+        fail_msg: SSH hardening settings do not match the pre-flight expectations.

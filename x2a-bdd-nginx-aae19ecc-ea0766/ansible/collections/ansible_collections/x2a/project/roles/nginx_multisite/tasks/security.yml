@@ -1,0 +1,173 @@
+---
+- name: Install security packages
+  ansible.builtin.package:
+    name:
+      - fail2ban
+      - ufw
+      - openssh-server
+    state: present
+
+- name: Enable and start fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: started
+    enabled: true
+  when: nginx_multisite_fail2ban_enabled | bool
+
+- name: Configure fail2ban
+  ansible.builtin.template:
+    src: fail2ban.jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: "0644"
+    backup: true
+  when: nginx_multisite_fail2ban_enabled | bool
+  notify: Restart fail2ban
+
+- name: Check current UFW status
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - status
+  register: nginx_multisite_ufw_status
+  changed_when: false
+  when: nginx_multisite_ufw_enabled | bool
+
+- name: Set UFW default incoming policy  # noqa: L039 - status is registered by the preceding task
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - --force
+      - default
+      - deny
+  when:
+    - nginx_multisite_ufw_enabled
+    - "'Default: deny (incoming)' not in nginx_multisite_ufw_status.stdout"
+  changed_when: true
+
+- name: Allow required UFW services  # noqa: L039 - status is registered by the preceding task
+  ansible.builtin.command:  # noqa: R101 - service name comes from the role-defined required services loop
+    argv:
+      - ufw
+      - allow
+      - "{{ item_ufw_service['name'] }}"
+  when:
+    - nginx_multisite_ufw_enabled
+    - "(item_ufw_service['port'] ~ '/tcp') not in nginx_multisite_ufw_status.stdout"
+  changed_when: true
+  loop:
+    - name: ssh
+      port: 22
+    - name: http
+      port: 80
+    - name: https
+      port: 443
+  loop_control:
+    loop_var: item_ufw_service
+
+- name: Enable UFW  # noqa: L039 - status is registered by the preceding task
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - --force
+      - enable
+  when:
+    - nginx_multisite_ufw_enabled
+    - "'Status: active' not in nginx_multisite_ufw_status.stdout"
+  changed_when: true
+
+- name: Configure kernel security settings file
+  ansible.builtin.template:
+    src: sysctl-security.conf.j2
+    dest: /etc/sysctl.d/99-security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload sysctl security settings
+
+- name: Apply kernel security settings
+  ansible.posix.sysctl:
+    name: "{{ item_sysctl['key'] }}"
+    value: "{{ item_sysctl['value'] }}"
+    sysctl_file: /etc/sysctl.d/99-security.conf
+    sysctl_set: true
+    reload: true
+    state: present
+  loop:
+    - key: net.ipv4.conf.default.rp_filter
+      value: "1"
+    - key: net.ipv4.conf.all.rp_filter
+      value: "1"
+    - key: net.ipv4.conf.all.accept_redirects
+      value: "0"
+    - key: net.ipv6.conf.all.accept_redirects
+      value: "0"
+    - key: net.ipv4.conf.default.accept_redirects
+      value: "0"
+    - key: net.ipv6.conf.default.accept_redirects
+      value: "0"
+    - key: net.ipv4.conf.all.send_redirects
+      value: "0"
+    - key: net.ipv4.conf.default.send_redirects
+      value: "0"
+    - key: net.ipv4.conf.all.accept_source_route
+      value: "0"
+    - key: net.ipv6.conf.all.accept_source_route
+      value: "0"
+    - key: net.ipv4.conf.default.accept_source_route
+      value: "0"
+    - key: net.ipv6.conf.default.accept_source_route
+      value: "0"
+    - key: net.ipv4.conf.all.log_martians
+      value: "1"
+    - key: net.ipv4.conf.default.log_martians
+      value: "1"
+    - key: net.ipv4.icmp_echo_ignore_all
+      value: "1"
+    - key: net.ipv4.icmp_echo_ignore_broadcasts
+      value: "1"
+    - key: net.ipv6.conf.all.disable_ipv6
+      value: "1"
+    - key: net.ipv6.conf.default.disable_ipv6
+      value: "1"
+    - key: net.ipv6.conf.lo.disable_ipv6
+      value: "1"
+    - key: net.ipv4.tcp_syncookies
+      value: "1"
+    - key: net.ipv4.tcp_max_syn_backlog
+      value: "2048"
+    - key: net.ipv4.tcp_synack_retries
+      value: "2"
+    - key: net.ipv4.tcp_syn_retries
+      value: "5"
+  loop_control:
+    loop_var: item_sysctl
+
+- name: Check whether SSH server configuration exists
+  ansible.builtin.stat:
+    path: /etc/ssh/sshd_config
+  register: nginx_multisite_sshd_config
+
+- name: Harden SSH root login  # noqa: L039 - SSH configuration status is registered by the preceding task
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PermitRootLogin
+    line: PermitRootLogin no
+    state: present
+    create: false
+    backup: true
+  when:
+    - nginx_multisite_ssh_disable_root
+    - nginx_multisite_sshd_config.stat.exists
+  notify: Restart SSH
+
+- name: Disable SSH password authentication  # noqa: L039 - SSH configuration status is registered by the preceding task
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PasswordAuthentication
+    line: PasswordAuthentication no
+    state: present
+    create: false
+    backup: true
+  when:
+    - not nginx_multisite_ssh_password_auth
+    - nginx_multisite_sshd_config.stat.exists
+  notify: Restart SSH
