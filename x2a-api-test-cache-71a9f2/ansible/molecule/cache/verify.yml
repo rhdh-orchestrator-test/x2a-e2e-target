@@ -1,0 +1,122 @@
+# Unsupported pre-flight checks: authenticated Redis checks require a secure secret not provided here;
+# runtime INFO checks have no stated expected outcome; Memcached checks lack a verified service and port.
+---
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Check Redis service states
+      ansible.builtin.service_facts:
+
+    - name: Assert a verified Redis service is active
+      ansible.builtin.assert:
+        that:
+          - >-
+            ('redis.service' in ansible_facts['services'] and
+            ansible_facts['services']['redis.service']['state'] == 'running') or
+            ('redis-server.service' in ansible_facts['services'] and
+            ansible_facts['services']['redis-server.service']['state'] == 'running')
+        fail_msg: Redis service is not active.
+
+    - name: Check Redis service enablement candidates
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - "{{ item_service }}"
+      changed_when: false
+      failed_when: false
+      loop:
+        - redis
+        - redis-server
+      loop_control:
+        loop_var: item_service
+      register: redis_enabled_checks
+
+    - name: Assert a verified Redis service is enabled
+      ansible.builtin.assert:
+        that:
+          - >-
+            redis_enabled_checks['results'] |
+            selectattr('stdout', 'equalto', 'enabled') |
+            list |
+            length > 0
+        fail_msg: No verified Redis service is enabled.
+
+    - name: Wait for the Redis TCP endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Check that unauthenticated Redis access requires authentication
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - PING
+      changed_when: false
+      failed_when: false
+      register: redis_unauthenticated_ping
+
+    - name: Assert unauthenticated Redis PING is rejected
+      ansible.builtin.assert:
+        that:
+          - redis_unauthenticated_ping['rc'] != 0
+          - >-
+            'NOAUTH' in (redis_unauthenticated_ping['stdout'] | upper) or
+            'AUTHENTICATION' in (redis_unauthenticated_ping['stdout'] | upper) or
+            'NOAUTH' in (redis_unauthenticated_ping['stderr'] | upper) or
+            'AUTHENTICATION' in (redis_unauthenticated_ping['stderr'] | upper)
+        fail_msg: Unauthenticated Redis PING was not rejected with an authentication error.
+
+    - name: Read the Redis configuration file
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config
+
+    - name: Assert the Redis configuration file and required directives
+      ansible.builtin.assert:
+        that:
+          - redis_config['content'] | b64decode is search('(?m)^port\\s+6379\\s*$')
+          - >-
+            redis_config['content'] | b64decode is not search(
+            '(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: Redis configuration does not meet the required port or directive checks.
+
+    - name: Inspect the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+          - redis_log_directory['stat']['pw_name'] == 'redis'
+          - redis_log_directory['stat']['gr_name'] == 'redis'
+          - redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: Redis log directory ownership or permissions are incorrect.
+
+    - name: Check Redis user write access to the log directory
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - redis
+          - --
+          - test
+          - -w
+          - /var/log/redis
+      changed_when: false
+      failed_when: false
+      register: redis_log_write_check
+
+    - name: Assert Redis user can write to the log directory
+      ansible.builtin.assert:
+        that:
+          - redis_log_write_check['rc'] == 0
+        fail_msg: Redis user cannot write to the Redis log directory.
