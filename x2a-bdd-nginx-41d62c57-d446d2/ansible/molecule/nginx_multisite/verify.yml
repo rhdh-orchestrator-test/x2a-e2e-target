@@ -1,0 +1,217 @@
+---
+# Unsupported: status/log output, readlink output, key stat output, and standalone sysctl output
+# have no stated assertion outcome.
+- name: Verify nginx-multisite pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert nginx and fail2ban are active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['nginx.service']['state'] == 'running'"
+          - "ansible_facts['services']['fail2ban.service']['state'] == 'running'"
+
+    - name: Check enabled services
+      ansible.builtin.command:
+        argv: [systemctl, is-enabled, "{{ item_service }}"]
+      changed_when: false
+      loop: [nginx, fail2ban]
+      loop_control:
+        loop_var: item_service
+      register: enabled_services
+
+    - name: Assert services are enabled
+      ansible.builtin.assert:
+        that: item_enabled['rc'] == 0
+      loop: "{{ enabled_services['results'] }}"
+      loop_control:
+        loop_var: item_enabled
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv: [nginx, -t]
+      changed_when: false
+      register: nginx_config
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that: nginx_config['rc'] == 0
+
+    - name: Check required configuration files
+      ansible.builtin.stat:
+        path: "{{ item_config_path }}"
+      loop:
+        - /etc/nginx/nginx.conf
+        - /etc/nginx/conf.d/security.conf
+        - /etc/fail2ban/jail.local
+      loop_control:
+        loop_var: item_config_path
+      register: config_files
+
+    - name: Assert required configuration files exist
+      ansible.builtin.assert:
+        that:
+          - item_config['stat']['exists']
+          - item_config['stat']['isreg']
+      loop: "{{ config_files['results'] }}"
+      loop_control:
+        loop_var: item_config
+
+    - name: Check fail2ban
+      ansible.builtin.command:
+        argv: [fail2ban-client, "{{ item_f2b_check }}"]
+      changed_when: false
+      loop: [ping, status]
+      loop_control:
+        loop_var: item_f2b_check
+      register: f2b_checks
+
+    - name: Assert fail2ban checks succeed
+      ansible.builtin.assert:
+        that: item_f2b_result['rc'] == 0
+      loop: "{{ f2b_checks['results'] }}"
+      loop_control:
+        loop_var: item_f2b_result
+
+    - name: Check site files and TLS material
+      ansible.builtin.stat:
+        path: "{{ item_path }}"
+        follow: false
+      loop:
+        - /etc/nginx/sites-available/test.cluster.local
+        - /etc/nginx/sites-enabled/test.cluster.local
+        - /opt/server/test/index.html
+        - /etc/ssl/certs/test.cluster.local.crt
+        - /etc/ssl/private/test.cluster.local.key
+        - /etc/nginx/sites-available/ci.cluster.local
+        - /etc/nginx/sites-enabled/ci.cluster.local
+        - /opt/server/ci/index.html
+        - /etc/ssl/certs/ci.cluster.local.crt
+        - /etc/ssl/private/ci.cluster.local.key
+        - /etc/nginx/sites-available/status.cluster.local
+        - /etc/nginx/sites-enabled/status.cluster.local
+        - /opt/server/status/index.html
+        - /etc/ssl/certs/status.cluster.local.crt
+        - /etc/ssl/private/status.cluster.local.key
+      loop_control:
+        loop_var: item_path
+      register: site_paths
+
+    - name: Assert site files and TLS material exist
+      ansible.builtin.assert:
+        that: item_site['stat']['exists']
+      loop: "{{ site_paths['results'] }}"
+      loop_control:
+        loop_var: item_site
+
+    - name: Assert enabled site entries are links
+      ansible.builtin.assert:
+        that: item_link['stat']['islnk']
+      loop: "{{ site_paths['results'] }}"
+      when: "item_link['item'] is match('/etc/nginx/sites-enabled/.*')"
+      loop_control:
+        loop_var: item_link
+
+    - name: Check certificate subject and dates
+      ansible.builtin.command:
+        argv: [openssl, x509, -in, "{{ item_certificate['path'] }}", -noout, -subject, -dates]
+      changed_when: false
+      loop:
+        - {path: /etc/ssl/certs/test.cluster.local.crt, host: test.cluster.local}
+        - {path: /etc/ssl/certs/ci.cluster.local.crt, host: ci.cluster.local}
+        - {path: /etc/ssl/certs/status.cluster.local.crt, host: status.cluster.local}
+      loop_control:
+        loop_var: item_certificate
+      register: certificates
+
+    - name: Assert certificate checks identify configured hosts
+      ansible.builtin.assert:
+        that:
+          - item_certificate_result['rc'] == 0
+          - "item_certificate_result['stdout'] is search(item_certificate_result['item']['host'])"
+      loop: "{{ certificates['results'] }}"
+      loop_control:
+        loop_var: item_certificate_result
+
+    - name: Check HTTP endpoints
+      ansible.builtin.command:
+        argv: [curl, -I, -H, "Host: {{ item_http_host }}", http://127.0.0.1/]
+      changed_when: false
+      loop: [test.cluster.local, ci.cluster.local, status.cluster.local]
+      loop_control:
+        loop_var: item_http_host
+      register: http_checks
+
+    - name: Assert HTTP endpoints respond successfully
+      ansible.builtin.assert:
+        that:
+          - item_http['rc'] == 0
+          - item_http['stdout'] is search('HTTP/[0-9.]+ 2[0-9][0-9]')
+      loop: "{{ http_checks['results'] }}"
+      loop_control:
+        loop_var: item_http
+
+    - name: Check HTTPS endpoints
+      ansible.builtin.command:
+        argv: [curl, -k, -I, --resolve, "{{ item_https_host }}:443:127.0.0.1", "https://{{ item_https_host }}/"]
+      changed_when: false
+      loop: [test.cluster.local, ci.cluster.local, status.cluster.local]
+      loop_control:
+        loop_var: item_https_host
+      register: https_checks
+
+    - name: Assert HTTPS endpoints respond successfully
+      ansible.builtin.assert:
+        that:
+          - item_https['rc'] == 0
+          - item_https['stdout'] is search('HTTP/[0-9.]+ 2[0-9][0-9]')
+      loop: "{{ https_checks['results'] }}"
+      loop_control:
+        loop_var: item_https
+
+    - name: Check default site absence
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: default_site
+
+    - name: Assert default site is absent
+      ansible.builtin.assert:
+        that: not default_site['stat']['exists']
+
+    - name: Check HTTP and HTTPS listeners
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ item_port }}"
+        state: started
+        timeout: 5
+      loop: [80, 443]
+      loop_control:
+        loop_var: item_port
+
+    - name: Check firewall rules
+      ansible.builtin.command:
+        argv: [ufw, status, verbose]
+      changed_when: false
+      register: firewall
+
+    - name: Assert firewall permits required ports
+      ansible.builtin.assert:
+        that:
+          - firewall['rc'] == 0
+          - firewall['stdout'] is search('22')
+          - firewall['stdout'] is search('80')
+          - firewall['stdout'] is search('443')
+
+    - name: Read SSH configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: ssh_config
+
+    - name: Assert SSH hardening settings are present
+      ansible.builtin.assert:
+        that:
+          - ssh_config['content'] | b64decode is search('(?m)^[[:space:]]*PermitRootLogin[[:space:]]+no[[:space:]]*$')
+          - ssh_config['content'] | b64decode is search('(?m)^[[:space:]]*PasswordAuthentication[[:space:]]+no[[:space:]]*$')
