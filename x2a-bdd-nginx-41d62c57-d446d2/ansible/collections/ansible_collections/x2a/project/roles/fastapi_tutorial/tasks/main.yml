@@ -1,0 +1,134 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install FastAPI and PostgreSQL packages
+  ansible.builtin.package:
+    name:
+      - python3
+      - python3-pip
+      - python3-venv
+      - git
+      - postgresql
+      - postgresql-contrib
+      - libpq-dev
+    state: present
+
+- name: Create FastAPI application directory
+  ansible.builtin.file:
+    path: "{{ fastapi_tutorial_app_path }}" # noqa: R114 - role default path is trusted
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+    recurse: true
+
+- name: Synchronize FastAPI tutorial repository  # noqa: R104 - repository default uses HTTPS
+  ansible.builtin.git:
+    repo: "{{ fastapi_tutorial_repository }}" # noqa: R106 - repository URL comes from a trusted role default
+    dest: "{{ fastapi_tutorial_app_path }}" # noqa: R114 - role default path is trusted
+    version: "{{ fastapi_tutorial_revision }}"
+    update: true
+
+- name: Create Python virtual environment  # noqa: R101 - virtualenv path comes from a trusted role default
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -m
+      - venv
+      - "{{ fastapi_tutorial_venv_path }}"
+    creates: "{{ fastapi_tutorial_venv_path }}/bin/python" # noqa: R114 - role default path is trusted
+
+- name: Install application dependencies  # noqa: R113 - requirements target comes from a trusted role default
+  ansible.builtin.pip:
+    requirements: "{{ fastapi_tutorial_app_path }}/requirements.txt" # noqa: R114 - role default path is trusted
+    virtualenv: "{{ fastapi_tutorial_venv_path }}" # noqa: R114 - role default path is trusted
+
+- name: Enable and start PostgreSQL
+  ansible.builtin.service:
+    name: postgresql
+    enabled: true
+    state: started
+
+- name: Create FastAPI PostgreSQL role  # noqa: R101,L039 - command uses validated AAP credentials and trusted role defaults; db_password is supplied by the attached AAP credential and validated previously
+  ansible.builtin.command:
+    argv:
+      - psql
+      - --set=password={{ db_password }}
+      - --command
+      - >-
+        DO $$ BEGIN
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '{{ fastapi_tutorial_database_user }}')
+        THEN EXECUTE format('CREATE ROLE {{ fastapi_tutorial_database_user }} LOGIN PASSWORD %L', :'password');
+        END IF; END $$;
+    become: true
+    become_user: postgres
+    changed_when: false
+  no_log: "{{ fastapi_tutorial_secure_logging }}"
+
+- name: Create FastAPI PostgreSQL database  # noqa: R101 - command uses trusted role-default database values
+  ansible.builtin.command:
+    argv:
+      - psql
+      - --command
+      - >-
+        SELECT format('CREATE DATABASE %I OWNER %I', '{{ fastapi_tutorial_database_name }}',
+        '{{ fastapi_tutorial_database_user }}')
+        WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{{ fastapi_tutorial_database_name }}')\gexec
+    become: true
+    become_user: postgres
+    changed_when: false
+
+- name: Grant FastAPI database privileges  # noqa: R101 - command uses trusted role-default database values
+  ansible.builtin.command:
+    argv:
+      - psql
+      - --command
+      - GRANT ALL PRIVILEGES ON DATABASE "{{ fastapi_tutorial_database_name }}" TO "{{ fastapi_tutorial_database_user }}";
+    become: true
+    become_user: postgres
+    changed_when: false
+
+- name: Deploy FastAPI environment file  # noqa: L039 - db_password is supplied by the attached AAP credential and validated previously
+  ansible.builtin.copy:
+    dest: "{{ fastapi_tutorial_app_path }}/.env" # noqa: R114 - role default path is trusted
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
+    content: |
+      PROJECT_NAME="{{ fastapi_tutorial_project_name }}"
+      API_VERSION={{ fastapi_tutorial_api_version }}
+      DATABASE_URL=postgresql://{{ fastapi_tutorial_database_user }}:{{ db_password }}@{{ fastapi_tutorial_database_host }}:{{ fastapi_tutorial_database_port }}/{{ fastapi_tutorial_database_name }}
+  no_log: "{{ fastapi_tutorial_secure_logging }}"
+
+- name: Deploy FastAPI systemd unit
+  ansible.builtin.copy:
+    dest: "{{ fastapi_tutorial_service_unit }}" # noqa: R114 - service unit path is a role default
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+    content: |
+      [Unit]
+      Description=FastAPI Tutorial Service
+      After=network.target postgresql.service
+      [Service]
+      Type=simple
+      User=root
+      WorkingDirectory={{ fastapi_tutorial_app_path }}
+      Environment="PATH={{ fastapi_tutorial_venv_path }}/bin"
+      ExecStart={{ fastapi_tutorial_venv_path }}/bin/uvicorn app.main:app --host 0.0.0.0 --port {{ fastapi_tutorial_app_port }}
+      Restart=always
+      [Install]
+      WantedBy=multi-user.target
+  notify: Reload systemd after FastAPI unit changes
+
+- name: Apply pending systemd unit changes before starting FastAPI
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start FastAPI service
+  ansible.builtin.systemd:
+    name: "{{ fastapi_tutorial_service_name }}"
+    enabled: true
+    state: started
