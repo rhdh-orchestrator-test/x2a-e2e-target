@@ -1,0 +1,176 @@
+# Unsupported pre-flight checks: git remote/branch/revision, package-list diagnostics,
+# virtualenv version/package-list diagnostics, detailed systemd output, process listings,
+# service status/log output, and the password-authenticated connectivity check have no
+# safely stated expected outcome here or would require exposing a credential.
+---
+- name: Verify fastapi-tutorial migration
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify required packages are installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_packages in ansible_facts['packages']
+        loop:
+          - python3
+          - python3-pip
+          - python3-venv
+          - git
+          - postgresql
+          - postgresql-contrib
+          - libpq-dev
+        loop_control:
+          loop_var: item_packages
+
+    - name: Verify the application directory exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: application_directory
+
+    - name: Assert the application directory exists
+      ansible.builtin.assert:
+        that:
+          - application_directory['stat']['exists']
+          - application_directory['stat']['isdir']
+
+    - name: Verify the application requirements file exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: requirements_file
+
+    - name: Assert the application requirements file exists
+      ansible.builtin.assert:
+        that:
+          - requirements_file['stat']['exists']
+          - requirements_file['stat']['isreg']
+
+    - name: Verify virtual environment executables
+      ansible.builtin.stat:
+        path: "{{ item_venv['path'] }}"
+      loop:
+        - path: /opt/fastapi-tutorial/venv/bin/python
+        - path: /opt/fastapi-tutorial/venv/bin/pip
+        - path: /opt/fastapi-tutorial/venv/bin/uvicorn
+      loop_control:
+        loop_var: item_venv
+      register: virtual_environment_executables
+
+    - name: Assert virtual environment executables are present and executable
+      ansible.builtin.assert:
+        that:
+          - item_venv_result['stat']['exists']
+          - item_venv_result['stat']['isreg']
+          - item_venv_result['stat']['executable']
+      loop: "{{ virtual_environment_executables['results'] }}"
+      loop_control:
+        loop_var: item_venv_result
+
+    - name: Gather service facts for PostgreSQL and FastAPI
+      ansible.builtin.service_facts:
+
+    - name: Assert PostgreSQL is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'postgresql.service' in ansible_facts['services']"
+          - ansible_facts['services']['postgresql.service']['status'] == 'enabled'
+          - ansible_facts['services']['postgresql.service']['state'] == 'running'
+
+    - name: Verify PostgreSQL is listening on its standard port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 5432
+        state: started
+        timeout: 10
+
+    - name: Query the PostgreSQL role
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT rolname FROM pg_roles WHERE rolname = 'fastapi';
+      register: postgres_role_query
+      changed_when: false
+
+    - name: Assert the fastapi PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - postgres_role_query['rc'] == 0
+          - "'fastapi' in postgres_role_query['stdout'].split()"
+
+    - name: Query the PostgreSQL database and owner
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT datname, pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db';
+      register: postgres_database_query
+      changed_when: false
+
+    - name: Assert fastapi_db exists and is owned by fastapi
+      ansible.builtin.assert:
+        that:
+          - postgres_database_query['rc'] == 0
+          - postgres_database_query['stdout'] | trim == 'fastapi_db | fastapi'
+
+    - name: Read the application environment file
+      ansible.builtin.slurp:
+        src: /opt/fastapi-tutorial/.env
+      register: application_environment
+
+    - name: Assert expected non-secret environment entries are present
+      ansible.builtin.assert:
+        that:
+          - "(application_environment['content'] | b64decode) is search('(?m)^PROJECT_NAME=')"
+          - "(application_environment['content'] | b64decode) is search('(?m)^API_VERSION=')"
+          - "(application_environment['content'] | b64decode) is search('(?m)^DATABASE_URL=')"
+
+    - name: Verify the systemd unit file is valid
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_unit_verify
+      changed_when: false
+
+    - name: Assert the FastAPI systemd unit is valid
+      ansible.builtin.assert:
+        that:
+          - fastapi_unit_verify['rc'] == 0
+
+    - name: Assert the FastAPI service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'fastapi-tutorial.service' in ansible_facts['services']"
+          - ansible_facts['services']['fastapi-tutorial.service']['status'] == 'enabled'
+          - ansible_facts['services']['fastapi-tutorial.service']['state'] == 'running'
+
+    - name: Verify the FastAPI application is listening on port 8000
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 8000
+        state: started
+        timeout: 30
+
+    - name: Verify the FastAPI endpoint returns an application response
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8000/
+        method: GET
+        return_content: false
+      register: fastapi_endpoint
+
+    - name: Assert the FastAPI endpoint responded successfully
+      ansible.builtin.assert:
+        that:
+          - fastapi_endpoint['status'] >= 200
+          - fastapi_endpoint['status'] < 500
