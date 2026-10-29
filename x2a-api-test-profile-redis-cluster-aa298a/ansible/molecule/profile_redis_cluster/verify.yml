@@ -1,0 +1,110 @@
+# Unsupported pre-flight checks: OS/version output, configuration-value greps, secure password
+# sourcing, authenticated Redis PING/CONFIG checks, optional replica-file contents, and the
+# deliberate maxmemory-policy decision have no safely stated assertion for this verifier.
+---
+- name: Verify Redis cluster profile
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather installed package facts for the Redis package check
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert that redis-server is installed
+      ansible.builtin.assert:
+        that:
+          - "'redis-server' in ansible_facts['packages']"
+        fail_msg: redis-server is not installed.
+        success_msg: redis-server is installed.
+
+    - name: Gather service facts for the Redis service checks
+      ansible.builtin.service_facts:
+
+    - name: Assert that redis-server is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'redis-server.service' in ansible_facts['services']"
+          - "ansible_facts['services']['redis-server.service']['status'] == 'enabled'"
+          - "ansible_facts['services']['redis-server.service']['state'] == 'running'"
+        fail_msg: redis-server is not enabled and running.
+        success_msg: redis-server is enabled and running.
+
+    - name: Check managed Redis directories and configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_redis_path }}"
+      loop:
+        - /etc/redis
+        - /etc/redis/redis.conf.puppet
+        - /etc/redis/redis.conf
+        - /var/log/redis
+        - /var/lib/redis
+      loop_control:
+        loop_var: item_redis_path
+      register: redis_managed_paths
+
+    - name: Assert that managed Redis paths exist
+      ansible.builtin.assert:
+        that:
+          - item_redis_path_result['stat']['exists']
+        fail_msg: A managed Redis path is missing.
+        success_msg: All managed Redis paths exist.
+      loop: "{{ redis_managed_paths['results'] }}"
+      loop_control:
+        loop_var: item_redis_path_result
+
+    - name: Validate the Redis configuration
+      ansible.builtin.command:
+        argv:
+          - redis-server
+          - /etc/redis/redis.conf
+          - --test-memory
+          - "2"
+      register: redis_config_validation
+      changed_when: false
+
+    - name: Assert that the Redis configuration validates
+      ansible.builtin.assert:
+        that:
+          - redis_config_validation['rc'] == 0
+        fail_msg: The Redis configuration validation failed.
+        success_msg: The Redis configuration validates successfully.
+
+    - name: Check the default Redis TCP endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Check the default Redis Unix socket exists
+      ansible.builtin.stat:
+        path: /var/run/redis/redis.sock
+      register: redis_unix_socket
+
+    - name: Assert that the default Redis Unix socket exists
+      ansible.builtin.assert:
+        that:
+          - redis_unix_socket['stat']['exists']
+          - redis_unix_socket['stat']['issock'] | default(false)
+        fail_msg: The default Redis Unix socket is missing.
+        success_msg: The default Redis Unix socket exists.
+
+    - name: Check the legacy Redis systemd drop-in and limits file
+      ansible.builtin.stat:
+        path: "{{ item_redis_absent_path }}"
+      loop:
+        - /etc/systemd/system/redis-server.service.d/limit.conf
+        - /etc/security/limits.d/redis.conf
+      loop_control:
+        loop_var: item_redis_absent_path
+      register: redis_absent_paths
+
+    - name: Assert that legacy Redis limit files are absent
+      ansible.builtin.assert:
+        that:
+          - not item_redis_absent_result['stat']['exists']
+        fail_msg: A legacy Redis limit file is present.
+        success_msg: Legacy Redis limit files are absent.
+      loop: "{{ redis_absent_paths['results'] }}"
+      loop_control:
+        loop_var: item_redis_absent_result

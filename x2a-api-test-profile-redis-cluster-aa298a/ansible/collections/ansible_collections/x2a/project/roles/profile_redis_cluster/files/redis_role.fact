@@ -1,0 +1,7 @@
+#!/bin/sh
+# Report the Redis node role based on the optional replica configuration.
+if [ -f /etc/redis/conf.d/replica.conf ] && grep -q 'replicaof' /etc/redis/conf.d/replica.conf; then
+  printf '%s\n' replica
+else
+  printf '%s\n' primary
+fi

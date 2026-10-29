@@ -1,0 +1,82 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure the profile Redis service.
+    description:
+      - Installs and configures a standalone Redis instance with authentication, memory limits, and append-only persistence.
+    options:
+      redis_cluster_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by Redis.
+      redis_cluster_password:
+        type: str
+        required: false
+        default: "{{ redis_password }}"
+        description: Redis authentication password mapped from the AAP credential variable.
+      redis_cluster_maxmemory_mb:
+        type: int
+        required: false
+        default: 256
+        description: Maximum Redis memory in megabytes.
+      redis_cluster_maxmemory_policy:
+        type: str
+        required: false
+        default: allkeys-lru
+        description: Redis eviction policy.
+      redis_cluster_bind:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: Address on which Redis listens.
+      redis_cluster_appendonly:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis append-only persistence is enabled.
+      redis_cluster_appendfsync:
+        type: str
+        required: false
+        default: everysec
+        description: Append-only file fsync policy.
+      redis_cluster_manage_repository:
+        type: bool
+        required: false
+        default: false
+        description: Whether the Redis package repository is managed.
+      redis_cluster_manage_package:
+        type: bool
+        required: false
+        default: true
+        description: Whether the Redis package is managed.
+      redis_cluster_service_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis service name.
+      redis_cluster_service_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis starts at boot.
+      redis_cluster_service_state:
+        type: str
+        required: false
+        default: started
+        description: Desired Redis service state.
+      redis_cluster_ulimit:
+        type: int
+        required: false
+        default: 65536
+        description: Redis file descriptor limit.
+      redis_cluster_instances:
+        type: list
+        required: false
+        default: []
+        description: Additional Redis instances; empty for the standalone profile.
+      redis_cluster_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide output from tasks handling the Redis password.
