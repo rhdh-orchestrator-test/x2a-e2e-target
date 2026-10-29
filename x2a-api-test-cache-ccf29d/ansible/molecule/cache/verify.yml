@@ -1,0 +1,75 @@
+---
+# Unsupported pre-flight checks: service-name discovery, process inspection, authenticated
+# Redis checks and authenticated SET/GET/DEL require a secret, Redis log inspection, and all
+# Memcached checks are omitted because they have no stated outcome or verified dependency details.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis TCP port 6379 is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Verify unauthenticated Redis access is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - PING
+      register: redis_unauthenticated_ping
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unauthenticated Redis access is rejected
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_unauthenticated_ping['stdout'] ~ redis_unauthenticated_ping['stderr']) is
+            search('NOAUTH|WRONGPASS|Authentication required', ignorecase=true)
+        fail_msg: Unauthenticated Redis PING was not rejected.
+
+    - name: Read Redis instance configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_configuration
+
+    - name: Verify Redis configuration contains port 6379
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_configuration['content'] | b64decode) is search('(?m)^\\s*port\\s+6379(?:\\s|$)')
+        fail_msg: Redis configuration does not contain the expected port directive.
+
+    - name: Verify Redis configuration contains requirepass
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_configuration['content'] | b64decode) is search('(?m)^\\s*requirepass\\s+\\S+')
+        fail_msg: Redis configuration does not contain a requirepass directive.
+
+    - name: Verify removed Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_configuration['content'] | b64decode) is not search(
+            '(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: A removed Redis directive is present in the configuration.
+
+    - name: Inspect Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Verify Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+          - redis_log_directory['stat']['pw_name'] == 'redis'
+          - redis_log_directory['stat']['gr_name'] == 'redis'
+          - redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: Redis log directory does not match the expected ownership or mode.

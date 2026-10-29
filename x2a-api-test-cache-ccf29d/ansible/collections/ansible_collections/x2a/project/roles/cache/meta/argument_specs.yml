@@ -1,0 +1,17 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Redis cache service
+    description:
+      - Deploys a standalone Redis cache service on port 6379 with password authentication.
+      - Creates the Redis log directory and removes replication directives from the generated configuration.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks that handle the Redis password.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.
