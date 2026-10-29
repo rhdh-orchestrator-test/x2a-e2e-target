@@ -1,0 +1,67 @@
+---
+- name: Render HAProxy main configuration
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: "{{ config_file }}"  # noqa: R114 - path from role defaults, not user input
+    owner: root
+    group: "{{ group }}"
+    mode: "0640"
+    backup: true
+  notify: Restart HAProxy
+  no_log: "{{ profile_haproxy_secure_logging }}"
+
+- name: Create HAProxy error directory
+  ansible.builtin.file:
+    path: "{{ config_dir }}/errors"  # noqa: R114 - path from role defaults, not user input
+    state: directory
+    owner: root
+    group: "{{ group }}"
+    mode: "0755"
+
+- name: Deploy HAProxy error pages
+  ansible.builtin.copy:
+    src: "errors/{{ item_haproxy_error }}.http"
+    dest: "{{ config_dir }}/errors/{{ item_haproxy_error }}.http"  # noqa: R114 - config path from role defaults and loop values are role-defined
+    owner: root
+    group: "{{ group }}"
+    mode: "0644"
+    backup: true
+  loop:
+    - "503"
+    - "408"
+  loop_control:
+    loop_var: item_haproxy_error
+
+- name: Render HAProxy backend configuration fragments
+  ansible.builtin.template:
+    src: backend.conf.j2
+    dest: "{{ config_dir }}/conf.d/{{ item_haproxy_backend['key'] }}.cfg"  # noqa: R114 - config path from role defaults and loop data
+    owner: root
+    group: "{{ group }}"
+    mode: "0640"
+    backup: true
+  loop: "{{ backends | dict2items }}"
+  loop_control:
+    loop_var: item_haproxy_backend
+  notify: Restart HAProxy
+  no_log: "{{ profile_haproxy_secure_logging }}"
+  vars:
+    backend_name: "{{ item_haproxy_backend['key'] }}"
+    balance: "{{ item_haproxy_backend['value']['balance'] | default('roundrobin') }}"
+    port: "{{ item_haproxy_backend['value']['port'] }}"
+    servers: "{{ item_haproxy_backend['value']['servers'] }}"
+    health_check: "{{ item_haproxy_backend['value'].get('health_check') }}"
+    health_interval: "{{ item_haproxy_backend['value'].get('health_interval') }}"
+    ssl_enabled: "{{ item_haproxy_backend['value'].get('ssl_enabled', ssl_enabled) }}"
+
+- name: Render HAProxy stick-table configuration
+  ansible.builtin.copy:
+    content: "# Managed by Ansible stick-table type ip size {{ stick_table_size }} expire {{ stick_table_expire }}"
+    dest: "{{ config_dir }}/conf.d/stick-tables.cfg"  # noqa: R114 - path from role defaults, not user input
+    owner: root
+    group: "{{ group }}"
+    mode: "0640"
+    backup: true
+  when: stick_table_enabled | default(false)
+  notify: Restart HAProxy
+  no_log: "{{ profile_haproxy_secure_logging }}"

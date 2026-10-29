@@ -1,0 +1,47 @@
+---
+argument_specs:
+  main:
+    short_description: Configure and manage HAProxy.
+    options:
+      profile_haproxy_my_variable:
+        type: str
+        description: A simple string argument for demonstration.
+        default: default_value
+      profile_haproxy_package_name: {type: str, default: haproxy}
+      profile_haproxy_firewall_provider: {type: str, default: none, choices: [none, ufw, firewalld]}
+      profile_haproxy_extra_packages: {type: list, elements: str, default: []}
+      profile_haproxy_ssl_enabled: {type: bool, default: false}
+      profile_haproxy_stick_table_enabled: {type: bool, default: false}
+      profile_haproxy_secure_logging: {type: bool, default: false}
+      package_name: {type: str, default: haproxy}
+      extra_packages: {type: list, elements: str, default: []}
+      config_dir: {type: str, default: /etc/haproxy}
+      config_file: {type: str, default: /etc/haproxy/haproxy.cfg}
+      user: {type: str, default: haproxy}
+      group: {type: str, default: haproxy}
+      service_name: {type: str, default: haproxy}
+      firewall_provider: {type: str, default: none}
+      firewall_zone: {type: str, default: public}
+      selinux_enabled: {type: bool, default: false}
+      log_server: {type: str, default: /dev/log}
+      log_facility: {type: str, default: local0}
+      log_level: {type: str, default: info}
+      global_maxconn: {type: int, default: 4096}
+      ssl_enabled: {type: bool, default: false}
+      ssl_ciphers: {type: str, default: ECDHE+AESGCM:ECDHE+CHACHA20}
+      ssl_cert_path: {type: str, default: /etc/haproxy/certs}
+      connect_timeout: {type: str, default: 5s}
+      client_timeout: {type: str, default: 50s}
+      server_timeout: {type: str, default: 50s}
+      retries: {type: int, default: 3}
+      stats_enabled: {type: bool, default: false}
+      stats_port: {type: int, default: 9001}
+      stats_uri: {type: str, default: /haproxy?stats}
+      stats_user: {type: str, default: admin}
+      stats_password: {type: str, default: ''}
+      backends: {type: dict, default: {}}
+      discovery_enabled: {type: bool, default: false}
+      haproxy_discovered_servers: {type: list, default: []}
+      stick_table_enabled: {type: bool, default: false}
+      stick_table_size: {type: str, default: 200k}
+      stick_table_expire: {type: str, default: 30m}

@@ -1,0 +1,13 @@
+---
+- name: Read installed HAProxy version
+  ansible.builtin.command:
+    argv:
+      - haproxy
+      - -v
+  changed_when: false
+  failed_when: false
+  register: haproxy_version_command
+
+- name: Set HAProxy version fact  # noqa: M005 - command output is used only to parse the installed HAProxy version
+  ansible.builtin.set_fact:
+    haproxy_version: "{{ haproxy_version_command.stdout | regex_search('version\\s+(\\d+\\.\\d+\\.\\d+)', '\\1') | first | default('') }}"

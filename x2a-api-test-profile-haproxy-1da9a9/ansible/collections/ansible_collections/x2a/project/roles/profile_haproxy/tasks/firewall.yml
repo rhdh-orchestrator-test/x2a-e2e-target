@@ -1,0 +1,75 @@
+---
+- name: Check UFW status
+  ansible.builtin.command:
+    argv: [ufw, status]
+  register: haproxy_ufw_status
+  changed_when: false
+  when: firewall_provider == 'ufw'
+
+- name: Allow HAProxy ports through UFW  # noqa: L039 - haproxy_ufw_status is registered by the preceding UFW status task
+  ansible.builtin.command:  # noqa: R101 - port values are role-defined loop values
+    argv:
+      - ufw
+      - allow
+      - "{{ item_haproxy_firewall_port }}/tcp"
+  register: haproxy_ufw_rule
+  changed_when: "'Skipping adding existing rule' not in haproxy_ufw_rule.stdout"
+  when:
+    - firewall_provider == 'ufw'
+    - "'{{ item_haproxy_firewall_port }}/tcp' not in haproxy_ufw_status.stdout"
+  loop:
+    - 80
+    - 443
+  loop_control:
+    loop_var: item_haproxy_firewall_port
+
+- name: Allow HAProxy statistics port through UFW  # noqa: L039 - haproxy_ufw_status is registered by the preceding UFW status task
+  ansible.builtin.command:  # noqa: R101 - stats port comes from role configuration
+    argv:
+      - ufw
+      - allow
+      - "{{ stats_port }}/tcp"
+  register: haproxy_ufw_stats_rule
+  changed_when: "'Skipping adding existing rule' not in haproxy_ufw_stats_rule.stdout"
+  when:
+    - firewall_provider == 'ufw'
+    - stats_enabled
+    - "(stats_port | string + '/tcp') not in haproxy_ufw_status.stdout"
+
+- name: Enable UFW  # noqa: L039 - haproxy_ufw_status is registered by the preceding UFW status task
+  ansible.builtin.command:
+    argv: [ufw, --force, enable]
+  changed_when: true
+  when:
+    - firewall_provider == 'ufw'
+    - "'Status: active' not in haproxy_ufw_status.stdout"
+
+- name: Allow HAProxy ports through firewalld
+  ansible.posix.firewalld:
+    port: "{{ item_haproxy_firewalld_port }}/tcp"
+    zone: "{{ firewall_zone }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  when: firewall_provider == 'firewalld'
+  loop:
+    - 80
+    - 443
+  loop_control:
+    loop_var: item_haproxy_firewalld_port
+
+- name: Allow HAProxy statistics port through firewalld
+  ansible.posix.firewalld:
+    port: "{{ stats_port }}/tcp"
+    zone: "{{ firewall_zone }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  when:
+    - firewall_provider == 'firewalld'
+    - stats_enabled
+
+- name: Skip firewall management when disabled
+  ansible.builtin.debug:
+    msg: Firewall management is disabled.
+  when: firewall_provider == 'none'

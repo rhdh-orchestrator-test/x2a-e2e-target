@@ -1,0 +1,14 @@
+---
+- name: Document explicit inventory-based HAProxy discovery
+  ansible.builtin.debug:
+    msg: >-
+      PuppetDB exported-resource discovery is replaced by the role-defined haproxy_discovered_servers
+      list. Add discovered webservers and api servers to inventory variables before enabling this path.
+  when: discovery_enabled | default(false)
+
+- name: Add explicitly discovered servers to HAProxy backend data  # noqa: L093 - backends is intentionally updated with discovered inventory servers
+  ansible.builtin.set_fact:
+    backends: "{{ backends | combine({'api': {'servers': haproxy_discovered_servers }}, recursive=true) }}"  # noqa: L032 - intentional update of role backend data
+  when:
+    - discovery_enabled | default(false)
+    - haproxy_discovered_servers is defined

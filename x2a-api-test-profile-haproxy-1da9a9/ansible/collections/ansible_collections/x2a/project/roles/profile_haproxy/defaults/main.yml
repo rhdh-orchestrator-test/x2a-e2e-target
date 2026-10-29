@@ -1,0 +1,43 @@
+---
+# Defaults for x2a.project.profile_haproxy
+profile_haproxy_my_variable: default_value
+profile_haproxy_package_name: haproxy
+profile_haproxy_firewall_provider: none
+profile_haproxy_extra_packages: []
+profile_haproxy_ssl_enabled: false
+profile_haproxy_stick_table_enabled: false
+profile_haproxy_secure_logging: false
+
+package_name: "{{ profile_haproxy_package_name }}"
+extra_packages: "{{ profile_haproxy_extra_packages }}"
+config_dir: /etc/haproxy
+config_file: /etc/haproxy/haproxy.cfg
+user: haproxy
+group: haproxy
+service_name: haproxy
+firewall_provider: "{{ profile_haproxy_firewall_provider }}"
+firewall_zone: public
+selinux_enabled: false
+log_server: /dev/log
+log_facility: local0
+log_level: info
+global_maxconn: 4096
+ssl_enabled: "{{ profile_haproxy_ssl_enabled }}"
+ssl_ciphers: ECDHE+AESGCM:ECDHE+CHACHA20
+ssl_cert_path: /etc/haproxy/certs
+connect_timeout: 5s
+client_timeout: 50s
+server_timeout: 50s
+retries: 3
+stats_enabled: false
+stats_port: 9001
+stats_uri: /haproxy?stats
+stats_user: admin
+stats_password: "{{ haproxy_stats_password | default('') }}"
+backends: {}
+discovery_enabled: false
+haproxy_discovered_servers: []
+stick_table_enabled: "{{ profile_haproxy_stick_table_enabled }}"
+stick_table_size: 200k
+stick_table_expire: 30m
+profile_haproxy_secure_logging: false
