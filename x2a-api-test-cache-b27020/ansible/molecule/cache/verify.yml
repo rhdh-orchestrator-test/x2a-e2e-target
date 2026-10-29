@@ -1,0 +1,74 @@
+---
+# Unsupported pre-flight checks: Redis service status/enablement/logs because the service
+# name is unresolved; authenticated PING because the protected password variable is not
+# provided; configuration-content grep and redis-server validation because no expected
+# result is stated; Memcached checks because its dependency, service, and port are unresolved.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Check that the Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Assert that the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat.stat.exists
+          - redis_config_stat.stat.isreg
+        fail_msg: Redis configuration file is missing or is not a regular file.
+
+    - name: Read the Redis configuration for cleanup verification
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert that removed Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - (redis_config_content.content | b64decode) is not regex('(?m)^replica-serve-stale-data.*$')
+          - (redis_config_content.content | b64decode) is not regex('(?m)^replica-read-only.*$')
+          - (redis_config_content.content | b64decode) is not regex('(?m)^repl-ping-replica-period.*$')
+          - (redis_config_content.content | b64decode) is not regex('(?m)^client-output-buffer-limit.*$')
+          - (redis_config_content.content | b64decode) is not regex('(?m)^replica-priority.*$')
+        fail_msg: One or more Redis cleanup directives are still active in the configuration.
+
+    - name: Check that unauthenticated Redis PING is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - PING
+      register: redis_unauthenticated_ping
+      changed_when: false
+      failed_when: false
+
+    - name: Assert that Redis authentication is enforced
+      ansible.builtin.assert:
+        that:
+          - redis_unauthenticated_ping.rc != 0
+        fail_msg: Redis accepted an unauthenticated PING.
+
+    - name: Check the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+          - redis_log_directory.stat.pw_name == 'redis'
+          - redis_log_directory.stat.gr_name == 'redis'
+          - redis_log_directory.stat.mode == '0755'
+        fail_msg: Redis log directory does not match the expected directory metadata.

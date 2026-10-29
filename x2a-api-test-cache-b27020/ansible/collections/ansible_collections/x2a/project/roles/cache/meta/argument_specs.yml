@@ -1,0 +1,62 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure a standalone Redis cache.
+    description:
+      - Installs Redis through the eloy.redis collection and configures the cache on port 6379.
+      - The Redis password is supplied by the AAP credential variable redis_password.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks handling the Redis password.
+      redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by Redis.
+      redis_version:
+        type: str
+        required: false
+        default: "7.2"
+        description: Redis version to install.
+      redis_install_method:
+        type: str
+        required: false
+        default: package
+        description: Method used by the Redis collection role to install Redis.
+      redis_requirepass:
+        type: str
+        required: false
+        default: "{{ redis_password }}"
+        description: Redis authentication password supplied by the AAP credential.
+      redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis cluster mode is enabled.
+      redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel mode is enabled.
+      redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      redis_aof_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis append-only-file persistence is enabled.
+      redis_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis RDB persistence is enabled.
+      redis_password:
+        type: str
+        required: true
+        description: Redis password injected at runtime by an AAP credential type.
