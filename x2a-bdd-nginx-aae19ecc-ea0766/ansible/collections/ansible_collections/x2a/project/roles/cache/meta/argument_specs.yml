@@ -1,0 +1,72 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Redis cache services
+    description:
+      - Installs and configures a standalone Redis cache and applies source-specific configuration cleanup.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks that handle the Redis password.
+      redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by Redis.
+      redis_requirepass:
+        type: str
+        required: false
+        default: "{{ redis_password }}"
+        description: Redis authentication password injected through the AAP credential.
+      redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis clustering is enabled.
+      redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel is enabled.
+      redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      redis_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis RDB persistence is enabled.
+      redis_aof_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis AOF persistence is enabled.
+      cache_redis_config_path:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Path to the Redis configuration file to clean up.
+      cache_redis_service_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Name of the Redis service to restart after configuration cleanup.
+      cache_redis_cleanup_patterns:
+        type: list
+        elements: str
+        required: false
+        default:
+          - ^replica-serve-stale-data.*$
+          - ^replica-read-only.*$
+          - ^repl-ping-replica-period.*$
+          - ^client-output-buffer-limit.*$
+          - ^replica-priority.*$
+        description: Regular expressions for source directives removed from Redis configuration.
+      redis_password:
+        type: str
+        required: true
+        description: Redis password injected by an AAP credential type.

@@ -1,0 +1,33 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Redis with the discovered Private Hub role  # noqa: L038 - role is provided by the eloy.redis collection declared in requirements.yml
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Check whether the Redis configuration exists
+  ansible.builtin.stat:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path is a role default controlled by the operator
+  register: cache_redis_config_path_check
+
+- name: Remove source-reported Redis directives  # noqa: L039 - variable is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path is a role default controlled by the operator
+    regexp: "{{ item_cache_pattern }}"
+    replace: ""
+  when: cache_redis_config_path_check.stat.exists
+  loop: "{{ cache_redis_cleanup_patterns }}"
+  loop_control:
+    loop_var: item_cache_pattern
+  notify: Restart Redis after configuration cleanup

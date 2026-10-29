@@ -1,0 +1,17 @@
+---
+cache_secure_logging: true
+redis_port: 6379
+redis_requirepass: "{{ redis_password }}"
+redis_cluster_enabled: false
+redis_sentinel_enabled: false
+redis_replication_enabled: false
+redis_rdb_enabled: true
+redis_aof_enabled: false
+cache_redis_config_path: /etc/redis/6379.conf
+cache_redis_service_name: redis-server
+cache_redis_cleanup_patterns:
+  - ^replica-serve-stale-data.*$
+  - ^replica-read-only.*$
+  - ^repl-ping-replica-period.*$
+  - ^client-output-buffer-limit.*$
+  - ^replica-priority.*$

@@ -1,0 +1,94 @@
+---
+# Unsupported pre-flight checks: Redis and Memcached service names are placeholders;
+# Redis authentication requires a secret that is not available to this verification;
+# Redis process inspection, Redis INFO/CONFIG queries, alternate socket diagnostics,
+# log inspection, and Memcached endpoint checks have no safely usable concrete target.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat.stat.exists
+          - redis_config_stat.stat.isreg
+        fail_msg: Redis configuration file is missing or is not a regular file.
+
+    - name: Check Redis configuration settings
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -qE
+          - "{{ item_redis_setting['pattern'] }}"
+          - /etc/redis/6379.conf
+      loop:
+        - name: Redis port
+          pattern: '^port[[:space:]]+6379[[:space:]]*$'
+        - name: Redis authentication setting
+          pattern: '^requirepass[[:space:]]+[^[:space:]]+[[:space:]]*$'
+      loop_control:
+        loop_var: item_redis_setting
+      register: redis_config_settings
+      changed_when: false
+
+    - name: Assert Redis configuration contains expected settings
+      ansible.builtin.assert:
+        that:
+          - item_redis_setting_result.rc == 0
+        loop: "{{ redis_config_settings['results'] }}"
+        loop_control:
+          loop_var: item_redis_setting_result
+
+    - name: Check Redis does not contain active removed directives
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -nE
+          - "{{ item_redis_directive }}"
+          - /etc/redis/6379.conf
+      loop:
+        - '^replica-serve-stale-data.*$'
+        - '^replica-read-only.*$'
+        - '^repl-ping-replica-period.*$'
+        - '^client-output-buffer-limit.*$'
+        - '^replica-priority.*$'
+      loop_control:
+        loop_var: item_redis_directive
+      register: redis_removed_directives
+      changed_when: false
+      failed_when: false
+
+    - name: Assert Redis removed directives have no active matching lines
+      ansible.builtin.assert:
+        that:
+          - item_redis_result.rc == 1
+        loop: "{{ redis_removed_directives['results'] }}"
+        loop_control:
+          loop_var: item_redis_result
+
+    - name: Check Redis is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Check Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+          - redis_log_directory.stat.pw_name == 'redis'
+          - redis_log_directory.stat.gr_name == 'redis'
+          - redis_log_directory.stat.mode == '0755'
+        fail_msg: Redis log directory does not have the expected ownership or mode.
