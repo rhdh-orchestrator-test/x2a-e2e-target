@@ -1,0 +1,63 @@
+---
+argument_specs:
+  main:
+    short_description: Configure an authenticated standalone Redis cache
+    description:
+      - Installs and configures a standalone Redis cache using the eloy.redis collection.
+      - Creates the Redis log directory and removes legacy replication directives from the generated configuration.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether tasks handling the Redis password suppress output.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by the Redis instance.
+      cache_redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis cluster mode is enabled.
+      cache_redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel mode is enabled.
+      cache_redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      cache_redis_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis RDB persistence is enabled.
+      cache_redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory for Redis logs.
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Redis configuration file modified by the legacy directive workaround.
+      cache_redis_removed_directives:
+        type: list
+        elements: str
+        required: false
+        default:
+          - replica-serve-stale-data
+          - replica-read-only
+          - repl-ping-replica-period
+          - client-output-buffer-limit
+          - replica-priority
+        description: Redis directives removed from the generated configuration.
+      redis_password:
+        type: str
+        required: true
+        description: Rotated Redis password injected by an AAP credential type.

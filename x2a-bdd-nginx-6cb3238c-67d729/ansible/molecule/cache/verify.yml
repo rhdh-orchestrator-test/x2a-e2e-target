@@ -1,0 +1,71 @@
+---
+# Unsupported pre-flight checks: the Redis service name is unspecified; service status and
+# enablement therefore cannot be checked. Authenticated redis-cli checks require a secret
+# variable that is not provided. INFO output, configured-port output, log destination/log
+# inspection, and Memcached validation have no stated expected outcome or confirmed details.
+- name: Verify cache pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Confirm Redis is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Confirm Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_file
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_file['stat']['exists']
+          - redis_config_file['stat']['isreg']
+
+    - name: Check that unauthenticated Redis PING is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - PING
+      register: redis_unauthenticated_ping
+      changed_when: false
+      failed_when: false
+
+    - name: Assert Redis requires authentication
+      ansible.builtin.assert:
+        that:
+          - redis_unauthenticated_ping['rc'] != 0
+          - >-
+            (redis_unauthenticated_ping['stdout'] ~ ' ' ~ redis_unauthenticated_ping['stderr'])
+            is search('(?i)(NOAUTH|authentication required)')
+
+    - name: Read Redis configuration for removed directives
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert removed Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content['content'] | b64decode)
+            is not search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+
+    - name: Inspect Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory metadata
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+          - redis_log_directory['stat']['mode'] == '0755'
+          - redis_log_directory['stat']['pw_name'] == 'redis'
+          - redis_log_directory['stat']['gr_name'] == 'redis'
