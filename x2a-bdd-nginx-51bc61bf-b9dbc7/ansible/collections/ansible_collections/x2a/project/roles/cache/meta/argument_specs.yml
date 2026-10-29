@@ -1,0 +1,48 @@
+---
+argument_specs:
+  main:
+    short_description: Configure an authenticated standalone Redis cache service
+    description:
+      - Installs and configures the standalone Redis cache service on TCP port 6379.
+      - Creates the Redis log directory and removes unsupported replication directives.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide output from tasks that handle the Redis credential.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by the Redis service.
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Redis instance configuration file managed by the dependency role.
+      cache_redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory used for Redis logs.
+      cache_redis_service_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis system service name.
+      cache_redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      cache_redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis cluster mode is enabled.
+      cache_redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel mode is enabled.

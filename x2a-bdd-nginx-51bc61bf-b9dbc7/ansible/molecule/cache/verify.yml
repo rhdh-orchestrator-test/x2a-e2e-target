@@ -1,0 +1,101 @@
+---
+# Unsupported pre-flight checks: the port/requirepass grep has no stated expected
+# result; the service name is a placeholder; authenticated checks require an
+# external password; and no portable fallback is specified for Redis INFO.
+- name: Verify cache pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify the Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Assert that the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_config['stat']['exists']
+          - item_redis_config['stat']['isreg']
+        fail_msg: Redis configuration file is missing or is not a regular file.
+
+    - name: Verify the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_directory
+
+    - name: Assert Redis log directory metadata
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory['stat']['exists']
+          - item_redis_log_directory['stat']['isdir']
+          - item_redis_log_directory['stat']['mode'] == '0755'
+          - item_redis_log_directory['stat']['pw_name'] == 'redis'
+          - item_redis_log_directory['stat']['gr_name'] == 'redis'
+        fail_msg: Redis log directory metadata does not match the pre-flight expectation.
+
+    - name: Read the Redis configuration for unwanted directives
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: item_redis_config_content
+
+    - name: Assert unwanted replication directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (item_redis_config_content['content'] | b64decode) is not
+            search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: An unwanted Redis replication directive remains in the configuration.
+
+    - name: Check that Redis is listening on TCP port 6379
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+      changed_when: false
+      register: item_redis_listeners
+      failed_when: false
+
+    - name: Assert Redis is listening on TCP port 6379
+      ansible.builtin.assert:
+        that:
+          - item_redis_listeners['rc'] == 0
+          - item_redis_listeners['stdout'] is search(':6379\\b')
+          - item_redis_listeners['stdout'] is search('redis')
+        fail_msg: Redis is not reported as listening on TCP port 6379.
+
+    - name: Check unauthenticated Redis access
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+      changed_when: false
+      register: item_redis_unauthenticated_ping
+      failed_when: false
+
+    - name: Assert unauthenticated Redis access is rejected
+      ansible.builtin.assert:
+        that:
+          - item_redis_unauthenticated_ping['rc'] != 0
+          - >-
+            (item_redis_unauthenticated_ping['stdout'] ~ item_redis_unauthenticated_ping['stderr'])
+            is not search('(?i)PONG')
+        fail_msg: Unauthenticated Redis access was not rejected.
+
+    - name: Validate the Redis configuration with the installed Redis binary
+      ansible.builtin.command:
+        argv:
+          - redis-server
+          - /etc/redis/6379.conf
+          - --test-memory
+          - '2'
+      changed_when: false
+      register: item_redis_config_validation
+      failed_when: false
+
+    - name: Assert Redis configuration validation succeeds
+      ansible.builtin.assert:
+        that:
+          - item_redis_config_validation['rc'] == 0
+        fail_msg: Redis configuration validation failed.
