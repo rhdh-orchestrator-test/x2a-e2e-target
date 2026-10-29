@@ -1,0 +1,64 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy and configure the FastAPI tutorial application
+    description:
+      - Installs the FastAPI tutorial application and its Python dependencies.
+      - Configures PostgreSQL credentials, the application environment, and the systemd service.
+    options:
+      fastapi_tutorial_app_directory:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Application checkout directory.
+      fastapi_tutorial_repository:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository containing the application.
+      fastapi_tutorial_repository_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      fastapi_tutorial_virtualenv:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial/venv
+        description: Python virtual environment directory.
+      fastapi_tutorial_requirements_file:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial/requirements.txt
+        description: Python requirements file.
+      fastapi_tutorial_environment_file:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial/.env
+        description: Application environment file.
+      fastapi_tutorial_systemd_unit:
+        type: str
+        required: false
+        default: /etc/systemd/system/fastapi-tutorial.service
+        description: FastAPI systemd unit path.
+      fastapi_tutorial_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide task output for operations that handle the database password.
+      db_username:
+        type: str
+        required: true
+        description: PostgreSQL username injected by an AAP credential type.
+      db_password:
+        type: str
+        required: true
+        description: PostgreSQL password injected by an AAP credential type.
+      db_host:
+        type: str
+        required: true
+        description: PostgreSQL host injected by an AAP credential type.
+      db_name:
+        type: str
+        required: true
+        description: PostgreSQL database name injected by an AAP credential type.
