@@ -1,0 +1,15 @@
+---
+fastapi_tutorial_app_directory: /opt/fastapi-tutorial
+fastapi_tutorial_virtualenv_directory: /opt/fastapi-tutorial/venv
+fastapi_tutorial_requirements_file: /opt/fastapi-tutorial/requirements.txt
+fastapi_tutorial_env_file: /opt/fastapi-tutorial/.env
+fastapi_tutorial_systemd_unit: /etc/systemd/system/fastapi-tutorial.service
+fastapi_tutorial_repository: https://github.com/example/fastapi-tutorial.git
+fastapi_tutorial_repository_version: HEAD
+fastapi_tutorial_service_name: fastapi-tutorial
+fastapi_tutorial_service_user: root
+fastapi_tutorial_service_group: root
+fastapi_tutorial_secure_logging: true
+fastapi_tutorial_env_content: DATABASE_URL=postgresql://{{ db_username }}:{{ db_password }}@localhost/{{ database_name }}
+fastapi_tutorial_systemd_exec_start: /opt/fastapi-tutorial/venv/bin/uvicorn main:app --host 0.0.0.0
+fastapi_tutorial_systemd_working_directory: /opt/fastapi-tutorial

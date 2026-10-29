@@ -1,0 +1,285 @@
+---
+# Unsupported pre-flight checks: metadata-only stat output, PostgreSQL listener/socket
+# diagnostics, application logs/unit inspection, Python/package version listings, git status,
+# protected application-role connectivity, daemon-reload, and the unspecified HTTP health check
+# have no stated expected outcome or require configuration not supplied by the plan.
+
+- name: Verify fastapi-tutorial pre-flight checks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Confirm required packages are installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are present
+      ansible.builtin.assert:
+        that:
+          - item_required_package in ansible_facts['packages']
+        fail_msg: "A required package is not installed."
+      loop:
+        - python3
+        - python3-pip
+        - python3-venv
+        - git
+        - postgresql
+        - postgresql-contrib
+        - libpq-dev
+      loop_control:
+        loop_var: item_required_package
+
+    - name: Inspect the fastapi-tutorial application directory
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: fastapi_application_directory
+
+    - name: Assert the fastapi-tutorial application directory exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_application_directory.stat.exists
+          - fastapi_application_directory.stat.isdir
+        fail_msg: "The fastapi-tutorial application directory is missing or is not a directory."
+
+    - name: Inspect the application requirements file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: fastapi_requirements_file
+
+    - name: Assert the application requirements file exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_requirements_file.stat.exists
+          - fastapi_requirements_file.stat.isreg
+        fail_msg: "The fastapi-tutorial requirements file is missing or is not a regular file."
+
+    - name: Inspect the fastapi-tutorial virtual environment
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv
+      register: fastapi_virtualenv
+
+    - name: Assert the fastapi-tutorial virtual environment exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_virtualenv.stat.exists
+          - fastapi_virtualenv.stat.isdir
+        fail_msg: "The fastapi-tutorial virtual environment is missing or is not a directory."
+
+    - name: Inspect the virtual environment Python executable
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/python
+      register: fastapi_virtualenv_python
+
+    - name: Assert the virtual environment Python executable is executable
+      ansible.builtin.assert:
+        that:
+          - fastapi_virtualenv_python.stat.exists
+          - fastapi_virtualenv_python.stat.isreg
+          - fastapi_virtualenv_python.stat.executable
+        fail_msg: "The virtual environment Python executable is missing or not executable."
+
+    - name: Inspect the virtual environment pip executable
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/pip
+      register: fastapi_virtualenv_pip
+
+    - name: Assert the virtual environment pip executable is executable
+      ansible.builtin.assert:
+        that:
+          - fastapi_virtualenv_pip.stat.exists
+          - fastapi_virtualenv_pip.stat.isreg
+          - fastapi_virtualenv_pip.stat.executable
+        fail_msg: "The virtual environment pip executable is missing or not executable."
+
+    - name: Inspect the fastapi-tutorial environment file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/.env
+      register: fastapi_environment_file
+
+    - name: Assert the fastapi-tutorial environment file exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_environment_file.stat.exists
+          - fastapi_environment_file.stat.isreg
+        fail_msg: "The fastapi-tutorial environment file is missing or is not a regular file."
+
+    - name: Inspect the fastapi-tutorial systemd unit
+      ansible.builtin.stat:
+        path: /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_systemd_unit
+
+    - name: Assert the fastapi-tutorial systemd unit exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_systemd_unit.stat.exists
+          - fastapi_systemd_unit.stat.isreg
+        fail_msg: "The fastapi-tutorial systemd unit is missing or is not a regular file."
+
+    - name: Verify fastapi-tutorial systemd unit syntax
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_systemd_verify
+      changed_when: false
+
+    - name: Assert fastapi-tutorial systemd unit syntax is valid
+      ansible.builtin.assert:
+        that:
+          - fastapi_systemd_verify.rc == 0
+        fail_msg: "The fastapi-tutorial systemd unit failed systemd-analyze verify."
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert PostgreSQL service is running
+      ansible.builtin.assert:
+        that:
+          - "'postgresql.service' in ansible_facts['services']"
+          - ansible_facts['services']['postgresql.service']['state'] == 'running'
+        fail_msg: "The PostgreSQL service is not running."
+
+    - name: Check PostgreSQL service is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - postgresql
+      register: postgresql_enabled
+      changed_when: false
+
+    - name: Assert PostgreSQL service is enabled
+      ansible.builtin.assert:
+        that:
+          - postgresql_enabled.rc == 0
+          - postgresql_enabled.stdout == 'enabled'
+        fail_msg: "The PostgreSQL service is not enabled."
+
+    - name: Check PostgreSQL service is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - postgresql
+      register: postgresql_active
+      changed_when: false
+
+    - name: Assert PostgreSQL service is active
+      ansible.builtin.assert:
+        that:
+          - postgresql_active.rc == 0
+          - postgresql_active.stdout == 'active'
+        fail_msg: "The PostgreSQL service is not active."
+
+    - name: Verify the fastapi PostgreSQL role exists
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT 1 FROM pg_roles WHERE rolname='fastapi';
+      register: fastapi_role_query
+      changed_when: false
+
+    - name: Assert the fastapi PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_role_query.rc == 0
+          - fastapi_role_query.stdout | trim == '1'
+        fail_msg: "The fastapi PostgreSQL role does not exist."
+
+    - name: Verify the fastapi_db database exists
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT 1 FROM pg_database WHERE datname='fastapi_db';
+      register: fastapi_database_query
+      changed_when: false
+
+    - name: Assert the fastapi_db database exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_database_query.rc == 0
+          - fastapi_database_query.stdout | trim == '1'
+        fail_msg: "The fastapi_db database does not exist."
+
+    - name: Verify the fastapi_db database owner
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname='fastapi_db';
+      register: fastapi_database_owner_query
+      changed_when: false
+
+    - name: Assert the fastapi_db database is owned by fastapi
+      ansible.builtin.assert:
+        that:
+          - fastapi_database_owner_query.rc == 0
+          - fastapi_database_owner_query.stdout | trim == 'fastapi'
+        fail_msg: "The fastapi_db database is not owned by fastapi."
+
+    - name: Verify fastapi database CONNECT privilege
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -d
+          - fastapi_db
+          - -tAc
+          - SELECT has_database_privilege('fastapi', 'fastapi_db', 'CONNECT');
+      register: fastapi_database_privilege_query
+      changed_when: false
+
+    - name: Assert fastapi has CONNECT privilege on fastapi_db
+      ansible.builtin.assert:
+        that:
+          - fastapi_database_privilege_query.rc == 0
+          - fastapi_database_privilege_query.stdout | trim == 't'
+        fail_msg: "The fastapi role does not have CONNECT privilege on fastapi_db."
+
+    - name: Assert fastapi-tutorial service is running
+      ansible.builtin.assert:
+        that:
+          - "'fastapi-tutorial.service' in ansible_facts['services']"
+          - ansible_facts['services']['fastapi-tutorial.service']['state'] == 'running'
+        fail_msg: "The fastapi-tutorial service is not running."
+
+    - name: Check fastapi-tutorial service is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - fastapi-tutorial
+      register: fastapi_service_enabled
+      changed_when: false
+
+    - name: Assert fastapi-tutorial service is enabled
+      ansible.builtin.assert:
+        that:
+          - fastapi_service_enabled.rc == 0
+          - fastapi_service_enabled.stdout == 'enabled'
+        fail_msg: "The fastapi-tutorial service is not enabled."
+
+    - name: Check fastapi-tutorial service is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - fastapi-tutorial
+      register: fastapi_service_active
+      changed_when: false
+
+    - name: Assert fastapi-tutorial service is active
+      ansible.builtin.assert:
+        that:
+          - fastapi_service_active.rc == 0
+          - fastapi_service_active.stdout == 'active'
+        fail_msg: "The fastapi-tutorial service is not active."
