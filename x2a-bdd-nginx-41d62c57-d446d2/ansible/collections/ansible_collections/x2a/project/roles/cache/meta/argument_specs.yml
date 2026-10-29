@@ -1,0 +1,13 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Redis caching with authentication and replication hardening.
+    description:
+      - Installs and configures a standalone Redis cache on port 6379.
+      - Uses an AAP-injected credential for Redis authentication.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to hide output from tasks that handle the Redis password.

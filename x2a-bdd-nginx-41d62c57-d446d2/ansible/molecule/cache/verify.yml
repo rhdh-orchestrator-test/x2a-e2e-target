@@ -1,0 +1,73 @@
+---
+# Unsupported pre-flight checks: the grep output for port/requirepass has no stated
+# expected value; Redis service discovery/status and journal/log listing have no stated
+# expected outcome; authenticated redis-cli checks require an unavailable secret; and
+# Memcached checks have no identified service, port, bind address, or configuration path.
+- name: Verify cache migration pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify the migrated recipe source exists
+      ansible.builtin.stat:
+        path: /workspace/source/ansible/cookbooks/cache/recipes/default.rb
+      delegate_to: localhost
+      register: item_cache_recipe_source
+
+    - name: Assert the migrated recipe source exists
+      ansible.builtin.assert:
+        that:
+          - item_cache_recipe_source['stat']['exists']
+          - item_cache_recipe_source['stat']['isreg']
+        fail_msg: The migrated cache recipe source is missing or is not a regular file.
+
+    - name: Verify the Redis instance configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_cache_redis_config
+
+    - name: Assert the Redis instance configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_cache_redis_config['stat']['exists']
+          - item_cache_redis_config['stat']['isreg']
+        fail_msg: The Redis instance configuration file is missing or is not a regular file.
+
+    - name: Read the Redis instance configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: item_cache_redis_config_contents
+
+    - name: Assert unsupported Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - (item_cache_redis_config_contents['content'] | b64decode) is not regex('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: An unsupported replication-related directive remains in the Redis configuration.
+
+    - name: Verify the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_cache_redis_log_directory
+
+    - name: Assert the Redis log directory has the expected metadata
+      ansible.builtin.assert:
+        that:
+          - item_cache_redis_log_directory['stat']['exists']
+          - item_cache_redis_log_directory['stat']['isdir']
+          - item_cache_redis_log_directory['stat']['pw_name'] == 'redis'
+          - item_cache_redis_log_directory['stat']['gr_name'] == 'redis'
+          - item_cache_redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: The Redis log directory does not have the expected owner, group, or mode.
+
+    - name: Verify Redis listens on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+      register: item_cache_redis_listener
+
+    - name: Assert Redis listens on TCP port 6379
+      ansible.builtin.assert:
+        that:
+          - item_cache_redis_listener['state'] == 'started'
+        fail_msg: Redis is not listening on TCP port 6379.
