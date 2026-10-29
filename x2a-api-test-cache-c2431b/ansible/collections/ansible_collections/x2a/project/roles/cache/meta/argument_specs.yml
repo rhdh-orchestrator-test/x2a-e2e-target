@@ -1,0 +1,78 @@
+---
+argument_specs:
+  main:
+    short_description: Configure a standalone Redis cache server
+    description:
+      - Installs and configures Redis through the approved eloy.redis collection.
+      - Preserves the legacy Redis port and removes obsolete replication directives.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide task output for operations that handle the Redis password.
+      cache_redis_version:
+        type: str
+        required: false
+        default: "7.2"
+        description: Redis version to install.
+      cache_redis_install_method:
+        type: str
+        required: false
+        default: package
+        description: Installation method used by the Redis collection role.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port for the Redis instance.
+      cache_redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis clustering is enabled.
+      cache_redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel is enabled.
+      cache_redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      cache_redis_aof_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether append-only persistence is enabled.
+      cache_redis_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether RDB persistence is enabled.
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Redis configuration file to clean after collection convergence.
+      cache_redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory used for Redis logs.
+      cache_redis_cleanup_directives:
+        type: list
+        elements: str
+        required: false
+        default:
+          - replica-serve-stale-data
+          - replica-read-only
+          - repl-ping-replica-period
+          - client-output-buffer-limit
+          - replica-priority
+        description: Redis directives removed from the legacy configuration.
+      redis_password:
+        type: str
+        required: true
+        description: Redis password injected by the AAP credential type.

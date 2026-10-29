@@ -1,0 +1,77 @@
+# Unsupported pre-flight checks: local cookbook/dependency source files are outside the
+# disposable verification hosts; log-directory metadata, user/group lookups, unresolved
+# service-name checks, Redis INFO output, recent logs, and process listing have no stated
+# expected outcome or require an unconfirmed service name.
+---
+- name: Verify Redis cache instance
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis configuration file for instance redis-6379
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Assert Redis configuration file exists for instance redis-6379
+      ansible.builtin.assert:
+        that:
+          - item_redis_config.stat.exists
+          - item_redis_config.stat.isreg
+        fail_msg: Redis configuration file for instance redis-6379 is missing.
+
+    - name: Read Redis configuration for directive verification
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: item_redis_config_content
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert Redis authentication directive uses the Vault-managed password
+      ansible.builtin.assert:
+        that:
+          - >-
+            (item_redis_config_content.content | b64decode |
+            regex_findall('(?m)^\\s*requirepass\\s+\\S+\\s*$') | length) == 1
+          - >-
+            (item_redis_config_content.content | b64decode |
+            regex_search('(?m)^\\s*requirepass\\s+' ~
+            (vault_redis_password | regex_escape) ~ '\\s*$')) is not none
+        fail_msg: Redis must have exactly one requirepass directive using the Vault-managed password.
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert removed Redis cleanup directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (item_redis_config_content.content | b64decode |
+            regex_search('(?m)^\\s*(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')) is none
+        fail_msg: Removed Redis cleanup directives must be absent from the configuration.
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Verify Redis instance redis-6379 is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Verify Redis authentication and connectivity for instance redis-6379
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -h
+          - 127.0.0.1
+          - -p
+          - "6379"
+          - -a
+          - "{{ vault_redis_password }}"
+          - PING
+      register: item_redis_ping
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert Redis authentication and connectivity returns PONG
+      ansible.builtin.assert:
+        that:
+          - item_redis_ping.stdout | trim == 'PONG'
+        fail_msg: Redis authentication or connectivity check did not return PONG.
+      no_log: "{{ cache_secure_logging | default(true) }}"
