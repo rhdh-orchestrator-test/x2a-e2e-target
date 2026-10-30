@@ -1,0 +1,21 @@
+---
+# Unsupported pre-flight checks: local recipe/metadata inspection, Redis port and
+# authentication diagnostics, service-name checks, conditional Redis configuration
+# checks, and Memcached checks have no confirmed expected outcome or require values
+# that are intentionally unresolved in the migration plan.
+- name: Verify cache pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check the Redis log directory from the pre-flight checks
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+      changed_when: false
+
+    - name: Assert the Redis log directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+        fail_msg: The Redis log directory does not exist or is not a directory.

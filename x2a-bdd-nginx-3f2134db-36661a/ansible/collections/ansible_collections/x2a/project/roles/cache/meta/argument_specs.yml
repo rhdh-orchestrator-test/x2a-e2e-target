@@ -1,0 +1,83 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis and Memcached cache services
+    description:
+      - Installs and configures Redis using the approved eloy.redis collection role.
+      - Installs and configures a local Memcached service and creates the Redis log directory.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide output from tasks that handle the Redis password.
+      cache_redis_version:
+        type: str
+        required: false
+        default: "7.2"
+        description: Redis version requested from the Redis role.
+      cache_redis_install_method:
+        type: str
+        required: false
+        default: package
+        description: Redis installation method.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: Redis listener port.
+      cache_redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis clustering is enabled.
+      cache_redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel is enabled.
+      cache_redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      cache_redis_aof_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis AOF persistence is enabled.
+      cache_redis_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis RDB persistence is enabled.
+      cache_memcached_package:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached package name.
+      cache_memcached_service:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached service name.
+      cache_memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: Memcached listener port.
+      cache_memcached_listen:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: Memcached listen address.
+      cache_memcached_memory:
+        type: int
+        required: false
+        default: 64
+        description: Memcached memory allocation in megabytes.
+      cache_memcached_options:
+        type: str
+        required: false
+        default: ""
+        description: Additional Memcached daemon options.
