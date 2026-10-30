@@ -1,0 +1,12 @@
+---
+- name: Configure security
+  ansible.builtin.include_tasks: security.yml
+
+- name: Configure nginx
+  ansible.builtin.include_tasks: nginx.yml
+
+- name: Configure SSL
+  ansible.builtin.include_tasks: ssl.yml
+
+- name: Configure sites
+  ansible.builtin.include_tasks: sites.yml

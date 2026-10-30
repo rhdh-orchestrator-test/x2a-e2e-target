@@ -1,0 +1,221 @@
+{
+  "module_name": "nginx_multisite",
+  "items": [
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/run_nginx_multisite.yml",
+      "status": "complete",
+      "description": "Deployment entry point for the migrated role",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/requirements.yml",
+      "status": "complete",
+      "description": "Test-only Podman collection dependency",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/README.md",
+      "status": "complete",
+      "description": "Developer instructions for running Molecule",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/nginx_multisite/molecule.yml",
+      "status": "complete",
+      "description": "Ansible-native Molecule scenario configuration",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/nginx_multisite/inventory/hosts.yml",
+      "status": "complete",
+      "description": "Disposable Podman target inventory",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/nginx_multisite/create.yml",
+      "status": "complete",
+      "description": "Create and inspect disposable Podman targets",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/nginx_multisite/destroy.yml",
+      "status": "complete",
+      "description": "Remove disposable Podman targets",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/nginx_multisite/prepare.yml",
+      "status": "complete",
+      "description": "Bootstrap Python on the disposable Linux target",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/nginx_multisite/converge.yml",
+      "status": "complete",
+      "description": "Run the deployment playbook under test",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/nginx_multisite/verify.yml",
+      "status": "complete",
+      "description": "Verify migrated behavior against the source plan",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/nginx_multisite/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata; no external cookbook dependencies are listed.",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/nginx_multisite/handlers/main.yml",
+      "status": "complete",
+      "description": "Handlers for delayed nginx reload and SSH restart notifications.",
+      "notes": "Added missing Restart fail2ban and Reload security sysctl handlers referenced by security.yml; retained existing handlers."
+    },
+    {
+      "category": "structure",
+      "source_path": "cookbooks/nginx-multisite/attributes/default.rb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/nginx_multisite/defaults/main.yml",
+      "status": "complete",
+      "description": "Role defaults migrated from cookbook attributes.",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "cookbooks/nginx-multisite/attributes/default.rb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/nginx_multisite/meta/argument_specs.yml",
+      "status": "complete",
+      "description": "Role argument specs for fail-fast parameter validation; generate after defaults/main.yml.",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "cookbooks/nginx-multisite/recipes/default.rb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/nginx_multisite/tasks/main.yml",
+      "status": "complete",
+      "description": "Main task entry point preserving security, nginx, ssl, and sites execution order.",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "cookbooks/nginx-multisite/recipes/security.rb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/nginx_multisite/tasks/security.yml",
+      "status": "complete",
+      "description": "Migrate fail2ban, UFW, sysctl, and SSH hardening tasks.",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "cookbooks/nginx-multisite/recipes/nginx.rb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/nginx_multisite/tasks/nginx.yml",
+      "status": "complete",
+      "description": "Migrate nginx installation, configuration, service, and per-site document roots.",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "cookbooks/nginx-multisite/recipes/ssl.rb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/nginx_multisite/tasks/ssl.yml",
+      "status": "complete",
+      "description": "Migrate SSL package, directory, group, and explicitly idempotent self-signed certificate generation.",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "cookbooks/nginx-multisite/recipes/sites.rb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/nginx_multisite/tasks/sites.yml",
+      "status": "complete",
+      "description": "Migrate virtual-host rendering, enabled-site links, and default-site removal.",
+      "notes": ""
+    },
+    {
+      "category": "templates",
+      "source_path": "cookbooks/nginx-multisite/templates/default/fail2ban.jail.local.erb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/nginx_multisite/templates/fail2ban.jail.local.j2",
+      "status": "complete",
+      "description": "Fail2ban jail configuration template.",
+      "notes": ""
+    },
+    {
+      "category": "templates",
+      "source_path": "cookbooks/nginx-multisite/templates/default/nginx.conf.erb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/nginx_multisite/templates/nginx.conf.j2",
+      "status": "complete",
+      "description": "Global nginx configuration template.",
+      "notes": ""
+    },
+    {
+      "category": "templates",
+      "source_path": "cookbooks/nginx-multisite/templates/default/security.conf.erb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/nginx_multisite/templates/security.conf.j2",
+      "status": "complete",
+      "description": "nginx security hardening configuration template.",
+      "notes": ""
+    },
+    {
+      "category": "templates",
+      "source_path": "cookbooks/nginx-multisite/templates/default/site.conf.erb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/nginx_multisite/templates/site.conf.j2",
+      "status": "complete",
+      "description": "Parameterized virtual-host configuration rendered for all three sites.",
+      "notes": ""
+    },
+    {
+      "category": "templates",
+      "source_path": "cookbooks/nginx-multisite/templates/default/sysctl-security.conf.erb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/nginx_multisite/templates/sysctl-security.conf.j2",
+      "status": "complete",
+      "description": "Kernel security sysctl configuration template.",
+      "notes": ""
+    },
+    {
+      "category": "files",
+      "source_path": "test/index.html",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/nginx_multisite/files/test/index.html",
+      "status": "complete",
+      "description": "Static test site index; source is referenced by cookbook_file but was not present in the supplied listing and must be verified or supplied.",
+      "notes": "Source static file was absent; supplied a minimal site index required by the recipe."
+    },
+    {
+      "category": "files",
+      "source_path": "ci/index.html",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/nginx_multisite/files/ci/index.html",
+      "status": "complete",
+      "description": "Static CI site index; source is referenced by cookbook_file but was not present in the supplied listing and must be verified or supplied.",
+      "notes": "Source static file was absent; supplied a minimal site index required by the recipe."
+    },
+    {
+      "category": "files",
+      "source_path": "status/index.html",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/nginx_multisite/files/status/index.html",
+      "status": "complete",
+      "description": "Static status site index; source is referenced by cookbook_file but was not present in the supplied listing and must be verified or supplied.",
+      "notes": "Source static file was absent; supplied a minimal site index required by the recipe."
+    }
+  ]
+}
