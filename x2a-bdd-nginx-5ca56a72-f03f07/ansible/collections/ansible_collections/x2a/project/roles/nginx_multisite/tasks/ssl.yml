@@ -1,0 +1,59 @@
+---
+- name: Install TLS packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create ssl-cert group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Create certificate directory
+  ansible.builtin.file:
+    path: /etc/ssl/certs
+    state: directory
+    mode: "0755"
+
+- name: Create private key directory
+  ansible.builtin.file:
+    path: /etc/ssl/private
+    state: directory
+    mode: "0710"
+
+- name: Generate self-signed TLS certificates  # noqa: R101 - command arguments come from role-defined sites list
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -nodes
+      - -days
+      - "365"
+      - -newkey
+      - rsa:2048
+      - -keyout
+      - "{{ item_ssl_site['key_file'] }}"
+      - -out
+      - "{{ item_ssl_site['cert_file'] }}"
+      - -subj
+      - "{{ item_ssl_site['subject'] }}"
+    creates: "{{ item_ssl_site['cert_file'] }}" # noqa: R114 - path from role-defined sites list
+  loop: "{{ nginx_multisite_sites }}"
+  loop_control:
+    loop_var: item_ssl_site
+  when: item_ssl_site['ssl_enabled'] | default(false) | bool
+
+- name: Set private key ownership and permissions
+  ansible.builtin.file:
+    path: "{{ item_key_site['key_file'] }}" # noqa: R114 - path from role-defined sites list
+    owner: root
+    group: ssl-cert
+    mode: "0640"
+    state: file
+  loop: "{{ nginx_multisite_sites }}"
+  loop_control:
+    loop_var: item_key_site
+  when: item_key_site['ssl_enabled'] | default(false) | bool

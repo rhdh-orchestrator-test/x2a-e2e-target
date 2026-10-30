@@ -1,0 +1,105 @@
+---
+- name: Install security packages
+  ansible.builtin.package:
+    name:
+      - fail2ban
+      - ufw
+    state: present
+
+- name: Deploy Fail2ban configuration
+  ansible.builtin.template:
+    src: fail2ban.jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: "0644"
+    backup: true
+  notify: Restart fail2ban
+
+- name: Enable and start Fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: true
+    state: started
+
+- name: Check current UFW status
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - status
+      - verbose
+  register: nginx_multisite_ufw_status
+  changed_when: false
+
+- name: Set UFW default incoming policy  # noqa: L039 - variable registered by prior task
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - --force
+      - default
+      - deny
+      - incoming
+  when: "'Default: deny (incoming)' not in nginx_multisite_ufw_status.stdout"
+
+- name: Allow SSH through UFW  # noqa: L039 - variable registered by prior task
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - ssh
+  when: "'22/tcp' not in nginx_multisite_ufw_status.stdout"
+
+- name: Allow HTTP through UFW  # noqa: L039 - variable registered by prior task
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - http
+  when: "'80/tcp' not in nginx_multisite_ufw_status.stdout"
+
+- name: Allow HTTPS through UFW  # noqa: L039 - variable registered by prior task
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - https
+  when: "'443/tcp' not in nginx_multisite_ufw_status.stdout"
+
+- name: Enable UFW  # noqa: L039 - variable registered by prior task
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - --force
+      - enable
+  when: "'Status: active' not in nginx_multisite_ufw_status.stdout"
+
+- name: Deploy sysctl security configuration
+  ansible.builtin.template:
+    src: sysctl-security.conf.j2
+    dest: /etc/sysctl.d/99-security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload security sysctl settings
+
+- name: Check whether SSH daemon configuration exists
+  ansible.builtin.stat:
+    path: /etc/ssh/sshd_config
+  register: nginx_multisite_sshd_config
+
+- name: Disable SSH root login  # noqa: L039 - variable registered by prior task
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PermitRootLogin\s+
+    line: PermitRootLogin no
+    state: present
+    create: false
+    backup: true
+  when: nginx_multisite_sshd_config.stat.exists
+
+- name: Disable SSH password authentication  # noqa: L039 - variable registered by prior task
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PasswordAuthentication\s+
+    line: PasswordAuthentication no
+    state: present
+    create: false
+    backup: true
+  when: nginx_multisite_sshd_config.stat.exists
