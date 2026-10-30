@@ -1,0 +1,95 @@
+---
+- name: Install security packages
+  ansible.builtin.package:
+    name:
+      - fail2ban
+      - ufw
+      - openssh-server
+      - procps
+    state: present
+
+- name: Enable and start fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: true
+    state: started
+  when: nginx_multisite_fail2ban_enabled | bool
+
+- name: Deploy fail2ban configuration
+  ansible.builtin.template:
+    src: fail2ban.jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: "0644"
+    backup: true
+  when: nginx_multisite_fail2ban_enabled | bool
+  notify: Restart fail2ban
+
+- name: Set UFW default incoming policy
+  community.general.ufw:
+    direction: incoming
+    policy: deny
+    state: enabled
+  when: nginx_multisite_ufw_enabled | bool
+
+- name: Allow SSH through UFW
+  community.general.ufw:
+    rule: allow
+    name: OpenSSH
+  when: nginx_multisite_ufw_enabled | bool
+
+- name: Allow HTTP through UFW
+  community.general.ufw:
+    rule: allow
+    name: WWW
+  when: nginx_multisite_ufw_enabled | bool
+
+- name: Allow HTTPS through UFW
+  community.general.ufw:
+    rule: allow
+    name: WWW\ Secure
+  when: nginx_multisite_ufw_enabled | bool
+
+- name: Check for sysctl support
+  ansible.builtin.stat:
+    path: /sbin/sysctl
+  register: nginx_multisite_sysctl
+
+- name: Deploy kernel security configuration # noqa: L039 - registered by the preceding sysctl stat task
+  ansible.builtin.template:
+    src: sysctl-security.conf.j2
+    dest: /etc/sysctl.d/99-security.conf
+    mode: "0644"
+    backup: true
+  when: nginx_multisite_sysctl.stat.exists
+  notify: Reload security sysctl
+
+- name: Check for SSH server configuration
+  ansible.builtin.stat:
+    path: /etc/ssh/sshd_config
+  register: nginx_multisite_sshd_config
+
+- name: Disable SSH root login # noqa: L039 - registered by the preceding SSH configuration stat task
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PermitRootLogin
+    line: PermitRootLogin no
+    mode: "0600"
+    create: false
+    backup: true
+  when:
+    - nginx_multisite_ssh_disable_root
+    - nginx_multisite_sshd_config.stat.exists
+  notify: Restart SSH
+
+- name: Disable SSH password authentication # noqa: L039 - registered by the preceding SSH configuration stat task
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PasswordAuthentication
+    line: PasswordAuthentication no
+    mode: "0600"
+    create: false
+    backup: true
+  when:
+    - not nginx_multisite_ssh_password_auth
+    - nginx_multisite_sshd_config.stat.exists
+  notify: Restart SSH
