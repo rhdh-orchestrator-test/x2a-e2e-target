@@ -1,0 +1,166 @@
+---
+# Unsupported pre-flight checks: diagnostic-only output checks (stat, git status, unit/log
+# inspection, package/process listings, and configuration grep); the FastAPI port and curl
+# check (port is unspecified); and the daemon-reload action. No expected result was stated
+# for those checks, so this verification playbook does not assert them.
+- name: Verify fastapi-tutorial pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify required packages for PostgreSQL and fastapi-tutorial
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are installed
+      ansible.builtin.assert:
+        that:
+          - >-
+            (['python3', 'python3-pip', 'python3-venv', 'git', 'postgresql',
+            'postgresql-contrib', 'libpq-dev'] | difference(ansible_facts['packages'].keys() | list)) | length == 0
+        fail_msg: Required packages are not all installed.
+
+    - name: Verify Git checkout contains the requirements file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: fastapi_requirements
+
+    - name: Assert the requirements file exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_requirements['stat']['isreg'] | default(false)
+        fail_msg: The FastAPI requirements file is missing.
+
+    - name: Verify the FastAPI virtual environment Python executable
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/python
+      register: fastapi_venv_python
+
+    - name: Assert the virtual environment Python is executable
+      ansible.builtin.assert:
+        that:
+          - fastapi_venv_python['stat']['isreg'] | default(false)
+          - fastapi_venv_python['stat']['executable'] | default(false)
+        fail_msg: The FastAPI virtual environment Python executable is missing or not executable.
+
+    - name: Verify the FastAPI environment file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/.env
+      register: fastapi_env
+
+    - name: Assert the FastAPI environment file exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_env['stat']['isreg'] | default(false)
+        fail_msg: The FastAPI environment file is missing.
+
+    - name: Verify PostgreSQL service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert PostgreSQL is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'postgresql.service' in ansible_facts['services']"
+          - ansible_facts['services']['postgresql.service']['state'] == 'running'
+          - ansible_facts['services']['postgresql.service']['status'] == 'enabled'
+        fail_msg: PostgreSQL is not enabled and active.
+
+    - name: Verify PostgreSQL listens on port 5432
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 5432
+        state: started
+        timeout: 5
+
+    - name: Verify the fastapi PostgreSQL user
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT usename FROM pg_user WHERE usename = 'fastapi';
+      register: fastapi_db_user
+      changed_when: false
+
+    - name: Assert the fastapi PostgreSQL user exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_db_user['rc'] == 0
+          - fastapi_db_user['stdout'] | trim == 'fastapi'
+        fail_msg: The fastapi PostgreSQL user was not found.
+
+    - name: Verify the fastapi_db database owner
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - >-
+            SELECT datname, pg_catalog.pg_get_userbyid(datdba) FROM pg_database
+            WHERE datname = 'fastapi_db';
+      register: fastapi_database
+      changed_when: false
+
+    - name: Assert fastapi_db is owned by fastapi
+      ansible.builtin.assert:
+        that:
+          - fastapi_database['rc'] == 0
+          - fastapi_database['stdout'] | trim == 'fastapi_db|fastapi'
+        fail_msg: The fastapi_db database is missing or has the wrong owner.
+
+    - name: Verify fastapi privileges on fastapi_db
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT has_database_privilege('fastapi', 'fastapi_db', 'CONNECT');
+          - -d
+          - fastapi_db
+      register: fastapi_database_privileges
+      changed_when: false
+
+    - name: Assert fastapi has privileges on fastapi_db
+      ansible.builtin.assert:
+        that:
+          - fastapi_database_privileges['rc'] == 0
+          - fastapi_database_privileges['stdout'] | trim == 't'
+        fail_msg: The fastapi user does not have the expected fastapi_db privilege.
+
+    - name: Verify the fastapi-tutorial systemd unit file
+      ansible.builtin.stat:
+        path: /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_unit
+
+    - name: Assert the fastapi-tutorial systemd unit exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_unit['stat']['isreg'] | default(false)
+        fail_msg: The fastapi-tutorial systemd unit is missing.
+
+    - name: Verify fastapi-tutorial service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert fastapi-tutorial is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'fastapi-tutorial.service' in ansible_facts['services']"
+          - ansible_facts['services']['fastapi-tutorial.service']['state'] == 'running'
+          - ansible_facts['services']['fastapi-tutorial.service']['status'] == 'enabled'
+        fail_msg: The fastapi-tutorial service is not enabled and active.
+
+    - name: Verify pip dependencies with pip check
+      ansible.builtin.command:
+        argv:
+          - /opt/fastapi-tutorial/venv/bin/pip
+          - check
+      register: fastapi_pip_check
+      changed_when: false
+
+    - name: Assert pip check succeeds
+      ansible.builtin.assert:
+        that:
+          - fastapi_pip_check['rc'] == 0
+        fail_msg: The FastAPI virtual environment has inconsistent dependencies.
