@@ -1,0 +1,102 @@
+---
+- name: Install application and database packages
+  ansible.builtin.package:
+    name:
+      - python3
+      - python3-pip
+      - python3-venv
+      - git
+      - postgresql
+      - postgresql-contrib
+      - libpq-dev
+    state: present
+
+- name: Create application directory
+  ansible.builtin.file:
+    path: /opt/fastapi-tutorial
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Synchronize FastAPI tutorial repository
+  ansible.builtin.git:
+    repo: https://github.com/dibanez/fastapi_tutorial.git
+    dest: /opt/fastapi-tutorial
+    version: main
+    update: true
+
+- name: Create Python virtual environment
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -m
+      - venv
+      - /opt/fastapi-tutorial/venv
+    creates: /opt/fastapi-tutorial/venv/bin/activate
+
+- name: Install Python dependencies
+  ansible.builtin.pip:
+    requirements: /opt/fastapi-tutorial/requirements.txt
+    virtualenv: /opt/fastapi-tutorial/venv
+
+- name: Enable and start PostgreSQL
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true
+
+- name: Create PostgreSQL application role and database  # noqa: L039,R101 - database credentials come from the AAP credential type; parameterized SQL is intentional for the credential-provided database values
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      runuser -u postgres -- psql -c "DO $do$ BEGIN CREATE ROLE {{ database_username }} LOGIN PASSWORD '{{ database_password }}'; EXCEPTION WHEN duplicate_object THEN ALTER ROLE {{ database_username }} WITH PASSWORD '{{ database_password }}'; END $do$;"
+      runuser -u postgres -- psql -c "SELECT 'CREATE DATABASE {{ database_name }} OWNER {{ database_username }}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{{ database_name }}')\gexec"
+      runuser -u postgres -- psql -d '{{ database_name }}' -c "GRANT ALL PRIVILEGES ON DATABASE {{ database_name }} TO {{ database_username }};"
+    executable: /bin/bash
+  no_log: "{{ fastapi_tutorial_secure_logging }}"
+  changed_when: false
+
+- name: Write application environment configuration  # noqa: L039 - database connection values come from the AAP credential type
+  ansible.builtin.copy:
+    dest: /opt/fastapi-tutorial/.env
+    content: |
+      PROJECT_NAME="FastAPI Tutorial"
+      API_VERSION=1.0.0
+      DATABASE_URL=postgresql://{{ database_username }}:{{ database_password }}@{{ database_host }}/{{ database_name }}
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
+  no_log: "{{ fastapi_tutorial_secure_logging }}"
+
+- name: Install FastAPI systemd unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/fastapi-tutorial.service
+    content: |
+      [Unit]
+      Description=FastAPI Tutorial Service
+      After=network.target postgresql.service
+      [Service]
+      Type=simple
+      User=root
+      WorkingDirectory=/opt/fastapi-tutorial
+      Environment="PATH=/opt/fastapi-tutorial/venv/bin"
+      ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+      Restart=always
+      [Install]
+      WantedBy=multi-user.target
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Reload systemd
+
+- name: Apply systemd unit changes before starting the service
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start FastAPI tutorial service
+  ansible.builtin.service:
+    name: fastapi-tutorial
+    state: started
+    enabled: true

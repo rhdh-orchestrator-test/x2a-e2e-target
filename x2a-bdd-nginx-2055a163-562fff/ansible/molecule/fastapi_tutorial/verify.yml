@@ -1,0 +1,186 @@
+# Unsupported pre-flight checks: package-manager diagnostics, Git remote/branch/status output,
+# systemd-analyze/journal diagnostics, HTTP response/listener/process details, PostgreSQL
+# authenticated connection identity, and systemctl daemon-reload (no safe stated outcome or
+# it would require credentials/state changes). The .env DATABASE_URL value is not inspected
+# because the pre-flight value contains a secret.
+---
+- name: Verify fastapi-tutorial pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check the FastAPI virtual-environment Python executable
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/python
+      register: fastapi_tutorial_python
+
+    - name: Assert the FastAPI virtual-environment Python executable exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_tutorial_python.stat.exists
+          - fastapi_tutorial_python.stat.isreg
+          - fastapi_tutorial_python.stat.executable
+        fail_msg: The FastAPI virtual-environment Python executable is missing or not executable.
+
+    - name: Check the FastAPI virtual-environment pip executable
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/pip
+      register: fastapi_tutorial_pip
+
+    - name: Assert the FastAPI virtual-environment pip executable exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_tutorial_pip.stat.exists
+          - fastapi_tutorial_pip.stat.isreg
+          - fastapi_tutorial_pip.stat.executable
+        fail_msg: The FastAPI virtual-environment pip executable is missing or not executable.
+
+    - name: Check the application requirements file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: fastapi_tutorial_requirements
+
+    - name: Assert the application requirements file exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_tutorial_requirements.stat.exists
+          - fastapi_tutorial_requirements.stat.isreg
+        fail_msg: The application requirements file is missing.
+
+    - name: Check the application directory
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: fastapi_tutorial_directory
+
+    - name: Assert the application directory exists with literal Chef-equivalent ownership and mode
+      ansible.builtin.assert:
+        that:
+          - fastapi_tutorial_directory.stat.exists
+          - fastapi_tutorial_directory.stat.isdir
+          - fastapi_tutorial_directory.stat.pw_name == 'root'
+          - fastapi_tutorial_directory.stat.gr_name == 'root'
+          - fastapi_tutorial_directory.stat.mode == '0755'
+        fail_msg: The application directory does not match the stated expectation.
+
+    - name: Check the application environment file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/.env
+      register: fastapi_tutorial_env
+
+    - name: Assert the application environment file exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_tutorial_env.stat.exists
+          - fastapi_tutorial_env.stat.isreg
+        fail_msg: The application environment file is missing.
+
+    - name: Check the non-secret application environment settings
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -qE
+          - '^(PROJECT_NAME="FastAPI Tutorial"|API_VERSION=1.0.0)$'
+          - /opt/fastapi-tutorial/.env
+      register: fastapi_tutorial_env_settings
+      changed_when: false
+
+    - name: Assert the non-secret application environment settings are present
+      ansible.builtin.assert:
+        that:
+          - fastapi_tutorial_env_settings.rc == 0
+        fail_msg: The expected non-secret application environment settings are missing.
+
+    - name: Check that the application database URL setting exists without exposing its value
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -qE
+          - '^DATABASE_URL='
+          - /opt/fastapi-tutorial/.env
+      register: fastapi_tutorial_database_url_setting
+      changed_when: false
+
+    - name: Assert the application database URL setting exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_tutorial_database_url_setting.rc == 0
+        fail_msg: The application database URL setting is missing.
+
+    - name: Read the FastAPI systemd unit
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_tutorial_unit
+
+    - name: Assert the FastAPI systemd unit has the expected command and listener
+      ansible.builtin.assert:
+        that:
+          - "'/opt/fastapi-tutorial/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000' in (fastapi_tutorial_unit.content | b64decode)"
+          - "'WorkingDirectory=/opt/fastapi-tutorial' in (fastapi_tutorial_unit.content | b64decode)"
+        fail_msg: The FastAPI systemd unit is missing the expected application settings.
+
+    - name: Check the FastAPI systemd unit metadata
+      ansible.builtin.stat:
+        path: /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_tutorial_unit_stat
+
+    - name: Assert the FastAPI systemd unit has literal Chef-equivalent metadata
+      ansible.builtin.assert:
+        that:
+          - fastapi_tutorial_unit_stat.stat.exists
+          - fastapi_tutorial_unit_stat.stat.isreg
+          - fastapi_tutorial_unit_stat.stat.pw_name == 'root'
+          - fastapi_tutorial_unit_stat.stat.gr_name == 'root'
+          - fastapi_tutorial_unit_stat.stat.mode == '0644'
+        fail_msg: The FastAPI systemd unit metadata does not match the stated expectation.
+
+    - name: Gather service state facts
+      ansible.builtin.service_facts:
+
+    - name: Assert the FastAPI service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['fastapi-tutorial.service']['status'] == 'enabled'
+          - ansible_facts.services['fastapi-tutorial.service']['state'] == 'running'
+        fail_msg: The FastAPI service is not enabled and running.
+
+    - name: Assert the PostgreSQL service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['postgresql.service']['status'] == 'enabled'
+          - ansible_facts.services['postgresql.service']['state'] == 'running'
+        fail_msg: The PostgreSQL service is not enabled and running.
+
+    - name: Query the expected PostgreSQL role
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT rolname FROM pg_roles WHERE rolname = 'fastapi';
+      register: fastapi_tutorial_role
+      changed_when: false
+
+    - name: Assert the expected PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_tutorial_role.stdout | trim == 'fastapi'
+        fail_msg: The expected PostgreSQL role is missing.
+
+    - name: Query the expected PostgreSQL database owner
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT datname, pg_catalog.pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db';
+      register: fastapi_tutorial_database_owner
+      changed_when: false
+
+    - name: Assert the expected PostgreSQL database owner
+      ansible.builtin.assert:
+        that:
+          - fastapi_tutorial_database_owner.stdout | trim == 'fastapi_db | fastapi'
+        fail_msg: The expected PostgreSQL database owner is missing or incorrect.
