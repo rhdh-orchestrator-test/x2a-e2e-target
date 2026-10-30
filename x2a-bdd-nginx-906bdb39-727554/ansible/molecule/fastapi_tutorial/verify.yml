@@ -1,0 +1,202 @@
+# Unsupported pre-flight checks: repository status output; file metadata/content; package and
+# dependency version diagnostics; password-based database connectivity; database privilege
+# listing; unit contents/dependency ordering; endpoint response bodies; process listings;
+# journal output; and systemd daemon-reload. These checks do not state a verifiable expected
+# result in the pre-flight section or would require exposing a credential.
+---
+- name: Verify fastapi-tutorial deployment
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify Debian-family packages are installed
+      ansible.builtin.command:
+        argv:
+          - dpkg
+          - -l
+          - python3
+          - python3-pip
+          - python3-venv
+          - git
+          - postgresql
+          - postgresql-contrib
+          - libpq-dev
+      register: item_debian_packages
+      changed_when: false
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Assert Debian-family packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_debian_packages['rc'] == 0
+        fail_msg: Debian-family package verification failed.
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Verify Red Hat-family packages are installed
+      ansible.builtin.command:
+        argv:
+          - rpm
+          - -q
+          - python3
+          - python3-pip
+          - python3-venv
+          - git
+          - postgresql
+          - postgresql-contrib
+          - libpq-dev
+      register: item_redhat_packages
+      changed_when: false
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Assert Red Hat-family packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_redhat_packages['rc'] == 0
+        fail_msg: Red Hat-family package verification failed.
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Verify the fastapi-tutorial application directory
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: item_application_directory
+
+    - name: Assert the fastapi-tutorial application directory exists
+      ansible.builtin.assert:
+        that:
+          - item_application_directory['stat']['exists']
+          - item_application_directory['stat']['isdir']
+        fail_msg: The fastapi-tutorial application directory is missing.
+
+    - name: Verify the fastapi-tutorial repository uses the main branch
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - /opt/fastapi-tutorial
+          - rev-parse
+          - --abbrev-ref
+          - HEAD
+      register: item_repository_branch
+      changed_when: false
+
+    - name: Assert the fastapi-tutorial repository is on main
+      ansible.builtin.assert:
+        that:
+          - item_repository_branch['rc'] == 0
+          - item_repository_branch['stdout'] | trim == 'main'
+        fail_msg: The fastapi-tutorial repository is not on the main branch.
+
+    - name: Verify the fastapi-tutorial requirements file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: item_requirements_file
+
+    - name: Assert the fastapi-tutorial requirements file exists
+      ansible.builtin.assert:
+        that:
+          - item_requirements_file['stat']['exists']
+          - item_requirements_file['stat']['isreg']
+        fail_msg: The fastapi-tutorial requirements file is missing.
+
+    - name: Verify the fastapi-tutorial virtual-environment Python
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/python
+      register: item_venv_python
+
+    - name: Verify the fastapi-tutorial virtual-environment pip
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/pip
+      register: item_venv_pip
+
+    - name: Assert the fastapi-tutorial virtual environment is executable
+      ansible.builtin.assert:
+        that:
+          - item_venv_python['stat']['exists']
+          - item_venv_python['stat']['isreg']
+          - item_venv_python['stat']['executable']
+          - item_venv_pip['stat']['exists']
+          - item_venv_pip['stat']['isreg']
+          - item_venv_pip['stat']['executable']
+        fail_msg: The fastapi-tutorial virtual environment is incomplete.
+
+    - name: Verify Python dependencies with pip check
+      ansible.builtin.command:
+        argv:
+          - /opt/fastapi-tutorial/venv/bin/pip
+          - check
+      register: item_pip_check
+      changed_when: false
+
+    - name: Assert Python dependencies pass pip check
+      ansible.builtin.assert:
+        that:
+          - item_pip_check['rc'] == 0
+        fail_msg: Python dependency verification failed.
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert PostgreSQL is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['postgresql.service']['state'] == 'running'
+          - ansible_facts['services']['postgresql.service']['status'] == 'enabled'
+        fail_msg: PostgreSQL is not enabled and running.
+
+    - name: Verify the fastapi PostgreSQL role
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT rolname FROM pg_roles WHERE rolname = 'fastapi';
+      register: item_database_role
+      changed_when: false
+
+    - name: Assert the fastapi PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - item_database_role['rc'] == 0
+          - item_database_role['stdout'] | trim == 'fastapi'
+        fail_msg: The fastapi PostgreSQL role is missing.
+
+    - name: Verify the fastapi_db database owner
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT datname, pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db';
+      register: item_database_owner
+      changed_when: false
+
+    - name: Assert fastapi_db is owned by fastapi
+      ansible.builtin.assert:
+        that:
+          - item_database_owner['rc'] == 0
+          - item_database_owner['stdout'] | trim == 'fastapi_db|fastapi'
+        fail_msg: The fastapi_db database or its owner is incorrect.
+
+    - name: Assert the fastapi-tutorial service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['fastapi-tutorial.service']['state'] == 'running'
+          - ansible_facts['services']['fastapi-tutorial.service']['status'] == 'enabled'
+        fail_msg: The fastapi-tutorial service is not enabled and running.
+
+    - name: Verify the fastapi-tutorial listening port
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -H
+          - -ltnp
+      register: item_listening_sockets
+      changed_when: false
+
+    - name: Assert fastapi-tutorial listens on 0.0.0.0 port 8000
+      ansible.builtin.assert:
+        that:
+          - item_listening_sockets['rc'] == 0
+          - item_listening_sockets['stdout'] is search('0\\.0\\.0\\.0:8000')
+        fail_msg: The fastapi-tutorial service is not listening on 0.0.0.0:8000.
