@@ -1,0 +1,227 @@
+---
+# Unsupported checks without a stated expected outcome are omitted: service/status diagnostics,
+# nginx/fail2ban/sshd validation output, UFW status, listener/log diagnostics, and symlink targets.
+
+- name: Verify nginx multisite pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify expected kernel security values
+      ansible.builtin.command:
+        argv:
+          - sysctl
+          - "{{ item_sysctl['name'] }}"
+      changed_when: false
+      loop:
+        - name: net.ipv4.conf.default.rp_filter
+          value: "1"
+        - name: net.ipv4.conf.all.rp_filter
+          value: "1"
+        - name: net.ipv4.conf.all.accept_redirects
+          value: "0"
+        - name: net.ipv6.conf.all.accept_redirects
+          value: "0"
+        - name: net.ipv4.conf.all.accept_source_route
+          value: "0"
+        - name: net.ipv6.conf.all.accept_source_route
+          value: "0"
+        - name: net.ipv4.icmp_echo_ignore_all
+          value: "1"
+        - name: net.ipv6.conf.all.disable_ipv6
+          value: "1"
+        - name: net.ipv4.tcp_syncookies
+          value: "1"
+        - name: net.ipv4.tcp_max_syn_backlog
+          value: "2048"
+      loop_control:
+        loop_var: item_sysctl
+      register: sysctl_checks
+
+    - name: Assert expected kernel security values
+      ansible.builtin.assert:
+        that:
+          - item_sysctl_result['stdout'] is search('=\\s*' ~ item_sysctl_result['item']['value'] ~ '\\s*$')
+        fail_msg: "A kernel security setting did not have its expected value."
+      loop: "{{ sysctl_checks['results'] }}"
+      loop_control:
+        loop_var: item_sysctl_result
+
+    - name: Verify expected site paths
+      ansible.builtin.stat:
+        path: "{{ item_site_path['path'] }}"
+        follow: false
+      loop:
+        - path: /opt/server/test
+          kind: directory
+        - path: /opt/server/test/index.html
+          kind: file
+        - path: /etc/nginx/sites-available/test.cluster.local
+          kind: file
+        - path: /etc/nginx/sites-enabled/test.cluster.local
+          kind: link
+        - path: /etc/ssl/certs/test.cluster.local.crt
+          kind: file
+        - path: /etc/ssl/private/test.cluster.local.key
+          kind: file
+        - path: /opt/server/ci
+          kind: directory
+        - path: /opt/server/ci/index.html
+          kind: file
+        - path: /etc/nginx/sites-available/ci.cluster.local
+          kind: file
+        - path: /etc/nginx/sites-enabled/ci.cluster.local
+          kind: link
+        - path: /etc/ssl/certs/ci.cluster.local.crt
+          kind: file
+        - path: /etc/ssl/private/ci.cluster.local.key
+          kind: file
+        - path: /opt/server/status
+          kind: directory
+        - path: /opt/server/status/index.html
+          kind: file
+        - path: /etc/nginx/sites-available/status.cluster.local
+          kind: file
+        - path: /etc/nginx/sites-enabled/status.cluster.local
+          kind: link
+        - path: /etc/ssl/certs/status.cluster.local.crt
+          kind: file
+        - path: /etc/ssl/private/status.cluster.local.key
+          kind: file
+        - path: /etc/nginx/nginx.conf
+          kind: file
+        - path: /etc/nginx/conf.d/security.conf
+          kind: file
+        - path: /etc/fail2ban/jail.local
+          kind: file
+        - path: /etc/sysctl.d/99-security.conf
+          kind: file
+        - path: /etc/ssh/sshd_config
+          kind: file
+        - path: /var/log/nginx/access.log
+          kind: file
+        - path: /var/log/nginx/error.log
+          kind: file
+        - path: /var/log/nginx/test.cluster.local_access.log
+          kind: file
+        - path: /var/log/nginx/test.cluster.local_error.log
+          kind: file
+        - path: /var/log/nginx/ci.cluster.local_access.log
+          kind: file
+        - path: /var/log/nginx/ci.cluster.local_error.log
+          kind: file
+        - path: /var/log/nginx/status.cluster.local_access.log
+          kind: file
+        - path: /var/log/nginx/status.cluster.local_error.log
+          kind: file
+        - path: /var/log/auth.log
+          kind: file
+      loop_control:
+        loop_var: item_site_path
+      register: site_paths
+
+    - name: Assert expected site paths exist with expected types
+      ansible.builtin.assert:
+        that:
+          - item_site_stat['stat']['exists']
+          - (item_site_stat['item']['kind'] == 'directory' and item_site_stat['stat']['isdir']) or
+            (item_site_stat['item']['kind'] == 'file' and item_site_stat['stat']['isreg']) or
+            (item_site_stat['item']['kind'] == 'link' and item_site_stat['stat']['islnk'])
+        fail_msg: "An expected nginx multisite path or file type is missing."
+      loop: "{{ site_paths['results'] }}"
+      loop_control:
+        loop_var: item_site_stat
+
+    - name: Verify the default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+        follow: false
+      register: default_site
+
+    - name: Assert the default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not default_site['stat']['exists']
+        fail_msg: "The default nginx site must be absent."
+
+    - name: Verify expected certificate subjects
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - -in
+          - "{{ item_certificate['certificate'] }}"
+          - -noout
+          - -subject
+          - -issuer
+          - -dates
+      changed_when: false
+      loop:
+        - certificate: /etc/ssl/certs/test.cluster.local.crt
+          common_name: test.cluster.local
+        - certificate: /etc/ssl/certs/ci.cluster.local.crt
+          common_name: ci.cluster.local
+        - certificate: /etc/ssl/certs/status.cluster.local.crt
+          common_name: status.cluster.local
+      loop_control:
+        loop_var: item_certificate
+      register: certificate_subjects
+
+    - name: Assert expected certificate common names
+      ansible.builtin.assert:
+        that:
+          - item_certificate_result['stdout'] is search('CN\\s*=\\s*' ~ item_certificate_result['item']['common_name'])
+        fail_msg: "A site certificate does not contain its expected common name."
+      loop: "{{ certificate_subjects['results'] }}"
+      loop_control:
+        loop_var: item_certificate_result
+
+    - name: Verify expected private key ownership and mode
+      ansible.builtin.stat:
+        path: "{{ item_key['path'] }}"
+        follow: false
+      loop:
+        - path: /etc/ssl/private/test.cluster.local.key
+        - path: /etc/ssl/private/ci.cluster.local.key
+        - path: /etc/ssl/private/status.cluster.local.key
+      loop_control:
+        loop_var: item_key
+      register: private_keys
+
+    - name: Assert expected private key ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_private_key['stat']['pw_name'] == 'root'
+          - item_private_key['stat']['gr_name'] == 'ssl-cert'
+          - item_private_key['stat']['mode'] == '0640'
+        fail_msg: "A site private key does not have the expected ownership or mode."
+      loop: "{{ private_keys['results'] }}"
+      loop_control:
+        loop_var: item_private_key
+
+    - name: Verify expected HTTP redirects
+      ansible.builtin.uri:
+        url: http://127.0.0.1/
+        headers:
+          Host: "{{ item_http_site['host'] }}"
+        follow_redirects: none
+        status_code: 301
+      loop:
+        - host: test.cluster.local
+        - host: ci.cluster.local
+        - host: status.cluster.local
+      loop_control:
+        loop_var: item_http_site
+
+    - name: Verify expected HTTPS responses
+      ansible.builtin.uri:
+        url: https://127.0.0.1/
+        headers:
+          Host: "{{ item_https_site['host'] }}"
+        validate_certs: false
+        status_code: 200
+      loop:
+        - host: test.cluster.local
+        - host: ci.cluster.local
+        - host: status.cluster.local
+      loop_control:
+        loop_var: item_https_site

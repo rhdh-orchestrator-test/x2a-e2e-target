@@ -1,0 +1,23 @@
+---
+# defaults file for x2a.project.nginx_multisite
+nginx_multisite_my_variable: default_value
+
+nginx:
+  sites:
+    test:
+      document_root: /opt/server/test
+      ssl_enabled: true
+    ci:
+      document_root: /opt/server/ci
+      ssl_enabled: true
+    status:
+      document_root: /opt/server/status
+      ssl_enabled: false
+  ssl:
+    certificate_path: /etc/ssl/certs
+    private_key_path: /etc/ssl/private
+
+security:
+  ssh:
+    disable_root: true
+    password_auth: false

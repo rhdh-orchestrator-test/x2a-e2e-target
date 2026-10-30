@@ -1,0 +1,34 @@
+---
+# argument spec file for x2a.project.nginx_multisite
+argument_specs:
+  main:
+    short_description: Configure Nginx multisite hosting and security hardening.
+    options:
+      nginx_multisite_my_variable:
+        type: str
+        description: A simple string argument for demonstration.
+        default: default_value
+      nginx:
+        type: dict
+        description: Nginx site and TLS configuration.
+        default:
+          sites:
+            test:
+              document_root: /opt/server/test
+              ssl_enabled: true
+            ci:
+              document_root: /opt/server/ci
+              ssl_enabled: true
+            status:
+              document_root: /opt/server/status
+              ssl_enabled: false
+          ssl:
+            certificate_path: /etc/ssl/certs
+            private_key_path: /etc/ssl/private
+      security:
+        type: dict
+        description: SSH security configuration.
+        default:
+          ssh:
+            disable_root: true
+            password_auth: false
