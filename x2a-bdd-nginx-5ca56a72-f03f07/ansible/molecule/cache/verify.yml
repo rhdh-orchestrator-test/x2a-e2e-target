@@ -1,0 +1,65 @@
+---
+# Unsupported pre-flight checks: source/dependency inspection, conditional Redis port/configuration
+# checks, authenticated PING (the approved secret is not available), Redis process/service
+# discovery, all Memcached checks, and conditional log-destination checks require values or
+# source files that are not available as safe, deterministic verification inputs.
+- name: Verify cache pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify reported Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Assert reported Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat['stat']['exists']
+          - redis_config_stat['stat']['isreg']
+        fail_msg: The reported Redis configuration file is missing or is not a regular file.
+
+    - name: Verify reported Redis log directory properties
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory_stat
+
+    - name: Assert reported Redis log directory properties
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory_stat['stat']['exists']
+          - redis_log_directory_stat['stat']['isdir']
+          - redis_log_directory_stat['stat']['mode'] == '0755'
+          - redis_log_directory_stat['stat']['pw_name'] == 'redis'
+          - redis_log_directory_stat['stat']['gr_name'] == 'redis'
+        fail_msg: The reported Redis log directory properties do not match the pre-flight expectation.
+
+    - name: Check that unauthenticated Redis access is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+      register: unauthenticated_redis_ping
+      changed_when: false
+      failed_when: false
+
+    - name: Assert that unauthenticated Redis access requires authentication
+      ansible.builtin.assert:
+        that:
+          - unauthenticated_redis_ping['rc'] != 0
+        fail_msg: Unauthenticated Redis PING unexpectedly succeeded.
+
+    - name: Verify Redis listens on the reported port
+      ansible.builtin.wait_for:
+        port: 6379
+        state: started
+        timeout: 5
+      register: redis_port_check
+
+    - name: Assert Redis listens on the reported port
+      ansible.builtin.assert:
+        that:
+          - redis_port_check['state'] == 'started'
+        fail_msg: Redis is not listening on the reported port.

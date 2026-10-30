@@ -1,0 +1,57 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis cache services
+    description:
+      - Configures a standalone Redis cache using the approved eloy.redis collection.
+      - Creates the Redis log directory and applies AAP-injected authentication credentials.
+    options:
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks that handle the Redis password.
+      redis_version:
+        type: str
+        required: false
+        default: "7.2"
+        description: Redis version to install.
+      redis_install_method:
+        type: str
+        required: false
+        default: package
+        description: Installation method used by the Redis collection role.
+      redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by Redis.
+      redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis clustering is enabled.
+      redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel is enabled.
+      redis_aof_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis append-only persistence is enabled.
+      redis_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis RDB persistence is enabled.
