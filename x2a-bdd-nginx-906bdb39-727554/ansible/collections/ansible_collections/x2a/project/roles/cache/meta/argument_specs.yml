@@ -1,0 +1,17 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Redis cache services
+    description:
+      - Installs and configures the Redis cache service through the eloy.redis.redis role.
+      - Creates the Redis log directory and removes obsolete replication directives.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks that handle the Redis password.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.

@@ -1,0 +1,69 @@
+---
+- name: Configure Redis through the Private Hub role  # noqa: L038 - role is supplied by the eloy.redis collection declared in requirements.yml
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_version: "7.2"
+    redis_install_method: package
+    redis_port: 6379
+    redis_requirepass: "{{ redis_password }}"
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_replication_enabled: false
+    redis_aof_enabled: false
+    redis_rdb_enabled: true
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Check whether the Redis configuration exists
+  ansible.builtin.stat:
+    path: /etc/redis/6379.conf
+  register: cache_redis_config_stat
+
+- name: Remove replica serve stale data directive when Redis configuration exists
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^replica-serve-stale-data.*$
+    state: absent
+    create: false
+  when: cache_redis_config_stat.stat.exists  # noqa: L039 - registered by the prior stat task
+
+- name: Remove replica read only directive
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^replica-read-only.*$
+    state: absent
+    create: false
+  when: cache_redis_config_stat.stat.exists  # noqa: L039 - registered by the prior stat task
+
+- name: Remove replica ping period directive
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^repl-ping-replica-period.*$
+    state: absent
+    create: false
+  when: cache_redis_config_stat.stat.exists  # noqa: L039 - registered by the prior stat task
+
+- name: Remove client output buffer limit directive
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^client-output-buffer-limit.*$
+    state: absent
+    create: false
+  when: cache_redis_config_stat.stat.exists  # noqa: L039 - registered by the prior stat task
+
+- name: Remove replica priority directive
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^replica-priority.*$
+    state: absent
+    create: false
+  when: cache_redis_config_stat.stat.exists  # noqa: L039 - registered by the prior stat task
