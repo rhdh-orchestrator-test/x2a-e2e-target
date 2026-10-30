@@ -1,0 +1,101 @@
+---
+# Unsupported pre-flight checks: the cookbook source path is outside the disposable hosts;
+# the Redis and Memcached service names are placeholders; authenticated Redis checks require
+# an external password; and Redis/Memcached log, data, configuration, and endpoint details
+# are unspecified or depend on unavailable external roles.
+- name: Verify cache pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify the Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Assert that the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat.stat.exists
+          - redis_config_stat.stat.isreg
+        fail_msg: Redis configuration file is missing
+
+    - name: Read the Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Verify the Redis instance listens on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Verify the configured Redis port
+      ansible.builtin.assert:
+        that:
+          - (redis_config_content.content | b64decode) is regex('(?m)^port\\s+6379$')
+        fail_msg: Redis configuration does not set port 6379
+
+    - name: Verify removed Redis replication directives are absent
+      ansible.builtin.assert:
+        that:
+          - (redis_config_content.content | b64decode) is not regex(
+              '(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)'
+            )
+        fail_msg: Redis configuration contains a directive that should have been removed
+
+    - name: Verify the Redis log directory exists with the reported ownership and mode
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+          - redis_log_directory.stat.pw_name == 'redis'
+          - redis_log_directory.stat.gr_name == 'redis'
+          - redis_log_directory.stat.mode == '0755'
+        fail_msg: Redis log directory does not match the reported ownership or mode
+
+    - name: Check that the redis user can write to its log directory
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - redis
+          - test
+          - -w
+          - /var/log/redis
+      register: redis_log_directory_writable
+      changed_when: false
+      failed_when: false
+
+    - name: Assert that the redis user can write to its log directory
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory_writable.rc == 0
+        fail_msg: Redis user cannot write to the Redis log directory
+
+    - name: Check that unauthenticated Redis access is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -h
+          - 127.0.0.1
+          - -p
+          - '6379'
+          - PING
+      register: redis_unauthenticated_ping
+      changed_when: false
+      failed_when: false
+
+    - name: Assert that unauthenticated Redis access returns an authentication error
+      ansible.builtin.assert:
+        that:
+          - redis_unauthenticated_ping.rc != 127
+          - (redis_unauthenticated_ping.stdout ~ redis_unauthenticated_ping.stderr) is search('(?i)(noauth|authentication required|auth)')
+          - (redis_unauthenticated_ping.stdout ~ redis_unauthenticated_ping.stderr) is not search('PONG')
+        fail_msg: Unauthenticated Redis access was not rejected with an authentication error

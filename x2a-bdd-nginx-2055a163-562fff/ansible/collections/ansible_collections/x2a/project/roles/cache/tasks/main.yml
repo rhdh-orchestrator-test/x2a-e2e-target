@@ -1,0 +1,37 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install Memcached package
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true
+
+- name: Configure Redis cache through the Private Hub role  # noqa: L038 - Redis role is declared in this role's requirements.yml and supplied by the Private Hub
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_requirepass: "{{ redis_password }}"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Remove unsupported replication directives from Redis configuration
+  ansible.builtin.replace:
+    path: /etc/redis/6379.conf
+    regexp: (?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority).*?
+    replace: ""
+  notify: Restart Redis cache service
