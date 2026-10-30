@@ -1,0 +1,51 @@
+---
+# Unsupported pre-flight checks: Redis service verification requires the actual
+# redisio service unit name; authenticated Redis checks require the protected
+# Ansible password variable name; log inspection has no stated expected outcome;
+# Memcached verification lacks a service name and endpoint.
+- name: Verify cache deployment
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Read Redis configuration without displaying it
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+      no_log: true
+
+    - name: Verify Redis configuration directives
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat.stat.exists
+          - "(redis_config_content.content | b64decode) is regex('(?m)^requirepass(?:\\s|=)')"
+          - "(redis_config_content.content | b64decode) is not regex('(?m)^replica-serve-stale-data(?:\\s|=)')"
+          - "(redis_config_content.content | b64decode) is not regex('(?m)^replica-read-only(?:\\s|=)')"
+          - "(redis_config_content.content | b64decode) is not regex('(?m)^repl-ping-replica-period(?:\\s|=)')"
+          - "(redis_config_content.content | b64decode) is not regex('(?m)^client-output-buffer-limit(?:\\s|=)')"
+          - "(redis_config_content.content | b64decode) is not regex('(?m)^replica-priority(?:\\s|=)')"
+
+    - name: Verify Redis is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Check Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Verify Redis log directory ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+          - redis_log_directory.stat.pw_name == 'redis'
+          - redis_log_directory.stat.gr_name == 'redis'
+          - redis_log_directory.stat.mode == '0755'
