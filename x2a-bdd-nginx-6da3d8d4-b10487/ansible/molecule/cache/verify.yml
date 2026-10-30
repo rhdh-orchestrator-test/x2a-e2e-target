@@ -1,0 +1,75 @@
+# Unsupported pre-flight checks: service-unit discovery; config grep output without an expected
+# value; service status/journal checks with placeholder or dependency-specific names; Redis
+# authenticated commands requiring REDIS_PASSWORD; unauthenticated Redis PING; logging-setting
+# inspection; and Memcached checks without a specified expected service state or port.
+---
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis 6379 configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Assert Redis 6379 configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_config['stat']['exists']
+          - item_redis_config['stat']['isreg']
+        fail_msg: Redis 6379 configuration file is missing or is not a regular file.
+
+    - name: Verify Redis log directory properties
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_dir
+
+    - name: Assert Redis log directory has the expected properties
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_dir['stat']['exists']
+          - item_redis_log_dir['stat']['isdir']
+          - item_redis_log_dir['stat']['pw_name'] == 'redis'
+          - item_redis_log_dir['stat']['gr_name'] == 'redis'
+          - item_redis_log_dir['stat']['mode'] == '0755'
+        fail_msg: Redis log directory is missing or has unexpected ownership or mode.
+
+    - name: Check for unwanted Redis replication directives
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -Eq
+          - ^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)
+          - /etc/redis/6379.conf
+      register: item_redis_directives
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unwanted Redis replication directives are absent
+      ansible.builtin.assert:
+        that:
+          - item_redis_directives['rc'] == 1
+        fail_msg: Unexpected Redis replication directives were found.
+
+    - name: Check that a Redis server process is running
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -f
+          - redis-server
+      register: item_redis_process
+      changed_when: false
+      failed_when: false
+
+    - name: Assert a Redis server process is running
+      ansible.builtin.assert:
+        that:
+          - item_redis_process['rc'] == 0
+        fail_msg: No Redis server process was found.
+
+    - name: Verify Redis listens on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
