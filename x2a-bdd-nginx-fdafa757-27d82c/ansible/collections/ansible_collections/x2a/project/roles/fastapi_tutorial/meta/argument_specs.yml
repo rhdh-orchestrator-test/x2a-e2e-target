@@ -1,0 +1,80 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy the FastAPI tutorial application with PostgreSQL.
+    description:
+      - Installs the FastAPI tutorial application, its Python dependencies, PostgreSQL, and a systemd service.
+      - PostgreSQL credential values are injected by AAP credential types at runtime.
+    options:
+      fastapi_tutorial_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide output from tasks that handle the PostgreSQL password.
+      fastapi_tutorial_repository:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository containing the FastAPI tutorial application.
+      fastapi_tutorial_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      fastapi_tutorial_app_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Application installation directory.
+      fastapi_tutorial_venv_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial/venv
+        description: Python virtual environment directory.
+      fastapi_tutorial_service_name:
+        type: str
+        required: false
+        default: fastapi-tutorial
+        description: Systemd service name for the application.
+      fastapi_tutorial_database_service:
+        type: str
+        required: false
+        default: postgresql
+        description: PostgreSQL system service name.
+      fastapi_tutorial_database_name:
+        type: str
+        required: false
+        default: fastapi_db
+        description: PostgreSQL database name.
+      fastapi_tutorial_database_host:
+        type: str
+        required: false
+        default: localhost
+        description: PostgreSQL host used by the application.
+      fastapi_tutorial_database_url:
+        type: str
+        required: false
+        default: postgresql://{{ username }}:{{ password }}@{{ host | default("localhost") }}/{{ database }}
+        description: Database URL written to the application environment file.
+      fastapi_tutorial_api_port:
+        type: int
+        required: false
+        default: 8000
+        description: TCP port used by Uvicorn.
+      username:
+        type: str
+        required: true
+        description: PostgreSQL username injected by the AAP credential type.
+      password:
+        type: str
+        required: true
+        no_log: true
+        description: PostgreSQL password injected by the AAP credential type.
+      database:
+        type: str
+        required: true
+        description: PostgreSQL database credential value injected by AAP.
+      host:
+        type: str
+        required: true
+        description: PostgreSQL host credential value injected by AAP.
