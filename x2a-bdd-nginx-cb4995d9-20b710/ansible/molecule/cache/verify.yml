@@ -1,0 +1,67 @@
+---
+# Unsupported pre-flight checks: the source recipe is not on the disposable host;
+# Redis authentication requires secure credential storage; log ownership/mode and
+# journal contents have no stated expected values; Memcached checks are explicitly deferred.
+- name: Verify cache service and Redis endpoint
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config.stat.exists
+          - redis_config.stat.isreg
+        fail_msg: Redis configuration file /etc/redis/6379.conf is missing
+
+    - name: Gather service facts for Redis verification
+      ansible.builtin.service_facts:
+
+    - name: Assert Redis service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['redis.service'] is defined
+          - ansible_facts.services['redis.service']['enabled'] | default(false) | bool
+          - ansible_facts.services['redis.service']['state'] == 'running'
+        fail_msg: Redis service is not enabled and running
+
+    - name: Verify Redis TCP endpoint is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Validate Redis responds to PING
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -h
+          - 127.0.0.1
+          - -p
+          - '6379'
+          - PING
+      register: redis_ping
+      changed_when: false
+
+    - name: Assert Redis responds with PONG
+      ansible.builtin.assert:
+        that:
+          - redis_ping.stdout | trim == 'PONG'
+        fail_msg: Redis did not respond successfully to PING
+
+    - name: Verify Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+        fail_msg: Redis log directory /var/log/redis is missing

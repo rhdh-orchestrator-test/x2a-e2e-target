@@ -1,0 +1,17 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Memcached and Redis caching services
+    description:
+      - Installs and starts Memcached and configures a standalone Redis cache.
+      - Redis authentication is supplied through an AAP credential variable.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to hide output from tasks that handle the Redis password.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.
