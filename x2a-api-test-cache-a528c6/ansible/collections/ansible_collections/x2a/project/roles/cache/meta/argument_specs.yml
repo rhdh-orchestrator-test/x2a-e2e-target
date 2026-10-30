@@ -1,0 +1,62 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Memcached and Redis cache services
+    description:
+      - Installs and configures the cache services used by the application.
+      - Redis authentication is supplied by the AAP credential variable redis_password.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks handling the Redis password.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port for the standalone Redis instance.
+      cache_redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis clustering is enabled.
+      cache_redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel is enabled.
+      cache_redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      cache_redis_aof_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis AOF persistence is enabled.
+      cache_redis_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis RDB persistence is enabled.
+      cache_memcached_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Memcached is installed and started.
+      cache_memcached_package:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached package name.
+      cache_memcached_service:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached service name.
+      redis_password:
+        type: str
+        required: true
+        description: Redis password injected by an AAP credential type.

@@ -1,0 +1,56 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install Memcached package
+  ansible.builtin.package:
+    name: "{{ cache_memcached_package }}"
+    state: present
+  when: cache_memcached_enabled | bool
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service }}"
+    state: started
+    enabled: true
+  when: cache_memcached_enabled | bool
+
+- name: Configure Redis through the Private Hub role  # noqa: L038 - role is declared in this role's requirements.yml and resolved when dependencies are installed
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_port: "{{ cache_redis_port }}"
+    redis_requirepass: "{{ redis_password }}"
+    redis_cluster_enabled: "{{ cache_redis_cluster_enabled }}"
+    redis_sentinel_enabled: "{{ cache_redis_sentinel_enabled }}"
+    redis_replication_enabled: "{{ cache_redis_replication_enabled }}"
+    redis_aof_enabled: "{{ cache_redis_aof_enabled }}"
+    redis_rdb_enabled: "{{ cache_redis_rdb_enabled }}"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Check for Redis configuration file
+  ansible.builtin.stat:
+    path: /etc/redis/{{ cache_redis_port }}.conf # noqa: R114 - path is constructed from the role-defined Redis port
+  register: cache_redis_config
+
+- name: Remove obsolete replication directives from Redis configuration  # noqa: L039 - cache_redis_config is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: /etc/redis/{{ cache_redis_port }}.conf # noqa: R114 - path is constructed from the role-defined Redis port
+    regexp: ^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority).*$
+    replace: ""
+  when: cache_redis_config.stat.exists
+
+- name: Enable and start Redis
+  ansible.builtin.service:
+    name: redis
+    state: started
+    enabled: true

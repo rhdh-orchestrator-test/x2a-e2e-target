@@ -1,0 +1,41 @@
+---
+# Unsupported pre-flight checks: source-recipe existence, requirepass output,
+# log ownership/mode, verified service names, Memcached placeholders, Redis
+# authentication/INFO, journal output, idempotence, and Vault sourcing/output.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify the reported Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config
+
+    - name: Assert the reported Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config['stat']['exists']
+          - redis_config['stat']['isreg']
+        fail_msg: The reported Redis configuration file is missing or is not a regular file.
+
+    - name: Read the Redis configuration for cleanup verification
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+      when: redis_config['stat']['exists'] and redis_config['stat']['isreg']
+
+    - name: Assert reported Redis cleanup directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content['content'] | b64decode) is not
+            search('(?m)^\\s*(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: One or more reported Redis cleanup directives remain in the configuration.
+      when: redis_config['stat']['exists'] and redis_config['stat']['isreg']
+
+    - name: Verify the reported Redis endpoint is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
