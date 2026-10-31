@@ -1,0 +1,222 @@
+---
+# Unsupported: repository remote/branch/commit values, password authentication, exact secret value,
+# live-following logs, and restart behavior are omitted because they lack a safe stated expectation.
+- name: Verify fastapi-tutorial pre-flight checks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather installed package facts for the required packages check
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are installed
+      ansible.builtin.assert:
+        that:
+          - "'python3' in ansible_facts['packages']"
+          - "'python3-pip' in ansible_facts['packages']"
+          - "'python3-venv' in ansible_facts['packages']"
+          - "'git' in ansible_facts['packages']"
+          - "'postgresql' in ansible_facts['packages']"
+          - "'postgresql-contrib' in ansible_facts['packages']"
+          - "'libpq-dev' in ansible_facts['packages']"
+
+    - name: Check the application directory
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: fastapi_app_directory
+
+    - name: Assert the application directory exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_app_directory['stat']['isdir']
+
+    - name: Check application requirements file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: fastapi_requirements_file
+
+    - name: Assert the application requirements file exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_requirements_file['stat']['isreg']
+
+    - name: Check the application executables
+      ansible.builtin.stat:
+        path: "{{ item_fastapi_executable['path'] }}"
+      loop:
+        - path: /opt/fastapi-tutorial/venv/bin/python
+        - path: /opt/fastapi-tutorial/venv/bin/pip
+        - path: /opt/fastapi-tutorial/venv/bin/uvicorn
+      loop_control:
+        loop_var: item_fastapi_executable
+      register: fastapi_executables
+
+    - name: Assert the application executables are executable
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_executable_result['stat']['isreg']
+          - item_fastapi_executable_result['stat']['executable']
+      loop: "{{ fastapi_executables['results'] }}"
+      loop_control:
+        loop_var: item_fastapi_executable_result
+
+    - name: Check Python environment dependencies
+      ansible.builtin.command:
+        argv: [/opt/fastapi-tutorial/venv/bin/pip, check]
+      register: fastapi_pip_check
+      changed_when: false
+
+    - name: Assert Python environment dependencies are consistent
+      ansible.builtin.assert:
+        that:
+          - fastapi_pip_check['rc'] == 0
+
+    - name: Check FastAPI is installed in the virtual environment
+      ansible.builtin.command:
+        argv: [/opt/fastapi-tutorial/venv/bin/pip, show, fastapi]
+      register: fastapi_package
+      changed_when: false
+
+    - name: Assert FastAPI is installed
+      ansible.builtin.assert:
+        that:
+          - fastapi_package['rc'] == 0
+
+    - name: Check Uvicorn is installed in the virtual environment
+      ansible.builtin.command:
+        argv: [/opt/fastapi-tutorial/venv/bin/pip, show, uvicorn]
+      register: uvicorn_package
+      changed_when: false
+
+    - name: Assert Uvicorn is installed
+      ansible.builtin.assert:
+        that:
+          - uvicorn_package['rc'] == 0
+
+    - name: Gather PostgreSQL service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert PostgreSQL is active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['postgresql.service']['state'] == 'running'"
+
+    - name: Check PostgreSQL is enabled
+      ansible.builtin.command:
+        argv: [systemctl, is-enabled, postgresql]
+      register: postgresql_enabled
+      changed_when: false
+
+    - name: Assert PostgreSQL is enabled
+      ansible.builtin.assert:
+        that:
+          - postgresql_enabled['rc'] == 0
+          - postgresql_enabled['stdout'] | trim == 'enabled'
+
+    - name: Check the PostgreSQL application user
+      ansible.builtin.command:
+        argv: [sudo, -u, postgres, psql, -tAc, "SELECT usename FROM pg_user WHERE usename = 'fastapi';"]
+      register: fastapi_database_user
+      changed_when: false
+
+    - name: Assert the PostgreSQL application user exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_database_user['rc'] == 0
+          - "'fastapi' in fastapi_database_user['stdout'].split()"
+
+    - name: Check the PostgreSQL application database and owner
+      ansible.builtin.command:
+        argv: [sudo, -u, postgres, psql, -tAc, "SELECT datname, pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db';"]
+      register: fastapi_database
+      changed_when: false
+
+    - name: Assert the application database is owned by fastapi
+      ansible.builtin.assert:
+        that:
+          - fastapi_database['rc'] == 0
+          - "'fastapi_db | fastapi' in (fastapi_database['stdout'] | replace('\\n', '') | trim)"
+
+    - name: Check the application environment file metadata
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/.env
+      register: fastapi_environment_file
+
+    - name: Assert the application environment file metadata
+      ansible.builtin.assert:
+        that:
+          - fastapi_environment_file['stat']['isreg']
+          - fastapi_environment_file['stat']['pw_name'] == 'root'
+          - fastapi_environment_file['stat']['gr_name'] == 'root'
+          - fastapi_environment_file['stat']['mode'] == '0644'
+
+    - name: Read the environment file for non-secret setting checks
+      ansible.builtin.slurp:
+        src: /opt/fastapi-tutorial/.env
+      register: fastapi_environment_content
+
+    - name: Assert the environment file contains the checked settings
+      ansible.builtin.assert:
+        that:
+          - "(fastapi_environment_content['content'] | b64decode) is search('(?m)^PROJECT_NAME=')"
+          - "(fastapi_environment_content['content'] | b64decode) is search('(?m)^API_VERSION=')"
+          - "(fastapi_environment_content['content'] | b64decode) is search('(?m)^DATABASE_URL=')"
+
+    - name: Read the FastAPI systemd unit file
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_unit_content
+
+    - name: Assert the FastAPI systemd unit contains the checked settings
+      ansible.builtin.assert:
+        that:
+          - "(fastapi_unit_content['content'] | b64decode) is search('(?m)^After=.*postgresql\\.service')"
+          - "(fastapi_unit_content['content'] | b64decode) is search('(?m)^User=root$')"
+          - "(fastapi_unit_content['content'] | b64decode) is search('(?m)^WorkingDirectory=/opt/fastapi-tutorial$')"
+          - "(fastapi_unit_content['content'] | b64decode) is search('(?m)^ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn app\\.main:app --host 0\\.0\\.0\\.0 --port 8000$')"
+          - "(fastapi_unit_content['content'] | b64decode) is search('(?m)^Restart=always$')"
+
+    - name: Verify the FastAPI systemd unit syntax
+      ansible.builtin.command:
+        argv: [systemd-analyze, verify, /etc/systemd/system/fastapi-tutorial.service]
+      register: fastapi_unit_verify
+      changed_when: false
+
+    - name: Assert the FastAPI systemd unit is valid
+      ansible.builtin.assert:
+        that:
+          - fastapi_unit_verify['rc'] == 0
+
+    - name: Gather FastAPI service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert FastAPI is active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['fastapi-tutorial.service']['state'] == 'running'"
+
+    - name: Check FastAPI is enabled
+      ansible.builtin.command:
+        argv: [systemctl, is-enabled, fastapi-tutorial]
+      register: fastapi_enabled
+      changed_when: false
+
+    - name: Assert FastAPI is enabled
+      ansible.builtin.assert:
+        that:
+          - fastapi_enabled['rc'] == 0
+          - fastapi_enabled['stdout'] | trim == 'enabled'
+
+    - name: Check the FastAPI HTTP endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8000/
+        method: GET
+        return_content: false
+        status_code: 100-599
+
+    - name: Check that FastAPI listens on TCP port 8000
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 8000
+        state: started
+        timeout: 5
