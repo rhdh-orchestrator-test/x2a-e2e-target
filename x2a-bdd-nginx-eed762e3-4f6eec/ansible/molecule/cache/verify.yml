@@ -1,0 +1,71 @@
+# Unsupported pre-flight checks: the Redis service name, Redis password variable, and Memcached
+# endpoint/service details are not defined in the migration plan; diagnostic-only checks with no
+# stated expected outcome (process listing, version, logging settings, and journal output) are omitted.
+---
+- name: Verify Redis configuration and endpoint
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat['stat']['exists']
+          - redis_config_stat['stat']['isreg']
+        fail_msg: Redis configuration file is missing
+
+    - name: Read Redis configuration without displaying its contents
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+      no_log: true
+
+    - name: Assert Redis authentication is configured
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content['content'] | b64decode | regex_search('(?m)^requirepass[\\t ]+\\S+'))
+            is not none
+        fail_msg: Redis authentication directive is missing
+
+    - name: Assert removed Redis replication directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content['content'] | b64decode | regex_search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)'))
+            is none
+        fail_msg: Unexpected Redis replication directive is present
+
+    - name: Assert Redis is configured for port 6379
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content['content'] | b64decode | regex_search('(?m)^port[\\t ]+6379$'))
+            is not none
+        fail_msg: Redis port 6379 configuration is missing
+
+    - name: Check Redis port 6379 is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Check Redis log directory metadata
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_dir_stat
+
+    - name: Assert Redis log directory metadata
+      ansible.builtin.assert:
+        that:
+          - redis_log_dir_stat['stat']['exists']
+          - redis_log_dir_stat['stat']['isdir']
+          - redis_log_dir_stat['stat']['pw_name'] == 'redis'
+          - redis_log_dir_stat['stat']['gr_name'] == 'redis'
+          - (redis_log_dir_stat['stat']['mode'] | int(base=8)) == 493
+        fail_msg: Redis log directory does not have the expected metadata

@@ -1,0 +1,17 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Redis caching service with authentication.
+    description:
+      - Installs and configures a standalone Redis service through the eloy.redis collection.
+      - Creates the Redis log directory and removes legacy replication directives from the generated configuration.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Controls whether tasks handling the Redis authentication password suppress output.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.
