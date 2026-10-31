@@ -1,0 +1,88 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy the FastAPI tutorial application with PostgreSQL.
+    description:
+      - Installs the FastAPI tutorial application and its Python dependencies.
+      - Configures PostgreSQL credentials and manages the application systemd service.
+    options:
+      fastapi_tutorial_app_path:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Application installation directory.
+      fastapi_tutorial_repository:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository containing the application.
+      fastapi_tutorial_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      fastapi_tutorial_venv_path:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial/venv
+        description: Python virtual environment directory.
+      fastapi_tutorial_service_name:
+        type: str
+        required: false
+        default: fastapi-tutorial
+        description: Systemd service name.
+      fastapi_tutorial_service_unit:
+        type: str
+        required: false
+        default: /etc/systemd/system/fastapi-tutorial.service
+        description: Systemd unit file path.
+      fastapi_tutorial_app_module:
+        type: str
+        required: false
+        default: app.main:app
+        description: Uvicorn application module.
+      fastapi_tutorial_bind_address:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: Address on which Uvicorn listens.
+      fastapi_tutorial_port:
+        type: int
+        required: false
+        default: 8000
+        description: TCP port on which Uvicorn listens.
+      fastapi_tutorial_db_url_scheme:
+        type: str
+        required: false
+        default: postgresql
+        description: Database URL scheme used by the application.
+      fastapi_tutorial_db_sslmode:
+        type: str
+        required: false
+        default: ""
+        description: Optional database SSL mode reserved for URL customization.
+      fastapi_tutorial_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide task output for operations that handle the database password.
+      db_username:
+        type: str
+        required: true
+        description: PostgreSQL username injected by the AAP credential type.
+      db_password:
+        type: str
+        required: true
+        description: PostgreSQL password injected by the AAP credential type.
+      db_name:
+        type: str
+        required: true
+        description: PostgreSQL database name injected by the AAP credential type.
+      db_host:
+        type: str
+        required: true
+        description: PostgreSQL host injected by the AAP credential type.
+      db_port:
+        type: str
+        required: true
+        description: PostgreSQL port injected by the AAP credential type.
