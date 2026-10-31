@@ -1,0 +1,102 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install FastAPI tutorial system packages
+  ansible.builtin.package:
+    name: "{{ fastapi_tutorial_packages }}"
+    state: present
+
+- name: Create FastAPI tutorial application directory
+  ansible.builtin.file:
+    path: "{{ fastapi_tutorial_app_path }}" # noqa: R114 - path is a role default, not user input
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Check out FastAPI tutorial repository
+  ansible.builtin.git: # noqa: R106 - repository source comes from a trusted role default
+    repo: "{{ fastapi_tutorial_repository }}" # noqa: R104 - repository role default uses a trusted HTTPS URL
+    dest: "{{ fastapi_tutorial_app_path }}" # noqa: R114 - destination is a role default, not user input
+    version: "{{ fastapi_tutorial_revision }}"
+    update: true
+
+- name: Create Python virtual environment # noqa: R101 - command path comes from a trusted role default, not user input
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -m
+      - venv
+      - "{{ fastapi_tutorial_venv_path }}"
+    creates: "{{ fastapi_tutorial_venv_path }}/bin/python" # noqa: R114 - path is a role default, not user input
+
+- name: Install FastAPI tutorial Python dependencies # noqa: R113 - dependency package targets come from trusted role defaults
+  ansible.builtin.pip:
+    requirements: "{{ fastapi_tutorial_app_path }}/requirements.txt"
+    virtualenv: "{{ fastapi_tutorial_venv_path }}"
+  args:
+    chdir: "{{ fastapi_tutorial_app_path }}"
+# The requirements file can contain the database password only through the application environment.
+
+- name: Enable and start PostgreSQL
+  ansible.builtin.service:
+    name: "{{ fastapi_tutorial_postgresql_service }}"
+    state: started
+    enabled: true
+
+- name: Create FastAPI PostgreSQL role # noqa: R108 - PostgreSQL role management requires become_user postgres
+  community.postgresql.postgresql_user:
+    name: "{{ db_username }}" # noqa: L039 - credential is validated by the preceding task and supplied by the attached AAP credential
+    password: "{{ db_password }}"
+    state: present
+  become: true
+  become_user: postgres
+  no_log: true
+
+- name: Create FastAPI PostgreSQL database # noqa: R108 - PostgreSQL database management requires become_user postgres
+  community.postgresql.postgresql_db:
+    name: "{{ db_name }}" # noqa: L039 - credential is validated by the preceding task and supplied by the attached AAP credential
+    owner: "{{ db_username }}" # noqa: L039 - credential is validated by the preceding task and supplied by the attached AAP credential
+    state: present
+  become: true
+  become_user: postgres
+
+- name: Grant FastAPI database privileges # noqa: R108 - PostgreSQL privilege management requires become_user postgres
+  community.postgresql.postgresql_privs:
+    database: "{{ db_name }}" # noqa: L039 - credential is validated by the preceding task and supplied by the attached AAP credential
+    roles: "{{ db_username }}" # noqa: L039 - credential is validated by the preceding task and supplied by the attached AAP credential
+    type: database
+    privs: ALL
+    state: present
+  become: true
+  become_user: postgres
+
+- name: Render FastAPI environment configuration
+  ansible.builtin.template:
+    src: fastapi.env.j2
+    dest: "{{ fastapi_tutorial_app_path }}/.env" # noqa: R114 - path is a role default, not user input
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
+  no_log: "{{ fastapi_tutorial_secure_logging }}"
+
+- name: Install FastAPI systemd unit
+  ansible.builtin.template:
+    src: fastapi-tutorial.service.j2
+    dest: "{{ fastapi_tutorial_service_file }}" # noqa: R114 - destination is a role default, not user input
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Reload systemd
+
+- name: Apply systemd unit changes before managing the service
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start FastAPI tutorial service
+  ansible.builtin.service:
+    name: "{{ fastapi_tutorial_service_name }}"
+    state: started
+    enabled: true

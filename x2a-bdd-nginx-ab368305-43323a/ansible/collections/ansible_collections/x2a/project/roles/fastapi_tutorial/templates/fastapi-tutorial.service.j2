@@ -1,0 +1,14 @@
+[Unit]
+Description=FastAPI Tutorial Service
+After=network.target {{ fastapi_tutorial_postgresql_service }}.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory={{ fastapi_tutorial_app_path }}
+Environment="PATH={{ fastapi_tutorial_venv_path }}/bin"
+ExecStart={{ fastapi_tutorial_venv_path }}/bin/uvicorn app.main:app --host {{ fastapi_tutorial_bind_address }} --port {{ fastapi_tutorial_port }}
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

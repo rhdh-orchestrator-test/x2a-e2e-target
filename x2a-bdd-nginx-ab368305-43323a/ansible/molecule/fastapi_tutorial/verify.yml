@@ -1,0 +1,191 @@
+# Unsupported pre-flight diagnostics omitted: Git revision output, package listings, .env metadata,
+# PostgreSQL listener/process details, and restart behavior have no safely stated assertion here.
+---
+- name: Verify FastAPI tutorial deployment
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify FastAPI application directory exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: fastapi_directory
+
+    - name: Assert FastAPI application directory exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_directory.stat.exists
+          - fastapi_directory.stat.isdir
+        fail_msg: FastAPI application directory is missing
+
+    - name: Verify application requirements file exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: fastapi_requirements
+
+    - name: Assert application requirements file exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_requirements.stat.exists
+          - fastapi_requirements.stat.isreg
+        fail_msg: FastAPI requirements file is missing
+
+    - name: Verify virtual-environment executables
+      ansible.builtin.stat:
+        path: "{{ item_fastapi_executable['path'] }}"
+      loop:
+        - path: /opt/fastapi-tutorial/venv/bin/python
+        - path: /opt/fastapi-tutorial/venv/bin/pip
+      loop_control:
+        loop_var: item_fastapi_executable
+      register: fastapi_executables
+
+    - name: Assert virtual-environment executables are present and executable
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_result.stat.exists
+          - item_fastapi_result.stat.executable
+        fail_msg: A FastAPI virtual-environment executable is missing or not executable
+      loop: "{{ fastapi_executables.results }}"
+      loop_control:
+        loop_var: item_fastapi_result
+
+    - name: Read FastAPI environment file
+      ansible.builtin.slurp:
+        src: /opt/fastapi-tutorial/.env
+      register: fastapi_env
+
+    - name: Assert required FastAPI environment keys are present
+      ansible.builtin.assert:
+        that:
+          - (fastapi_env.content | b64decode) is search('(?m)^PROJECT_NAME=')
+          - (fastapi_env.content | b64decode) is search('(?m)^API_VERSION=')
+          - (fastapi_env.content | b64decode) is search('(?m)^DATABASE_URL=')
+        fail_msg: FastAPI environment file is missing one or more required keys
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert PostgreSQL service is active and enabled
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['postgresql.service']['state'] == 'running'
+          - ansible_facts.services['postgresql.service']['status'] == 'enabled'
+        fail_msg: PostgreSQL service is not active and enabled
+
+    - name: Query FastAPI PostgreSQL role
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT rolname FROM pg_roles WHERE rolname = 'fastapi';
+      register: fastapi_role
+      changed_when: false
+
+    - name: Assert FastAPI PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_role.rc == 0
+          - fastapi_role.stdout | trim == 'fastapi'
+        fail_msg: FastAPI PostgreSQL role does not exist
+
+    - name: Query FastAPI database owner
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT datname || '|' || pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db';
+      register: fastapi_database
+      changed_when: false
+
+    - name: Assert FastAPI database exists and has the expected owner
+      ansible.builtin.assert:
+        that:
+          - fastapi_database.rc == 0
+          - fastapi_database.stdout | trim == 'fastapi_db|fastapi'
+        fail_msg: FastAPI database is missing or has an unexpected owner
+
+    - name: Verify FastAPI systemd unit
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_unit
+      changed_when: false
+
+    - name: Assert FastAPI systemd unit is valid
+      ansible.builtin.assert:
+        that:
+          - fastapi_unit.rc == 0
+        fail_msg: FastAPI systemd unit failed systemd-analyze verification
+
+    - name: Assert FastAPI service is active and enabled
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['fastapi-tutorial.service']['state'] == 'running'
+          - ansible_facts.services['fastapi-tutorial.service']['status'] == 'enabled'
+        fail_msg: FastAPI service is not active and enabled
+
+    - name: Verify FastAPI listens on TCP port 8000
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 8000
+        state: started
+        timeout: 10
+
+    - name: Verify FastAPI HTTP endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8000/
+        method: GET
+        return_content: true
+        status_code: 200
+      register: fastapi_http
+
+    - name: Assert FastAPI HTTP endpoint returns an application response
+      ansible.builtin.assert:
+        that:
+          - fastapi_http.status == 200
+          - fastapi_http.content | length > 0
+        fail_msg: FastAPI HTTP endpoint did not return an application response
+
+    - name: Read FastAPI service logs
+      ansible.builtin.command:
+        argv:
+          - journalctl
+          - -u
+          - fastapi-tutorial
+          - --no-pager
+          - -n
+          - '100'
+      register: fastapi_logs
+      changed_when: false
+
+    - name: Assert FastAPI logs contain no stated error categories
+      ansible.builtin.assert:
+        that:
+          - fastapi_logs.stdout is not search('(?i)(importerror|modulenotfounderror|dependency error|database connection error)')
+        fail_msg: FastAPI logs contain an import, dependency, or database connection error
+
+    - name: Read PostgreSQL service logs
+      ansible.builtin.command:
+        argv:
+          - journalctl
+          - -u
+          - postgresql
+          - --no-pager
+          - -n
+          - '100'
+      register: postgresql_logs
+      changed_when: false
+
+    - name: Assert PostgreSQL logs contain no database connection errors
+      ansible.builtin.assert:
+        that:
+          - postgresql_logs.stdout is not search('(?i)(database connection error|connection refused|fatal:.*database)')
+        fail_msg: PostgreSQL logs contain a database connection error
