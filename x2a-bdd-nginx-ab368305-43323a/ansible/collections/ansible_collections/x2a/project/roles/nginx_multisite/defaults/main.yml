@@ -1,0 +1,24 @@
+---
+nginx_multisite_sites:
+  test.cluster.local:
+    document_root: /opt/server/test
+    ssl_enabled: true
+    cert_file: /etc/ssl/certs/test.cluster.local.crt
+    key_file: /etc/ssl/private/test.cluster.local.key
+  ci.cluster.local:
+    document_root: /opt/server/ci
+    ssl_enabled: true
+    cert_file: /etc/ssl/certs/ci.cluster.local.crt
+    key_file: /etc/ssl/private/ci.cluster.local.key
+  status.cluster.local:
+    document_root: /opt/server/status
+    ssl_enabled: true
+    cert_file: /etc/ssl/certs/status.cluster.local.crt
+    key_file: /etc/ssl/private/status.cluster.local.key
+nginx_multisite_ssl_subject_country: US
+nginx_multisite_ssl_subject_state: Example
+nginx_multisite_ssl_subject_locality: Example
+nginx_multisite_ssl_subject_organization: Example Org
+nginx_multisite_ssl_subject_unit: IT
+nginx_multisite_ssl_subject_email: admin@example.com
+nginx_multisite_secure_logging: true

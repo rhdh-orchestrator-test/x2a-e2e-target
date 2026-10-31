@@ -1,0 +1,69 @@
+---
+- name: Install SSL packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create ssl-cert group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Add Nginx user to ssl-cert group
+  ansible.builtin.user:
+    name: www-data
+    groups: ssl-cert
+    append: true
+    state: present
+
+- name: Create SSL certificate directory
+  ansible.builtin.file:
+    path: /etc/ssl/certs
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create SSL private-key directory
+  ansible.builtin.file:
+    path: /etc/ssl/private
+    state: directory
+    owner: root
+    group: ssl-cert
+    mode: "0710"
+
+- name: Generate self-signed certificates
+  ansible.builtin.command:  # noqa: R101 - command arguments use role-defined certificate paths and subject values
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -nodes
+      - -days
+      - "365"
+      - -newkey
+      - rsa:2048
+      - -keyout
+      - "{{ item_ssl_site['value']['key_file'] }}"
+      - -out
+      - "{{ item_ssl_site['value']['cert_file'] }}"
+      - -subj
+      - /C={{ nginx_multisite_ssl_subject_country }}/ST={{ nginx_multisite_ssl_subject_state }}/L={{ nginx_multisite_ssl_subject_locality }}/O={{ nginx_multisite_ssl_subject_organization }}/OU={{ nginx_multisite_ssl_subject_unit }}/CN={{ item_ssl_site['key'] }}/emailAddress={{ nginx_multisite_ssl_subject_email }}
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_ssl_site
+  args:
+    creates: "{{ item_ssl_site['value']['cert_file'] }}" # noqa: R114 - certificate path from role-defined sites dictionary
+
+- name: Set private-key ownership and permissions
+  ansible.builtin.file:
+    path: "{{ item_key_site['value']['key_file'] }}" # noqa: R114 - key path from role-defined sites dictionary
+    state: file
+    owner: root
+    group: ssl-cert
+    mode: "0640"
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_key_site

@@ -1,0 +1,111 @@
+---
+- name: Install security packages
+  ansible.builtin.package:
+    name:
+      - fail2ban
+      - ufw
+      - openssh-server
+    state: present
+
+- name: Configure fail2ban
+  ansible.builtin.template:
+    src: fail2ban.jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: "0644"
+    backup: true
+
+- name: Enable and start fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: true
+    state: started
+
+- name: Check UFW status and rules
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - status
+      - verbose
+  register: nginx_multisite_ufw_status
+  changed_when: false
+
+- name: Set UFW default incoming policy  # noqa: L039 - variable is registered by the preceding UFW status task
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - default
+      - deny
+      - incoming
+  when: "'Default: deny (incoming)' not in nginx_multisite_ufw_status.stdout"
+
+- name: Allow SSH through UFW  # noqa: L039 - variable is registered by the preceding UFW status task
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - ssh
+  when: "'22/tcp' not in nginx_multisite_ufw_status.stdout"
+
+- name: Allow HTTP and HTTPS through UFW  # noqa: L039 - variable is registered by the preceding UFW status task
+  ansible.builtin.command:  # noqa: R101 - command argument is limited to role-defined HTTP/HTTPS loop values
+    argv:
+      - ufw
+      - allow
+      - "{{ item_ufw_port }}"
+  when: "(('80/tcp' not in nginx_multisite_ufw_status.stdout) and (item_ufw_port == 'http')) or (('443/tcp' not in nginx_multisite_ufw_status.stdout) and (item_ufw_port == 'https'))"
+  loop:
+    - http
+    - https
+  loop_control:
+    loop_var: item_ufw_port
+
+- name: Enable UFW  # noqa: L039 - variable is registered by the preceding UFW status task
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - --force
+      - enable
+  when: "'Status: active' not in nginx_multisite_ufw_status.stdout"
+
+- name: Deploy kernel security settings
+  ansible.builtin.template:
+    src: sysctl-security.conf.j2
+    dest: /etc/sysctl.d/99-security.conf
+    mode: "0644"
+    backup: true
+
+- name: Apply kernel security settings
+  ansible.posix.sysctl:
+    name: "{{ item_sysctl.split('=')[0] | trim }}"
+    value: "{{ item_sysctl.split('=')[1] | trim }}"
+    sysctl_file: /etc/sysctl.d/99-security.conf
+    reload: true
+  loop:
+    - kernel.randomize_va_space=2
+    - kernel.kptr_restrict=2
+    - net.ipv4.conf.all.accept_redirects=0
+    - net.ipv4.conf.default.accept_redirects=0
+    - net.ipv4.conf.all.send_redirects=0
+    - net.ipv4.conf.default.send_redirects=0
+    - net.ipv4.conf.all.send_redirects=0
+    - net.ipv4.conf.default.send_redirects=0
+    - net.ipv4.conf.all.accept_source_route=0
+    - net.ipv4.conf.default.accept_source_route=0
+    - net.ipv4.conf.all.rp_filter=1
+    - net.ipv4.conf.default.rp_filter=1
+  loop_control:
+    loop_var: item_sysctl
+
+- name: Disable SSH root login
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PermitRootLogin\s+
+    line: PermitRootLogin no
+    backup: true
+
+- name: Disable SSH password authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PasswordAuthentication\s+
+    line: PasswordAuthentication no
+    backup: true

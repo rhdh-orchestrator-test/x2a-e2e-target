@@ -1,0 +1,28 @@
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ server_name }};
+    root {{ document_root }};
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
+{% if ssl_enabled %}
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name {{ server_name }};
+    root {{ document_root }};
+    index index.html;
+
+    ssl_certificate {{ cert_file }};
+    ssl_certificate_key {{ key_file }};
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
+{% endif %}

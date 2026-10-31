@@ -1,0 +1,62 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Nginx with multiple HTTPS virtual hosts.
+    description:
+      - Installs and configures Nginx, self-signed TLS certificates, Fail2ban, UFW, and security hardening.
+    options:
+      nginx_multisite_sites:
+        type: dict
+        required: false
+        default:
+          test.cluster.local:
+            document_root: /opt/server/test
+            ssl_enabled: true
+            cert_file: /etc/ssl/certs/test.cluster.local.crt
+            key_file: /etc/ssl/private/test.cluster.local.key
+          ci.cluster.local:
+            document_root: /opt/server/ci
+            ssl_enabled: true
+            cert_file: /etc/ssl/certs/ci.cluster.local.crt
+            key_file: /etc/ssl/private/ci.cluster.local.key
+          status.cluster.local:
+            document_root: /opt/server/status
+            ssl_enabled: true
+            cert_file: /etc/ssl/certs/status.cluster.local.crt
+            key_file: /etc/ssl/private/status.cluster.local.key
+        description: Site definitions including roots and TLS paths.
+      nginx_multisite_ssl_subject_country:
+        type: str
+        required: false
+        default: US
+        description: Certificate subject country.
+      nginx_multisite_ssl_subject_state:
+        type: str
+        required: false
+        default: Example
+        description: Certificate subject state.
+      nginx_multisite_ssl_subject_locality:
+        type: str
+        required: false
+        default: Example
+        description: Certificate subject locality.
+      nginx_multisite_ssl_subject_organization:
+        type: str
+        required: false
+        default: Example Org
+        description: Certificate subject organization.
+      nginx_multisite_ssl_subject_unit:
+        type: str
+        required: false
+        default: IT
+        description: Certificate subject organizational unit.
+      nginx_multisite_ssl_subject_email:
+        type: str
+        required: false
+        default: admin@example.com
+        description: Certificate subject email address.
+      nginx_multisite_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Controls secure logging for credential-bearing tasks.
