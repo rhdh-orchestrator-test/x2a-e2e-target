@@ -1,0 +1,18 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis and Memcached cache services
+    description:
+      - Installs Memcached and configures a standalone Redis cache with password authentication.
+      - Removes unsupported replication directives from the generated Redis configuration.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to hide output from tasks that handle the Redis password.
+      redis_password:
+        type: str
+        required: false
+        default: ""
+        description: Redis authentication password; override with an AAP protected credential variable.

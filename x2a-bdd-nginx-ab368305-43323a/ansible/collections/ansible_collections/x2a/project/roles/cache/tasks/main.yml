@@ -1,0 +1,78 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install Memcached
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Ensure Memcached is enabled and running
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true
+
+- name: Configure Redis cache
+  ansible.builtin.include_role:
+    name: eloy.redis.redis  # noqa: L038 - external Redis role is required for this functionality and is not included in this collection
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_version: "7.2"
+    redis_install_method: package
+    redis_port: 6379
+    redis_requirepass: "{{ redis_password }}"
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_replication_enabled: false
+    redis_aof_enabled: false
+    redis_rdb_enabled: true
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Remove replica-serve-stale-data from Redis configuration
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^replica-serve-stale-data.*$
+    state: absent
+    create: false
+  notify: Restart Redis
+
+- name: Remove replica-read-only from Redis configuration
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^replica-read-only.*$
+    state: absent
+    create: false
+  notify: Restart Redis
+
+- name: Remove repl-ping-replica-period from Redis configuration
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^repl-ping-replica-period.*$
+    state: absent
+    create: false
+  notify: Restart Redis
+
+- name: Remove client-output-buffer-limit from Redis configuration
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^client-output-buffer-limit.*$
+    state: absent
+    create: false
+  notify: Restart Redis
+
+- name: Remove replica-priority from Redis configuration
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^replica-priority.*$
+    state: absent
+    create: false
+  notify: Restart Redis

@@ -1,0 +1,10 @@
+---
+# Unsupported pre-flight checks: source/dependency availability, Redis and Memcached service
+# names and ports, Redis credentials, configuration path, directory ownership/mode, log
+# contents, and journal output require confirmation or state an observational command
+# without an expected outcome. The conditional Redis cleanup checks also require the
+# configuration path to be confirmed first.
+- name: Verify cache deployment
+  hosts: all
+  gather_facts: false
+  tasks: []
