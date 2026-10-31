@@ -1,0 +1,26 @@
+---
+- name: Configure Redis and enable its service  # noqa: L038 - eloy.redis.redis is declared in the role requirements and resolved at deployment time
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_port: "{{ cache_redis_port }}"
+    redis_requirepass: "{{ cache_redis_requirepass }}"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_directory }}" # noqa: R114 - path is a role default controlled by the operator
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Remove source-specific Redis configuration directives  # noqa: L051 - existing Jinja expressions use standard spacing
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default for the fixed Redis configuration file
+    regexp: "^({{ cache_redis_cleanup_directives | map('regex_escape') | join('|') }}).*$"
+    state: absent  # noqa: R115 - removes only known directives from the fixed Redis configuration file
+    backup: true
+    create: false
+  when: cache_redis_cleanup_directives | length > 0

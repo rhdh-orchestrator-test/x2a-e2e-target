@@ -1,0 +1,82 @@
+# Unsupported pre-flight checks: Redis cleanup directives, authenticated redis-cli connectivity,
+# Redis INFO queries, recent journal logs, and Memcached details have no confirmed expected
+# outcome or require source/dependency confirmation. Redis log-directory ownership, group,
+# and mode are likewise not confirmed by the migration plan.
+---
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Confirm the migrated cache recipe is available
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/../../cookbooks/cache/recipes/default.rb"
+      delegate_to: localhost
+      become: false
+      register: item_cache_recipe
+
+    - name: Assert that the migrated cache recipe exists
+      ansible.builtin.assert:
+        that:
+          - item_cache_recipe.stat.exists
+          - item_cache_recipe.stat.isreg
+        fail_msg: The migrated cache recipe is not available.
+
+    - name: Collect service facts for the reported Redis service names
+      ansible.builtin.service_facts:
+
+    - name: Assert that an available Redis service is running
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts.services['redis.service'] is defined and
+            ansible_facts.services['redis.service']['state'] == 'running') or
+            (ansible_facts.services['redis-server.service'] is defined and
+            ansible_facts.services['redis-server.service']['state'] == 'running')
+        fail_msg: Neither redis nor redis-server is running.
+
+    - name: Verify that the Redis process is present
+      ansible.builtin.command:
+        argv:
+          - ps
+          - aux
+        chdir: /
+      register: item_redis_process
+      changed_when: false
+
+    - name: Assert that a Redis server process is present
+      ansible.builtin.assert:
+        that:
+          - item_redis_process.rc == 0
+          - "'redis-server' in item_redis_process.stdout"
+        fail_msg: The Redis server process was not found.
+
+    - name: Verify that Redis is listening on port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Verify the reported Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Assert that the reported Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_config.stat.exists
+          - item_redis_config.stat.isreg
+        fail_msg: The reported Redis configuration file is not available.
+
+    - name: Verify the confirmed Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_directory
+
+    - name: Assert that the Redis log directory exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory.stat.exists
+          - item_redis_log_directory.stat.isdir
+        fail_msg: The Redis log directory is not available.

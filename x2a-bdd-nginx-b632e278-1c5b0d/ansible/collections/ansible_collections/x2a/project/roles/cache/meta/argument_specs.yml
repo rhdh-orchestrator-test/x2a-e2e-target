@@ -1,0 +1,49 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Redis cache services
+    description:
+      - Creates the Redis log directory and delegates Redis installation, configuration, and enablement to eloy.redis.redis.
+      - Removes the source cookbook's obsolete Redis configuration directives after configuration.
+    options:
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by the Redis server.
+      cache_redis_requirepass:
+        type: str
+        required: false
+        default: ""
+        description: Redis authentication password, preferably supplied by an AAP protected credential or Ansible Vault.
+      cache_redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory used for Redis logs.
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Redis configuration file cleaned of source-specific directives.
+      cache_redis_cleanup_directives:
+        type: list
+        elements: str
+        required: false
+        default:
+          - replica-serve-stale-data
+          - replica-read-only
+          - repl-ping-replica-period
+          - client-output-buffer-limit
+          - replica-priority
+        description: Redis directives removed from the generated configuration.
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide task output when Redis authentication credentials are passed to the dependency role.
+      cache_memcached_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Compatibility toggle reserved for the source Memcached dependency, which is unavailable in this migration.
