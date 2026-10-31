@@ -1,0 +1,41 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure standalone Redis  # noqa: L038 - external eloy.redis role is declared in this role's requirements.yml
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_port: "{{ cache_redis_port }}"
+    redis_requirepass: "{{ redis_password }}"
+    redis_cluster_enabled: "{{ cache_redis_cluster_enabled }}"
+    redis_sentinel_enabled: "{{ cache_redis_sentinel_enabled }}"
+    redis_replication_enabled: "{{ cache_redis_replication_enabled }}"
+    redis_aof_enabled: "{{ cache_redis_aof_enabled }}"
+    redis_rdb_enabled: "{{ cache_redis_rdb_enabled }}"
+
+- name: Ensure Redis log directory exists
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_directory }}" # noqa: R114 - path is a role default controlled by the operator
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Check whether Redis configuration exists
+  ansible.builtin.stat:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path is a role default controlled by the operator
+  register: cache_redis_config_status
+
+- name: Remove obsolete replication directives  # noqa: L039 - variable is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path is a role default controlled by the operator
+    regexp: ^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority).*$
+    replace: ""
+    backup: true
+    create: false
+  when: cache_redis_config_status.stat.exists
+  notify: Restart Redis
+  no_log: "{{ cache_secure_logging }}"

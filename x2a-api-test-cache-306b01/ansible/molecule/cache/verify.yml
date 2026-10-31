@@ -1,0 +1,157 @@
+---
+# Unsupported pre-flight checks: service status/enablement and journal checks have no
+# stated expected outcome or require an unresolved external service name. Memcached
+# checks are unsupported because its service, port, and configuration are undefined.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis listens on TCP port 6379
+      ansible.builtin.wait_for:
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Check unauthenticated Redis access is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - PING
+      register: item_redis_unauthenticated
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unauthenticated Redis access requires authentication
+      ansible.builtin.assert:
+        that:
+          - "'NOAUTH Authentication required' in item_redis_unauthenticated['stdout']"
+        fail_msg: Unauthenticated Redis PING was not rejected with NOAUTH.
+
+    - name: Check authenticated Redis access
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - -a
+          - "{{ redis_password }}"
+          - PING
+      register: item_redis_authenticated
+      changed_when: false
+      failed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert authenticated Redis access returns PONG
+      ansible.builtin.assert:
+        that:
+          - item_redis_authenticated['stdout'] | trim == 'PONG'
+        fail_msg: Authenticated Redis PING did not return PONG.
+
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_config['stat']['exists']
+          - item_redis_config['stat']['isreg']
+        fail_msg: Redis configuration file /etc/redis/6379.conf is missing.
+
+    - name: Read Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: item_redis_config_content
+
+    - name: Assert Redis port, authentication, and replication directives
+      ansible.builtin.assert:
+        that:
+          - item_redis_config_content['content'] | b64decode is regex('(?m)^port\\s+6379\\s*$')
+          - item_redis_config_content['content'] | b64decode is regex('(?m)^requirepass\\s+\\S+')
+          - item_redis_config_content['content'] | b64decode is not regex('(?m)^replica-serve-stale-data(?:\\s|$)')
+          - item_redis_config_content['content'] | b64decode is not regex('(?m)^replica-read-only(?:\\s|$)')
+          - item_redis_config_content['content'] | b64decode is not regex('(?m)^repl-ping-replica-period(?:\\s|$)')
+          - item_redis_config_content['content'] | b64decode is not regex('(?m)^client-output-buffer-limit(?:\\s|$)')
+          - item_redis_config_content['content'] | b64decode is not regex('(?m)^replica-priority(?:\\s|$)')
+        fail_msg: Redis configuration does not match the required port and directive expectations.
+
+    - name: Write and read a Redis migration check key
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - -a
+          - "{{ redis_password }}"
+          - SET
+          - chef_migration_check
+          - success
+      register: item_redis_set
+      changed_when: false
+      failed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert Redis SET returns OK
+      ansible.builtin.assert:
+        that:
+          - item_redis_set['stdout'] | trim == 'OK'
+        fail_msg: Redis migration-check SET did not return OK.
+
+    - name: Read the Redis migration check key
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - -a
+          - "{{ redis_password }}"
+          - GET
+          - chef_migration_check
+      register: item_redis_get
+      changed_when: false
+      failed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert Redis GET returns success
+      ansible.builtin.assert:
+        that:
+          - item_redis_get['stdout'] | trim == 'success'
+        fail_msg: Redis migration-check GET did not return success.
+
+    - name: Delete the Redis migration check key
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - -a
+          - "{{ redis_password }}"
+          - DEL
+          - chef_migration_check
+      register: item_redis_del
+      changed_when: false
+      failed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert Redis DEL removes one key
+      ansible.builtin.assert:
+        that:
+          - item_redis_del['stdout'] | trim == '1'
+        fail_msg: Redis migration-check DEL did not remove one key.
+
+    - name: Check Redis log directory ownership and permissions
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_directory
+
+    - name: Assert Redis log directory ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory['stat']['exists']
+          - item_redis_log_directory['stat']['pw_name'] == 'redis'
+          - item_redis_log_directory['stat']['gr_name'] == 'redis'
+          - item_redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: Redis log directory does not match the expected ownership or mode.
