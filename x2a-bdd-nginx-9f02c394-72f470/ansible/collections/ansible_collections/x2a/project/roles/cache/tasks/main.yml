@@ -1,0 +1,65 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure standalone Redis cache  # noqa: L038 - external eloy.redis.redis role is required by this role
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_port: "{{ cache_redis_port }}"
+    redis_requirepass: "{{ redis_password }}"
+    redis_replication_enabled: "{{ cache_redis_replication_enabled }}"
+    redis_cluster_enabled: "{{ cache_redis_cluster_enabled }}"
+    redis_sentinel_enabled: "{{ cache_redis_sentinel_enabled }}"
+    redis_rdb_enabled: "{{ cache_redis_rdb_enabled }}"
+    redis_aof_enabled: "{{ cache_redis_aof_enabled }}"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Check whether Redis configuration exists
+  ansible.builtin.stat:
+    path: "/etc/redis/{{ cache_redis_port }}.conf"
+  register: cache_redis_config
+
+- name: Remove replica-serve-stale-data directive  # noqa: L039 - cache_redis_config is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: "/etc/redis/{{ cache_redis_port }}.conf"  # noqa: R114 - cache_redis_port is defined in role defaults
+    regexp: ^replica-serve-stale-data.*$
+    replace: ""
+  when: cache_redis_config.stat.exists
+
+- name: Remove replica-read-only directive  # noqa: L039 - cache_redis_config is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: "/etc/redis/{{ cache_redis_port }}.conf"  # noqa: R114 - cache_redis_port is defined in role defaults
+    regexp: ^replica-read-only.*$
+    replace: ""
+  when: cache_redis_config.stat.exists
+
+- name: Remove repl-ping-replica-period directive  # noqa: L039 - cache_redis_config is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: "/etc/redis/{{ cache_redis_port }}.conf"  # noqa: R114 - cache_redis_port is defined in role defaults
+    regexp: ^repl-ping-replica-period.*$
+    replace: ""
+  when: cache_redis_config.stat.exists
+
+- name: Remove client-output-buffer-limit directive  # noqa: L039 - cache_redis_config is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: "/etc/redis/{{ cache_redis_port }}.conf"  # noqa: R114 - cache_redis_port is defined in role defaults
+    regexp: ^client-output-buffer-limit.*$
+    replace: ""
+  when: cache_redis_config.stat.exists
+
+- name: Remove replica-priority directive  # noqa: L039 - cache_redis_config is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: "/etc/redis/{{ cache_redis_port }}.conf"  # noqa: R114 - cache_redis_port is defined in role defaults
+    regexp: ^replica-priority.*$
+    replace: ""
+  when: cache_redis_config.stat.exists

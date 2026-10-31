@@ -1,0 +1,55 @@
+---
+# Unsupported pre-flight checks: locating the Redis process, Redis AUTH/PING and
+# SET/GET, Redis INFO output, Redis log-file listing, Memcached checks, and the
+# service/process/log inspections have no asserted result or lack a confirmed
+# endpoint, service unit, or safe secret source in the migration plan.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config['stat']['exists']
+          - redis_config['stat']['isreg']
+        fail_msg: Redis configuration file is missing or is not a regular file.
+
+    - name: Inspect Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+          - redis_log_directory['stat']['mode'] == '0755'
+          - redis_log_directory['stat']['pw_name'] == 'redis'
+          - redis_log_directory['stat']['gr_name'] == 'redis'
+        fail_msg: Redis log directory does not have the expected directory, mode, owner, and group.
+
+    - name: Verify Redis is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        port: 6379
+        state: started
+        timeout: 10
+        host: 127.0.0.1
+
+    - name: Read Redis configuration for replication directives
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert unwanted Redis replication directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content['content'] | b64decode) is not
+            regex('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: Unwanted active Redis replication directives are present in the configuration.
