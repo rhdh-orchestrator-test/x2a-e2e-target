@@ -1,0 +1,245 @@
+---
+# Unsupported: exact file contents, certificate dates, sysctl output, and journal excerpts
+# have no stated expected outcome. The configured SSH port is not specified.
+- name: Verify nginx-multisite pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Collect service facts
+      ansible.builtin.service_facts:
+
+    - name: Verify fail2ban is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services'].get('fail2ban.service', {}).get('enabled', false)
+          - ansible_facts['services'].get('fail2ban.service', {}).get('state', '') == 'running'
+        fail_msg: fail2ban is not enabled and active
+
+    - name: Verify nginx is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services'].get('nginx.service', {}).get('enabled', false)
+          - ansible_facts['services'].get('nginx.service', {}).get('state', '') == 'running'
+        fail_msg: nginx is not enabled and active
+
+    - name: Check UFW default policy
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      changed_when: false
+      register: item_ufw_verbose
+
+    - name: Verify UFW default incoming policy
+      ansible.builtin.assert:
+        that:
+          - item_ufw_verbose.rc == 0
+          - "'Default: deny (incoming)' in item_ufw_verbose.stdout"
+        fail_msg: UFW does not deny incoming traffic by default
+
+    - name: Check UFW numbered rules
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - numbered
+      changed_when: false
+      register: item_ufw_numbered
+
+    - name: Verify UFW allows SSH HTTP and HTTPS
+      ansible.builtin.assert:
+        that:
+          - item_ufw_numbered.rc == 0
+          - "'22/tcp' in item_ufw_numbered.stdout or 'SSH' in item_ufw_numbered.stdout"
+          - "'80/tcp' in item_ufw_numbered.stdout or 'HTTP' in item_ufw_numbered.stdout"
+          - "'443/tcp' in item_ufw_numbered.stdout or 'HTTPS' in item_ufw_numbered.stdout"
+        fail_msg: UFW does not allow the expected services
+
+    - name: Read SSH daemon configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: item_sshd_config
+
+    - name: Verify SSH security settings
+      ansible.builtin.assert:
+        that:
+          - "(item_sshd_config.content | b64decode) is regex('(?m)^\\s*PermitRootLogin\\s+no\\s*$')"
+          - "(item_sshd_config.content | b64decode) is regex('(?m)^\\s*PasswordAuthentication\\s+no\\s*$')"
+        fail_msg: SSH settings do not match the pre-flight expectations
+
+    - name: Verify security sysctl file exists
+      ansible.builtin.stat:
+        path: /etc/sysctl.d/99-security.conf
+      register: item_sysctl_file
+
+    - name: Assert security sysctl file is regular
+      ansible.builtin.assert:
+        that:
+          - item_sysctl_file.stat.exists
+          - item_sysctl_file.stat.isreg
+        fail_msg: The security sysctl file is missing
+
+    - name: Validate nginx configuration syntax
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - "-t"
+      changed_when: false
+      register: item_nginx_test
+
+    - name: Verify nginx configuration test succeeds
+      ansible.builtin.assert:
+        that:
+          - item_nginx_test.rc == 0
+          - "'syntax is ok' in (item_nginx_test.stderr | lower)"
+          - "'test is successful' in (item_nginx_test.stderr | lower)"
+        fail_msg: nginx configuration test failed
+
+    - name: Verify HTTP and HTTPS listeners
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ item_port }}"
+        state: started
+        timeout: 5
+      loop:
+        - 80
+        - 443
+      loop_control:
+        loop_var: item_port
+
+    - name: Define explicitly checked sites
+      ansible.builtin.set_fact:
+        verify_sites:
+          - name: test.cluster.local
+            root: /opt/server/test
+            certificate: /etc/ssl/certs/test.cluster.local.crt
+            key: /etc/ssl/private/test.cluster.local.key
+          - name: ci.cluster.local
+            root: /opt/server/ci
+            certificate: /etc/ssl/certs/ci.cluster.local.crt
+            key: /etc/ssl/private/ci.cluster.local.key
+          - name: status.cluster.local
+            root: /opt/server/status
+            certificate: /etc/ssl/certs/status.cluster.local.crt
+            key: /etc/ssl/private/status.cluster.local.key
+
+    - name: Check required site paths
+      ansible.builtin.stat:
+        path: "{{ item_path }}"
+        follow: false
+      loop:
+        - /opt/server/test
+        - /opt/server/test/index.html
+        - /opt/server/ci
+        - /opt/server/ci/index.html
+        - /opt/server/status
+        - /opt/server/status/index.html
+        - /etc/ssl/certs/test.cluster.local.crt
+        - /etc/ssl/certs/ci.cluster.local.crt
+        - /etc/ssl/certs/status.cluster.local.crt
+        - /etc/ssl/private/test.cluster.local.key
+        - /etc/ssl/private/ci.cluster.local.key
+        - /etc/ssl/private/status.cluster.local.key
+      loop_control:
+        loop_var: item_path
+      register: item_site_paths
+
+    - name: Verify required site paths exist
+      ansible.builtin.assert:
+        that:
+          - item_site_path.stat.exists
+        fail_msg: A required site path is missing
+      loop: "{{ item_site_paths.results }}"
+      loop_control:
+        loop_var: item_site_path
+
+    - name: Check enabled site links
+      ansible.builtin.stat:
+        path: "/etc/nginx/sites-enabled/{{ item_site['name'] }}"
+        follow: false
+      loop: "{{ verify_sites }}"
+      loop_control:
+        loop_var: item_site
+      register: item_enabled_sites
+
+    - name: Verify enabled site links
+      ansible.builtin.assert:
+        that:
+          - item_enabled_site.stat.islnk
+        fail_msg: An expected enabled site link is missing
+      loop: "{{ item_enabled_sites.results }}"
+      loop_control:
+        loop_var: item_enabled_site
+
+    - name: Check default site removal
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: item_default_site
+
+    - name: Verify default site is absent
+      ansible.builtin.assert:
+        that:
+          - not item_default_site.stat.exists
+        fail_msg: The default nginx site still exists
+
+    - name: Check HTTPS virtual hosts
+      ansible.builtin.command:
+        argv:
+          - curl
+          - "-k"
+          - "-I"
+          - "--resolve"
+          - "{{ item_site['name'] }}:443:127.0.0.1"
+          - "https://{{ item_site['name'] }}/"
+      changed_when: false
+      loop: "{{ verify_sites }}"
+      loop_control:
+        loop_var: item_site
+      register: item_https_results
+
+    - name: Verify HTTPS requests return HTTP 200
+      ansible.builtin.assert:
+        that:
+          - item_https_result.rc == 0
+          - "' 200' in item_https_result.stdout"
+        fail_msg: An HTTPS virtual host did not return HTTP 200
+      loop: "{{ item_https_results.results }}"
+      loop_control:
+        loop_var: item_https_result
+
+    - name: Check certificate subjects
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - "-in"
+          - "{{ item_site['certificate'] }}"
+          - "-noout"
+          - "-subject"
+      changed_when: false
+      loop: "{{ verify_sites }}"
+      loop_control:
+        loop_var: item_site
+      register: item_certificate_results
+
+    - name: Verify certificate common names
+      ansible.builtin.assert:
+        that:
+          - item_certificate_result.rc == 0
+          - "('CN=' ~ item_certificate_result.item['name']) in item_certificate_result.stdout"
+        fail_msg: A certificate has an unexpected common name
+      loop: "{{ item_certificate_results.results }}"
+      loop_control:
+        loop_var: item_certificate_result
+
+    - name: Verify TLS private key ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_key.stat.pw_name == 'root'
+          - item_key.stat.gr_name == 'ssl-cert'
+          - item_key.stat.mode == '0640'
+        fail_msg: A TLS private key has unexpected ownership or mode
+      loop: "{{ item_site_paths.results[9:] }}"
+      loop_control:
+        loop_var: item_key

@@ -1,0 +1,13 @@
+---
+# defaults file for x2a.project.nginx_multisite
+nginx_multisite_my_variable: default_value
+
+# Sites managed by the role. Override this mapping to define the host names and
+# document roots required by the deployment.
+nginx_sites:
+  example.com:
+    document_root: /var/www/example.com
+    ssl_enabled: true
+
+nginx_ssl_certificate_path: /etc/ssl/certs
+nginx_ssl_private_key_path: /etc/ssl/private
