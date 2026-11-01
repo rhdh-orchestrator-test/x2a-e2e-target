@@ -1,0 +1,40 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure standalone Redis using the Private Hub role  # noqa: L038 - role is declared in this role's requirements.yml but is unavailable to static resolution
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_requirepass: "{{ redis_password }}"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+
+- name: Check whether the Redis configuration exists
+  ansible.builtin.stat:
+    path: /etc/redis/6379.conf
+  register: cache_redis_config
+
+- name: Remove unsupported Redis directives  # noqa: L039 - cache_redis_config is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: /etc/redis/6379.conf
+    regexp: "{{ item_cache_directive }}"
+    replace: ""
+    create: false
+  when: cache_redis_config.stat.exists
+  loop:
+    - ^replica-serve-stale-data.*$
+    - ^replica-read-only.*$
+    - ^repl-ping-replica-period.*$
+    - ^client-output-buffer-limit.*$
+    - ^replica-priority.*$
+  loop_control:
+    loop_var: item_cache_directive
+  notify: Restart Redis
