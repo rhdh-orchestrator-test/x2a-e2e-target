@@ -1,0 +1,17 @@
+---
+argument_specs:
+  main:
+    short_description: Configure a Redis cache server
+    description:
+      - Installs and configures a standalone Redis cache instance on port 6379.
+      - Creates the Redis log directory and removes unwanted replication directives.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to hide output from tasks that handle the Redis password.
+      redis_requirepass:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.

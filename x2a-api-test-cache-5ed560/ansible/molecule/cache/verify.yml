@@ -1,0 +1,108 @@
+---
+# Unsupported pre-flight checks: source-repository grep, authenticated PING requiring a
+# secure secret, Redis log review, and Memcached discovery have no safely verifiable
+# expected outcome or confirmed values in the plan.
+
+- name: Verify Redis cache
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather service facts for Redis service verification
+      ansible.builtin.service_facts:
+
+    - name: Verify a Redis service is running
+      ansible.builtin.assert:
+        that:
+          - >-
+            ansible_facts['services'] | dict2items |
+            selectattr('key', 'match', '(?i)redis.*\\.service$') |
+            selectattr('value', 'match', 'running') | list | length > 0
+        fail_msg: A Redis service is not running.
+
+    - name: Verify a Redis service is enabled
+      ansible.builtin.assert:
+        that:
+          - >-
+            ansible_facts['services'] | dict2items |
+            selectattr('key', 'match', '(?i)redis.*\\.service$') |
+            selectattr('value', 'match', 'enabled') | list | length > 0
+        fail_msg: No Redis service is enabled.
+
+    - name: Verify Redis listens on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Check that unauthenticated Redis PING is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - PING
+      changed_when: false
+      failed_when: false
+      register: redis_unauthenticated_ping
+
+    - name: Verify unauthenticated Redis PING returns an authentication error
+      ansible.builtin.assert:
+        that:
+          - redis_unauthenticated_ping['rc'] != 0
+          - >-
+            (redis_unauthenticated_ping['stdout'] ~ redis_unauthenticated_ping['stderr'])
+            is search('(?i)(noauth|authentication required|auth required)')
+        fail_msg: Unauthenticated Redis PING was not rejected with an authentication error.
+
+    - name: Check the Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Verify the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat['stat']['exists']
+          - redis_config_stat['stat']['isreg']
+        fail_msg: The Redis 6379 configuration file is missing.
+
+    - name: Read the Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Verify Redis authentication and removed directives
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content['content'] | b64decode) is
+            search('(?m)^requirepass\\s+\\S+')
+          - >-
+            (redis_config_content['content'] | b64decode) is not
+            search('(?m)^replica-serve-stale-data.*$')
+          - >-
+            (redis_config_content['content'] | b64decode) is not
+            search('(?m)^replica-read-only.*$')
+          - >-
+            (redis_config_content['content'] | b64decode) is not
+            search('(?m)^repl-ping-replica-period.*$')
+          - >-
+            (redis_config_content['content'] | b64decode) is not
+            search('(?m)^client-output-buffer-limit.*$')
+          - >-
+            (redis_config_content['content'] | b64decode) is not
+            search('(?m)^replica-priority.*$')
+        fail_msg: Redis authentication or directive-removal verification failed.
+
+    - name: Check the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Verify the Redis log directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+        fail_msg: The Redis log directory is missing.

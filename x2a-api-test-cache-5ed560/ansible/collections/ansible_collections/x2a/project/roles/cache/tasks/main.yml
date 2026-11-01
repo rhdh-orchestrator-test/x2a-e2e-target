@@ -1,0 +1,54 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Redis cache server  # noqa: L038 - external eloy.redis role is declared in this role's requirements and resolved when dependencies are installed
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_port: 6379
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_replication_enabled: false
+    redis_aof_enabled: false
+    redis_rdb_enabled: true
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Remove replica serve stale data directive
+  ansible.builtin.replace:
+    path: /etc/redis/6379.conf
+    regexp: ^replica-serve-stale-data.*$
+    replace: ""
+
+- name: Remove replica read only directive
+  ansible.builtin.replace:
+    path: /etc/redis/6379.conf
+    regexp: ^replica-read-only.*$
+    replace: ""
+
+- name: Remove replica ping period directive
+  ansible.builtin.replace:
+    path: /etc/redis/6379.conf
+    regexp: ^repl-ping-replica-period.*$
+    replace: ""
+
+- name: Remove client output buffer limit directive
+  ansible.builtin.replace:
+    path: /etc/redis/6379.conf
+    regexp: ^client-output-buffer-limit.*$
+    replace: ""
+
+- name: Remove replica priority directive
+  ansible.builtin.replace:
+    path: /etc/redis/6379.conf
+    regexp: ^replica-priority.*$
+    replace: ""
