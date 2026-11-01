@@ -1,0 +1,99 @@
+---
+- name: Install security packages
+  ansible.builtin.package:
+    name:
+      - openssh-server
+      - "{{ 'fail2ban' if nginx_multisite_fail2ban_enabled else omit }}"
+      - "{{ 'ufw' if nginx_multisite_ufw_enabled else omit }}"
+    state: present
+
+- name: Enable and start fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: true
+    state: started
+  when: nginx_multisite_fail2ban_enabled | bool
+
+- name: Configure fail2ban
+  ansible.builtin.template:
+    src: fail2ban.jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: "0644"
+    backup: true
+  when: nginx_multisite_fail2ban_enabled | bool
+  notify: Restart fail2ban
+
+- name: Set UFW default incoming policy
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - --force
+      - default
+      - deny
+  when: nginx_multisite_ufw_enabled | bool
+  changed_when: "'already' not in nginx_multisite_ufw_default.stdout"
+  register: nginx_multisite_ufw_default
+
+- name: Allow SSH through UFW
+  ansible.builtin.command:
+    argv: [ufw, allow, ssh]
+  when: nginx_multisite_ufw_enabled | bool
+  changed_when: "'Skipping' not in nginx_multisite_ufw_ssh.stdout"
+  register: nginx_multisite_ufw_ssh
+
+- name: Allow HTTP through UFW
+  ansible.builtin.command:
+    argv: [ufw, allow, http]
+  when: nginx_multisite_ufw_enabled | bool
+  changed_when: "'Skipping' not in nginx_multisite_ufw_http.stdout"
+  register: nginx_multisite_ufw_http
+
+- name: Allow HTTPS through UFW
+  ansible.builtin.command:
+    argv: [ufw, allow, https]
+  when: nginx_multisite_ufw_enabled | bool
+  changed_when: "'Skipping' not in nginx_multisite_ufw_https.stdout"
+  register: nginx_multisite_ufw_https
+
+- name: Enable UFW
+  ansible.builtin.command:
+    argv: [ufw, --force, enable]
+  when: nginx_multisite_ufw_enabled | bool
+  changed_when: false
+  register: nginx_multisite_ufw_enable
+
+- name: Check sysctl configuration directory
+  ansible.builtin.stat:
+    path: /etc/sysctl.d
+  register: nginx_multisite_sysctl_dir
+
+- name: Configure kernel security settings # noqa: L039 - variable is registered by the preceding stat task
+  ansible.builtin.template:
+    src: sysctl-security.conf.j2
+    dest: /etc/sysctl.d/99-security.conf
+    mode: "0644"
+    backup: true
+  when: nginx_multisite_sysctl_dir.stat.exists and nginx_multisite_sysctl_dir.stat.isdir
+  notify: Reload security sysctl
+
+- name: Disable SSH root login
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PermitRootLogin
+    line: PermitRootLogin no
+    state: present
+    create: false
+    backup: true
+  when: nginx_multisite_ssh_disable_root | bool
+  notify: Restart SSH
+
+- name: Disable SSH password authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PasswordAuthentication
+    line: PasswordAuthentication no
+    state: present
+    create: false
+    backup: true
+  when: not nginx_multisite_ssh_password_auth | bool
+  notify: Restart SSH
