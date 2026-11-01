@@ -1,0 +1,80 @@
+---
+# Unsupported pre-flight checks: service enablement/active state (service name is a placeholder);
+# authenticated PING and INFO checks (the vaulted password is unavailable here); and the ss
+# process-identity diagnostic (the port listener is checked with wait_for instead).
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify the Redis log directory mode and ownership
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert the Redis log directory has the expected mode and ownership
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+          - redis_log_directory.stat.mode == '0755'
+          - redis_log_directory.stat.pw_name == 'redis'
+          - redis_log_directory.stat.gr_name == 'redis'
+        fail_msg: Redis log directory does not have the expected mode or ownership.
+
+    - name: Verify the named Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_configuration_file
+
+    - name: Assert the named Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_configuration_file.stat.exists
+          - redis_configuration_file.stat.isreg
+        fail_msg: The named Redis configuration file is missing.
+
+    - name: Read the named Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_configuration
+
+    - name: Assert removed Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_configuration.content | b64decode) is not
+            regex_search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: A removed Redis directive is present in the named configuration.
+
+    - name: Verify the named Redis instance listens on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Verify unauthenticated Redis access is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+      register: unauthenticated_redis_ping
+      changed_when: false
+      failed_when: false
+
+    - name: Assert the Redis instance requires authentication
+      ansible.builtin.assert:
+        that:
+          - >-
+            (unauthenticated_redis_ping.stdout ~ ' ' ~ unauthenticated_redis_ping.stderr)
+            is search('(?i)(authentication required|noauth)')
+        fail_msg: Unauthenticated Redis PING did not report an authentication-required error.
+
+    - name: Assert the Redis configuration declares port 6379 and a password directive
+      ansible.builtin.assert:
+        that:
+          - (redis_configuration.content | b64decode) is search('(?m)^port[ \t]+6379(?:[ \t]|$)')
+          - (redis_configuration.content | b64decode) is search('(?m)^requirepass[ \t]+[^\r\n]+')
+        fail_msg: The named Redis configuration lacks the expected port or password directive.

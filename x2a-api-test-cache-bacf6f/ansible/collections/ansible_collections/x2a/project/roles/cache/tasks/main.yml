@@ -1,0 +1,67 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Redis through the certified Redis role  # noqa: L038 - external role is provided by the eloy.redis collection declared in requirements.yml
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_version: "{{ cache_redis_version }}"
+    redis_install_method: package
+    redis_port: "{{ cache_redis_port }}"
+    redis_requirepass: "{{ redis_password }}"
+    redis_cluster_enabled: "{{ cache_redis_cluster_enabled }}"
+    redis_sentinel_enabled: "{{ cache_redis_sentinel_enabled }}"
+    redis_replication_enabled: "{{ cache_redis_replication_enabled }}"
+    redis_rdb_enabled: "{{ cache_redis_rdb_enabled }}"
+    redis_aof_enabled: "{{ cache_redis_aof_enabled }}"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_directory }}" # noqa: R114 - path is a role default controlled by the role
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Remove obsolete replica serve-stale-data directive
+  ansible.builtin.replace:
+    path: "/etc/redis/{{ cache_redis_port }}.conf" # noqa: R114 - port is defined in role defaults and the path is fixed under /etc/redis
+    regexp: ^replica-serve-stale-data.*$
+    replace: ""
+    create: false
+  notify: Restart Redis service
+
+- name: Remove obsolete replica read-only directive
+  ansible.builtin.replace:
+    path: "/etc/redis/{{ cache_redis_port }}.conf" # noqa: R114 - port is defined in role defaults and the path is fixed under /etc/redis
+    regexp: ^replica-read-only.*$
+    replace: ""
+    create: false
+  notify: Restart Redis service
+
+- name: Remove obsolete replica ping period directive
+  ansible.builtin.replace:
+    path: "/etc/redis/{{ cache_redis_port }}.conf" # noqa: R114 - port is defined in role defaults and the path is fixed under /etc/redis
+    regexp: ^repl-ping-replica-period.*$
+    replace: ""
+    create: false
+  notify: Restart Redis service
+
+- name: Remove obsolete client output buffer limit directive
+  ansible.builtin.replace:
+    path: "/etc/redis/{{ cache_redis_port }}.conf" # noqa: R114 - port is defined in role defaults and the path is fixed under /etc/redis
+    regexp: ^client-output-buffer-limit.*$
+    replace: ""
+    create: false
+  notify: Restart Redis service
+
+- name: Remove obsolete replica priority directive
+  ansible.builtin.replace:
+    path: "/etc/redis/{{ cache_redis_port }}.conf" # noqa: R114 - port is defined in role defaults and the path is fixed under /etc/redis
+    regexp: ^replica-priority.*$
+    replace: ""
+    create: false
+  notify: Restart Redis service
