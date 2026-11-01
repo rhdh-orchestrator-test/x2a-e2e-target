@@ -1,0 +1,78 @@
+---
+# Unsupported pre-flight checks:
+# - The local Chef recipe is not available inside the disposable verification hosts.
+# - Authenticated redis-cli checks require REDIS_PASSWORD, which must not be embedded here.
+# - CONFIG GET port, CONFIG GET requirepass, and INFO server require authenticated access.
+# - Redis systemctl status and journal checks lack the dependency's service unit name and an expected result.
+# - Memcached checks are explicitly deferred until its external dependency is inspected.
+
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_file
+
+    - name: Assert Redis configuration file is present
+      ansible.builtin.assert:
+        that:
+          - redis_config_file.stat.exists
+          - redis_config_file.stat.isreg
+        fail_msg: Redis configuration file /etc/redis/6379.conf is missing
+
+    - name: Verify Redis log directory metadata
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory has expected metadata
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+          - redis_log_directory.stat.pw_name == 'redis'
+          - redis_log_directory.stat.gr_name == 'redis'
+          - redis_log_directory.stat.mode == '0755'
+        fail_msg: Redis log directory metadata does not match the pre-flight expectation
+
+    - name: Read Redis configuration for directive verification
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert removed Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            redis_config_content.content | b64decode |
+            regex_search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority).*$')
+            is none
+        fail_msg: A removed Redis directive is present in /etc/redis/6379.conf
+
+    - name: Verify Redis is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Check unauthenticated Redis access
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+      register: redis_unauthenticated_ping
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unauthenticated Redis access is rejected
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_unauthenticated_ping.stdout ~ redis_unauthenticated_ping.stderr)
+            is search('(?i)(noauth|authentication required)')
+        fail_msg: Unauthenticated Redis PING was not rejected with an authentication-required error

@@ -1,0 +1,56 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Redis cache service
+    description:
+      - Installs and configures a standalone Redis cache on port 6379.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide output from tasks that handle credential values.
+      redis_version:
+        type: str
+        required: false
+        default: "7.2"
+        description: Redis version to install.
+      redis_install_method:
+        type: str
+        required: false
+        default: package
+        description: Installation method used by the Redis dependency role.
+      redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port for the Redis server.
+      redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis clustering is enabled.
+      redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel is enabled.
+      redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      redis_aof_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis append-only persistence is enabled.
+      redis_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis RDB persistence is enabled.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.
