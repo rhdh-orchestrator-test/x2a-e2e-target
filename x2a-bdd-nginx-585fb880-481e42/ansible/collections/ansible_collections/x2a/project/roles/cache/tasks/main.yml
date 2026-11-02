@@ -1,0 +1,47 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Redis with the approved collection role
+  ansible.builtin.include_role:
+    name: eloy.redis.redis # noqa: L038 - role is provided by the declared eloy.redis collection dependency
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_port: "{{ cache_redis_port }}"
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_replication_enabled: false
+    redis_requirepass: "{{ redis_password }}"
+
+- name: Ensure Redis log directory exists
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_dir }}" # noqa: R114 - path is a role default, not user input
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+
+- name: Verify Redis configuration exists
+  ansible.builtin.stat:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path is a role default, not user input
+  register: cache_redis_config
+
+- name: Assert Redis configuration was created
+  ansible.builtin.assert:
+    that:
+      - cache_redis_config.stat.exists
+    fail_msg: Redis configuration {{ cache_redis_config_path }} was not created
+
+- name: Read Redis configuration for replication-directive verification
+  ansible.builtin.slurp:
+    src: "{{ cache_redis_config_path }}"
+  register: cache_redis_config_content
+
+- name: Assert unwanted replication directives are absent
+  ansible.builtin.assert:
+    that:
+      - >-
+        (cache_redis_config_content.content | b64decode |
+        regex_search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)'))
+        is none
+    fail_msg: Redis configuration contains an unwanted replication directive

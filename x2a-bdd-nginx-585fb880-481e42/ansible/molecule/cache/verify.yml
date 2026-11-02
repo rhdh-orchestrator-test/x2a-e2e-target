@@ -1,0 +1,96 @@
+---
+# Unsupported pre-flight checks: Redis authenticated access and authenticated operations require
+# a securely supplied password; service status and journal checks require an unresolved service name;
+# log-file inspection and Redis process/memory checks have no stated expected outcome.
+- name: Verify cache pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify the Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config
+
+    - name: Assert the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config['stat']['exists']
+          - redis_config['stat']['isreg']
+        fail_msg: Redis configuration file is missing or is not a regular file.
+
+    - name: Verify the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert the Redis log directory has the expected ownership and mode
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+          - redis_log_directory['stat']['pw_name'] == 'redis'
+          - redis_log_directory['stat']['gr_name'] == 'redis'
+          - redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: Redis log directory is missing or has unexpected ownership or mode.
+
+    - name: Verify the Redis user exists
+      ansible.builtin.getent:
+        database: passwd
+        key: redis
+
+    - name: Verify the Redis group exists
+      ansible.builtin.getent:
+        database: group
+        key: redis
+
+    - name: Verify Redis is listening on TCP port 6379
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltn
+        chdir: /
+      register: redis_listeners
+      changed_when: false
+      failed_when: false
+
+    - name: Assert Redis is listening on TCP port 6379
+      ansible.builtin.assert:
+        that:
+          - redis_listeners['rc'] == 0
+          - redis_listeners['stdout'] is regex('(^|[[:space:]])[^[:space:]]*:6379([[:space:]]|$)')
+        fail_msg: Redis is not listening on TCP port 6379.
+
+    - name: Read the Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_contents
+
+    - name: Assert the configured Redis port is 6379
+      ansible.builtin.assert:
+        that:
+          - redis_config_contents['content'] | b64decode is regex('(?m)^[[:space:]]*port[[:space:]]+6379([[:space:]]|$)')
+        fail_msg: Redis configuration does not specify port 6379.
+
+    - name: Assert unwanted replication directives are absent
+      ansible.builtin.assert:
+        that:
+          - redis_config_contents['content'] | b64decode is not regex('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: Redis configuration contains an unwanted replication directive.
+
+    - name: Check that unauthenticated Redis access is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+      register: redis_unauthenticated_ping
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unauthenticated Redis access is rejected
+      ansible.builtin.assert:
+        that:
+          - redis_unauthenticated_ping['rc'] != 0
+          - redis_unauthenticated_ping['stdout'] is not search('PONG')
+        fail_msg: Redis accepted an unauthenticated PING.
