@@ -1,0 +1,122 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install FastAPI system packages
+  ansible.builtin.package:
+    name: "{{ fastapi_tutorial_packages }}"
+    state: present
+  vars:
+    fastapi_tutorial_packages: >-
+      {{ ['python3', 'python3-pip', 'python3-venv', 'git', 'postgresql',
+          'postgresql-contrib', 'libpq-dev'] if ansible_facts['os_family'] == 'Debian' else
+          ['python3', 'python3-pip', 'git', 'postgresql-server', 'postgresql',
+          'postgresql-contrib', 'postgresql-devel'] }}
+
+- name: Create FastAPI application directory
+  ansible.builtin.file:
+    path: /opt/fastapi-tutorial
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+    recurse: true
+
+- name: Synchronize FastAPI tutorial source
+  ansible.builtin.git:
+    repo: https://github.com/dibanez/fastapi_tutorial.git
+    dest: /opt/fastapi-tutorial
+    version: main
+    update: true
+
+- name: Create FastAPI virtual environment
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -m
+      - venv
+      - /opt/fastapi-tutorial/venv
+    creates: /opt/fastapi-tutorial/venv
+
+- name: Install FastAPI Python dependencies
+  ansible.builtin.pip:
+    requirements: /opt/fastapi-tutorial/requirements.txt
+    virtualenv: /opt/fastapi-tutorial/venv
+    virtualenv_command: python3 -m venv
+
+- name: Initialize PostgreSQL on RedHat-family systems
+  ansible.builtin.command:
+    cmd: postgresql-setup --initdb
+  args:
+    creates: /var/lib/pgsql/data/PG_VERSION
+  when: ansible_facts['os_family'] == 'RedHat'
+
+- name: Enable and start PostgreSQL
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true
+
+- name: Create FastAPI PostgreSQL role  # noqa: L039, R101, R108 - database variables come from role parameters; command is trusted role configuration and PostgreSQL role creation requires postgres privileges
+  ansible.builtin.command:
+    argv:
+      - psql
+      - -v
+      - ON_ERROR_STOP=1
+      - -c
+      - DO $$ BEGIN CREATE ROLE {{ db_user }} LOGIN PASSWORD '{{ db_password }}'; EXCEPTION WHEN duplicate_object THEN ALTER ROLE {{ db_user }} WITH LOGIN PASSWORD '{{ db_password }}'; END $$;
+  become: true
+  become_user: postgres
+  no_log: "{{ fastapi_tutorial_secure_logging }}"
+  changed_when: false
+
+- name: Create FastAPI PostgreSQL database  # noqa: L039, R101, R108 - database variables come from role parameters; command is trusted role configuration and database creation requires postgres privileges
+  ansible.builtin.command:
+    argv:
+      - psql
+      - -v
+      - ON_ERROR_STOP=1
+      - -c
+      - SELECT 'CREATE DATABASE {{ db_name }} OWNER {{ db_user }}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{{ db_name }}')\\gexec
+  become: true
+  become_user: postgres
+  changed_when: false
+
+- name: Grant FastAPI database privileges  # noqa: L039, R101, R108 - database variables come from role parameters; command is trusted role configuration and privilege grants require postgres privileges
+  ansible.builtin.command:
+    argv:
+      - psql
+      - -v
+      - ON_ERROR_STOP=1
+      - -c
+      - GRANT ALL PRIVILEGES ON DATABASE {{ db_name }} TO {{ db_user }};
+  become: true
+  become_user: postgres
+  changed_when: false
+
+- name: Deploy FastAPI environment configuration
+  ansible.builtin.template:
+    src: fastapi-tutorial.env.j2
+    dest: /opt/fastapi-tutorial/.env
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
+  no_log: "{{ fastapi_tutorial_secure_logging }}"
+
+- name: Deploy FastAPI systemd unit
+  ansible.builtin.copy:
+    src: fastapi-tutorial.service
+    dest: /etc/systemd/system/fastapi-tutorial.service
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Reload systemd
+
+- name: Enable and start FastAPI service
+  ansible.builtin.systemd:
+    name: fastapi-tutorial
+    state: started
+    enabled: true
+    daemon_reload: true

@@ -1,0 +1,24 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure the FastAPI tutorial service
+    description:
+      - Deploys the FastAPI tutorial application, its Python environment, PostgreSQL database, environment file, and systemd service.
+    options:
+      fastapi_tutorial_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks that handle the database password.
+      db_user:
+        type: str
+        required: true
+        description: PostgreSQL application user injected by an AAP credential type.
+      db_name:
+        type: str
+        required: true
+        description: PostgreSQL application database injected by an AAP credential type.
+      db_password:
+        type: str
+        required: true
+        description: PostgreSQL application password injected by an AAP credential type.
