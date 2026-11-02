@@ -1,0 +1,18 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Load Python runtime tasks
+  ansible.builtin.include_tasks: python.yml
+
+- name: Load database tasks
+  ansible.builtin.include_tasks: database.yml
+
+- name: Load application deployment tasks
+  ansible.builtin.include_tasks: app.yml
+
+- name: Load service management tasks
+  ansible.builtin.include_tasks: service.yml
+
+- name: Load monitoring tasks
+  ansible.builtin.include_tasks: monitoring.yml

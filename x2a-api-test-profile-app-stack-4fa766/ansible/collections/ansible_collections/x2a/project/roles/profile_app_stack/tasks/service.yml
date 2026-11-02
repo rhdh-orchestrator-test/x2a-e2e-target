@@ -1,0 +1,29 @@
+---
+- name: Install application systemd unit
+  ansible.builtin.template:
+    src: app.service.j2
+    dest: /etc/systemd/system/{{ app_stack_app_name }}.service # noqa: R114 - filename from role defaults, not user input
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Restart application service
+  vars:
+    app_name: "{{ app_stack_app_name }}"
+    app_dir: "{{ app_stack_app_dir }}"
+    app_user: "{{ app_stack_app_user }}"
+    app_group: "{{ app_stack_app_group }}"
+    app_port: "{{ app_stack_app_port }}"
+    worker_count: "{{ app_stack_worker_count }}"
+    worker_class: "{{ app_stack_worker_class }}"
+    max_requests: "{{ app_stack_max_requests }}"
+    graceful_timeout: "{{ app_stack_graceful_timeout }}"
+    log_dir: "{{ app_stack_log_dir }}"
+    log_level: "{{ app_stack_log_level }}"
+
+- name: Enable and start application service
+  ansible.builtin.systemd:
+    name: "{{ app_stack_app_name }}"
+    state: started
+    enabled: true
+    daemon_reload: true

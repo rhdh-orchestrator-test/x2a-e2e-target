@@ -1,0 +1,100 @@
+---
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ app_stack_app_dir }}" # noqa: R114 - path from role defaults, not user input
+    state: directory
+    owner: "{{ app_stack_app_user }}"
+    group: "{{ app_stack_app_group }}"
+    mode: "0755"
+
+- name: Check out application repository
+  ansible.builtin.git: # noqa: R104 - repository URL is a trusted role default or trusted role input
+    repo: "{{ app_stack_app_repo }}" # noqa: R106 - repository source is a trusted role parameter
+    dest: "{{ app_stack_app_dir }}" # noqa: R114 - destination from role defaults, not user input
+    version: "{{ app_stack_app_revision }}"
+    update: true
+    force: false
+    executable: git
+  notify: Restart application service
+  become: true # noqa: R108 - checkout runs as the application service account
+  become_user: "{{ app_stack_app_user }}"
+
+- name: Create application virtual environment
+  ansible.builtin.command:
+    argv: # noqa: R101 - command interpreter comes from trusted role defaults
+      - "{{ app_stack_python_version }}"
+      - -m
+      - venv
+      - "{{ app_stack_app_dir }}/venv"
+    creates: "{{ app_stack_app_dir }}/venv/bin/activate" # noqa: R114 - path from role defaults, not user input
+  become: true # noqa: R108 - creating the environment under its service account requires privilege escalation
+  become_user: "{{ app_stack_app_user }}"
+
+- name: Check whether repository requirements exist
+  ansible.builtin.stat:
+    path: "{{ app_stack_app_dir }}/requirements.txt"
+  register: app_stack_requirements_file
+
+- name: Install repository requirements  # noqa: L039 - variable is registered by the preceding stat task; noqa: R113 - requirements are supplied by the trusted application repository
+  ansible.builtin.pip: # noqa: R113 - requirements are supplied by the trusted application repository
+    requirements: "{{ app_stack_app_dir }}/requirements.txt"
+    virtualenv: "{{ app_stack_app_dir }}/venv"
+    virtualenv_command: "{{ app_stack_python_version }} -m venv"
+  when: app_stack_requirements_file.stat.exists
+  notify: Restart application service
+  become: true # noqa: R108 - installing into the application virtualenv under its service account requires privilege escalation
+  become_user: "{{ app_stack_app_user }}"
+
+- name: Install optional Python packages  # noqa: R113 - package names are trusted role inputs for the application virtualenv
+  ansible.builtin.pip:
+    name: "{{ app_stack_pip_packages }}"
+    virtualenv: "{{ app_stack_app_dir }}/venv"
+    virtualenv_command: "{{ app_stack_python_version }} -m venv"
+    state: present
+  when: app_stack_pip_packages | length > 0
+  become: true # noqa: R108 - installing packages into the application virtualenv under its service account requires privilege escalation
+  become_user: "{{ app_stack_app_user }}"
+
+- name: Render application environment
+  ansible.builtin.template:
+    src: app.env.j2
+    dest: "{{ app_stack_app_dir }}/.env" # noqa: R114 - path from role defaults, not user input
+    owner: "{{ app_stack_app_user }}"
+    group: "{{ app_stack_app_group }}"
+    mode: "0600"
+    backup: true
+  notify: Restart application service
+  no_log: "{{ profile_app_stack_secure_logging }}"
+  vars:
+    db_url: "{{ app_stack_db_url }}"
+    app_name: "{{ app_stack_app_name }}"
+    app_port: "{{ app_stack_app_port }}"
+    secret_key: "{{ secret_key }}"
+    log_level: "{{ app_stack_log_level }}"
+    log_dir: "{{ app_stack_log_dir }}"
+    worker_count: "{{ app_stack_worker_count }}"
+
+- name: Install application health-check script
+  ansible.builtin.copy:
+    src: healthcheck.sh
+    dest: /usr/local/bin/app-healthcheck.sh
+    owner: root
+    group: root
+    mode: "0755"
+    backup: true
+
+- name: Run database migrations when migration configuration exists
+  ansible.builtin.command:
+    argv: # noqa: R101 - command arguments come from trusted role defaults and validated application configuration
+      - "{{ app_stack_app_dir }}/venv/bin/python"
+      - -m
+      - alembic
+      - upgrade
+      - head
+    chdir: "{{ app_stack_app_dir }}" # noqa: R114 - path from role defaults, not user input
+  when: app_stack_migrations_present | bool
+  become: true # noqa: R108 - migrations modify the local application database and require the application service account privileges
+  become_user: "{{ app_stack_app_user }}"
+  no_log: "{{ profile_app_stack_secure_logging }}"
+  environment: # noqa: L045 - migration command requires DATABASE_URL in its environment
+    DATABASE_URL: "{{ app_stack_db_url }}"

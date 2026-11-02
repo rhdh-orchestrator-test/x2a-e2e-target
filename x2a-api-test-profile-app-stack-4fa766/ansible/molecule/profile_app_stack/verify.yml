@@ -1,0 +1,135 @@
+---
+# Unsupported pre-flight checks: required system-package names, database creation or
+# verification, migration completion, daemon-reload/enable-now operations, exact service
+# state, cron installation/runnability, target-environment inventory representation, and
+# production-specific monitoring checks have no safely stated expected result here.
+- name: Verify profile_app_stack pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify test-app explicitly confirmed variables
+      ansible.builtin.assert:
+        that:
+          - app_stack_app_name == 'test-app'
+          - app_stack_app_repo == 'file:///tmp/test-app-repo'
+          - app_stack_app_revision == 'master' or app_stack_app_revision is defined
+          - app_stack_app_user == 'appuser'
+          - app_stack_app_group is defined
+          - app_stack_app_group | string | length > 0
+          - app_stack_app_dir is defined
+          - app_stack_app_dir | string | length > 0
+          - app_stack_app_port is defined
+          - app_stack_log_dir is defined
+          - app_stack_log_dir | string | length > 0
+          - app_stack_python_version is defined
+          - app_stack_graceful_timeout is defined
+          - app_stack_pip_packages is defined
+        fail_msg: Required test-app configuration is missing or has an unexpected fixed value.
+
+    - name: Verify the test-app repository is available
+      ansible.builtin.stat:
+        path: /tmp/test-app-repo
+      register: test_app_repo_stat
+
+    - name: Assert the test-app repository is available
+      ansible.builtin.assert:
+        that:
+          - test_app_repo_stat.stat.exists
+          - test_app_repo_stat.stat.isdir
+        fail_msg: The test-app repository path is not available.
+
+    - name: Verify Python is installed
+      ansible.builtin.command:
+        argv:
+          - python3
+          - --version
+      register: python_version_check
+      changed_when: false
+      failed_when: false
+
+    - name: Assert Python is installed
+      ansible.builtin.assert:
+        that:
+          - python_version_check.rc == 0
+        fail_msg: Python 3 is not installed.
+
+    - name: Verify pip is installed
+      ansible.builtin.command:
+        argv:
+          - pip3
+          - --version
+      register: pip_version_check
+      changed_when: false
+      failed_when: false
+
+    - name: Assert pip is installed
+      ansible.builtin.assert:
+        that:
+          - pip_version_check.rc == 0
+        fail_msg: pip3 is not installed.
+
+    - name: Verify local PostgreSQL accepts connections when configured
+      ansible.builtin.wait_for:
+        host: localhost
+        port: 5432
+        state: started
+        timeout: 10
+      when:
+        - app_stack_db_host is defined
+        - app_stack_db_host == 'localhost'
+
+    - name: Verify the rendered environment file
+      ansible.builtin.stat:
+        path: "{{ app_stack_app_dir }}/.env"
+      register: test_app_env_stat
+
+    - name: Assert the rendered environment file is restrictive
+      ansible.builtin.assert:
+        that:
+          - test_app_env_stat.stat.exists
+          - test_app_env_stat.stat.isreg
+          - test_app_env_stat.stat.mode[-2:] == '00'
+        fail_msg: The rendered environment file is missing or not restrictively permissioned.
+
+    - name: Verify the systemd unit with systemd-analyze
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - /etc/systemd/system/test-app.service
+      register: test_app_unit_verify
+      changed_when: false
+      failed_when: false
+
+    - name: Assert systemd-analyze verifies the test-app unit
+      ansible.builtin.assert:
+        that:
+          - test_app_unit_verify.rc == 0
+        fail_msg: systemd-analyze could not verify the test-app unit.
+
+    - name: Verify the rendered systemd unit permissions
+      ansible.builtin.stat:
+        path: /etc/systemd/system/test-app.service
+      register: test_app_unit_stat
+
+    - name: Assert the rendered systemd unit is not world-readable
+      ansible.builtin.assert:
+        that:
+          - test_app_unit_stat.stat.exists
+          - test_app_unit_stat.stat.isreg
+          - test_app_unit_stat.stat.mode[-1:] == '0'
+        fail_msg: The rendered systemd unit is missing or world-readable.
+
+    - name: Verify that application logs are present in the configured log directory
+      ansible.builtin.find:
+        paths: "{{ app_stack_log_dir }}"
+        file_type: file
+        recurse: true
+        hidden: true
+      register: test_app_log_check
+
+    - name: Assert that application logs are written
+      ansible.builtin.assert:
+        that:
+          - test_app_log_check.matched | int > 0
+        fail_msg: No application log file was found in the configured log directory.

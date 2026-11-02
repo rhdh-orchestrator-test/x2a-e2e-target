@@ -1,0 +1,81 @@
+---
+- name: Install PostgreSQL client tools
+  ansible.builtin.package:
+    name: postgresql-client
+    state: present
+
+- name: Install local PostgreSQL server
+  ansible.builtin.package:
+    name: postgresql
+    state: present
+  when: app_stack_db_host == 'localhost'
+
+- name: Ensure local PostgreSQL service is running
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true
+  when: app_stack_db_host == 'localhost'
+
+- name: Check whether application database user exists
+  ansible.builtin.command:
+    cmd: psql -tAc "SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='{{ app_stack_db_user }}'" # noqa: R101 - query uses the trusted role database-user setting
+  when: app_stack_db_host == 'localhost'
+  changed_when: false
+  register: app_stack_db_user_exists
+  become: true # noqa: R108 - PostgreSQL role inspection requires the postgres account
+  become_user: postgres
+
+- name: Create application database user on local PostgreSQL
+  ansible.builtin.shell:
+    cmd: psql -v db_user="{{ app_stack_db_user }}" -v db_password="{{ db_password }}" -c "CREATE USER :\"db_user\" WITH PASSWORD :'db_password';" # noqa: R101 - database command uses validated role settings and credential input
+  when:
+    - app_stack_db_host == 'localhost'
+    - app_stack_db_user_exists.stdout | trim != '1' # noqa: L039 - variable is registered by the preceding database-user check
+  changed_when: true
+  become: true # noqa: R108 - PostgreSQL user creation requires the postgres account
+  become_user: postgres
+  no_log: "{{ profile_app_stack_secure_logging }}"
+
+- name: Check whether application database exists
+  ansible.builtin.command:
+    cmd: psql -tAc "SELECT 1 FROM pg_catalog.pg_database WHERE datname='{{ app_stack_db_name }}'" # noqa: R101 - query uses the trusted role database-name setting
+  when: app_stack_db_host == 'localhost'
+  changed_when: false
+  register: app_stack_database_exists
+  become: true # noqa: R108 - PostgreSQL database inspection requires the postgres account
+  become_user: postgres
+
+- name: Create application database
+  ansible.builtin.command:
+    cmd: createdb -O {{ app_stack_db_user }} {{ app_stack_db_name }} # noqa: R101 - database command uses validated role database settings
+  when:
+    - app_stack_db_host == 'localhost'
+    - app_stack_database_exists.stdout | trim != '1' # noqa: L039 - variable is registered by the preceding database-existence check
+  become: true # noqa: R108 - database creation requires the postgres account
+  become_user: postgres
+
+- name: Grant application database privileges
+  ansible.builtin.shell:
+    cmd: psql -c "GRANT ALL PRIVILEGES ON DATABASE {{ app_stack_db_name }} TO {{ app_stack_db_user }};" # noqa: R101 - database command uses validated role database settings
+  when: app_stack_db_host == 'localhost'
+  changed_when: true
+  become: true # noqa: R108 - privilege changes require the postgres account
+  become_user: postgres
+
+- name: Install database backup script
+  ansible.builtin.copy:
+    src: backup.sh
+    dest: /usr/local/bin/db-backup.sh
+    owner: root
+    group: "{{ app_stack_app_group }}"
+    mode: "0750"
+    backup: true
+
+- name: Schedule database backup
+  ansible.builtin.cron:
+    name: database_backup
+    user: root
+    minute: "30"
+    hour: "2"
+    job: /usr/local/bin/db-backup.sh {{ app_stack_db_name }} {{ app_stack_db_host }}
