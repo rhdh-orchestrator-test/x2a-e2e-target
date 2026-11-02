@@ -1,0 +1,147 @@
+---
+# Unsupported pre-flight checks: Git revision/log output, interpreter and pip versions,
+# pip check, .env values/permissions, PostgreSQL credential authentication, service
+# configuration greps other than ExecStart, process output, journal contents, and
+# restart validation have no safely stated expected result here or require a secret.
+- name: Verify FastAPI tutorial deployment
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check application directory exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: app_directory
+
+    - name: Assert application directory exists
+      ansible.builtin.assert:
+        that:
+          - app_directory.stat.exists
+          - app_directory.stat.isdir
+        fail_msg: The application directory is missing.
+
+    - name: Check Python virtual environment exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv
+      register: virtualenv_directory
+
+    - name: Assert Python virtual environment exists
+      ansible.builtin.assert:
+        that:
+          - virtualenv_directory.stat.exists
+          - virtualenv_directory.stat.isdir
+        fail_msg: The Python virtual environment is missing.
+
+    - name: Check application requirements file exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: requirements_file
+
+    - name: Assert application requirements file exists
+      ansible.builtin.assert:
+        that:
+          - requirements_file.stat.exists
+          - requirements_file.stat.isreg
+        fail_msg: The application requirements file is missing.
+
+    - name: Check application environment file exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/.env
+      register: environment_file
+
+    - name: Assert application environment file exists
+      ansible.builtin.assert:
+        that:
+          - environment_file.stat.exists
+          - environment_file.stat.isreg
+        fail_msg: The application environment file is missing.
+
+    - name: Check PostgreSQL service is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - postgresql
+      register: postgresql_enabled
+      changed_when: false
+
+    - name: Assert PostgreSQL service is enabled
+      ansible.builtin.assert:
+        that:
+          - postgresql_enabled.stdout | trim == 'enabled'
+        fail_msg: PostgreSQL is not enabled.
+
+    - name: Check PostgreSQL service is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - postgresql
+      register: postgresql_active
+      changed_when: false
+
+    - name: Assert PostgreSQL service is active
+      ansible.builtin.assert:
+        that:
+          - postgresql_active.stdout | trim == 'active'
+        fail_msg: PostgreSQL is not active.
+
+    - name: Query FastAPI database owner
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT datname, pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db';
+      register: database_owner
+      changed_when: false
+
+    - name: Assert FastAPI database has the expected owner
+      ansible.builtin.assert:
+        that:
+          - database_owner.stdout | trim == 'fastapi_db|fastapi'
+        fail_msg: The FastAPI database or its owner is incorrect.
+
+    - name: Check FastAPI systemd unit syntax
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - /etc/systemd/system/fastapi-tutorial.service
+      changed_when: false
+
+    - name: Read FastAPI systemd unit
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_unit
+
+    - name: Assert FastAPI systemd unit has the expected application command
+      ansible.builtin.assert:
+        that:
+          - >-
+            'ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000'
+            in (fastapi_unit.content | b64decode)
+        fail_msg: The FastAPI systemd unit has an unexpected ExecStart command.
+
+    - name: Check FastAPI endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8000/
+        method: GET
+        status_code:
+          - 200
+          - 404
+        return_content: false
+
+    - name: Check FastAPI TCP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: fastapi_listener
+      changed_when: false
+
+    - name: Assert FastAPI listens on port 8000
+      ansible.builtin.assert:
+        that:
+          - fastapi_listener.stdout is search(':8000')
+        fail_msg: No listener was found on TCP port 8000.
