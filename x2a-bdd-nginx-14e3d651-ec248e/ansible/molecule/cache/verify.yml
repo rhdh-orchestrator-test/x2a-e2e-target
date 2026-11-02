@@ -1,0 +1,53 @@
+---
+# Unsupported pre-flight checks: Redis service-unit discovery has no fixed unit name;
+# authenticated Redis commands and read/write checks require a secret from an approved
+# store; Memcached discovery/conditional port checks and log review have no fixed outcome.
+- name: Verify cache migration
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config
+
+    - name: Check Redis log directory attributes
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis configuration and log directory
+      ansible.builtin.assert:
+        that:
+          - redis_config.stat.exists
+          - redis_config.stat.isreg
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+          - redis_log_directory.stat.pw_name == 'redis'
+          - redis_log_directory.stat.gr_name == 'redis'
+          - redis_log_directory.stat.mode == '0755'
+        fail_msg: Redis configuration or log directory does not match the pre-flight expectations.
+
+    - name: Check Redis port is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Read Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert Redis configuration directives
+      ansible.builtin.assert:
+        that:
+          - "redis_config_content.content | b64decode is search('(?m)^port\\s+6379(?:\\s|$)')"
+          - "redis_config_content.content | b64decode is search('(?m)^requirepass\\s+\\S+')"
+          - "redis_config_content.content | b64decode is not search('(?m)^replica-serve-stale-data(?:\\s|$)')"
+          - "redis_config_content.content | b64decode is not search('(?m)^replica-read-only(?:\\s|$)')"
+          - "redis_config_content.content | b64decode is not search('(?m)^repl-ping-replica-period(?:\\s|$)')"
+          - "redis_config_content.content | b64decode is not search('(?m)^client-output-buffer-limit(?:\\s|$)')"
+          - "redis_config_content.content | b64decode is not search('(?m)^replica-priority(?:\\s|$)')"
+        fail_msg: Redis configuration does not match the pre-flight expectations.
