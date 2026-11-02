@@ -1,0 +1,169 @@
+---
+# Unsupported pre-flight checks: configuration/content dumps, readlink target output,
+# file modes/ownership, HTTP response bodies/statuses, UFW policy, SSH hardening values,
+# and fail2ban/SSH diagnostic output have no stated expected result in the plan.
+- name: Verify nginx multisite pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Collect service facts for nginx and fail2ban checks
+      ansible.builtin.service_facts:
+
+    - name: Assert nginx is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts.services['nginx.service']['status'] == 'enabled'"
+          - "ansible_facts.services['nginx.service']['state'] == 'running'"
+
+    - name: Assert fail2ban is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts.services['fail2ban.service']['status'] == 'enabled'"
+          - "ansible_facts.services['fail2ban.service']['state'] == 'running'"
+
+    - name: Validate Nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: item_nginx_config_test
+      changed_when: false
+
+    - name: Assert Nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - item_nginx_config_test['rc'] == 0
+
+    - name: Check required Nginx and site files
+      ansible.builtin.stat:
+        path: "{{ item_nginx_file['path'] }}"
+        follow: false
+      loop:
+        - path: /etc/nginx/nginx.conf
+        - path: /etc/nginx/conf.d/security.conf
+        - path: /etc/nginx/sites-available/test.cluster.local
+        - path: /etc/nginx/sites-available/ci.cluster.local
+        - path: /etc/nginx/sites-available/status.cluster.local
+        - path: /opt/server/test
+        - path: /opt/server/test/index.html
+        - path: /opt/server/ci
+        - path: /opt/server/ci/index.html
+        - path: /opt/server/status
+        - path: /opt/server/status/index.html
+        - path: /etc/ssl/certs/test.cluster.local.crt
+        - path: /etc/ssl/private/test.cluster.local.key
+        - path: /etc/ssl/certs/ci.cluster.local.crt
+        - path: /etc/ssl/private/ci.cluster.local.key
+        - path: /etc/ssl/certs/status.cluster.local.crt
+        - path: /etc/ssl/private/status.cluster.local.key
+        - path: /etc/fail2ban/jail.local
+        - path: /etc/sysctl.d/99-security.conf
+      loop_control:
+        loop_var: item_nginx_file
+      register: item_nginx_files
+
+    - name: Assert required Nginx multisite paths exist
+      ansible.builtin.assert:
+        that:
+          - item_nginx_path['stat']['exists']
+        loop: "{{ item_nginx_files['results'] }}"
+        loop_control:
+          loop_var: item_nginx_path
+
+    - name: Check enabled site links
+      ansible.builtin.stat:
+        path: "{{ item_site_link['path'] }}"
+        follow: false
+      loop:
+        - path: /etc/nginx/sites-enabled/test.cluster.local
+        - path: /etc/nginx/sites-enabled/ci.cluster.local
+        - path: /etc/nginx/sites-enabled/status.cluster.local
+      loop_control:
+        loop_var: item_site_link
+      register: item_site_links
+
+    - name: Assert enabled site paths are symbolic links
+      ansible.builtin.assert:
+        that:
+          - item_site_link_result['stat']['islnk'] | default(false)
+        loop: "{{ item_site_links['results'] }}"
+        loop_control:
+          loop_var: item_site_link_result
+
+    - name: Check default Nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+        follow: false
+      register: item_default_site
+
+    - name: Assert default Nginx site is removed
+      ansible.builtin.assert:
+        that:
+          - not item_default_site['stat']['exists']
+
+    - name: Verify test certificate subject
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - -in
+          - /etc/ssl/certs/test.cluster.local.crt
+          - -noout
+          - -subject
+      register: item_test_certificate_subject
+      changed_when: false
+
+    - name: Assert test certificate names test.cluster.local
+      ansible.builtin.assert:
+        that:
+          - item_test_certificate_subject['rc'] == 0
+          - "'CN = test.cluster.local' in item_test_certificate_subject['stdout']"
+
+    - name: Verify ci certificate subject
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - -in
+          - /etc/ssl/certs/ci.cluster.local.crt
+          - -noout
+          - -subject
+      register: item_ci_certificate_subject
+      changed_when: false
+
+    - name: Assert ci certificate names ci.cluster.local
+      ansible.builtin.assert:
+        that:
+          - item_ci_certificate_subject['rc'] == 0
+          - "'CN = ci.cluster.local' in item_ci_certificate_subject['stdout']"
+
+    - name: Verify status certificate subject
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - -in
+          - /etc/ssl/certs/status.cluster.local.crt
+          - -noout
+          - -subject
+      register: item_status_certificate_subject
+      changed_when: false
+
+    - name: Assert status certificate names status.cluster.local
+      ansible.builtin.assert:
+        that:
+          - item_status_certificate_subject['rc'] == 0
+          - "'CN = status.cluster.local' in item_status_certificate_subject['stdout']"
+
+    - name: Check listening ports from the pre-flight diagnostic
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: item_listening_ports
+      changed_when: false
+
+    - name: Assert a required service port is listening
+      ansible.builtin.assert:
+        that:
+          - item_listening_ports['stdout'] is search(':(80|443|22)\\b')
