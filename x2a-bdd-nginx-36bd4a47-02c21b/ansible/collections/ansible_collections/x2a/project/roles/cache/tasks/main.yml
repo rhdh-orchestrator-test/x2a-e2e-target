@@ -1,0 +1,44 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Include the separately migrated Memcached role  # noqa: L038 - separately migrated role is not present in this collection
+  ansible.builtin.include_role:
+    name: x2a.project.memcached
+
+- name: Configure Redis using the Private Hub role  # noqa: L038 - Private Hub role is an external dependency unavailable in this collection
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_port: 6379
+    redis_requirepass: "{{ redis_password }}"
+    redis_replication_enabled: false
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_aof_enabled: false
+    redis_rdb_enabled: true
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Check whether the Redis configuration exists
+  ansible.builtin.stat:
+    path: /etc/redis/6379.conf
+  register: cache_redis_config
+
+- name: Remove unsupported replication directives from Redis configuration  # noqa: L039 - cache_redis_config is registered by the preceding stat task
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)\b
+    state: absent
+    create: false
+  when:
+    - ansible_facts['os_family'] in ['RedHat', 'Debian']
+    - cache_redis_config.stat.exists

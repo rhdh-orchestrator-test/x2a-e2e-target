@@ -1,0 +1,79 @@
+# Unsupported pre-flight checks: Redis PING/INFO authentication, detailed Redis journal output,
+# and Memcached status/endpoint checks cannot be safely verified without a verified unit,
+# endpoint, or exposing the vaulted Redis credential.
+---
+- name: Verify Redis cache service
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather service facts for the Redis service-unit check
+      ansible.builtin.service_facts:
+
+    - name: Select service units associated with Redis or port 6379
+      ansible.builtin.set_fact:
+        cache_redis_services: >-
+          {{ ansible_facts['services'] | dict2items
+             | selectattr('key', 'search', 'redis|6379') | list }}
+
+    - name: Verify a Redis service associated with port 6379 is enabled and running
+      ansible.builtin.assert:
+        that:
+          - cache_redis_services | length > 0
+          - >-
+            (cache_redis_services
+             | selectattr('value', 'mapping')
+             | selectattr('value.state', 'equalto', 'running')
+             | selectattr('value.status', 'equalto', 'enabled') | list | length) > 0
+        fail_msg: Redis must have an enabled and running service associated with port 6379.
+
+    - name: Verify Redis is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Check that the Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config_stat
+
+    - name: Verify the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config_stat.stat.exists
+          - cache_redis_config_stat.stat.isreg
+        fail_msg: /etc/redis/6379.conf must exist as a regular file.
+
+    - name: Read the Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_config
+      when: cache_redis_config_stat.stat.exists
+
+    - name: Verify Redis port configuration and removed directives
+      ansible.builtin.assert:
+        that:
+          - >-
+            (cache_redis_config.content | b64decode)
+            is regex_search('(?m)^[ \\t]*port[ \\t]+6379(?:[ \\t]|$)')
+          - >-
+            not ((cache_redis_config.content | b64decode)
+            is regex_search('(?m)^[ \\t]*(?:replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)(?:[ \\t]|$)'))
+        fail_msg: Redis configuration does not have the required active directives.
+      when: cache_redis_config_stat.stat.exists
+
+    - name: Check the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_dir
+
+    - name: Verify Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_dir.stat.exists
+          - cache_redis_log_dir.stat.isdir
+          - cache_redis_log_dir.stat.pw_name == 'redis'
+          - cache_redis_log_dir.stat.gr_name == 'redis'
+          - cache_redis_log_dir.stat.mode == '0755'
+        fail_msg: /var/log/redis must be owned by redis:redis with mode 0755.
