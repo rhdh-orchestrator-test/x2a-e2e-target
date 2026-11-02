@@ -1,0 +1,242 @@
+---
+# Unsupported pre-flight checks: exact UFW rule output, sysctl value, certificate
+# subject/dates, private-key ownership/mode, and unspecified site-content bodies.
+- name: Verify nginx multisite deployment
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts['packages']
+        fail_msg: "Required package is not installed: {{ item_package }}"
+      loop:
+        - nginx
+        - openssl
+        - ca-certificates
+        - fail2ban
+        - ufw
+      loop_control:
+        loop_var: item_package
+
+    - name: Gather service status
+      ansible.builtin.service_facts:
+
+    - name: Assert nginx and fail2ban are running
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['nginx.service']['state'] == 'running'"
+          - "ansible_facts['services']['fail2ban.service']['state'] == 'running'"
+
+    - name: Assert an SSH service is running
+      ansible.builtin.assert:
+        that:
+          - >-
+            ('ssh.service' in ansible_facts['services'] and
+            ansible_facts['services']['ssh.service']['state'] == 'running') or
+            ('sshd.service' in ansible_facts['services'] and
+            ansible_facts['services']['sshd.service']['state'] == 'running')
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv: [nginx, -t]
+      changed_when: false
+
+    - name: Inspect rendered nginx configuration
+      ansible.builtin.command:
+        argv: [nginx, -T]
+      changed_when: false
+      register: item_nginx_config
+
+    - name: Assert configured site names and listeners are present
+      ansible.builtin.assert:
+        that:
+          - item_site in item_nginx_config['stdout']
+          - "'listen' in item_nginx_config['stdout']"
+      loop:
+        - test.cluster.local
+        - ci.cluster.local
+        - status.cluster.local
+      loop_control:
+        loop_var: item_site
+
+    - name: Validate SSH configuration
+      ansible.builtin.command:
+        argv: [sshd, -t]
+      changed_when: false
+
+    - name: Read SSH configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: item_sshd_config
+
+    - name: Assert SSH hardening directives
+      ansible.builtin.assert:
+        that:
+          - "'PermitRootLogin no' in (item_sshd_config['content'] | b64decode)"
+          - "'PasswordAuthentication no' in (item_sshd_config['content'] | b64decode)"
+
+    - name: Verify shared configuration files
+      ansible.builtin.stat:
+        path: "{{ item_shared['path'] }}"
+      register: item_shared_stat
+      loop:
+        - path: /etc/nginx/nginx.conf
+        - path: /etc/nginx/conf.d/security.conf
+        - path: /etc/fail2ban/jail.local
+        - path: /etc/sysctl.d/99-security.conf
+      loop_control:
+        loop_var: item_shared
+
+    - name: Assert shared configuration files exist
+      ansible.builtin.assert:
+        that:
+          - item_shared_result['stat']['exists']
+          - item_shared_result['stat']['isreg']
+      loop: "{{ item_shared_stat['results'] }}"
+      loop_control:
+        loop_var: item_shared_result
+
+    - name: Verify the packaged default site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: item_default_site
+
+    - name: Assert the packaged default site is absent
+      ansible.builtin.assert:
+        that:
+          - not item_default_site['stat']['exists']
+
+    - name: Verify site paths
+      ansible.builtin.stat:
+        path: "{{ item_site_path['path'] }}"
+        follow: false
+      register: item_site_stat
+      loop:
+        - path: /opt/server/test
+        - path: /opt/server/test/index.html
+        - path: /etc/nginx/sites-available/test.cluster.local
+        - path: /etc/nginx/sites-enabled/test.cluster.local
+        - path: /etc/ssl/certs/test.cluster.local.crt
+        - path: /etc/ssl/private/test.cluster.local.key
+        - path: /opt/server/ci
+        - path: /opt/server/ci/index.html
+        - path: /etc/nginx/sites-available/ci.cluster.local
+        - path: /etc/nginx/sites-enabled/ci.cluster.local
+        - path: /etc/ssl/certs/ci.cluster.local.crt
+        - path: /etc/ssl/private/ci.cluster.local.key
+        - path: /opt/server/status
+        - path: /opt/server/status/index.html
+        - path: /etc/nginx/sites-available/status.cluster.local
+        - path: /etc/nginx/sites-enabled/status.cluster.local
+        - path: /etc/ssl/certs/status.cluster.local.crt
+        - path: /etc/ssl/private/status.cluster.local.key
+      loop_control:
+        loop_var: item_site_path
+
+    - name: Assert site paths exist
+      ansible.builtin.assert:
+        that:
+          - item_site_result['stat']['exists']
+      loop: "{{ item_site_stat['results'] }}"
+      loop_control:
+        loop_var: item_site_result
+
+    - name: Read site virtual-host configurations
+      ansible.builtin.slurp:
+        src: "/etc/nginx/sites-available/{{ item_site }}"
+      register: item_site_config
+      loop:
+        - test.cluster.local
+        - ci.cluster.local
+        - status.cluster.local
+      loop_control:
+        loop_var: item_site
+
+    - name: Assert site virtual-host directives
+      ansible.builtin.assert:
+        that:
+          - "('server_name ' ~ item_site_result['item'] ~ ';') in (item_site_result['content'] | b64decode)"
+          - "'listen' in (item_site_result['content'] | b64decode)"
+          - "('ssl_certificate /etc/ssl/certs/' ~ item_site_result['item'] ~ '.crt;') in (item_site_result['content'] | b64decode)"
+          - "('ssl_certificate_key /etc/ssl/private/' ~ item_site_result['item'] ~ '.key;') in (item_site_result['content'] | b64decode)"
+      loop: "{{ item_site_config['results'] }}"
+      loop_control:
+        loop_var: item_site_result
+
+    - name: Verify site log files
+      ansible.builtin.stat:
+        path: "{{ item_log }}"
+      register: item_log_stat
+      loop:
+        - /var/log/nginx/test.cluster.local_access.log
+        - /var/log/nginx/test.cluster.local_error.log
+        - /var/log/nginx/ci.cluster.local_access.log
+        - /var/log/nginx/ci.cluster.local_error.log
+        - /var/log/nginx/status.cluster.local_access.log
+        - /var/log/nginx/status.cluster.local_error.log
+      loop_control:
+        loop_var: item_log
+
+    - name: Assert site log files exist
+      ansible.builtin.assert:
+        that:
+          - item_log_result['stat']['exists']
+      loop: "{{ item_log_stat['results'] }}"
+      loop_control:
+        loop_var: item_log_result
+
+    - name: Verify HTTP redirects for each site
+      ansible.builtin.uri:
+        url: http://127.0.0.1/
+        headers:
+          Host: "{{ item_site }}"
+        follow_redirects: none
+        status_code: [301, 302, 307, 308]
+      loop:
+        - test.cluster.local
+        - ci.cluster.local
+        - status.cluster.local
+      loop_control:
+        loop_var: item_site
+
+    - name: Verify HTTPS serves each site
+      ansible.builtin.uri:
+        url: https://127.0.0.1/
+        headers:
+          Host: "{{ item_site }}"
+        validate_certs: false
+        return_content: true
+        status_code: 200
+      register: item_https_response
+      loop:
+        - test.cluster.local
+        - ci.cluster.local
+        - status.cluster.local
+      loop_control:
+        loop_var: item_site
+
+    - name: Assert HTTPS responses contain content
+      ansible.builtin.assert:
+        that:
+          - item_https_result['content'] | length > 0
+      loop: "{{ item_https_response['results'] }}"
+      loop_control:
+        loop_var: item_https_result
+
+    - name: Verify SSH, HTTP, and HTTPS listeners
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ item_port }}"
+        state: started
+        timeout: 5
+      loop:
+        - 22
+        - 80
+        - 443
+      loop_control:
+        loop_var: item_port
