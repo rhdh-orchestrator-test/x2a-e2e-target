@@ -1,0 +1,114 @@
+---
+# Unsupported pre-flight checks: OS/facter output, directory/file ownership and modes, authenticated
+# redis-cli checks, active CONFIG GET checks, the systemd LimitNOFILE value, and redis-server syntax
+# validation have no safely usable expected result here or require the unavailable Redis password.
+- name: Verify profile_redis_cluster pre-flight checks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Collect installed package facts for the default Redis instance
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Verify the resolved Redis package is installed
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['os_family'] == 'Debian' and
+            'redis-server' in ansible_facts['packages']) or
+            (ansible_facts['os_family'] != 'Debian' and
+            'redis' in ansible_facts['packages'])
+        fail_msg: The expected Redis package is not installed for this operating system.
+
+    - name: Collect service facts for the default Redis instance
+      ansible.builtin.service_facts:
+
+    - name: Verify the resolved Redis service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['os_family'] == 'Debian' and
+            ansible_facts['services']['redis-server.service']['status'] == 'enabled') or
+            (ansible_facts['os_family'] != 'Debian' and
+            ansible_facts['services']['redis.service']['status'] == 'enabled')
+          - >-
+            (ansible_facts['os_family'] == 'Debian' and
+            ansible_facts['services']['redis-server.service']['state'] == 'running') or
+            (ansible_facts['os_family'] != 'Debian' and
+            ansible_facts['services']['redis.service']['state'] == 'running')
+        fail_msg: The expected Redis service is not enabled and running.
+
+    - name: Check the Debian or RedHat active Redis configuration path
+      ansible.builtin.stat:
+        path: "{{ item_redis_config }}"
+      loop:
+        - /etc/redis/redis.conf
+        - /etc/redis.conf
+      loop_control:
+        loop_var: item_redis_config
+      register: redis_active_config_paths
+
+    - name: Verify an active Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_active_config_paths['results'] | selectattr('stat.exists') | list | length > 0
+        fail_msg: No supported active Redis configuration file exists.
+
+    - name: Check the Debian or RedHat generated Redis configuration path
+      ansible.builtin.stat:
+        path: "{{ item_redis_generated }}"
+      loop:
+        - /etc/redis/redis.conf.puppet
+        - /etc/redis.conf.puppet
+      loop_control:
+        loop_var: item_redis_generated
+      register: redis_generated_config_paths
+
+    - name: Verify a generated Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_generated_config_paths['results'] | selectattr('stat.exists') | list | length > 0
+        fail_msg: No supported generated Redis configuration file exists.
+
+    - name: Verify the Redis data directory exists
+      ansible.builtin.stat:
+        path: /var/lib/redis
+      register: redis_data_directory
+
+    - name: Assert the Redis data directory is present
+      ansible.builtin.assert:
+        that:
+          - redis_data_directory['stat']['exists']
+          - redis_data_directory['stat']['isdir']
+        fail_msg: The Redis data directory is missing.
+
+    - name: Verify the Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert the Redis log directory is present
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+        fail_msg: The Redis log directory is missing.
+
+    - name: Verify the Redis Unix socket exists
+      ansible.builtin.stat:
+        path: /var/run/redis/redis.sock
+      register: redis_unix_socket
+
+    - name: Assert the Redis Unix socket is present
+      ansible.builtin.assert:
+        that:
+          - redis_unix_socket['stat']['exists']
+          - redis_unix_socket['stat']['issock']
+        fail_msg: The Redis Unix socket is missing.
+
+    - name: Verify the default Redis TCP listener
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5

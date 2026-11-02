@@ -1,0 +1,11 @@
+---
+- name: Install and configure the Redis profile  # noqa: L038 - eloy.redis.redis is a declared Private Hub dependency unavailable to the static role resolver
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ profile_redis_cluster_secure_logging }}"
+  vars:
+    redis_port: "{{ redis_cluster_port }}"
+    redis_requirepass: "{{ redis_cluster_password }}"
+    redis_maxmemory: "{{ redis_cluster_maxmemory }}"
+    redis_aof_enabled: "{{ redis_cluster_appendonly }}"
+    redis_rdb_enabled: "{{ redis_cluster_rdb_enabled }}"

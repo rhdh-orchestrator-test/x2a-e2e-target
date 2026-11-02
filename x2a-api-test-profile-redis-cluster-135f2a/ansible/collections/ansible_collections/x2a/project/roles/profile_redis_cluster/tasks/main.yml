@@ -1,0 +1,19 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Redis using the Private Hub collection  # noqa: L038 - eloy.redis.redis is a declared Private Hub dependency unavailable to the static role resolver
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ profile_redis_cluster_secure_logging }}"
+  vars:
+    redis_port: "{{ redis_cluster_port }}"
+    redis_requirepass: "{{ redis_cluster_password }}"
+    redis_bind: "{{ redis_cluster_bind }}"
+    redis_maxmemory: "{{ redis_cluster_maxmemory }}"
+    redis_maxmemory_policy: "{{ redis_cluster_maxmemory_policy }}"
+    redis_cluster_enabled: "{{ redis_cluster_cluster_enabled }}"
+    redis_sentinel_enabled: "{{ redis_cluster_sentinel_enabled }}"
+    redis_replication_enabled: "{{ redis_cluster_replication_enabled }}"
+    redis_aof_enabled: "{{ redis_cluster_appendonly }}"
+    redis_rdb_enabled: "{{ redis_cluster_rdb_enabled }}"

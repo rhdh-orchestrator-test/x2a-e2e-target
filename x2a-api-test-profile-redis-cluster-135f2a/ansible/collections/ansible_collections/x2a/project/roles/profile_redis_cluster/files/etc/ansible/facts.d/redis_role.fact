@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+"""Report whether Redis has replica configuration."""
+import json
+from pathlib import Path
+
+config = Path('/etc/redis/conf.d/replica.conf')
+role = 'replica' if config.is_file() and 'replicaof' in config.read_text(encoding='utf-8') else 'primary'
+print(json.dumps({'redis_role': role}))

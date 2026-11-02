@@ -1,0 +1,15 @@
+---
+profile_redis_cluster_secure_logging: true
+redis_cluster_port: 6379
+redis_cluster_password: "{{ redis_password }}"
+redis_cluster_bind:
+  - 0.0.0.0
+redis_cluster_maxmemory: 256mb
+redis_cluster_maxmemory_policy: allkeys-lru
+redis_cluster_appendonly: true
+redis_cluster_appendfsync: everysec
+redis_cluster_rdb_enabled: true
+redis_cluster_cluster_enabled: false
+redis_cluster_sentinel_enabled: false
+redis_cluster_replication_enabled: false
+redis_cluster_instances: {}
