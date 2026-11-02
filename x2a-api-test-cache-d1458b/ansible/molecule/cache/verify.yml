@@ -1,0 +1,96 @@
+---
+# Unsupported pre-flight checks: source-tree dependency discovery, service-name discovery/status,
+# conditional ownership/mode verification, Redis Vault-authenticated commands, log-file discovery,
+# log inspection, and Memcached checks have no portable expected outcome or confirmed target details.
+- name: Verify cache deployment
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis instance 6379 configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_file
+
+    - name: Assert Redis instance 6379 configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_file['stat']['exists']
+          - redis_config_file['stat']['isreg']
+        fail_msg: Redis instance 6379 configuration file is missing
+
+    - name: Read Redis instance 6379 configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert Redis instance 6379 port is configured
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content['content'] | b64decode) is
+            search('(?m)^[[:space:]]*port[[:space:]]+6379([[:space:]]|$)')
+        fail_msg: Redis instance 6379 port is not configured
+
+    - name: Assert Redis authentication is configured
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content['content'] | b64decode) is
+            search('(?m)^[[:space:]]*requirepass[[:space:]]+')
+        fail_msg: Redis authentication is not configured
+
+    - name: Assert Redis cleanup directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content['content'] | b64decode) is not
+            search('(?m)^[[:space:]]*(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: Redis cleanup directives remain in the configuration
+
+    - name: Verify Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+        fail_msg: Redis log directory is missing
+
+    - name: Check for a Redis listener on port 6379
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltn
+      register: redis_listeners
+      changed_when: false
+      failed_when: false
+
+    - name: Assert Redis listener is present on port 6379
+      ansible.builtin.assert:
+        that:
+          - redis_listeners['rc'] == 0
+          - redis_listeners['stdout'] is search('(?m)\\s[^\\s]*:6379(?:\\s|$)')
+        fail_msg: No Redis listener was found on port 6379
+
+    - name: Check unauthenticated Redis access is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+      register: redis_unauthenticated_ping
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unauthenticated Redis access is rejected
+      ansible.builtin.assert:
+        that:
+          - redis_unauthenticated_ping['rc'] != 0
+          - >-
+            (redis_unauthenticated_ping['stdout'] ~ redis_unauthenticated_ping['stderr'])
+            is search('NOAUTH Authentication required\\.')
+        fail_msg: Unauthenticated Redis access was not rejected
