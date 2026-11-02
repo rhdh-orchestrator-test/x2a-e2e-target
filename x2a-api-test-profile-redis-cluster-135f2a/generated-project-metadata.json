@@ -1,0 +1,50 @@
+[
+  {
+    "name": "base_utils",
+    "path": "site-modules/base_utils",
+    "description": "Shared operating-system utility module that optionally manages /etc/motd, installs configured utility packages, and provides custom Puppet types, functions, facts, plans, and service-check tasks.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_app_stack",
+    "path": "site-modules/profile_app_stack",
+    "description": "Deploys a Python application from a repository, prepares PostgreSQL connectivity, renders environment and systemd configuration, and manages monitoring and logging components.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_haproxy",
+    "path": "site-modules/profile_haproxy",
+    "description": "Configures an HAProxy load balancer with packages, generated frontend and backend configuration, optional service discovery, firewall handling, statistics, logging, and TLS support.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_postgresql",
+    "path": "site-modules/profile_postgresql",
+    "description": "Installs and configures PostgreSQL, including PGDG repository management, version-specific packages, and service startup.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_redis_cluster",
+    "path": "site-modules/profile_redis_cluster",
+    "description": "Configures Redis cluster nodes using the Puppet Redis module and PuppetDB-backed discovery, including authentication and memory settings.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile composition layer",
+    "path": "site-modules/profile",
+    "description": "Provides thin profiles that compose base operating-system services, the application stack, HAProxy, and Redis cache functionality.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "role composition layer",
+    "path": "site-modules/role",
+    "description": "Provides node-role entrypoints that combine profiles for application servers, HAProxy nodes, Redis clusters, and related service compositions.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "puppetdb_query_stub",
+    "path": "site-modules/puppetdb_query_stub",
+    "description": "Provides a custom Puppet function integration point for PuppetDB queries used by the Redis discovery design.",
+    "technology": "Puppet"
+  }
+]
