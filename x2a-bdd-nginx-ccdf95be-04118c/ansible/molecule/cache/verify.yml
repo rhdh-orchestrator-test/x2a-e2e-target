@@ -1,0 +1,20 @@
+---
+# Unsupported pre-flight checks: the local recipe path is outside the target hosts;
+# ownership/mode, Redis and Memcached dependency details, placeholder service names and
+# ports, authentication, cleanup directives, process checks, journal checks, and disk
+# space have no confirmed expected outcome or cannot be safely translated here.
+- name: Verify cache pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify the reported Redis log directory exists as a directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert the reported Redis log directory exists as a directory
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+        fail_msg: The reported Redis log directory must exist as a directory.
