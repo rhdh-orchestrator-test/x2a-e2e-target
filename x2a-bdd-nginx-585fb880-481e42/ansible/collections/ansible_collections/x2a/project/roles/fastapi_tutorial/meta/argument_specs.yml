@@ -1,0 +1,87 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure the FastAPI tutorial application
+    description:
+      - Installs the FastAPI tutorial application, Python environment, PostgreSQL dependencies, database objects, and systemd service.
+    options:
+      fastapi_tutorial_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide output from tasks that handle the database password.
+      fastapi_tutorial_app_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Application installation directory.
+      fastapi_tutorial_venv_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial/venv
+        description: Python virtual environment directory.
+      fastapi_tutorial_repo:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository containing the application.
+      fastapi_tutorial_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      fastapi_tutorial_packages:
+        type: list
+        elements: str
+        required: false
+        default:
+          - python3
+          - python3-pip
+          - python3-venv
+          - git
+          - postgresql
+          - postgresql-contrib
+          - libpq-dev
+        description: Operating system packages required by the application.
+      fastapi_tutorial_db_host:
+        type: str
+        required: false
+        default: localhost
+        description: PostgreSQL host used in the application connection URL.
+      fastapi_tutorial_db_url:
+        type: str
+        required: false
+        default: postgresql://{{ db_username }}:{{ db_password }}@{{ fastapi_tutorial_db_host }}/{{ database_name }}
+        description: Database URL written to the application environment file.
+      fastapi_tutorial_env_file:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial/.env
+        description: Application environment file path.
+      fastapi_tutorial_unit_file:
+        type: str
+        required: false
+        default: /etc/systemd/system/fastapi-tutorial.service
+        description: Systemd unit file path.
+      fastapi_tutorial_service_name:
+        type: str
+        required: false
+        default: fastapi-tutorial
+        description: Systemd service name.
+      fastapi_tutorial_app_port:
+        type: int
+        required: false
+        default: 8000
+        description: TCP port on which Uvicorn listens.
+      db_username:
+        type: str
+        required: true
+        description: PostgreSQL role name injected by the AAP credential type.
+      db_password:
+        type: str
+        required: true
+        description: PostgreSQL role password injected by the AAP credential type.
+      database_name:
+        type: str
+        required: true
+        description: PostgreSQL database name injected by the AAP credential type.
