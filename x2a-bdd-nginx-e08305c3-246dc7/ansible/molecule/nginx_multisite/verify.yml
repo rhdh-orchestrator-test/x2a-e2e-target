@@ -1,0 +1,319 @@
+---
+# Unsupported pre-flight checks: ufw status details, sysctl reload output, and curl body output
+# have no stated expected result; certificate validity dates are also not asserted.
+- name: Verify nginx multisite deployment
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Verify required packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts['packages']
+        fail_msg: "A required package is missing"
+      loop:
+        - nginx
+        - openssl
+        - ca-certificates
+        - fail2ban
+        - ufw
+      loop_control:
+        loop_var: item_package
+
+    - name: Check nginx is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - nginx
+      register: nginx_enabled
+      changed_when: false
+
+    - name: Verify nginx is enabled
+      ansible.builtin.assert:
+        that:
+          - nginx_enabled['rc'] == 0
+          - nginx_enabled['stdout'] | trim == 'enabled'
+        fail_msg: "nginx is not enabled"
+
+    - name: Check nginx is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - nginx
+      register: nginx_active
+      changed_when: false
+
+    - name: Verify nginx is active
+      ansible.builtin.assert:
+        that:
+          - nginx_active['rc'] == 0
+          - nginx_active['stdout'] | trim == 'active'
+        fail_msg: "nginx is not active"
+
+    - name: Check fail2ban is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - fail2ban
+      register: fail2ban_enabled
+      changed_when: false
+
+    - name: Verify fail2ban is enabled
+      ansible.builtin.assert:
+        that:
+          - fail2ban_enabled['rc'] == 0
+          - fail2ban_enabled['stdout'] | trim == 'enabled'
+        fail_msg: "fail2ban is not enabled"
+
+    - name: Check fail2ban is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - fail2ban
+      register: fail2ban_active
+      changed_when: false
+
+    - name: Verify fail2ban is active
+      ansible.builtin.assert:
+        that:
+          - fail2ban_active['rc'] == 0
+          - fail2ban_active['stdout'] | trim == 'active'
+        fail_msg: "fail2ban is not active"
+
+    - name: Check SSH service is active on Ubuntu-family systems
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - ssh
+      register: ssh_active
+      changed_when: false
+      failed_when: false
+
+    - name: Check SSH service is active on CentOS-family systems
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - sshd
+      register: sshd_active
+      changed_when: false
+      failed_when: false
+
+    - name: Verify SSH service is active
+      ansible.builtin.assert:
+        that:
+          - (ssh_active['rc'] == 0 and ssh_active['stdout'] | trim == 'active') or
+            (sshd_active['rc'] == 0 and sshd_active['stdout'] | trim == 'active')
+        fail_msg: "Neither ssh nor sshd is active"
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: nginx_config_test
+      changed_when: false
+
+    - name: Verify nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - nginx_config_test['rc'] == 0
+        fail_msg: "nginx configuration validation failed"
+
+    - name: Dump nginx configuration for listener and hostname checks
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -T
+      register: nginx_config_dump
+      changed_when: false
+
+    - name: Verify configured hostnames are present in nginx configuration
+      ansible.builtin.assert:
+        that:
+          - item_hostname in nginx_config_dump['stdout']
+        fail_msg: "A configured hostname is missing from nginx configuration"
+      loop:
+        - test.cluster.local
+        - ci.cluster.local
+        - status.cluster.local
+      loop_control:
+        loop_var: item_hostname
+
+    - name: Verify HTTP and HTTPS listeners are present in nginx configuration
+      ansible.builtin.assert:
+        that:
+          - nginx_config_dump['stdout'] is search('listen 80')
+          - nginx_config_dump['stdout'] is search('listen 443 ssl http2')
+        fail_msg: "Expected nginx listeners are missing"
+
+    - name: Read SSH configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: ssh_config
+
+    - name: Verify SSH hardening settings
+      ansible.builtin.assert:
+        that:
+          - (ssh_config['content'] | b64decode) is search('(?m)^PermitRootLogin\\s+no\\s*$')
+          - (ssh_config['content'] | b64decode) is search('(?m)^PasswordAuthentication\\s+no\\s*$')
+        fail_msg: "Required SSH hardening settings are missing"
+
+    - name: Verify the default nginx virtual host is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: default_site
+
+    - name: Assert the default nginx virtual host is absent
+      ansible.builtin.assert:
+        that:
+          - not default_site['stat']['exists']
+        fail_msg: "The default nginx virtual host is present"
+
+    - name: Verify site directories and files
+      ansible.builtin.stat:
+        path: "{{ item_site['path'] }}"
+      register: site_paths
+      loop:
+        - path: /opt/server/test
+          type: directory
+        - path: /opt/server/test/index.html
+          type: file
+        - path: /etc/ssl/certs/test.cluster.local.crt
+          type: file
+        - path: /etc/ssl/private/test.cluster.local.key
+          type: file
+        - path: /etc/nginx/sites-available/test.cluster.local
+          type: file
+        - path: /etc/nginx/sites-enabled/test.cluster.local
+          type: link
+        - path: /opt/server/ci
+          type: directory
+        - path: /opt/server/ci/index.html
+          type: file
+        - path: /etc/ssl/certs/ci.cluster.local.crt
+          type: file
+        - path: /etc/ssl/private/ci.cluster.local.key
+          type: file
+        - path: /etc/nginx/sites-available/ci.cluster.local
+          type: file
+        - path: /etc/nginx/sites-enabled/ci.cluster.local
+          type: link
+        - path: /opt/server/status
+          type: directory
+        - path: /opt/server/status/index.html
+          type: file
+        - path: /etc/ssl/certs/status.cluster.local.crt
+          type: file
+        - path: /etc/ssl/private/status.cluster.local.key
+          type: file
+        - path: /etc/nginx/sites-available/status.cluster.local
+          type: file
+        - path: /etc/nginx/sites-enabled/status.cluster.local
+          type: link
+      loop_control:
+        loop_var: item_site
+
+    - name: Assert site directories, files, and links exist
+      ansible.builtin.assert:
+        that:
+          - item_site['stat']['exists']
+          - item_site['stat']['is' ~ item_expected['type']]
+        fail_msg: "A required nginx multisite path is missing or has the wrong type"
+      loop: "{{ site_paths['results'] }}"
+      loop_control:
+        loop_var: item_site
+      vars:
+        item_expected: "{{ item_site['item'] }}"
+
+    - name: Check TLS certificate subjects
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - -in
+          - "{{ item_certificate['certificate'] }}"
+          - -noout
+          - -subject
+          - -dates
+      register: certificate_subjects
+      changed_when: false
+      loop:
+        - name: test.cluster.local
+          certificate: /etc/ssl/certs/test.cluster.local.crt
+        - name: ci.cluster.local
+          certificate: /etc/ssl/certs/ci.cluster.local.crt
+        - name: status.cluster.local
+          certificate: /etc/ssl/certs/status.cluster.local.crt
+      loop_control:
+        loop_var: item_certificate
+
+    - name: Verify TLS certificate subjects contain the site hostnames
+      ansible.builtin.assert:
+        that:
+          - item_certificate['rc'] == 0
+          - (item_certificate['stdout'] | regex_replace('\\s+', ' ')) is search('CN=' ~ item_certificate['item']['name'])
+        fail_msg: "A TLS certificate subject is incorrect"
+      loop: "{{ certificate_subjects['results'] }}"
+      loop_control:
+        loop_var: item_certificate
+
+    - name: Check private-key ownership and mode
+      ansible.builtin.stat:
+        path: "{{ item_key['path'] }}"
+      register: private_keys
+      loop:
+        - path: /etc/ssl/private/test.cluster.local.key
+        - path: /etc/ssl/private/ci.cluster.local.key
+        - path: /etc/ssl/private/status.cluster.local.key
+      loop_control:
+        loop_var: item_key
+
+    - name: Verify private-key ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_key['stat']['pw_name'] == 'root'
+          - item_key['stat']['gr_name'] == 'ssl-cert'
+          - item_key['stat']['mode'] == '0640'
+        fail_msg: "A TLS private key has incorrect ownership or mode"
+      loop: "{{ private_keys['results'] }}"
+      loop_control:
+        loop_var: item_key
+
+    - name: Check HTTP redirect responses
+      ansible.builtin.uri:
+        url: "http://127.0.0.1/"
+        headers:
+          Host: "{{ item_site['host'] }}"
+        follow_redirects: none
+        status_code: 301
+      register: http_redirects
+      loop:
+        - host: test.cluster.local
+        - host: ci.cluster.local
+        - host: status.cluster.local
+      loop_control:
+        loop_var: item_site
+
+    - name: Check HTTPS responses
+      ansible.builtin.uri:
+        url: "https://127.0.0.1/"
+        headers:
+          Host: "{{ item_site['host'] }}"
+        validate_certs: false
+        status_code: 200
+      register: https_responses
+      loop:
+        - host: test.cluster.local
+        - host: ci.cluster.local
+        - host: status.cluster.local
+      loop_control:
+        loop_var: item_site
