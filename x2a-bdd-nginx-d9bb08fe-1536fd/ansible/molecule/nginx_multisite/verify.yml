@@ -1,0 +1,219 @@
+---
+# Unsupported: exact UFW numbered output and certificate issuer/date values have no stated expected result.
+# Journal output is read below, but the plan gives no complete expected log contents.
+- name: Verify nginx multisite deployment
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert required services are running
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['nginx.service']['state'] == 'running'
+          - ansible_facts['services']['fail2ban.service']['state'] == 'running'
+
+    - name: Verify services are enabled
+      ansible.builtin.command:
+        argv: [systemctl, is-enabled, "{{ item_service }}"]
+      loop: [nginx, fail2ban]
+      loop_control:
+        loop_var: item_service
+      register: enabled_services
+      changed_when: false
+
+    - name: Assert services are enabled
+      ansible.builtin.assert:
+        that: item_enabled['rc'] == 0
+      loop: "{{ enabled_services['results'] }}"
+      loop_control:
+        loop_var: item_enabled
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv: [nginx, -t]
+      changed_when: false
+
+    - name: Check required paths
+      ansible.builtin.stat:
+        path: "{{ item_path['path'] }}"
+        follow: false
+      loop:
+        - {path: /etc/nginx/nginx.conf, kind: file}
+        - {path: /etc/nginx/conf.d/security.conf, kind: file}
+        - {path: /etc/nginx/sites-available/test.cluster.local, kind: file}
+        - {path: /etc/nginx/sites-available/ci.cluster.local, kind: file}
+        - {path: /etc/nginx/sites-available/status.cluster.local, kind: file}
+        - {path: /etc/nginx/sites-enabled/test.cluster.local, kind: link}
+        - {path: /etc/nginx/sites-enabled/ci.cluster.local, kind: link}
+        - {path: /etc/nginx/sites-enabled/status.cluster.local, kind: link}
+        - {path: /etc/fail2ban/jail.local, kind: file}
+        - {path: /etc/sysctl.d/99-security.conf, kind: file}
+        - {path: /etc/ssh/sshd_config, kind: file}
+        - {path: /opt/server/test, kind: directory}
+        - {path: /opt/server/test/index.html, kind: file}
+        - {path: /opt/server/ci, kind: directory}
+        - {path: /opt/server/ci/index.html, kind: file}
+        - {path: /opt/server/status, kind: directory}
+        - {path: /opt/server/status/index.html, kind: file}
+        - {path: /etc/ssl/certs/test.cluster.local.crt, kind: file}
+        - {path: /etc/ssl/private/test.cluster.local.key, kind: file}
+        - {path: /etc/ssl/certs/ci.cluster.local.crt, kind: file}
+        - {path: /etc/ssl/private/ci.cluster.local.key, kind: file}
+        - {path: /etc/ssl/certs/status.cluster.local.crt, kind: file}
+        - {path: /etc/ssl/private/status.cluster.local.key, kind: file}
+      loop_control:
+        loop_var: item_path
+      register: required_paths
+
+    - name: Assert required paths have the expected types
+      ansible.builtin.assert:
+        that:
+          - item_required['stat']['exists']
+          - item_required['item']['kind'] != 'file' or item_required['stat']['isreg']
+          - item_required['item']['kind'] != 'directory' or item_required['stat']['isdir']
+          - item_required['item']['kind'] != 'link' or item_required['stat']['islnk']
+      loop: "{{ required_paths['results'] }}"
+      loop_control:
+        loop_var: item_required
+
+    - name: Check default site removal
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+        follow: false
+      register: default_site
+
+    - name: Assert default site is absent
+      ansible.builtin.assert:
+        that: not default_site['stat']['exists']
+
+    - name: Verify HTTP virtual hosts
+      ansible.builtin.uri:
+        url: http://127.0.0.1/
+        headers:
+          Host: "{{ item_http['host'] }}"
+        status_code: [200, 301, 302, 403, 404, 405]
+      loop:
+        - {host: test.cluster.local}
+        - {host: ci.cluster.local}
+        - {host: status.cluster.local}
+      loop_control:
+        loop_var: item_http
+
+    - name: Verify HTTPS virtual hosts
+      ansible.builtin.uri:
+        url: https://127.0.0.1/
+        headers:
+          Host: "{{ item_https['host'] }}"
+        validate_certs: false
+        status_code: [200, 301, 302, 403, 404, 405]
+      loop:
+        - {host: test.cluster.local}
+        - {host: ci.cluster.local}
+        - {host: status.cluster.local}
+      loop_control:
+        loop_var: item_https
+
+    - name: Read certificate subjects
+      ansible.builtin.command:
+        argv: [openssl, x509, -in, "{{ item_certificate['certificate'] }}", -noout, -subject]
+      loop:
+        - {certificate: /etc/ssl/certs/test.cluster.local.crt, common_name: 'CN=test.cluster.local'}
+        - {certificate: /etc/ssl/certs/ci.cluster.local.crt, common_name: 'CN=ci.cluster.local'}
+        - {certificate: /etc/ssl/certs/status.cluster.local.crt, common_name: 'CN=status.cluster.local'}
+      loop_control:
+        loop_var: item_certificate
+      register: certificate_subjects
+      changed_when: false
+
+    - name: Assert certificate subjects
+      ansible.builtin.assert:
+        that: item_subject['item']['common_name'] in item_subject['stdout']
+      loop: "{{ certificate_subjects['results'] }}"
+      loop_control:
+        loop_var: item_subject
+
+    - name: Check TLS key metadata
+      ansible.builtin.stat:
+        path: "{{ item_key['path'] }}"
+      loop:
+        - {path: /etc/ssl/private/test.cluster.local.key}
+        - {path: /etc/ssl/private/ci.cluster.local.key}
+        - {path: /etc/ssl/private/status.cluster.local.key}
+      loop_control:
+        loop_var: item_key
+      register: private_keys
+
+    - name: Assert TLS keys are root ssl-cert mode 640
+      ansible.builtin.assert:
+        that:
+          - item_private_key['stat']['pw_name'] == 'root'
+          - item_private_key['stat']['gr_name'] == 'ssl-cert'
+          - item_private_key['stat']['mode'] == '0640'
+      loop: "{{ private_keys['results'] }}"
+      loop_control:
+        loop_var: item_private_key
+
+    - name: Read UFW status
+      ansible.builtin.command:
+        argv: [ufw, status, verbose]
+      register: ufw_status
+      changed_when: false
+
+    - name: Assert UFW policy and allowances
+      ansible.builtin.assert:
+        that:
+          - "'Default: deny (incoming)' in ufw_status['stdout']"
+          - "'22' in ufw_status['stdout'] or 'SSH' in ufw_status['stdout']"
+          - "'80' in ufw_status['stdout'] or 'WWW' in ufw_status['stdout']"
+          - "'443' in ufw_status['stdout'] or 'HTTPS' in ufw_status['stdout']"
+
+    - name: Verify SSH hardening directives
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - "^[[:space:]]*{{ item_ssh['directive'] }}[[:space:]]+{{ item_ssh['value'] }}"
+          - /etc/ssh/sshd_config
+      loop:
+        - {directive: PermitRootLogin, value: 'no'}
+        - {directive: PasswordAuthentication, value: 'no'}
+      loop_control:
+        loop_var: item_ssh
+      changed_when: false
+
+    - name: Validate SSH configuration
+      ansible.builtin.command:
+        argv: [sshd, -t]
+      changed_when: false
+
+    - name: Validate sysctl configuration
+      ansible.builtin.command:
+        argv: [sysctl, -p, /etc/sysctl.d/99-security.conf]
+      changed_when: false
+
+    - name: Verify nginx listening ports
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ item_port }}"
+        state: started
+        timeout: 10
+      loop: [80, 443]
+      loop_control:
+        loop_var: item_port
+
+    - name: Read nginx service log
+      ansible.builtin.command:
+        argv: [journalctl, -u, nginx, --no-pager, -n, '50']
+      register: nginx_log
+      changed_when: false
+
+    - name: Read fail2ban service log
+      ansible.builtin.command:
+        argv: [journalctl, -u, fail2ban, --no-pager, -n, '50']
+      changed_when: false
+
+    - name: Assert nginx log has no failure diagnostics
+      ansible.builtin.assert:
+        that: nginx_log['stdout'] is not regex('(?i)(error|failed|emerg)')
