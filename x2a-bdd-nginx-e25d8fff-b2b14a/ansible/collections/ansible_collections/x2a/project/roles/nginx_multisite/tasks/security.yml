@@ -1,0 +1,129 @@
+---
+- name: Install security packages
+  ansible.builtin.package:
+    name:
+      - fail2ban
+      - ufw
+    state: present
+  when: nginx_multisite_fail2ban_enabled | bool or nginx_multisite_ufw_enabled | bool
+
+- name: Configure fail2ban jail
+  ansible.builtin.template:
+    src: fail2ban.jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: "0644"
+    backup: true
+  when: nginx_multisite_fail2ban_enabled | bool
+  notify: Restart fail2ban
+
+- name: Enable and start fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: true
+    state: started
+  when: nginx_multisite_fail2ban_enabled | bool
+
+- name: Configure security sysctl settings
+  ansible.builtin.template:
+    src: sysctl-security.conf.j2
+    dest: /etc/sysctl.d/99-security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload security sysctl
+
+- name: Read UFW status
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - status
+      - verbose
+  when: nginx_multisite_ufw_enabled | bool
+  changed_when: false
+  register: nginx_multisite_ufw_status
+
+- name: Set UFW default incoming policy to deny  # noqa: no-changed-when - ufw is invoked only when the status check shows the policy is absent
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - --force
+      - default
+      - deny
+  when:
+    - nginx_multisite_ufw_enabled
+    - "'Default: deny (incoming)' not in nginx_multisite_ufw_status.stdout" # noqa: L039 - registered by the preceding Read UFW status task
+
+- name: Allow SSH through UFW  # noqa: no-changed-when - ufw is invoked only when the status check shows SSH is absent
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - ssh
+  when:
+    - nginx_multisite_ufw_enabled
+    - "'22/tcp' not in nginx_multisite_ufw_status.stdout" # noqa: L039 - registered by the preceding Read UFW status task
+
+- name: Allow HTTP through UFW  # noqa: no-changed-when - ufw is invoked only when the status check shows HTTP is absent
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - http
+  when:
+    - nginx_multisite_ufw_enabled
+    - "'80/tcp' not in nginx_multisite_ufw_status.stdout" # noqa: L039 - registered by the preceding Read UFW status task
+
+- name: Allow HTTPS through UFW  # noqa: no-changed-when - ufw is invoked only when the status check shows HTTPS is absent
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - https
+  when:
+    - nginx_multisite_ufw_enabled
+    - "'443/tcp' not in nginx_multisite_ufw_status.stdout" # noqa: L039 - registered by the preceding Read UFW status task
+
+- name: Enable UFW  # noqa: no-changed-when - ufw is invoked only when the status check shows UFW is inactive
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - --force
+      - enable
+  when:
+    - nginx_multisite_ufw_enabled
+    - "'Status: active' not in nginx_multisite_ufw_status.stdout" # noqa: L039 - registered by the preceding Read UFW status task
+
+- name: Install SSH server
+  ansible.builtin.package:
+    name: openssh-server
+    state: present
+  when: nginx_multisite_ssh_disable_root or not nginx_multisite_ssh_password_auth
+
+- name: Check SSH daemon configuration
+  ansible.builtin.stat:
+    path: /etc/ssh/sshd_config
+  register: nginx_multisite_sshd_config
+  when: nginx_multisite_ssh_disable_root or not nginx_multisite_ssh_password_auth
+
+- name: Disable SSH root login  # noqa: L039 - registered by the preceding Check SSH daemon configuration task
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PermitRootLogin
+    line: PermitRootLogin no
+    create: false
+    backup: true
+  when:
+    - nginx_multisite_ssh_disable_root
+    - nginx_multisite_sshd_config.stat.exists
+  notify: Restart SSH
+
+- name: Disable SSH password authentication  # noqa: L039 - registered by the preceding Check SSH daemon configuration task
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PasswordAuthentication
+    line: PasswordAuthentication no
+    create: false
+    backup: true
+  when:
+    - not nginx_multisite_ssh_password_auth
+    - nginx_multisite_sshd_config.stat.exists
+  notify: Restart SSH
