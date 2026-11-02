@@ -1,0 +1,127 @@
+---
+- name: Install security packages
+  ansible.builtin.package:
+    name:
+      - fail2ban
+      - ufw
+      - openssh-server
+    state: present
+
+- name: Render Fail2ban configuration
+  ansible.builtin.template:
+    src: fail2ban.jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: "0644"
+    backup: true
+  notify: Restart fail2ban
+  when: nginx_multisite_fail2ban_enabled
+
+- name: Enable and start Fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: true
+    state: started
+  when: nginx_multisite_fail2ban_enabled
+
+- name: Check UFW status
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - status
+      - verbose
+  register: nginx_multisite_ufw_status
+  changed_when: false
+  check_mode: false
+  when: nginx_multisite_ufw_enabled
+
+- name: Set UFW default incoming policy
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - --force
+      - default
+      - deny
+  changed_when: true
+  when:
+    - nginx_multisite_ufw_enabled
+    - "'Default: deny (incoming)' not in nginx_multisite_ufw_status.stdout"
+
+- name: Allow SSH through UFW
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - ssh
+  changed_when: true
+  when:
+    - nginx_multisite_ufw_enabled
+    - "'22/tcp' not in nginx_multisite_ufw_status.stdout"
+
+- name: Allow HTTP through UFW
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - http
+  changed_when: true
+  when:
+    - nginx_multisite_ufw_enabled
+    - "'80/tcp' not in nginx_multisite_ufw_status.stdout"
+
+- name: Allow HTTPS through UFW
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - https
+  changed_when: true
+  when:
+    - nginx_multisite_ufw_enabled
+    - "'443/tcp' not in nginx_multisite_ufw_status.stdout"
+
+- name: Enable UFW
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - --force
+      - enable
+  changed_when: true
+  when:
+    - nginx_multisite_ufw_enabled
+    - "'Status: active' not in nginx_multisite_ufw_status.stdout"
+
+- name: Ensure sysctl configuration directory exists
+  ansible.builtin.file:
+    path: /etc/sysctl.d
+    owner: root
+    group: root
+    mode: "0755"
+    state: directory
+
+- name: Render security sysctl configuration
+  ansible.builtin.template:
+    src: sysctl-security.conf.j2
+    dest: /etc/sysctl.d/99-security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload security sysctl
+
+- name: Disable root SSH login
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PermitRootLogin
+    line: PermitRootLogin no
+    state: present
+    backup: true
+  when: nginx_multisite_disable_root_login
+  notify: Restart SSH
+
+- name: Disable SSH password authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PasswordAuthentication
+    line: PasswordAuthentication no
+    state: present
+    backup: true
+  when: not nginx_multisite_password_authentication
+  notify: Restart SSH
