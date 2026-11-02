@@ -1,0 +1,69 @@
+---
+- name: Render HAProxy main configuration
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: "{{ haproxy_config_file }}" # noqa: R114 - destination is from role defaults
+    owner: root
+    group: "{{ haproxy_group }}"
+    mode: "0640"
+    backup: true
+  notify: Restart HAProxy
+  no_log: "{{ profile_haproxy_secure_logging }}"
+
+- name: Render HAProxy backend fragments
+  ansible.builtin.template:
+    src: backend.conf.j2
+    dest: "{{ haproxy_config_dir }}/conf.d/{{ item_backend['key'] }}.cfg" # noqa: R114 - key is from role-defined backends
+    owner: root
+    group: "{{ haproxy_group }}"
+    mode: "0640"
+    backup: true
+  loop: "{{ haproxy_backends | dict2items }}"
+  loop_control:
+    loop_var: item_backend
+  notify: Restart HAProxy
+  vars:
+    backend_name: "{{ item_backend['key'] }}"
+    balance: "{{ item_backend['value']['balance'] }}"
+    port: "{{ item_backend['value']['port'] }}"
+    servers: "{{ item_backend['value']['servers'] }}"
+    health_check: "{{ item_backend['value'].get('health_check') }}"
+    health_interval: "{{ item_backend['value'].get('health_interval') }}"
+    ssl_enabled: "{{ haproxy_ssl_enabled }}"
+
+- name: Create HAProxy error directory
+  ansible.builtin.file:
+    path: "{{ haproxy_config_dir }}/errors" # noqa: R114 - path is derived from role-defined config directory
+    state: directory
+    owner: root
+    group: "{{ haproxy_group }}"
+    mode: "0755"
+
+- name: Install HAProxy 503 error page
+  ansible.builtin.copy:
+    src: haproxy_errors/503.http
+    dest: "{{ haproxy_config_dir }}/errors/503.http" # noqa: R114 - destination is derived from role-defined config directory
+    owner: root
+    group: "{{ haproxy_group }}"
+    mode: "0644"
+    backup: true
+
+- name: Install HAProxy 408 error page
+  ansible.builtin.copy:
+    src: haproxy_errors/408.http
+    dest: "{{ haproxy_config_dir }}/errors/408.http" # noqa: R114 - destination is derived from role-defined config directory
+    owner: root
+    group: "{{ haproxy_group }}"
+    mode: "0644"
+    backup: true
+
+- name: Render HAProxy stick table configuration
+  ansible.builtin.copy:
+    content: "# Managed by Ansible stick-table type ip size {{ haproxy_stick_table_size }} expire {{ haproxy_stick_table_expire }} "
+    dest: "{{ haproxy_config_dir }}/conf.d/stick-tables.cfg" # noqa: R114 - destination is derived from role-defined config directory
+    owner: root
+    group: "{{ haproxy_group }}"
+    mode: "0640"
+    backup: true
+  when: haproxy_stick_table_enabled | bool
+  notify: Restart HAProxy

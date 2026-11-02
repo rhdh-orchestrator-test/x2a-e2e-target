@@ -1,0 +1,4 @@
+---
+- name: Include HAProxy load balancer profile
+  ansible.builtin.include_tasks: loadbalancer_haproxy.yml
+  when: ansible_facts['system'] | lower == 'linux'

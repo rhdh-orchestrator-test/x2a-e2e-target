@@ -1,0 +1,16 @@
+---
+- name: Include HAProxy profile tasks
+  ansible.builtin.include_tasks: install.yml
+
+- name: Configure HAProxy
+  ansible.builtin.include_tasks: config.yml
+
+- name: Manage HAProxy service
+  ansible.builtin.include_tasks: service.yml
+
+- name: Configure HAProxy firewall
+  ansible.builtin.include_tasks: firewall.yml
+
+- name: Configure HAProxy discovery
+  ansible.builtin.include_tasks: discover.yml
+  when: haproxy_discovery_enabled | bool

@@ -1,0 +1,183 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure HAProxy as a load balancer.
+    description:
+      - Installs HAProxy, renders its configuration and backend fragments, and manages the service.
+      - Firewall and optional discovery behavior are controlled by role variables.
+    options:
+      haproxy_package_name:
+        type: str
+        required: false
+        default: haproxy
+        description: HAProxy package name.
+      haproxy_config_dir:
+        type: str
+        required: false
+        default: /etc/haproxy
+        description: HAProxy configuration directory.
+      haproxy_config_file:
+        type: str
+        required: false
+        default: /etc/haproxy/haproxy.cfg
+        description: Main HAProxy configuration path.
+      haproxy_service_name:
+        type: str
+        required: false
+        default: haproxy
+        description: HAProxy service name.
+      haproxy_user:
+        type: str
+        required: false
+        default: haproxy
+        description: HAProxy service user.
+      haproxy_group:
+        type: str
+        required: false
+        default: haproxy
+        description: HAProxy service group.
+      haproxy_stats_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Enable the HAProxy statistics listener.
+      haproxy_stats_port:
+        type: int
+        required: false
+        default: 9000
+        description: Statistics listener port.
+      haproxy_stats_uri:
+        type: str
+        required: false
+        default: /haproxy-stats
+        description: Statistics listener URI.
+      haproxy_stats_user:
+        type: str
+        required: false
+        default: "{{ stats_user }}"
+        description: Statistics listener username supplied by AAP credentials.
+      haproxy_global_maxconn:
+        type: int
+        required: false
+        default: 4096
+        description: Maximum global HAProxy connections.
+      haproxy_client_timeout:
+        type: str
+        required: false
+        default: 30s
+        description: Client timeout.
+      haproxy_server_timeout:
+        type: str
+        required: false
+        default: 30s
+        description: Server timeout.
+      haproxy_connect_timeout:
+        type: str
+        required: false
+        default: 5s
+        description: Connection timeout.
+      haproxy_retries:
+        type: int
+        required: false
+        default: 3
+        description: HAProxy retry count.
+      haproxy_ssl_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Enable TLS listeners and backend TLS.
+      haproxy_ssl_cert_path:
+        type: str
+        required: false
+        default: /etc/ssl/certs
+        description: TLS certificate directory.
+      haproxy_ssl_key_path:
+        type: str
+        required: false
+        default: /etc/ssl/private
+        description: TLS private key directory.
+      haproxy_ssl_ciphers:
+        type: str
+        required: false
+        default: ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256
+        description: TLS cipher suite.
+      haproxy_ssl_min_version:
+        type: str
+        required: false
+        default: TLSv1.2
+        description: Minimum TLS version.
+      haproxy_log_server:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: Syslog server address.
+      haproxy_log_facility:
+        type: str
+        required: false
+        default: local0
+        description: Syslog facility.
+      haproxy_log_level:
+        type: str
+        required: false
+        default: info
+        description: Syslog severity.
+      haproxy_backends:
+        type: dict
+        required: false
+        description: Backend definitions and server lists.
+      haproxy_discovery_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Enable explicit Ansible backend discovery data.
+      haproxy_discovered_api_servers:
+        type: list
+        elements: dict
+        required: false
+        default: []
+        description: Discovered API server definitions.
+      haproxy_extra_packages:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: Additional packages to install.
+      haproxy_selinux_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Enable the HAProxy SELinux connectivity boolean.
+      haproxy_firewall_provider:
+        type: str
+        required: false
+        default: none
+        description: Firewall provider, either none, ufw, or firewalld.
+      haproxy_stick_table_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Enable the stick table fragment.
+      haproxy_stick_table_size:
+        type: str
+        required: false
+        default: 200k
+        description: Stick table size.
+      haproxy_stick_table_expire:
+        type: str
+        required: false
+        default: 30m
+        description: Stick table expiration.
+      profile_haproxy_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide tasks that render the AAP-injected statistics password.
+      stats_user:
+        type: str
+        required: true
+        description: Username injected by the AAP credential type.
+      stats_password:
+        type: str
+        required: true
+        no_log: true
+        description: Password injected by the AAP credential type.

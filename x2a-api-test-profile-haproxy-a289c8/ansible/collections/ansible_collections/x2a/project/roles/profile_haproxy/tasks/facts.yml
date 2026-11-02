@@ -1,0 +1,28 @@
+---
+- name: Ensure local Ansible facts directory exists
+  ansible.builtin.file:
+    path: /etc/ansible/facts.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Gather HAProxy version
+  ansible.builtin.command:
+    argv: [haproxy, -v]
+  when: ansible_facts['system'] | lower == 'linux'
+  changed_when: false
+  failed_when: false
+  register: haproxy_version_output
+
+- name: Publish HAProxy version fact  # noqa: L039 - haproxy_version_output is registered by the preceding version task
+  ansible.builtin.copy:
+    content: "{{ {'haproxy_version': (haproxy_version_output.stdout | regex_search('version\\s+(\\d+\\.\\d+\\.\\d+)', '\\1') | first | default(''))} | to_nice_json }} "
+    dest: /etc/ansible/facts.d/haproxy_version.fact
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  when:
+    - ansible_facts['system'] | lower == 'linux'
+    - haproxy_version_output.stdout is defined

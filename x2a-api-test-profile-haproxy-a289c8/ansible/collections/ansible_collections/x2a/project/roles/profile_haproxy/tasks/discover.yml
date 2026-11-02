@@ -1,0 +1,5 @@
+---
+- name: Build discovered HAProxy backends from explicit service data  # noqa: L032 - intentional runtime merge of discovered data into configured backends
+  ansible.builtin.set_fact:  # noqa: L093 - discovery must update the role's backend configuration for HAProxy
+    haproxy_backends: "{{ haproxy_backends | combine({'api': {'servers': haproxy_discovered_api_servers }}, recursive=true) }}"
+  when: haproxy_discovered_api_servers | length > 0

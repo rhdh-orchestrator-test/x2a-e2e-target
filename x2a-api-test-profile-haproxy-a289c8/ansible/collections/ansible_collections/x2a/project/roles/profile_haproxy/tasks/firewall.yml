@@ -1,0 +1,83 @@
+---
+- name: Install UFW
+  ansible.builtin.package:
+    name: ufw
+    state: present
+  when: haproxy_firewall_provider == 'ufw'
+
+- name: Check current UFW rules
+  ansible.builtin.command:
+    argv: [ufw, status]
+  register: haproxy_ufw_status
+  changed_when: false
+  when: haproxy_firewall_provider == 'ufw'
+
+- name: Allow HAProxy HTTP through UFW  # noqa: L039 - haproxy_ufw_status is registered by the preceding UFW status task; no-changed-when - UFW allow is idempotently guarded by current rule status
+  ansible.builtin.command:
+    argv: [ufw, allow, 80/tcp]
+  changed_when: false
+  when:
+    - haproxy_firewall_provider == 'ufw'
+    - "'80/tcp' not in haproxy_ufw_status.stdout"
+
+- name: Allow HAProxy HTTPS through UFW  # noqa: L039 - haproxy_ufw_status is registered by the preceding UFW status task; no-changed-when - UFW allow is idempotently guarded by current rule status
+  ansible.builtin.command:
+    argv: [ufw, allow, 443/tcp]
+  changed_when: false
+  when:
+    - haproxy_firewall_provider == 'ufw'
+    - "'443/tcp' not in haproxy_ufw_status.stdout"
+
+- name: Allow HAProxy statistics through UFW  # noqa: L039 - haproxy_ufw_status is registered by the preceding UFW status task; R101 - statistics port is a trusted role default; no-changed-when - UFW allow is idempotently guarded by current rule status
+  ansible.builtin.command:  # noqa: R101 - statistics port is a trusted role default, not untrusted input
+    argv: [ufw, allow, "{{ haproxy_stats_port }}/tcp"]
+  changed_when: false
+  when:
+    - haproxy_firewall_provider == 'ufw'
+    - haproxy_stats_enabled | bool
+    - "(haproxy_stats_port | string + '/tcp') not in haproxy_ufw_status.stdout"
+
+- name: Enable UFW  # noqa: L039 - haproxy_ufw_status is registered by the preceding UFW status task
+  ansible.builtin.command:
+    argv: [ufw, --force, enable]
+  register: haproxy_ufw_enable
+  changed_when: haproxy_ufw_enable.rc == 0
+  when:
+    - haproxy_firewall_provider == 'ufw'
+    - "'Status: active' not in haproxy_ufw_status.stdout"
+
+- name: Ensure firewalld service is running
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+  when: haproxy_firewall_provider == 'firewalld'
+
+- name: Allow HAProxy HTTP through firewalld
+  ansible.posix.firewalld:
+    zone: public
+    port: 80/tcp
+    permanent: true
+    immediate: true
+    state: enabled
+  when: haproxy_firewall_provider == 'firewalld'
+
+- name: Allow HAProxy HTTPS through firewalld
+  ansible.posix.firewalld:
+    zone: public
+    port: 443/tcp
+    permanent: true
+    immediate: true
+    state: enabled
+  when: haproxy_firewall_provider == 'firewalld'
+
+- name: Allow HAProxy statistics through firewalld
+  ansible.posix.firewalld:
+    zone: public
+    port: "{{ haproxy_stats_port }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+  when:
+    - haproxy_firewall_provider == 'firewalld'
+    - haproxy_stats_enabled | bool
