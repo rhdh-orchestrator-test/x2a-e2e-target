@@ -1,0 +1,82 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Record unavailable Memcached dependency
+  ansible.builtin.debug:
+    msg: >-
+      The source cookbook includes the external memcached cookbook, but no Memcached
+      implementation or approved Private Hub role was supplied for migration.
+
+- name: Configure Redis cache
+  ansible.builtin.include_role:
+    name: eloy.redis.redis # noqa: L038 - external Redis role is required for the migrated cache implementation but is not resolvable in this project
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_install_method: "{{ cache_redis_install_method }}"
+    redis_port: "{{ cache_redis_port }}"
+    redis_requirepass: "{{ redis_password }}"
+    redis_cluster_enabled: "{{ cache_redis_cluster_enabled }}"
+    redis_sentinel_enabled: "{{ cache_redis_sentinel_enabled }}"
+    redis_replication_enabled: "{{ cache_redis_replication_enabled }}"
+    redis_aof_enabled: "{{ cache_redis_aof_enabled }}"
+    redis_rdb_enabled: "{{ cache_redis_rdb_enabled }}"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_directory }}" # noqa: R114 - path is a role default controlled by the operator
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Check whether Redis configuration exists
+  ansible.builtin.stat:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path is a role default controlled by the operator
+  register: cache_redis_config
+
+- name: Remove replica-serve-stale-data directive
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path is a role default controlled by the operator
+    regexp: ^replica-serve-stale-data.*$
+    replace: ""
+    create: false
+  when: cache_redis_config.stat.exists # noqa: L039 - variable is registered by the preceding stat task
+  notify: Restart Redis cache
+
+- name: Remove replica-read-only directive
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path is a role default controlled by the operator
+    regexp: ^replica-read-only.*$
+    replace: ""
+    create: false
+  when: cache_redis_config.stat.exists # noqa: L039 - variable is registered by the preceding stat task
+  notify: Restart Redis cache
+
+- name: Remove repl-ping-replica-period directive
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path is a role default controlled by the operator
+    regexp: ^repl-ping-replica-period.*$
+    replace: ""
+    create: false
+  when: cache_redis_config.stat.exists # noqa: L039 - variable is registered by the preceding stat task
+  notify: Restart Redis cache
+
+- name: Remove client-output-buffer-limit directive
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path is a role default controlled by the operator
+    regexp: ^client-output-buffer-limit.*$
+    replace: ""
+    create: false
+  when: cache_redis_config.stat.exists # noqa: L039 - variable is registered by the preceding stat task
+  notify: Restart Redis cache
+
+- name: Remove replica-priority directive
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path is a role default controlled by the operator
+    regexp: ^replica-priority.*$
+    replace: ""
+    create: false
+  when: cache_redis_config.stat.exists # noqa: L039 - variable is registered by the preceding stat task
+  notify: Restart Redis cache

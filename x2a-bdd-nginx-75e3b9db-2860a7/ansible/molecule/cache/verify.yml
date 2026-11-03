@@ -1,0 +1,122 @@
+---
+# Unsupported: service status, enabled/active state, and journal checks require dependency-specific
+# Redis and Memcached unit names. Memcached endpoint checks also require unavailable dependency values.
+# Unsupported: directory listing, logging-destination inspection, and raw diagnostics have no
+# independently stated expected result that can be validated without inventing one.
+
+- name: Verify cache services and Redis configuration
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_config.stat.exists
+          - item_redis_config.stat.isreg
+        fail_msg: Redis configuration file is missing or is not a regular file.
+
+    - name: Read Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: item_redis_config_content
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Verify Redis primary configuration and cleanup directives
+      ansible.builtin.assert:
+        that:
+          - item_redis_config_content.content | b64decode is search('(?m)^port\\s+6379(?:\\s|$)')
+          - item_redis_config_content.content | b64decode is search('(?m)^requirepass\\s+\\S+')
+          - item_redis_config_content.content | b64decode is not search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)(?:\\s|$)')
+        fail_msg: Redis configuration does not contain the required settings or cleanup is incomplete.
+
+    - name: Verify Redis listens on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Verify authenticated Redis PING
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -h
+          - 127.0.0.1
+          - -p
+          - '6379'
+          - -a
+          - "{{ redis_password }}"
+          - PING
+      register: item_redis_ping
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert authenticated Redis PING succeeds
+      ansible.builtin.assert:
+        that:
+          - item_redis_ping.rc == 0
+          - item_redis_ping.stdout is search('(?m)^PONG\\s*$')
+        fail_msg: Authenticated Redis PING did not return PONG.
+
+    - name: Verify authenticated Redis INFO server
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -h
+          - 127.0.0.1
+          - -p
+          - '6379'
+          - -a
+          - "{{ redis_password }}"
+          - INFO
+          - server
+      register: item_redis_info
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert authenticated Redis INFO server succeeds
+      ansible.builtin.assert:
+        that:
+          - item_redis_info.rc == 0
+          - item_redis_info.stdout is search('(?m)^# Server\\s*$')
+        fail_msg: Authenticated Redis INFO server did not succeed.
+
+    - name: Verify unauthenticated Redis access is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -h
+          - 127.0.0.1
+          - -p
+          - '6379'
+          - PING
+      register: item_redis_unauthenticated
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unauthenticated Redis access requires authentication
+      ansible.builtin.assert:
+        that:
+          - item_redis_unauthenticated.rc != 0
+          - (item_redis_unauthenticated.stdout ~ item_redis_unauthenticated.stderr) is search('(?i)NOAUTH|authentication required')
+        fail_msg: Unauthenticated Redis access was not rejected with an authentication-required error.
+
+    - name: Verify Redis log directory metadata
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_directory
+
+    - name: Assert Redis log directory ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory.stat.exists
+          - item_redis_log_directory.stat.isdir
+          - item_redis_log_directory.stat.pw_name == 'redis'
+          - item_redis_log_directory.stat.gr_name == 'redis'
+          - item_redis_log_directory.stat.mode == '0755'
+        fail_msg: Redis log directory does not have the required metadata.
