@@ -1,0 +1,7 @@
+---
+- name: Restart FastAPI tutorial service
+  ansible.builtin.systemd:
+    name: "{{ fastapi_tutorial_service_name }}"
+    daemon_reload: true
+    enabled: true
+    state: restarted
