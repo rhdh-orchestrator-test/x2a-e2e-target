@@ -1,0 +1,109 @@
+---
+# Unsupported pre-flight checks: authenticated Redis PING requires an external password;
+# recent journal output has no stated expected result; the Memcached endpoint is unavailable.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather service facts for Redis discovery
+      ansible.builtin.service_facts:
+
+    - name: Verify a Redis service is running and enabled
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts.services | dict2items
+            | selectattr('key', 'search', 'redis')
+            | selectattr('value.state', 'equalto', 'running') | list | length) > 0
+          - >-
+            (ansible_facts.services | dict2items
+            | selectattr('key', 'search', 'redis')
+            | selectattr('value.status', 'equalto', 'enabled') | list | length) > 0
+        fail_msg: A running and enabled Redis service was not discovered.
+
+    - name: Verify Redis is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Inspect the Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config_stat
+
+    - name: Assert that the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_config_stat.stat.exists
+          - item_redis_config_stat.stat.isreg
+        fail_msg: The Redis configuration file is missing or is not a regular file.
+
+    - name: Read the Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: item_redis_config_content
+
+    - name: Decode the Redis configuration for read-only checks
+      ansible.builtin.set_fact:
+        redis_config_text: "{{ item_redis_config_content.content | b64decode }}"
+
+    - name: Verify Redis configuration directives
+      ansible.builtin.assert:
+        that:
+          - redis_config_text is search('(?m)^port\\s+6379$')
+          - redis_config_text is search('(?m)^requirepass\\s+')
+          - redis_config_text is not search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: The Redis configuration does not satisfy the requested pre-flight checks.
+
+    - name: Inspect the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_dir
+
+    - name: Verify Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_dir.stat.exists
+          - item_redis_log_dir.stat.isdir
+          - item_redis_log_dir.stat.pw_name == 'redis'
+          - item_redis_log_dir.stat.gr_name == 'redis'
+          - item_redis_log_dir.stat.mode == '0755'
+        fail_msg: The Redis log directory does not have the expected ownership or mode.
+
+    - name: Verify the Redis user can write to the log directory
+      ansible.builtin.command:
+        argv:
+          - test
+          - -w
+          - /var/log/redis
+      changed_when: false
+      become: true
+      become_user: redis
+      register: item_redis_log_write
+
+    - name: Assert that Redis can write to its log directory
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_write.rc == 0
+        fail_msg: The Redis user cannot write to /var/log/redis.
+
+    - name: Check that unauthenticated Redis access is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+      changed_when: false
+      failed_when: false
+      register: item_redis_unauthenticated_ping
+
+    - name: Verify unauthenticated Redis access returns an authentication error
+      ansible.builtin.assert:
+        that:
+          - item_redis_unauthenticated_ping.rc != 0
+          - >-
+            (item_redis_unauthenticated_ping.stdout
+            ~ item_redis_unauthenticated_ping.stderr) is search('(?i)authentication')
+        fail_msg: Unauthenticated Redis access was not rejected with an authentication error.
