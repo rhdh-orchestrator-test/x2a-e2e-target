@@ -1,0 +1,79 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure the FastAPI Tutorial application.
+    description:
+      - Deploys the FastAPI Tutorial source, Python virtual environment, PostgreSQL dependencies, and systemd service.
+    options:
+      fastapi_tutorial_app_directory:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Application checkout directory.
+      fastapi_tutorial_repository:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository containing the application.
+      fastapi_tutorial_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      fastapi_tutorial_venv_directory:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial/venv
+        description: Python virtual environment directory.
+      fastapi_tutorial_listen_host:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: Host address for Uvicorn.
+      fastapi_tutorial_listen_port:
+        type: int
+        required: false
+        default: 8000
+        description: Port for Uvicorn.
+      fastapi_tutorial_service_name:
+        type: str
+        required: false
+        default: fastapi-tutorial
+        description: Systemd service name.
+      fastapi_tutorial_service_unit:
+        type: str
+        required: false
+        default: /etc/systemd/system/fastapi-tutorial.service
+        description: Systemd unit file path.
+      fastapi_tutorial_project_name:
+        type: str
+        required: false
+        default: FastAPI Tutorial
+        description: Application project name written to the environment file.
+      fastapi_tutorial_api_version:
+        type: str
+        required: false
+        default: 1.0.0
+        description: Application API version written to the environment file.
+      fastapi_tutorial_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide output from tasks that handle the database password.
+      database_username:
+        type: str
+        required: true
+        description: Database username injected by the AAP credential type.
+      database_password:
+        type: str
+        required: true
+        no_log: true
+        description: Database password injected by the AAP credential type.
+      database_name:
+        type: str
+        required: true
+        description: Database name injected by the AAP credential type.
+      database_host:
+        type: str
+        required: true
+        description: Database host injected by the AAP credential type.
