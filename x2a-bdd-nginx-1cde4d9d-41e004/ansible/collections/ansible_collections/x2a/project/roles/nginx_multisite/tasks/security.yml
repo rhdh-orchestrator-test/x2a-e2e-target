@@ -1,0 +1,110 @@
+---
+- name: Install security packages
+  ansible.builtin.package:
+    name:
+      - fail2ban
+      - ufw
+      - openssh-server
+      - procps
+    state: present
+
+- name: Ensure fail2ban is enabled and running
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: "{{ nginx_multisite_fail2ban_enabled }}"
+    state: "{{ 'started' if nginx_multisite_fail2ban_enabled else 'stopped' }}"
+
+- name: Deploy fail2ban configuration
+  ansible.builtin.template:
+    src: fail2ban.jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: "0644"
+    backup: true
+  when: nginx_multisite_fail2ban_enabled | bool
+  notify: Restart fail2ban
+
+- name: Check current UFW status
+  ansible.builtin.command:
+    cmd: ufw status verbose
+  register: nginx_multisite_ufw_status
+  changed_when: false
+  failed_when: false
+  when: nginx_multisite_ufw_enabled | bool
+
+- name: Set UFW default deny policy  # noqa: L039 - nginx_multisite_ufw_status is registered by the prior status check
+  ansible.builtin.command:
+    cmd: ufw --force default deny
+  when:
+    - nginx_multisite_ufw_enabled | bool
+    - "'Default: deny (incoming)' not in nginx_multisite_ufw_status.stdout | default('')"
+
+- name: Allow SSH through UFW  # noqa: L039 - nginx_multisite_ufw_status is registered by the prior status check
+  ansible.builtin.command:
+    cmd: ufw allow ssh
+  when:
+    - nginx_multisite_ufw_enabled | bool
+    - "'22/tcp' not in nginx_multisite_ufw_status.stdout | default('')"
+
+- name: Allow HTTP through UFW  # noqa: L039 - nginx_multisite_ufw_status is registered by the prior status check
+  ansible.builtin.command:
+    cmd: ufw allow http
+  when:
+    - nginx_multisite_ufw_enabled | bool
+    - "'80/tcp' not in nginx_multisite_ufw_status.stdout | default('')"
+
+- name: Allow HTTPS through UFW  # noqa: L039 - nginx_multisite_ufw_status is registered by the prior status check
+  ansible.builtin.command:
+    cmd: ufw allow https
+  when:
+    - nginx_multisite_ufw_enabled | bool
+    - "'443/tcp' not in nginx_multisite_ufw_status.stdout | default('')"
+
+- name: Enable UFW  # noqa: L039 - nginx_multisite_ufw_status is registered by the prior status check
+  ansible.builtin.command:
+    cmd: ufw --force enable
+  when:
+    - nginx_multisite_ufw_enabled | bool
+    - "'Status: active' not in nginx_multisite_ufw_status.stdout | default('')"
+
+- name: Deploy kernel security configuration directory
+  ansible.builtin.file:
+    path: /etc/sysctl.d
+    state: directory
+    mode: "0755"
+
+- name: Deploy kernel security configuration
+  ansible.builtin.template:
+    src: sysctl-security.conf.j2
+    dest: /etc/sysctl.d/99-security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload security sysctl
+
+- name: Check whether SSH daemon configuration exists
+  ansible.builtin.stat:
+    path: /etc/ssh/sshd_config
+  register: nginx_multisite_sshd_config
+
+- name: Disable root SSH login  # noqa: L039 - nginx_multisite_sshd_config is registered by the prior stat task
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PermitRootLogin.*
+    line: PermitRootLogin no
+    create: false
+    backup: true
+  when:
+    - nginx_multisite_ssh_disable_root
+    - nginx_multisite_sshd_config.stat.exists | default(false)
+  notify: Restart SSH
+
+- name: Disable SSH password authentication  # noqa: L039 - nginx_multisite_sshd_config is registered by the prior stat task
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PasswordAuthentication.*
+    line: PasswordAuthentication no
+    create: false
+    backup: true
+  when:
+    - not nginx_multisite_ssh_password_auth
+    - nginx_multisite_sshd_config.stat.exists | default(false)
+  notify: Restart SSH
