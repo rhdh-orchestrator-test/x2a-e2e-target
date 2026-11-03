@@ -1,0 +1,77 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy the FastAPI tutorial application with PostgreSQL.
+    description:
+      - Installs the FastAPI application's system dependencies and Python virtual environment.
+      - Configures PostgreSQL, the application environment, and its systemd service.
+    options:
+      fastapi_tutorial_app_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Application checkout directory.
+      fastapi_tutorial_repo:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository containing the application.
+      fastapi_tutorial_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      fastapi_tutorial_venv_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial/venv
+        description: Python virtual environment directory.
+      fastapi_tutorial_db_name:
+        type: str
+        required: false
+        default: fastapi_db
+        description: PostgreSQL database name.
+      fastapi_tutorial_db_user:
+        type: str
+        required: false
+        default: fastapi
+        description: PostgreSQL application user.
+      fastapi_tutorial_db_host:
+        type: str
+        required: false
+        default: localhost
+        description: PostgreSQL host used in the application connection URL.
+      fastapi_tutorial_db_port:
+        type: int
+        required: false
+        default: 5432
+        description: PostgreSQL port setting.
+      fastapi_tutorial_service_name:
+        type: str
+        required: false
+        default: fastapi-tutorial
+        description: Systemd service name.
+      fastapi_tutorial_service_unit:
+        type: str
+        required: false
+        default: /etc/systemd/system/fastapi-tutorial.service
+        description: Systemd unit file path.
+      fastapi_tutorial_bind_address:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: Address where Uvicorn listens.
+      fastapi_tutorial_port:
+        type: int
+        required: false
+        default: 8000
+        description: TCP port where Uvicorn listens.
+      fastapi_tutorial_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide task output for operations handling the database password.
+      db_password:
+        type: str
+        required: true
+        description: Database password injected by the AAP credential type.

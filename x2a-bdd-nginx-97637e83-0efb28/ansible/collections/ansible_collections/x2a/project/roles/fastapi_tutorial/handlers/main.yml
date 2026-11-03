@@ -1,0 +1,12 @@
+---
+- name: Ensure PostgreSQL service is enabled and started
+  ansible.builtin.service:
+    name: postgresql
+    enabled: true
+    state: started
+
+- name: Ensure FastAPI service is enabled and started
+  ansible.builtin.service:
+    name: "{{ fastapi_tutorial_service_name }}"
+    enabled: true
+    state: started

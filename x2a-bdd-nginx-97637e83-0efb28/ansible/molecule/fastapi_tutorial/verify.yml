@@ -1,0 +1,184 @@
+---
+# Unsupported or intentionally omitted: raw stat/git output without stated expected values,
+# package and virtualenv version output, credentialed PostgreSQL connectivity, endpoint response
+# details, process/listener output, restart/log output, and systemd context fields without
+# stated expected values.
+- name: Verify fastapi-tutorial pre-flight checks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify required Debian packages are installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required Debian packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts.packages
+        fail_msg: "A required package is not installed."
+      loop:
+        - python3
+        - python3-pip
+        - python3-venv
+        - git
+        - postgresql
+        - postgresql-contrib
+        - libpq-dev
+      loop_control:
+        loop_var: item_package
+
+    - name: Verify the fastapi-tutorial instance directory exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: fastapi_instance_directory
+
+    - name: Assert the fastapi-tutorial instance directory exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_instance_directory.stat.exists
+          - fastapi_instance_directory.stat.isdir
+
+    - name: Verify the application requirements file exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: fastapi_requirements_file
+
+    - name: Assert the application requirements file exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_requirements_file.stat.exists
+          - fastapi_requirements_file.stat.isreg
+
+    - name: Verify the virtual environment Python executable
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/python
+      register: fastapi_venv_python
+
+    - name: Assert the virtual environment Python executable is present and executable
+      ansible.builtin.assert:
+        that:
+          - fastapi_venv_python.stat.exists
+          - fastapi_venv_python.stat.isreg
+          - fastapi_venv_python.stat.executable
+
+    - name: Verify the virtual environment dependency state
+      ansible.builtin.command:
+        argv:
+          - /opt/fastapi-tutorial/venv/bin/pip
+          - check
+        chdir: /opt/fastapi-tutorial
+      register: fastapi_pip_check
+      changed_when: false
+      failed_when: fastapi_pip_check.rc != 0
+
+    - name: Verify PostgreSQL readiness
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - pg_isready
+      register: postgresql_ready
+      changed_when: false
+      failed_when: postgresql_ready.rc != 0
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert PostgreSQL is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['postgresql.service']['status'] == 'running'
+          - ansible_facts.services['postgresql.service']['enabled'] | default(false) | bool
+
+    - name: Verify the fastapi PostgreSQL user exists
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT usename FROM pg_user WHERE usename = 'fastapi';
+      register: fastapi_database_user
+      changed_when: false
+      failed_when: fastapi_database_user.rc != 0
+
+    - name: Assert the fastapi PostgreSQL user exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_database_user.stdout | trim == 'fastapi'
+
+    - name: Verify the fastapi PostgreSQL database and owner
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT datname, pg_catalog.pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db';
+      register: fastapi_database_owner
+      changed_when: false
+      failed_when: fastapi_database_owner.rc != 0
+
+    - name: Assert the fastapi database is owned by fastapi
+      ansible.builtin.assert:
+        that:
+          - fastapi_database_owner.stdout | trim == 'fastapi_db|fastapi'
+
+    - name: Verify all database privileges for the fastapi user
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT has_database_privilege('fastapi', 'fastapi_db', 'ALL');
+      register: fastapi_database_privileges
+      changed_when: false
+      failed_when: fastapi_database_privileges.rc != 0
+
+    - name: Assert all database privileges are granted to fastapi
+      ansible.builtin.assert:
+        that:
+          - fastapi_database_privileges.stdout | trim == 't'
+
+    - name: Read the application environment file
+      ansible.builtin.slurp:
+        src: /opt/fastapi-tutorial/.env
+      register: fastapi_environment_file
+
+    - name: Assert the non-secret environment values are present
+      ansible.builtin.assert:
+        that:
+          - fastapi_environment_file.content | b64decode is search('(?m)^PROJECT_NAME=')
+          - fastapi_environment_file.content | b64decode is search('(?m)^API_VERSION=')
+          - fastapi_environment_file.content | b64decode is search('(?m)^DATABASE_URL=postgresql://fastapi:.*@localhost/fastapi_db$')
+
+    - name: Read the FastAPI systemd unit
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_systemd_unit
+
+    - name: Assert the FastAPI systemd ExecStart is configured
+      ansible.builtin.assert:
+        that:
+          - fastapi_systemd_unit.content | b64decode is search('(?m)^ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000$')
+
+    - name: Verify the FastAPI systemd unit syntax
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_systemd_verify
+      changed_when: false
+      failed_when: fastapi_systemd_verify.rc != 0
+
+    - name: Assert the fastapi-tutorial service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['fastapi-tutorial.service']['status'] == 'running'
+          - ansible_facts.services['fastapi-tutorial.service']['enabled'] | default(false) | bool
