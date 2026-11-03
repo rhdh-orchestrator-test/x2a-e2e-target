@@ -1,0 +1,23 @@
+---
+# argument spec file for x2a.project.nginx_multisite
+argument_specs:
+  main:
+    short_description: Configure nginx multisite hosting and security
+    options:
+      nginx_multisite_my_variable:
+        type: str
+        description: A simple string argument for demonstration.
+        default: default_value
+      nginx_multisite_sites:
+        type: dict
+        description: Mapping of site names to document roots and SSL settings.
+        default:
+          test.cluster.local:
+            document_root: /opt/server/test
+            ssl_enabled: true
+          ci.cluster.local:
+            document_root: /opt/server/ci
+            ssl_enabled: true
+          status.cluster.local:
+            document_root: /opt/server/status
+            ssl_enabled: true

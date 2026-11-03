@@ -1,0 +1,50 @@
+---
+- name: Install SSL packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create ssl-cert group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Create certificate directory
+  ansible.builtin.file:
+    path: /etc/ssl/certs
+    owner: root
+    group: root
+    mode: "0755"
+    state: directory
+
+- name: Create private key directory
+  ansible.builtin.file:
+    path: /etc/ssl/private
+    owner: root
+    group: ssl-cert
+    mode: "0710"
+    state: directory
+
+- name: Generate self-signed site certificates  # noqa: L039, R101 - loop attribute and command paths come from role-defined site data
+  ansible.builtin.shell:
+    cmd: |
+      if [ ! -f "{{ item_nginx_multisite['value']['certificate'] | default('/etc/ssl/certs/' ~ item_nginx_multisite['key'] ~ '.crt') }}" ] || [ ! -f "{{ item_nginx_multisite['value']['private_key'] | default('/etc/ssl/private/' ~ item_nginx_multisite['key'] ~ '.key') }}" ]; then
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+          -keyout "{{ item_nginx_multisite['value']['private_key'] | default('/etc/ssl/private/' ~ item_nginx_multisite['key'] ~ '.key') }}" \
+          -out "{{ item_nginx_multisite['value']['certificate'] | default('/etc/ssl/certs/' ~ item_nginx_multisite['key'] ~ '.crt') }}" \
+          -subj "/C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN={{ item_nginx_multisite['key'] }}/emailAddress=admin@example.com"
+        chmod 0640 "{{ item_nginx_multisite['value']['private_key'] | default('/etc/ssl/private/' ~ item_nginx_multisite['key'] ~ '.key') }}"
+        chown root:ssl-cert "{{ item_nginx_multisite['value']['private_key'] | default('/etc/ssl/private/' ~ item_nginx_multisite['key'] ~ '.key') }}"
+        echo generated
+      fi
+    executable: /bin/bash
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_multisite
+  when: item_nginx_multisite['value']['ssl_enabled'] | bool
+  register: nginx_multisite_ssl_generation
+  changed_when: "'generated' in (nginx_multisite_ssl_generation.results | map(attribute='stdout') | join(' '))"
+  notify: Reload nginx
+  no_log: true
