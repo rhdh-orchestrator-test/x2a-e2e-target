@@ -1,0 +1,75 @@
+---
+# Unsupported pre-flight checks: service discovery/status/enablement, Redis CLI checks requiring
+# REDIS_PASSWORD, Redis journal inspection, and all unresolved Memcached checks have no safely
+# stated expected outcome or require unavailable dependency details.
+- name: Verify Redis cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify that the Redis configuration exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Assert that the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_config['stat']['exists']
+          - item_redis_config['stat']['isreg']
+        fail_msg: Redis configuration file is missing or is not a regular file.
+
+    - name: Verify the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_directory
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory['stat']['exists']
+          - item_redis_log_directory['stat']['isdir']
+          - item_redis_log_directory['stat']['pw_name'] == 'redis'
+          - item_redis_log_directory['stat']['gr_name'] == 'redis'
+          - item_redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: Redis log directory does not have the expected directory, ownership, or mode.
+
+    - name: Preserve the explicit Redis process diagnostic
+      ansible.builtin.command:
+        argv:
+          - ps
+          - aux
+      changed_when: false
+      register: item_redis_processes
+
+    - name: Assert that a Redis process is running
+      ansible.builtin.assert:
+        that:
+          - item_redis_processes['stdout'] is search('(?m)^[^\\n]*[r]edis(?:-server)?(?:\\s|$)')
+        fail_msg: No Redis process was found.
+
+    - name: Verify that Redis listens on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+      register: item_redis_port
+
+    - name: Assert that TCP port 6379 is listening
+      ansible.builtin.assert:
+        that:
+          - item_redis_port['state'] == 'started'
+        fail_msg: Redis is not listening on TCP port 6379.
+
+    - name: Read the Redis configuration for cleanup verification
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: item_redis_config_content
+
+    - name: Assert that the cleanup directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            item_redis_config_content['content'] | b64decode is not
+            search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: One or more Redis replication cleanup directives are still present.

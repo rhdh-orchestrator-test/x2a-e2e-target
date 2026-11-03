@@ -1,0 +1,38 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Redis cache with the Private Hub role
+  ansible.builtin.include_role:
+    name: eloy.redis.redis  # noqa: L038 - role is provided by the eloy.redis collection declared in role requirements
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_port: "{{ cache_redis_port }}"
+    redis_requirepass: "{{ cache_redis_requirepass }}"
+    redis_cluster_enabled: "{{ cache_redis_cluster_enabled }}"
+    redis_sentinel_enabled: "{{ cache_redis_sentinel_enabled }}"
+    redis_replication_enabled: "{{ cache_redis_replication_enabled }}"
+    redis_aof_enabled: "{{ cache_redis_aof_enabled }}"
+    redis_rdb_enabled: "{{ cache_redis_rdb_enabled }}"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Remove obsolete Redis replication directives
+  ansible.builtin.replace:
+    path: "/etc/redis/{{ cache_redis_port }}.conf"  # noqa: R114 - path is derived from the role default cache_redis_port
+    regexp: ^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority).*$
+    replace: ""
+  notify: Restart Redis cache service
+
+- name: Enable and start Redis cache service
+  ansible.builtin.service:
+    name: redis
+    enabled: true
+    state: started
