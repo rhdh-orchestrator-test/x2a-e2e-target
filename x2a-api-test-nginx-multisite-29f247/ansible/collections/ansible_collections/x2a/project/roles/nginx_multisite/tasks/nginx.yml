@@ -1,0 +1,51 @@
+---
+- name: Install Nginx
+  ansible.builtin.package:
+    name: nginx
+    state: present
+
+- name: Deploy Nginx base configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+
+- name: Deploy Nginx security configuration
+  ansible.builtin.template:
+    src: security.conf.j2
+    dest: /etc/nginx/conf.d/security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+
+- name: Enable and start Nginx
+  ansible.builtin.service:
+    name: nginx
+    enabled: true
+    state: started
+
+- name: Create site document roots  # noqa: R114 - path comes from role defaults site definitions
+  ansible.builtin.file:
+    path: "{{ item_nginx_site['value']['document_root'] }}"
+    owner: www-data
+    group: www-data
+    mode: "0755"
+    state: directory
+    recurse: true
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_site
+
+- name: Deploy site index files  # noqa: R114 - paths come from role defaults site definitions
+  ansible.builtin.copy:
+    src: "{{ item_index['value']['content_file'] }}"
+    dest: "{{ item_index['value']['document_root'] }}/index.html"
+    owner: www-data
+    group: www-data
+    mode: "0644"
+    backup: true
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_index
