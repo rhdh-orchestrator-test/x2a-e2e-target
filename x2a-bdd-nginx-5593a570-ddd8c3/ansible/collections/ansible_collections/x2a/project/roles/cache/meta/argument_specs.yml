@@ -1,0 +1,56 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure a standalone Redis cache.
+    description:
+      - Installs and configures Redis on the requested port with authentication and persistence settings.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to hide output from tasks that handle Redis credentials.
+      cache_service_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Name of the Redis service managed by the role.
+      redis_password:
+        type: str
+        required: false
+        description: Redis authentication password supplied by the AAP credential.
+      redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by the Redis server.
+      redis_requirepass:
+        type: str
+        required: false
+        default: "{{ redis_password }}"
+        description: Redis authentication password supplied by the AAP credential.
+      redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis clustering is enabled.
+      redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel is enabled.
+      redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      redis_aof_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis AOF persistence is enabled.
+      redis_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis RDB persistence is enabled.
