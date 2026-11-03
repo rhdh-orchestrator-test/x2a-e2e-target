@@ -1,0 +1,19 @@
+---
+# Unsupported pre-flight checks: cookbook-source discovery, service-name discovery, Redis
+# configuration/endpoint/authentication/log inspection, conditional cleanup checks, and
+# journal review have no confirmed expected outcome or are not safely applicable here.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify the analyzed Redis log directory resource
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert that the Redis log directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+        fail_msg: "/var/log/redis must exist as a directory"

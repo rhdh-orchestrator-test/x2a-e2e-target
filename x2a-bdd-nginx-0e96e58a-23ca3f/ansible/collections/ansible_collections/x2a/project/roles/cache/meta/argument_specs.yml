@@ -1,0 +1,63 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure a standalone Redis cache
+    description:
+      - Installs and configures Redis on TCP port 6379 using the approved Private Hub role.
+      - Creates the Redis log directory and removes legacy replication directives from the generated configuration.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide output from tasks that handle the Redis password.
+      cache_redis_version:
+        type: str
+        required: false
+        default: "7.2"
+        description: Redis version to install.
+      cache_redis_install_method:
+        type: str
+        required: false
+        default: package
+        description: Installation method passed to the Redis collection role.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by Redis.
+      cache_redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis clustering is enabled.
+      cache_redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel is enabled.
+      cache_redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      cache_redis_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether RDB persistence is enabled.
+      cache_redis_aof_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether AOF persistence is enabled.
+      cache_redis_log_directory:
+        type: path
+        required: false
+        default: /var/log/redis
+        description: Directory where Redis log files are stored.
+      redis_password:
+        type: str
+        required: true
+        no_log: true
+        description: Redis authentication password injected by an AAP credential type.
