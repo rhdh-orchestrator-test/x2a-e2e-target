@@ -1,0 +1,117 @@
+---
+- name: Install security packages
+  ansible.builtin.package:
+    name:
+      - fail2ban
+      - ufw
+      - openssh-server
+    state: present
+
+- name: Deploy fail2ban configuration
+  ansible.builtin.template:
+    src: fail2ban.jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: "0644"
+    backup: true
+  notify: Restart fail2ban
+
+- name: Enable and start fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: true
+    state: started
+
+- name: Set UFW default incoming policy
+  community.general.ufw:
+    direction: incoming
+    default: deny
+
+- name: Set UFW default outgoing policy
+  community.general.ufw:
+    direction: outgoing
+    default: allow
+
+- name: Allow required UFW ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item_nginx_multisite_port.split('/')[0] }}"
+    proto: "{{ item_nginx_multisite_port.split('/')[1] }}"
+  loop:
+    - 22/tcp
+    - 80/tcp
+    - 443/tcp
+  loop_control:
+    loop_var: item_nginx_multisite_port
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+
+- name: Create sysctl configuration directory
+  ansible.builtin.file:
+    path: /etc/sysctl.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy sysctl hardening configuration
+  ansible.builtin.template:
+    src: sysctl-security.conf.j2
+    dest: /etc/sysctl.d/99-security.conf
+    mode: "0644"
+    backup: true
+
+- name: Apply sysctl hardening values
+  ansible.posix.sysctl:
+    name: "{{ item_nginx_multisite_sysctl['name'] }}"
+    value: "{{ item_nginx_multisite_sysctl['value'] }}"
+    sysctl_file: /etc/sysctl.d/99-security.conf
+    state: present
+    reload: true
+  loop:
+    - {name: net.ipv4.conf.all.rp_filter, value: "1"}
+    - {name: net.ipv4.conf.default.rp_filter, value: "1"}
+    - {name: net.ipv4.conf.all.accept_redirects, value: "0"}
+    - {name: net.ipv4.conf.default.accept_redirects, value: "0"}
+    - {name: net.ipv4.conf.all.secure_redirects, value: "0"}
+    - {name: net.ipv4.conf.default.secure_redirects, value: "0"}
+    - {name: net.ipv4.conf.all.send_redirects, value: "0"}
+    - {name: net.ipv4.conf.default.send_redirects, value: "0"}
+    - {name: net.ipv4.conf.all.accept_source_route, value: "0"}
+    - {name: net.ipv4.conf.default.accept_source_route, value: "0"}
+    - {name: net.ipv4.conf.all.log_martians, value: "1"}
+    - {name: net.ipv4.icmp_echo_ignore_all, value: "1"}
+    - {name: net.ipv6.conf.all.disable_ipv6, value: "1"}
+    - {name: net.ipv6.conf.default.disable_ipv6, value: "1"}
+    - {name: net.ipv4.tcp_syncookies, value: "1"}
+    - {name: net.ipv4.tcp_max_syn_backlog, value: "2048"}
+  loop_control:
+    loop_var: item_nginx_multisite_sysctl
+
+- name: Check whether SSH daemon configuration exists
+  ansible.builtin.stat:
+    path: /etc/ssh/sshd_config
+  register: nginx_multisite_sshd_config
+
+- name: Disable SSH root login
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitRootLogin\\s+'
+    line: PermitRootLogin no
+    mode: "0600"
+    backup: true
+    create: false
+  when: nginx_multisite_sshd_config.stat.exists
+  notify: Restart ssh
+
+- name: Disable SSH password authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PasswordAuthentication\\s+'
+    line: PasswordAuthentication no
+    mode: "0600"
+    backup: true
+    create: false
+  when: nginx_multisite_sshd_config.stat.exists
+  notify: Restart ssh
