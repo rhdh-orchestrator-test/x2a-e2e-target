@@ -1,0 +1,211 @@
+---
+# Unsupported pre-flight checks: package inventory, file owner/mode output, git cleanliness/branch/commit,
+# Python version, service status/journal diagnostics, the HTTP response body, PostgreSQL journal
+# diagnostics, and password-authenticated application connections are omitted because the plan does
+# not provide a safe, specific assertion for them here.
+- name: Verify FastAPI tutorial deployment
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify application directory exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: item_app_directory
+
+    - name: Assert application directory exists
+      ansible.builtin.assert:
+        that:
+          - item_app_directory['stat']['exists']
+          - item_app_directory['stat']['isdir']
+        fail_msg: Application directory is missing
+
+    - name: Verify application virtualenv Python is executable
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/python
+      register: item_venv_python
+
+    - name: Assert application virtualenv Python is executable
+      ansible.builtin.assert:
+        that:
+          - item_venv_python['stat']['exists']
+          - item_venv_python['stat']['executable']
+        fail_msg: Virtualenv Python is not executable
+
+    - name: Verify application requirements file exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: item_requirements
+
+    - name: Assert application requirements file exists
+      ansible.builtin.assert:
+        that:
+          - item_requirements['stat']['exists']
+          - item_requirements['stat']['isreg']
+        fail_msg: Application requirements file is missing
+
+    - name: Read application environment file
+      ansible.builtin.slurp:
+        src: /opt/fastapi-tutorial/.env
+      register: item_environment
+
+    - name: Assert application environment variables are present
+      ansible.builtin.assert:
+        that:
+          - "(item_environment['content'] | b64decode) is regex('(?m)^PROJECT_NAME=')"
+          - "(item_environment['content'] | b64decode) is regex('(?m)^API_VERSION=')"
+          - "(item_environment['content'] | b64decode) is regex('(?m)^DATABASE_URL=')"
+        fail_msg: Required application environment entries are missing
+
+    - name: Read FastAPI systemd unit
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/fastapi-tutorial.service
+      register: item_fastapi_unit
+
+    - name: Assert FastAPI systemd unit configuration
+      ansible.builtin.assert:
+        that:
+          - "(item_fastapi_unit['content'] | b64decode) is regex('(?m)^User=root$')"
+          - "(item_fastapi_unit['content'] | b64decode) is regex('(?m)^WorkingDirectory=/opt/fastapi-tutorial$')"
+          - "(item_fastapi_unit['content'] | b64decode) is regex('(?m)^ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn app\\.main:app --host 0\\.0\\.0\\.0 --port 8000$')"
+          - "(item_fastapi_unit['content'] | b64decode) is regex('(?m)^Restart=always$')"
+        fail_msg: FastAPI systemd unit does not contain the required settings
+
+    - name: Check FastAPI service enabled state
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - fastapi-tutorial
+      register: item_fastapi_enabled
+      changed_when: false
+
+    - name: Assert FastAPI service is enabled
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_enabled['rc'] == 0
+          - item_fastapi_enabled['stdout'] is search('enabled')
+        fail_msg: FastAPI service is not enabled
+
+    - name: Check FastAPI service active state
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - fastapi-tutorial
+      register: item_fastapi_active
+      changed_when: false
+
+    - name: Assert FastAPI service is active
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_active['rc'] == 0
+          - item_fastapi_active['stdout'] is search('active')
+        fail_msg: FastAPI service is not active
+
+    - name: Check FastAPI service restart count
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - fastapi-tutorial
+          - --property=NRestarts
+          - --value
+      register: item_fastapi_restarts
+      changed_when: false
+
+    - name: Assert FastAPI service is not repeatedly restarting
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_restarts['rc'] == 0
+          - item_fastapi_restarts['stdout'] | trim == '0'
+        fail_msg: FastAPI service has restarted unexpectedly
+
+    - name: Wait for FastAPI TCP port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 8000
+        state: started
+        timeout: 10
+
+    - name: Verify PostgreSQL service is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - postgresql
+      register: item_postgresql_active
+      changed_when: false
+
+    - name: Assert PostgreSQL service is active
+      ansible.builtin.assert:
+        that:
+          - item_postgresql_active['rc'] == 0
+          - item_postgresql_active['stdout'] is search('active')
+        fail_msg: PostgreSQL service is not active
+
+    - name: Wait for PostgreSQL TCP port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 5432
+        state: started
+        timeout: 10
+
+    - name: Check PostgreSQL role exists
+      become: true
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - "SELECT 1 FROM pg_roles WHERE rolname='fastapi';"
+      register: item_fastapi_role
+      changed_when: false
+
+    - name: Assert PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_role['rc'] == 0
+          - item_fastapi_role['stdout'] | trim == '1'
+        fail_msg: PostgreSQL role fastapi is missing
+
+    - name: Check PostgreSQL database exists and has the expected owner
+      become: true
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - "SELECT 1 FROM pg_database d JOIN pg_roles r ON d.datdba = r.oid WHERE d.datname='fastapi_db' AND r.rolname='fastapi';"
+      register: item_fastapi_database
+      changed_when: false
+
+    - name: Assert PostgreSQL database exists with the expected owner
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_database['rc'] == 0
+          - item_fastapi_database['stdout'] | trim == '1'
+        fail_msg: PostgreSQL database fastapi_db is missing or has the wrong owner
+
+    - name: Check PostgreSQL database privileges for fastapi
+      become: true
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - "SELECT has_database_privilege('fastapi','fastapi_db','CONNECT') AND has_database_privilege('fastapi','fastapi_db','CREATE') AND has_database_privilege('fastapi','fastapi_db','TEMPORARY');"
+      register: item_fastapi_privileges
+      changed_when: false
+
+    - name: Assert PostgreSQL database privileges for fastapi
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_privileges['rc'] == 0
+          - item_fastapi_privileges['stdout'] | trim == 't'
+        fail_msg: PostgreSQL role fastapi lacks required database privileges
