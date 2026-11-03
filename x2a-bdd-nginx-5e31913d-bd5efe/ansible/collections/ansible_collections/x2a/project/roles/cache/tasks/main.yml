@@ -1,0 +1,36 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Include Redis implementation  # noqa: L038 - external eloy.redis.redis role is required for Redis functionality, but its collection is not present in this codebase and cannot be added
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_install_method: "{{ cache_redis_install_method }}"
+    redis_version: "{{ cache_redis_version }}"
+    redis_port: "{{ cache_redis_port }}"
+    redis_requirepass: "{{ redis_password }}"
+    redis_replication_enabled: "{{ cache_redis_replication_enabled }}"
+    redis_cluster_enabled: "{{ cache_redis_cluster_enabled }}"
+    redis_sentinel_enabled: "{{ cache_redis_sentinel_enabled }}"
+    redis_aof_enabled: "{{ cache_redis_aof_enabled }}"
+    redis_rdb_enabled: "{{ cache_redis_rdb_enabled }}"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Remove obsolete Redis replication directives
+  ansible.builtin.replace:
+    path: /etc/redis/6379.conf
+    regexp: (?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority).*$?
+    replace: ""
+  failed_when: false
+  register: cache_redis_config_cleanup
+  notify: Restart Redis

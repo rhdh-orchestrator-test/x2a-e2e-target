@@ -1,0 +1,57 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure a standalone Redis cache server.
+    description:
+      - Deploys Redis on TCP port 6379 using the eloy.redis collection role.
+      - Creates the Redis log directory and applies the cache configuration workaround.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether tasks handling Redis credentials suppress output.
+      cache_redis_version:
+        type: str
+        required: false
+        default: "7.2"
+        description: Redis version to install.
+      cache_redis_install_method:
+        type: str
+        required: false
+        default: package
+        description: Redis installation method.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port for Redis.
+      cache_redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      cache_redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis cluster mode is enabled.
+      cache_redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel mode is enabled.
+      cache_redis_aof_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether append-only persistence is enabled.
+      cache_redis_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether RDB persistence is enabled.
+      redis_password:
+        type: str
+        required: true
+        description: Redis password injected by an AAP credential type.
