@@ -1,0 +1,27 @@
+---
+# Unsupported pre-flight checks: source/dependency file inspection, Redis service identity and state,
+# conditional Redis configuration and authentication checks, Redis log ownership/mode, Memcached checks
+# with unresolved placeholders, and the final Ansible idempotence run cannot be safely verified here.
+- name: Verify cache endpoints and filesystem
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Inspect the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Verify the Redis log directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+        fail_msg: The Redis log directory does not exist.
+        success_msg: The Redis log directory exists.

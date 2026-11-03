@@ -1,0 +1,13 @@
+---
+argument_specs:
+  main:
+    short_description: Configure a Redis cache service
+    description:
+      - Configures a standalone Redis cache using the approved eloy.redis.redis role.
+      - Redis authentication is supplied through an AAP credential variable.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide output from tasks that handle the Redis password.
