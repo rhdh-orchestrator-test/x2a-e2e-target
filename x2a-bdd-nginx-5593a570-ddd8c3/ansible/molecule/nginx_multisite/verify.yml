@@ -1,0 +1,161 @@
+---
+# Unsupported pre-flight diagnostics: readlink targets, directory/file listings, certificate
+# metadata and permissions, curl response/header checks, and sysctl output have no stated
+# expected outcome in the pre-flight section.
+- name: Verify nginx-multisite pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Confirm required packages are installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are present
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts.packages
+        fail_msg: A required package is not installed.
+      loop:
+        - nginx
+        - openssl
+        - ca-certificates
+        - fail2ban
+        - ufw
+      loop_control:
+        loop_var: item_package
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert nginx is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['nginx.service']['status'] == 'enabled'
+          - ansible_facts.services['nginx.service']['state'] == 'running'
+        fail_msg: Nginx is not enabled and active.
+
+    - name: Assert fail2ban is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['fail2ban.service']['status'] == 'enabled'
+          - ansible_facts.services['fail2ban.service']['state'] == 'running'
+        fail_msg: Fail2ban is not enabled and active.
+
+    - name: Assert SSH service is active
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts.services.get('ssh.service', {}).get('state', '') == 'running') or
+            (ansible_facts.services.get('sshd.service', {}).get('state', '') == 'running')
+        fail_msg: Neither ssh nor sshd is active.
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: item_nginx_config_test
+      changed_when: false
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - item_nginx_config_test.rc == 0
+        fail_msg: Nginx configuration validation failed.
+
+    - name: Validate SSH configuration
+      ansible.builtin.command:
+        argv:
+          - sshd
+          - -t
+      register: item_sshd_config_test
+      changed_when: false
+
+    - name: Assert SSH configuration is valid
+      ansible.builtin.assert:
+        that:
+          - item_sshd_config_test.rc == 0
+        fail_msg: SSH configuration validation failed.
+
+    - name: Check SSH hardening directives
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - '^(PermitRootLogin no|PasswordAuthentication no)$'
+          - /etc/ssh/sshd_config
+      register: item_ssh_hardening_check
+      changed_when: false
+
+    - name: Assert SSH hardening directives are configured
+      ansible.builtin.assert:
+        that:
+          - item_ssh_hardening_check.rc == 0
+          - "'PermitRootLogin no' in item_ssh_hardening_check.stdout"
+          - "'PasswordAuthentication no' in item_ssh_hardening_check.stdout"
+        fail_msg: Required SSH hardening directives are missing.
+
+    - name: Check required nginx configuration files
+      ansible.builtin.stat:
+        path: "{{ item_nginx_file }}"
+      loop:
+        - /etc/nginx/nginx.conf
+        - /etc/nginx/conf.d/security.conf
+        - /etc/nginx/sites-available/test.cluster.local
+        - /etc/nginx/sites-available/ci.cluster.local
+        - /etc/nginx/sites-available/status.cluster.local
+      loop_control:
+        loop_var: item_nginx_file
+      register: item_nginx_file_checks
+
+    - name: Assert required nginx configuration files exist
+      ansible.builtin.assert:
+        that:
+          - item_nginx_file_check['stat']['exists']
+          - item_nginx_file_check['stat']['isreg']
+        fail_msg: A required nginx configuration file is missing.
+      loop: "{{ item_nginx_file_checks['results'] }}"
+      loop_control:
+        loop_var: item_nginx_file_check
+
+    - name: Check that the default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: item_default_nginx_site
+
+    - name: Assert that the default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not item_default_nginx_site['stat']['exists']
+        fail_msg: The default nginx site must not exist.
+
+    - name: Check required kernel security configuration file
+      ansible.builtin.stat:
+        path: /etc/sysctl.d/99-security.conf
+      register: item_sysctl_security_file
+
+    - name: Assert kernel security configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_sysctl_security_file['stat']['exists']
+          - item_sysctl_security_file['stat']['isreg']
+        fail_msg: The kernel security configuration file is missing.
+
+    - name: Check firewall status and required rules
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      register: item_ufw_status
+      changed_when: false
+
+    - name: Assert firewall policy and required rules
+      ansible.builtin.assert:
+        that:
+          - item_ufw_status.rc == 0
+          - "item_ufw_status.stdout is search('Default: deny')"
+          - "item_ufw_status.stdout is search('22/tcp')"
+          - "item_ufw_status.stdout is search('80/tcp')"
+          - "item_ufw_status.stdout is search('443/tcp')"
+        fail_msg: UFW does not have the required default policy and rules.
