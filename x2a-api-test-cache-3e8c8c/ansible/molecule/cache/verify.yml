@@ -1,0 +1,163 @@
+---
+# Unsupported pre-flight checks: Redis and Memcached service/configuration names and the
+# Redis log file path are placeholders requiring dependency inspection; raw status, journal,
+# directory listing, and log-content diagnostics have no stated expected outcome.
+# The Memcached endpoint and configuration checks are also unsupported because their values
+# are not specified in the pre-flight section.
+
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  vars:
+    cache_secure_logging: true
+  tasks:
+    - name: Verify Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config['stat']['exists']
+          - cache_redis_config['stat']['isreg']
+        fail_msg: Redis configuration file is missing or is not a regular file.
+
+    - name: Read Redis configuration for directive checks
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_config_content
+
+    - name: Assert Redis listens on port 6379 in its configuration
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config_content['content'] | b64decode is search('(?m)^port\\s+6379\\s*$')
+        fail_msg: Redis configuration does not declare port 6379.
+
+    - name: Assert Redis password authentication is enabled
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config_content['content'] | b64decode is search('(?m)^requirepass\\s+\\S+')
+        fail_msg: Redis password authentication is not enabled in the configuration.
+
+    - name: Assert replica-serve-stale-data cleanup directive is absent
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config_content['content'] | b64decode is not search('(?m)^replica-serve-stale-data')
+        fail_msg: Redis replica-serve-stale-data cleanup directive is present.
+
+    - name: Assert replica-read-only cleanup directive is absent
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config_content['content'] | b64decode is not search('(?m)^replica-read-only')
+        fail_msg: Redis replica-read-only cleanup directive is present.
+
+    - name: Assert repl-ping-replica-period cleanup directive is absent
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config_content['content'] | b64decode is not search('(?m)^repl-ping-replica-period')
+        fail_msg: Redis repl-ping-replica-period cleanup directive is present.
+
+    - name: Assert client-output-buffer-limit cleanup directive is absent
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config_content['content'] | b64decode is not search('(?m)^client-output-buffer-limit')
+        fail_msg: Redis client-output-buffer-limit cleanup directive is present.
+
+    - name: Assert replica-priority cleanup directive is absent
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config_content['content'] | b64decode is not search('(?m)^replica-priority')
+        fail_msg: Redis replica-priority cleanup directive is present.
+
+    - name: Check that Redis is listening on TCP port 6379
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: cache_redis_listeners
+      changed_when: false
+
+    - name: Assert Redis is listening on TCP port 6379
+      ansible.builtin.assert:
+        that:
+          - cache_redis_listeners['stdout'] is search('(?m):6379\\b')
+        fail_msg: No TCP listener was found on Redis port 6379.
+
+    - name: Check Redis PING using the vaulted password
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - PING
+        environment:
+          REDISCLI_AUTH: "{{ redis_password }}"
+      register: cache_redis_ping
+      changed_when: false
+      no_log: "{{ cache_secure_logging }}"
+
+    - name: Assert Redis PING returns PONG
+      ansible.builtin.assert:
+        that:
+          - cache_redis_ping['rc'] == 0
+          - cache_redis_ping['stdout'] | trim == 'PONG'
+        fail_msg: Redis PING did not return PONG.
+
+    - name: Check Redis server information using the vaulted password
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - INFO
+          - server
+        environment:
+          REDISCLI_AUTH: "{{ redis_password }}"
+      register: cache_redis_info
+      changed_when: false
+      no_log: "{{ cache_secure_logging }}"
+
+    - name: Assert Redis INFO server succeeds
+      ansible.builtin.assert:
+        that:
+          - cache_redis_info['rc'] == 0
+          - cache_redis_info['stdout'] is search('(?m)^# Server')
+        fail_msg: Redis INFO server did not return server information.
+
+    - name: Check Redis configured port using the vaulted password
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - CONFIG
+          - GET
+          - port
+        environment:
+          REDISCLI_AUTH: "{{ redis_password }}"
+      register: cache_redis_config_get
+      changed_when: false
+      no_log: "{{ cache_secure_logging }}"
+
+    - name: Assert Redis CONFIG GET port reports 6379
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config_get['rc'] == 0
+          - cache_redis_config_get['stdout'] is search('(?m)^port\\s+6379\\s*$')
+        fail_msg: Redis CONFIG GET port did not report 6379.
+
+    - name: Verify Redis log directory metadata
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_directory
+
+    - name: Assert Redis log directory has expected metadata
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_directory['stat']['exists']
+          - cache_redis_log_directory['stat']['isdir']
+          - cache_redis_log_directory['stat']['pw_name'] == 'redis'
+          - cache_redis_log_directory['stat']['gr_name'] == 'redis'
+          - cache_redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: Redis log directory metadata does not match the pre-flight expectation.

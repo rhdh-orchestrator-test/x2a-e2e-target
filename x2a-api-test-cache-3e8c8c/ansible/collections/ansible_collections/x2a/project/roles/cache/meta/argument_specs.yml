@@ -1,0 +1,37 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure Redis cache services
+    description:
+      - Configures a standalone Redis cache using the eloy.redis collection.
+      - The Redis password is injected at runtime by an AAP credential type.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress task output for operations involving the Redis password.
+      redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by the Redis instance.
+      redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis cluster mode is enabled.
+      redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel mode is enabled.
+      redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      redis_password:
+        type: str
+        required: true
+        description: Password injected by the AAP credential type for Redis authentication.

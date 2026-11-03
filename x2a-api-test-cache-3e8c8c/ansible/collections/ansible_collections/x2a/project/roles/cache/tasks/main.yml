@@ -1,0 +1,36 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Redis cache  # noqa: L038 - external eloy.redis.redis role is not present in the supplied execution tree
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_requirepass: "{{ redis_password }}"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Check for Redis configuration
+  ansible.builtin.stat:
+    path: "/etc/redis/{{ redis_port }}.conf"
+  register: cache_redis_config
+
+- name: Remove legacy replication directives
+  ansible.builtin.replace:
+    path: "/etc/redis/{{ redis_port }}.conf"  # noqa: R114 - path uses redis_port from role defaults
+    regexp: ^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority).*$
+    replace: ""
+    create: false
+  when: cache_redis_config.stat.exists  # noqa: L039 - variable is registered by the preceding stat task
+  notify: Restart Redis
+# The source cookbook references an external memcached cookbook whose implementation
+# is not present in the supplied execution tree; its package and service details
+# cannot be migrated without inventing dependency behavior.
