@@ -1,0 +1,84 @@
+---
+# Unsupported pre-flight checks: the Redis and Memcached service unit names and the
+# effective Memcached port are placeholders; Redis authentication requires an external
+# protected secret; logfile/dir output, process listings, and journal output have no
+# stated expected result suitable for a read-only assertion.
+
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check that the Redis configuration exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_file
+
+    - name: Assert that the Redis configuration exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_file.stat.exists
+          - redis_config_file.stat.isreg
+        fail_msg: Redis configuration /etc/redis/6379.conf is missing
+
+    - name: Read the Redis configuration for non-secret checks
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config
+
+    - name: Assert that Redis is configured for port 6379
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config['content'] | b64decode |
+            regex_search('(?m)^port\\s+6379$')) is not none
+        fail_msg: Redis configuration does not contain port 6379
+
+    - name: Assert that the Redis password directive exists
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config['content'] | b64decode |
+            regex_search('(?m)^requirepass\\s+')) is not none
+        fail_msg: Redis configuration does not contain a requirepass directive
+
+    - name: Assert that unwanted Redis replication directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config['content'] | b64decode |
+            regex_search('(?m)^replica-serve-stale-data')) is none
+          - >-
+            (redis_config['content'] | b64decode |
+            regex_search('(?m)^replica-read-only')) is none
+          - >-
+            (redis_config['content'] | b64decode |
+            regex_search('(?m)^repl-ping-replica-period')) is none
+          - >-
+            (redis_config['content'] | b64decode |
+            regex_search('(?m)^client-output-buffer-limit')) is none
+          - >-
+            (redis_config['content'] | b64decode |
+            regex_search('(?m)^replica-priority')) is none
+        fail_msg: Redis replication directives remain in the configuration
+
+    - name: Check that Redis is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Check the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+          - redis_log_directory.stat.pw_name == 'redis'
+          - redis_log_directory.stat.gr_name == 'redis'
+          - redis_log_directory.stat.mode == '0755'
+        fail_msg: Redis log directory does not have the expected ownership or mode
