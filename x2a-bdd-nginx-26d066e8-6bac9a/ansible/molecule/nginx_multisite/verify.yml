@@ -1,0 +1,59 @@
+---
+# Unsupported pre-flight checks: service status/enabled state, fail2ban-client output,
+# sysctl output/reload, configuration listings, nginx syntax, site-link targets,
+# certificate details, HTTP responses, sockets, and journal output have no stated
+# expected result in the pre-flight section.
+- name: Verify nginx multisite pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check UFW default policy and allowed web and SSH ports
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      register: item_ufw_status
+      changed_when: false
+
+    - name: Assert UFW default incoming policy is deny
+      ansible.builtin.assert:
+        that:
+          - item_ufw_status.stdout is regex_search('(?im)^Default:\s+deny\s+\(incoming\)')
+        fail_msg: UFW does not report a default incoming deny policy.
+
+    - name: Assert UFW allows SSH HTTP and HTTPS
+      ansible.builtin.assert:
+        that:
+          - item_ufw_status.stdout is regex_search('(?im)^22/tcp\s+ALLOW')
+          - item_ufw_status.stdout is regex_search('(?im)^80/tcp\s+ALLOW')
+          - item_ufw_status.stdout is regex_search('(?im)^443/tcp\s+ALLOW')
+        fail_msg: UFW does not report all required SSH, HTTP, and HTTPS rules.
+
+    - name: Check SSH hardening settings
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - '^(PermitRootLogin|PasswordAuthentication)'
+          - /etc/ssh/sshd_config
+      register: item_ssh_settings
+      changed_when: false
+
+    - name: Assert SSH root login and password authentication are disabled
+      ansible.builtin.assert:
+        that:
+          - item_ssh_settings.stdout is regex_search('(?m)^PermitRootLogin\s+no$')
+          - item_ssh_settings.stdout is regex_search('(?m)^PasswordAuthentication\s+no$')
+        fail_msg: SSH hardening settings do not disable root login and password authentication.
+
+    - name: Check the default Nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: item_default_site
+
+    - name: Assert the default Nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not item_default_site.stat.exists
+        fail_msg: The default Nginx site is present.
