@@ -1,0 +1,60 @@
+---
+argument_specs:
+  main:
+    short_description: Configure a secure Nginx multisite web server
+    description:
+      - Installs and configures Nginx, Fail2ban, UFW, TLS certificates, and three HTTPS virtual hosts.
+    options:
+      nginx_multisite_sites:
+        type: dict
+        required: false
+        default:
+          test.cluster.local:
+            document_root: /opt/server/test
+            source: test/index.html
+            ssl_enabled: true
+            certificate: /etc/ssl/certs/test.cluster.local.crt
+            key: /etc/ssl/private/test.cluster.local.key
+          ci.cluster.local:
+            document_root: /opt/server/ci
+            source: ci/index.html
+            ssl_enabled: true
+            certificate: /etc/ssl/certs/ci.cluster.local.crt
+            key: /etc/ssl/private/ci.cluster.local.key
+          status.cluster.local:
+            document_root: /opt/server/status
+            source: status/index.html
+            ssl_enabled: true
+            certificate: /etc/ssl/certs/status.cluster.local.crt
+            key: /etc/ssl/private/status.cluster.local.key
+        description: Nginx sites and their document, certificate, and key paths.
+      nginx_multisite_certificate_path:
+        type: str
+        required: false
+        default: /etc/ssl/certs
+        description: Directory for generated site certificates.
+      nginx_multisite_private_key_path:
+        type: str
+        required: false
+        default: /etc/ssl/private
+        description: Directory for generated site private keys.
+      nginx_multisite_security_fail2ban_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Fail2ban security configuration is enabled.
+      nginx_multisite_security_ufw_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether UFW firewall configuration is enabled.
+      nginx_multisite_security_disable_root:
+        type: bool
+        required: false
+        default: true
+        description: Whether SSH root login is disabled.
+      nginx_multisite_security_password_auth:
+        type: bool
+        required: false
+        default: false
+        description: Whether SSH password authentication remains enabled.
