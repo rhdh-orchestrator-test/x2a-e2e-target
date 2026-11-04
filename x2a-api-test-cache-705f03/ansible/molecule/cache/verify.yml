@@ -1,0 +1,59 @@
+---
+# Unsupported pre-flight checks: Redis service status/enablement/active state and journal
+# checks require the unavailable redisio service name; process verification, Redis INFO
+# output, log-directory ownership/mode and contents, and Memcached checks have no stated
+# expected outcome or depend on the missing dependency.
+- name: Verify cache service
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config.stat.exists
+          - cache_redis_config.stat.isreg
+        fail_msg: Redis configuration file is missing
+
+    - name: Verify Redis listens on TCP port 6379
+      ansible.builtin.wait_for:
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Verify Redis removed replication directives
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_config_content
+
+    - name: Assert removed Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            cache_redis_config_content.content | b64decode is not
+            search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: Unexpected Redis replication directives remain in the configuration
+
+    - name: Verify authenticated Redis connectivity
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - -a
+          - "{{ redis_password }}"
+          - PING
+      register: cache_redis_ping
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+
+    - name: Assert authenticated Redis connectivity returns PONG
+      ansible.builtin.assert:
+        that:
+          - cache_redis_ping.rc == 0
+          - cache_redis_ping.stdout | trim == 'PONG'
+        fail_msg: Authenticated Redis PING did not return PONG

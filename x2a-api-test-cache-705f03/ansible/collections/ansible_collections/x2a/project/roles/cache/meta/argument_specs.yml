@@ -1,0 +1,17 @@
+---
+argument_specs:
+  main:
+    short_description: Configure caching services with a standalone Redis server.
+    description:
+      - Deploys and configures a standalone Redis cache server with password authentication.
+      - The Redis password is injected at runtime through an AAP credential variable.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output for tasks that handle the Redis password.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.
