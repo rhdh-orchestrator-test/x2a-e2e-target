@@ -1,0 +1,25 @@
+---
+- name: Create APT keyrings directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Download APT repository keyring # noqa: R106 - source is a trusted HTTPS role default
+  ansible.builtin.get_url:
+    url: "{{ postgresql_repo_key_source }}" # noqa: R104 - source is a trusted HTTPS role default
+    dest: /etc/apt/keyrings/{{ postgresql_repo_key_filename }} # noqa: R114 - filename is a role-defined default
+    owner: root
+    group: root
+    mode: "0644"
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Configure PostgreSQL package repository
+  ansible.builtin.apt_repository:
+    repo: deb [signed-by=/etc/apt/keyrings/{{ postgresql_repo_key_filename }}] {{ postgresql_repo_location }} {{ postgresql_repo_release }} main
+    state: present
+    filename: pgdg
+  when: ansible_facts['os_family'] == 'Debian'

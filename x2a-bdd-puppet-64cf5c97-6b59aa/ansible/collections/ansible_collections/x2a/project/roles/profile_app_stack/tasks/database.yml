@@ -1,0 +1,54 @@
+---
+- name: Manage local PostgreSQL installation # noqa: L039 - db_host is supplied by role environment group variables
+  ansible.builtin.include_tasks: postgresql_init.yml
+  when: db_host == 'localhost'
+
+- name: Ensure local PostgreSQL application role exists # noqa: L039 - database credentials are supplied by role environment group variables
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      psql -v ON_ERROR_STOP=1 -tAc "SELECT 1 FROM pg_roles WHERE rolname='{{ db_user }}'" | grep -q 1 || \
+        psql -v ON_ERROR_STOP=1 -c "CREATE ROLE {{ db_user }} LOGIN PASSWORD '{{ db_password }}'" # noqa: R101 - SQL uses trusted role database variables
+    executable: /bin/bash
+  when: db_host == 'localhost'
+  changed_when: false
+  become: true # noqa: R108 - PostgreSQL role management requires the postgres user
+  become_user: postgres
+  no_log: "{{ profile_app_stack_secure_logging }}"
+
+- name: Ensure local PostgreSQL application database exists # noqa: L039 - database variables are supplied by role environment group variables
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      psql -v ON_ERROR_STOP=1 -tAc "SELECT 1 FROM pg_database WHERE datname='{{ db_name }}'" | grep -q 1 || \
+        createdb -O "{{ db_user }}" "{{ db_name }}" # noqa: R101 - SQL uses trusted role database variables
+    executable: /bin/bash
+  when: db_host == 'localhost'
+  changed_when: false
+  become: true # noqa: R108 - PostgreSQL database management requires the postgres user
+  become_user: postgres
+
+- name: Create database backup directory
+  ansible.builtin.file:
+    path: /var/backups/postgresql
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Deploy database backup script
+  ansible.builtin.copy:
+    src: db-backup.sh
+    dest: /usr/local/bin/db-backup.sh
+    owner: root
+    group: "{{ app_group }}"
+    mode: "0750"
+    backup: true
+
+- name: Schedule database backup # noqa: L039 - database variables are supplied by role environment group variables
+  ansible.builtin.cron:
+    name: "{{ app_name }} database backup"
+    user: root
+    minute: "30"
+    hour: "2"
+    job: /usr/local/bin/db-backup.sh {{ db_name }} {{ db_host }}

@@ -1,0 +1,14 @@
+---
+- name: Ensure APT configuration directories exist # noqa: R114 - loop values are fixed role-defined APT paths
+  ansible.builtin.file:
+    path: "{{ item_apt_setting }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /etc/apt/apt.conf.d
+    - /etc/apt/preferences.d
+    - /etc/apt/sources.list.d
+  loop_control:
+    loop_var: item_apt_setting

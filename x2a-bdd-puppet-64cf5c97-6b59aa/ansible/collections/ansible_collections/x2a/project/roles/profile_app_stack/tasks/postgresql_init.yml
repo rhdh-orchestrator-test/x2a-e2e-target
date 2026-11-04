@@ -1,0 +1,13 @@
+---
+- name: Load platform-specific PostgreSQL variables
+  ansible.builtin.include_vars: "{{ ansible_facts['os_family'] }}.yml"
+  when: ansible_facts['os_family'] is defined
+
+- name: Configure PostgreSQL package repository
+  ansible.builtin.include_tasks: postgresql_repo.yml
+
+- name: Install PostgreSQL packages
+  ansible.builtin.include_tasks: postgresql_install.yml
+
+- name: Manage PostgreSQL service
+  ansible.builtin.include_tasks: postgresql_service.yml

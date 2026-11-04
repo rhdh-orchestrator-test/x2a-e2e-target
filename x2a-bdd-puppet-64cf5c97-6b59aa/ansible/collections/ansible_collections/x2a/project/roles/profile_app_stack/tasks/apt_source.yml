@@ -1,0 +1,7 @@
+---
+- name: Configure PostgreSQL APT source
+  ansible.builtin.apt_repository:
+    repo: deb [signed-by=/etc/apt/keyrings/{{ postgresql_repo_key_filename }}] {{ postgresql_repo_location }} {{ postgresql_repo_release }} main
+    state: present
+    filename: pgdg
+  when: ansible_facts['os_family'] == 'Debian'

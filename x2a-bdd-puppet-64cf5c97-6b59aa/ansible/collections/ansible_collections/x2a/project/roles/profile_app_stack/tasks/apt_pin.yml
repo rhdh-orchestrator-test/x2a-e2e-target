@@ -1,0 +1,13 @@
+---
+- name: Configure PostgreSQL APT package pin
+  ansible.builtin.copy:
+    dest: /etc/apt/preferences.d/pgdg.pref
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+    content: |
+      Package: *
+      Pin: origin www.postgresql.org
+      Pin-Priority: 500
+  when: ansible_facts['os_family'] == 'Debian'

@@ -1,0 +1,167 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy and manage the test-app Python application stack
+    description:
+      - Installs the Python runtime, deploys the application, configures PostgreSQL, and manages its systemd service.
+      - Secret values are supplied through AAP credential variables and protected by secure logging.
+    options:
+      app_name:
+        type: str
+        required: false
+        default: test-app
+        description: Application and systemd service name.
+      app_repo:
+        type: str
+        required: false
+        default: file:///tmp/test-app-repo
+        description: Git repository containing the application.
+      app_revision:
+        type: str
+        required: false
+        default: master
+        description: Git revision to deploy.
+      app_port:
+        type: int
+        required: false
+        default: 8000
+        description: Application listening port.
+      app_dir:
+        type: str
+        required: false
+        default: /opt/test-app
+        description: Application checkout directory.
+      app_user:
+        type: str
+        required: false
+        default: appuser
+        description: Service account name.
+      app_group:
+        type: str
+        required: false
+        default: appuser
+        description: Service account group.
+      worker_count:
+        type: int
+        required: false
+        default: 2
+        description: Gunicorn worker count.
+      worker_class:
+        type: str
+        required: false
+        default: sync
+        description: Gunicorn worker class.
+      max_requests:
+        type: int
+        required: false
+        default: 1000
+        description: Maximum requests handled by a worker.
+      graceful_timeout:
+        type: int
+        required: false
+        default: 30
+        description: Gunicorn graceful shutdown timeout.
+      log_dir:
+        type: str
+        required: false
+        default: /var/log/test-app
+        description: Application log directory.
+      log_level:
+        type: str
+        required: false
+        default: info
+        description: Gunicorn and application log level.
+      python_version:
+        type: str
+        required: false
+        default: python3
+        description: Python executable and package prefix.
+      pip_packages:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: Additional Python packages to install.
+      log_max_size:
+        type: str
+        required: false
+        default: 100M
+        description: Maximum log file size before rotation.
+      log_rotate_count:
+        type: int
+        required: false
+        default: 7
+        description: Number of rotated log files to retain.
+      app_environment:
+        type: str
+        required: false
+        default: common
+        description: Deployment environment name.
+      manage_utils:
+        type: bool
+        required: false
+        default: false
+        description: Whether utility packages should be managed.
+      manage_ntp:
+        type: bool
+        required: false
+        default: false
+        description: Whether NTP should be managed.
+      manage_syslog:
+        type: bool
+        required: false
+        default: false
+        description: Whether syslog should be managed.
+      postgresql_version:
+        type: int
+        required: false
+        default: 15
+        description: PostgreSQL major version.
+      postgresql_package_names:
+        type: list
+        elements: str
+        required: false
+        default:
+          - postgresql-15
+          - postgresql-client-15
+        description: PostgreSQL packages to install.
+      postgresql_service_name:
+        type: str
+        required: false
+        default: postgresql
+        description: PostgreSQL service name.
+      postgresql_repo_location:
+        type: str
+        required: false
+        default: https://apt.postgresql.org/pub/repos/apt
+        description: PostgreSQL APT repository URL.
+      postgresql_repo_release:
+        type: str
+        required: false
+        default: "{{ ansible_facts['distribution_release'] }}-pgdg"
+        description: PostgreSQL APT repository release.
+      postgresql_repo_key_id:
+        type: str
+        required: false
+        default: ACCC4CF8
+        description: PostgreSQL repository signing key identifier.
+      postgresql_repo_key_source:
+        type: str
+        required: false
+        default: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+        description: PostgreSQL repository signing key URL.
+      postgresql_repo_key_filename:
+        type: str
+        required: false
+        default: pgdg.asc
+        description: Local PostgreSQL repository keyring filename.
+      app_migrations_present:
+        type: bool
+        required: false
+        default: false
+        description: Whether the checkout contains migrations/env.py.
+      profile_app_stack_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide output from tasks handling application secrets.

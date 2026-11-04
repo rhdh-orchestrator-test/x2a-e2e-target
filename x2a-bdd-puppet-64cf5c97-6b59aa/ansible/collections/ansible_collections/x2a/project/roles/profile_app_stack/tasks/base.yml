@@ -1,0 +1,30 @@
+---
+- name: Load platform-specific base variables
+  ansible.builtin.include_vars: "{{ ansible_facts['os_family'] }}.yml"
+  when: ansible_facts['os_family'] is defined
+
+- name: Install chrony when NTP management is enabled
+  ansible.builtin.package:
+    name: chrony
+    state: present
+  when: manage_ntp | bool
+
+- name: Enable chrony service
+  ansible.builtin.service:
+    name: "{{ chrony_service_name }}"
+    enabled: true
+    state: started
+  when: manage_ntp | bool
+
+- name: Install rsyslog when syslog management is enabled
+  ansible.builtin.package:
+    name: rsyslog
+    state: present
+  when: manage_syslog | bool
+
+- name: Enable rsyslog service
+  ansible.builtin.service:
+    name: rsyslog
+    enabled: true
+    state: started
+  when: manage_syslog | bool
