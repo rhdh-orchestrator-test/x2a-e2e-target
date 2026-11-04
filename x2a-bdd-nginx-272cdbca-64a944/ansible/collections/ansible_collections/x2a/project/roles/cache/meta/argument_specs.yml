@@ -1,0 +1,56 @@
+---
+argument_specs:
+  main:
+    short_description: Configure caching services with Redis.
+    description:
+      - Deploys and configures a standalone Redis cache with authentication and a dedicated log directory.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks that handle the Redis password.
+      redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by the Redis server.
+      redis_version:
+        type: str
+        required: false
+        default: "7.2"
+        description: Redis version installed by the Redis collection role.
+      redis_install_method:
+        type: str
+        required: false
+        default: package
+        description: Installation method used for Redis.
+      redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis cluster mode is enabled.
+      redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel mode is enabled.
+      redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      redis_aof_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis append-only persistence is enabled.
+      redis_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis RDB persistence is enabled.
+      redis_password:
+        type: str
+        required: true
+        description: Password injected by an AAP credential type for Redis authentication.

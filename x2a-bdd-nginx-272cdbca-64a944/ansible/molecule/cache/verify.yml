@@ -1,0 +1,43 @@
+# Unsupported pre-flight checks: authenticated Redis PING requires the vault password;
+# unauthenticated rejection and configuration-directive checks are conditional on source
+# confirmation; Redis log ownership/listing and all Memcached checks lack a stated
+# expected outcome or confirmed service details.
+---
+- name: Verify Redis pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Collect service facts for the Redis service discovery check
+      ansible.builtin.service_facts:
+
+    - name: Confirm a Redis service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts.services | dict2items |
+            selectattr('key', 'search', '(^|\\.)redis([^.]*)\\.service$|redis|6379') |
+            selectattr('value', 'in', [{'state': 'running', 'status': 'enabled'},
+            {'state': 'running', 'status': 'static'},
+            {'state': 'running', 'status': 'indirect'}]) | list | length) > 0
+        fail_msg: A Redis-related service was not found both enabled and active.
+        success_msg: A Redis-related service is enabled and active.
+
+    - name: Confirm the reported Redis endpoint is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Check the reported Redis configuration path
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_file
+
+    - name: Confirm the reported Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_file.stat.exists
+          - redis_config_file.stat.isreg
+        fail_msg: The reported Redis configuration file is missing.
+        success_msg: The reported Redis configuration file exists.
