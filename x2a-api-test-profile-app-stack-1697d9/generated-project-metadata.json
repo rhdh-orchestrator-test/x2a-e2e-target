@@ -1,0 +1,44 @@
+[
+  {
+    "name": "base_utils",
+    "path": "site-modules/base_utils",
+    "description": "Manages common host utilities, including the MOTD and Hiera-provided utility packages, while providing custom types, functions, facts, and operational tasks.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_app_stack",
+    "path": "site-modules/profile_app_stack",
+    "description": "Deploys a Python application by managing its Git checkout, virtual environment, dependencies, protected environment file, database migrations, and systemd service.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_haproxy",
+    "path": "site-modules/profile_haproxy",
+    "description": "Installs and configures HAProxy with backend fragments, custom error pages, optional discovery, service and firewall management, statistics, TLS, and stick-table support.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_postgresql",
+    "path": "site-modules/profile_postgresql",
+    "description": "Installs PostgreSQL using the PGDG repository, manages version-pinned packages including libpq-dev, and configures the database service.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_redis_cluster",
+    "path": "site-modules/profile_redis_cluster",
+    "description": "Configures Redis with password authentication, network binding, AOF persistence, memory limits, and an LRU policy, while querying PuppetDB for Redis-role discovery.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile",
+    "path": "site-modules/profile",
+    "description": "Provides wrapper profiles that compose the base, application, HAProxy, and Redis implementations.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "role",
+    "path": "site-modules/role",
+    "description": "Combines profiles into node-level compositions for application, application-stack, HAProxy, and Redis cluster systems.",
+    "technology": "Puppet"
+  }
+]
