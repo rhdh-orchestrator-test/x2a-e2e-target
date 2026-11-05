@@ -1,0 +1,94 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure a standalone Redis server.
+    description:
+      - Deploys the standalone Redis instance from the profile_redis_cluster Puppet module.
+      - Redis authentication is supplied by the AAP credential variable redis_password.
+    options:
+      redis_cluster_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to hide output from tasks that handle the Redis password.
+      redis_cluster_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port on which Redis listens.
+      redis_cluster_maxmemory_mb:
+        type: int
+        required: false
+        default: 256
+        description: Maximum Redis memory in megabytes.
+      redis_cluster_maxmemory_policy:
+        type: str
+        required: false
+        default: allkeys-lru
+        description: Redis eviction policy.
+      redis_cluster_bind:
+        type: list
+        elements: str
+        required: false
+        default:
+          - 0.0.0.0
+        description: Addresses on which Redis listens.
+      redis_cluster_appendonly:
+        type: bool
+        required: false
+        default: true
+        description: Whether append-only persistence is enabled.
+      redis_cluster_appendfsync:
+        type: str
+        required: false
+        default: everysec
+        description: Append-only file synchronization policy.
+      redis_cluster_service_name:
+        type: str
+        required: false
+        default: redis-server
+        description: Redis system service name.
+      redis_cluster_ulimit:
+        type: int
+        required: false
+        default: 65536
+        description: Maximum number of open files for the Redis service.
+      redis_cluster_unixsocket:
+        type: str
+        required: false
+        default: /var/run/redis/redis.sock
+        description: Redis Unix socket path.
+      redis_cluster_config_mode:
+        type: str
+        required: false
+        default: "0640"
+        description: Mode for the Redis configuration file.
+      redis_cluster_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis cluster mode is enabled.
+      redis_cluster_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel is enabled.
+      redis_cluster_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      redis_cluster_aof_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis AOF persistence is enabled.
+      redis_cluster_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis RDB persistence is enabled.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.

@@ -1,0 +1,107 @@
+---
+# Unsupported pre-flight checks: OS/package resolution, secret-provider availability, directory and
+# configuration-file ownership/modes, effective configuration grep values, systemctl cat output,
+# authenticated redis-cli ping, and changing configuration to verify the handler have no safely
+# stated expected outcome here or would require handling a secret or mutating application state.
+- name: Verify profile_redis_cluster
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Confirm the redis service account exists
+      ansible.builtin.getent:
+        database: passwd
+        key: redis
+      register: item_redis_passwd
+      failed_when: false
+      changed_when: false
+
+    - name: Assert the redis service account is present
+      ansible.builtin.assert:
+        that:
+          - item_redis_passwd.ansible_facts.getent_passwd is defined
+          - "'redis' in item_redis_passwd.ansible_facts.getent_passwd"
+        fail_msg: The redis service account is not present.
+
+    - name: Confirm the redis service group exists
+      ansible.builtin.getent:
+        database: group
+        key: redis
+      register: item_redis_group
+      failed_when: false
+      changed_when: false
+
+    - name: Assert the redis service group is present
+      ansible.builtin.assert:
+        that:
+          - item_redis_group.ansible_facts.getent_group is defined
+          - "'redis' in item_redis_group.ansible_facts.getent_group"
+        fail_msg: The redis service group is not present.
+
+    - name: Check the default instance open-file-limit drop-in
+      ansible.builtin.stat:
+        path: /etc/systemd/system/redis-server.service.d/90-limits.conf
+      register: item_redis_limits_dropin
+
+    - name: Assert the default instance open-file-limit drop-in exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_limits_dropin.stat.exists
+          - item_redis_limits_dropin.stat.isreg
+        fail_msg: The redis-server open-file-limit drop-in is missing.
+
+    - name: Check that the legacy limits file is absent
+      ansible.builtin.stat:
+        path: /etc/systemd/system/redis-server.service.d/limit.conf
+      register: item_redis_legacy_limits
+
+    - name: Assert the legacy limits file is absent
+      ansible.builtin.assert:
+        that:
+          - not item_redis_legacy_limits.stat.exists
+        fail_msg: The legacy redis-server limits file is present.
+
+    - name: Validate the Redis configuration
+      ansible.builtin.command:
+        argv:
+          - redis-server
+          - /etc/redis/redis.conf
+          - --check-config
+      register: item_redis_config_validation
+      changed_when: false
+      failed_when: false
+
+    - name: Assert the Redis configuration is valid
+      ansible.builtin.assert:
+        that:
+          - item_redis_config_validation.rc == 0
+        fail_msg: The Redis configuration validation command failed.
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert the default redis-server service is enabled and running
+      ansible.builtin.assert:
+        that:
+          - "'redis-server.service' in ansible_facts.services"
+          - ansible_facts.services['redis-server.service']['status'] == 'enabled'
+          - ansible_facts.services['redis-server.service']['state'] == 'running'
+        fail_msg: The default redis-server service is not enabled and running.
+
+    - name: Wait for the default Redis TCP endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Check the default Redis Unix socket
+      ansible.builtin.stat:
+        path: /var/run/redis/redis.sock
+      register: item_redis_socket
+
+    - name: Assert the default Redis Unix socket exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_socket.stat.exists
+          - item_redis_socket.stat.issock
+        fail_msg: The default Redis Unix socket is missing or is not a socket.
