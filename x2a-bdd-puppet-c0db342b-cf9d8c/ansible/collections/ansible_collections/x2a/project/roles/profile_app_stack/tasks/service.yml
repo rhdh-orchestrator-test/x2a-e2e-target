@@ -1,0 +1,34 @@
+---
+- name: Render systemd unit
+  ansible.builtin.template:
+    src: app.service.j2
+    dest: /etc/systemd/system/{{ profile_app_stack_app_name }}.service # noqa: R114 - unit name is a trusted role default
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify:
+    - Reload systemd
+    - Restart application service
+  vars:
+    app_name: "{{ profile_app_stack_app_name }}"
+    app_dir: "{{ profile_app_stack_app_dir }}"
+    app_user: "{{ profile_app_stack_app_user }}"
+    app_group: "{{ profile_app_stack_app_group }}"
+    app_port: "{{ profile_app_stack_app_port }}"
+    worker_count: "{{ profile_app_stack_worker_count }}"
+    worker_class: "{{ profile_app_stack_worker_class }}"
+    max_requests: "{{ profile_app_stack_max_requests }}"
+    graceful_timeout: "{{ profile_app_stack_graceful_timeout }}"
+    log_dir: "{{ profile_app_stack_log_dir }}"
+    log_level: "{{ profile_app_stack_log_level }}"
+
+- name: Reload systemd after deploying application unit
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Ensure application service is enabled and running
+  ansible.builtin.service:
+    name: "{{ profile_app_stack_app_name }}"
+    state: started
+    enabled: true

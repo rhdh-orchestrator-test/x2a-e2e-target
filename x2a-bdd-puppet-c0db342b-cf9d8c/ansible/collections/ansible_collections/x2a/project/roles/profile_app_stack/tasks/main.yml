@@ -1,0 +1,29 @@
+---
+- name: Apply application stack prerequisites and platform gating
+  ansible.builtin.include_tasks: app_stack.yml
+
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Load environment-specific variables
+  ansible.builtin.include_vars: "{{ profile_app_stack_environment_name }}.yml"
+  when: profile_app_stack_environment_name in ['production', 'staging']
+
+- name: Load repository environment variables
+  ansible.builtin.include_vars: repository_{{ profile_app_stack_environment_name }}.yml
+  when: profile_app_stack_environment_name in ['production', 'staging']
+
+- name: Run Python runtime setup
+  ansible.builtin.include_tasks: python.yml
+
+- name: Run database setup
+  ansible.builtin.include_tasks: database.yml
+
+- name: Run application deployment
+  ansible.builtin.include_tasks: app.yml
+
+- name: Run service setup
+  ansible.builtin.include_tasks: service.yml
+
+- name: Run monitoring setup
+  ansible.builtin.include_tasks: monitoring.yml

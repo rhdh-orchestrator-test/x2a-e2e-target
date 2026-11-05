@@ -1,0 +1,118 @@
+---
+- name: Install PostgreSQL client tools for database operations
+  ansible.builtin.package:
+    name: postgresql-client
+    state: present
+
+- name: Install PostgreSQL packages for local database
+  ansible.builtin.package:
+    name:
+      - postgresql
+      - postgresql-contrib
+    state: present
+  when: db_host == 'localhost' # noqa: L039 - database host is a required AAP role input
+
+- name: Ensure PostgreSQL service is running
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true
+  when: db_host == 'localhost' # noqa: L039 - database host is a required AAP role input
+
+- name: Check whether application database role exists # noqa: L039,R101,R108 - database inputs are required AAP role inputs; command is the PostgreSQL role check and escalation is required to query as postgres
+  ansible.builtin.command:
+    argv:
+      - psql
+      - -tAc
+      - SELECT 1 FROM pg_roles WHERE rolname='{{ db_user }}'
+  when: db_host == 'localhost'
+  changed_when: false
+  failed_when: false
+  register: profile_app_stack_db_role_check
+  become: true
+  become_user: postgres
+
+- name: Create application database role # noqa: L039,R101,R108 - database inputs and the prior check result are role inputs or registered values; command and escalation are required for PostgreSQL administration
+  ansible.builtin.command:
+    argv:
+      - psql
+      - -c
+      - CREATE USER {{ db_user }} WITH PASSWORD '{{ db_password }}';
+  when:
+    - db_host == 'localhost'
+    - profile_app_stack_db_role_check.rc != 0 or profile_app_stack_db_role_check.stdout | trim != '1'
+  changed_when: true
+  become: true
+  become_user: postgres
+  no_log: "{{ profile_app_stack_secure_logging }}"
+
+- name: Check whether application database exists # noqa: L039,R101,R108 - database inputs are required AAP role inputs; command is the PostgreSQL database check and escalation is required to query as postgres
+  ansible.builtin.command:
+    argv:
+      - psql
+      - -tAc
+      - SELECT 1 FROM pg_catalog.pg_database WHERE datname='{{ db_name }}'
+  when: db_host == 'localhost'
+  changed_when: false
+  failed_when: false
+  register: profile_app_stack_database_check
+  become: true
+  become_user: postgres
+
+- name: Create application database # noqa: L039,R101,R108 - database inputs and the prior check result are role inputs or registered values; command and escalation are required for PostgreSQL administration
+  ansible.builtin.command:
+    argv:
+      - createdb
+      - -O
+      - "{{ db_user }}"
+      - "{{ db_name }}"
+  when:
+    - db_host == 'localhost'
+    - profile_app_stack_database_check.rc != 0 or profile_app_stack_database_check.stdout | trim != '1'
+  changed_when: true
+  become: true
+  become_user: postgres
+
+- name: Check application database privileges # noqa: L039,R101,R108 - database inputs are required AAP role inputs; command is the PostgreSQL privilege check and escalation is required to query as postgres
+  ansible.builtin.command:
+    argv:
+      - psql
+      - -tAc
+      - SELECT has_database_privilege('{{ db_user }}', '{{ db_name }}', 'CREATE')
+  when: db_host == 'localhost'
+  changed_when: false
+  failed_when: false
+  register: profile_app_stack_privilege_check
+  become: true
+  become_user: postgres
+
+- name: Grant application database privileges # noqa: L039,R101,R108 - database inputs and the prior check result are role inputs or registered values; command and escalation are required for PostgreSQL administration
+  ansible.builtin.command:
+    argv:
+      - psql
+      - -c
+      - GRANT ALL PRIVILEGES ON DATABASE {{ db_name }} TO {{ db_user }};
+  when:
+    - db_host == 'localhost'
+    - profile_app_stack_privilege_check.rc != 0 or profile_app_stack_privilege_check.stdout | trim != 't'
+  changed_when: true
+  become: true
+  become_user: postgres
+
+- name: Deploy database backup script
+  ansible.builtin.copy:
+    src: backup.sh
+    dest: /usr/local/bin/db-backup.sh
+    owner: root
+    group: "{{ profile_app_stack_app_group }}"
+    mode: "0750"
+    backup: true
+
+- name: Schedule database backup
+  ansible.builtin.cron:
+    name: database_backup
+    user: root
+    minute: "30"
+    hour: "2"
+    job: /usr/local/bin/db-backup.sh {{ db_name }} {{ db_host }} # noqa: L039 - database inputs are required AAP role inputs
+  no_log: "{{ profile_app_stack_secure_logging }}"

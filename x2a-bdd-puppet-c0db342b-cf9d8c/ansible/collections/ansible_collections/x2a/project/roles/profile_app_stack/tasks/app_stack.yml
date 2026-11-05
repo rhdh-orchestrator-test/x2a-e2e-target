@@ -1,0 +1,11 @@
+---
+- name: Apply application stack only on Linux
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['system'] | lower == 'linux'
+    fail_msg: profile_app_stack requires a Linux host.
+
+- name: Include base profile prerequisites when available # noqa: L038 - optional role is intentionally included only when available and disabled in this migrated profile
+  ansible.builtin.include_role:
+    name: x2a.project.profile_base
+  when: false

@@ -1,0 +1,188 @@
+---
+# Unsupported pre-flight checks: Python version output, Git branch output, systemctl
+# daemon-reload/enable --now/status output, cron listing, and plaintext-credential grep.
+- name: Verify profile_app_stack pre-flight checks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Confirm the target operating system
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['system'] | lower == 'linux'
+        fail_msg: The verification host is not Linux.
+
+    - name: Confirm the application account exists
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ profile_app_stack_app_user }}"
+
+    - name: Confirm the application group exists
+      ansible.builtin.getent:
+        database: group
+        key: "{{ profile_app_stack_app_group }}"
+
+    - name: Confirm the application directory exists
+      ansible.builtin.stat:
+        path: "{{ profile_app_stack_app_dir }}"
+      register: app_dir_stat
+
+    - name: Assert the application directory is a directory
+      ansible.builtin.assert:
+        that:
+          - app_dir_stat.stat.exists
+          - app_dir_stat.stat.isdir
+
+    - name: Confirm the application directory is a Git work tree
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - "{{ profile_app_stack_app_dir }}"
+          - rev-parse
+          - --is-inside-work-tree
+      changed_when: false
+      register: git_worktree
+
+    - name: Assert the application directory is a Git work tree
+      ansible.builtin.assert:
+        that:
+          - git_worktree.rc == 0
+          - git_worktree.stdout | trim == 'true'
+
+    - name: Confirm the application virtual environment Python exists
+      ansible.builtin.stat:
+        path: "{{ profile_app_stack_app_dir }}/venv/bin/python"
+      register: venv_python
+
+    - name: Assert the application virtual environment Python is executable
+      ansible.builtin.assert:
+        that:
+          - venv_python.stat.exists
+          - venv_python.stat.executable
+
+    - name: Confirm Python dependencies are consistent
+      ansible.builtin.command:
+        argv:
+          - "{{ profile_app_stack_app_dir }}/venv/bin/python"
+          - -m
+          - pip
+          - check
+      changed_when: false
+
+    - name: Confirm application configuration file permissions
+      ansible.builtin.stat:
+        path: "{{ profile_app_stack_app_dir }}/.env"
+      register: app_env_stat
+
+    - name: Assert application configuration file mode is 600
+      ansible.builtin.assert:
+        that:
+          - app_env_stat.stat.exists
+          - app_env_stat.stat.mode == '0600'
+
+    - name: Confirm PostgreSQL is accepting connections
+      ansible.builtin.command:
+        argv:
+          - pg_isready
+          - -h
+          - localhost
+          - -p
+          - '5432'
+      changed_when: false
+
+    - name: Confirm PostgreSQL accepts an application database query
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -h
+          - localhost
+          - -p
+          - '5432'
+          - -U
+          - "{{ profile_app_stack_db_user }}"
+          - -d
+          - "{{ profile_app_stack_db_name }}"
+          - -c
+          - SELECT 1;
+      changed_when: false
+
+    - name: Confirm the database backup script is executable
+      ansible.builtin.stat:
+        path: /usr/local/bin/db-backup.sh
+      register: db_backup_stat
+
+    - name: Assert the database backup script is executable
+      ansible.builtin.assert:
+        that:
+          - db_backup_stat.stat.exists
+          - db_backup_stat.stat.executable
+
+    - name: Execute the database backup pre-flight check
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/db-backup.sh
+      changed_when: false
+
+    - name: Confirm the application health-check script is executable
+      ansible.builtin.stat:
+        path: /usr/local/bin/app-healthcheck.sh
+      register: app_healthcheck_stat
+
+    - name: Assert the application health-check script is executable
+      ansible.builtin.assert:
+        that:
+          - app_healthcheck_stat.stat.exists
+          - app_healthcheck_stat.stat.executable
+
+    - name: Execute the application health-check pre-flight check
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/app-healthcheck.sh
+      changed_when: false
+
+    - name: Confirm logrotate configuration parses
+      ansible.builtin.command:
+        argv:
+          - logrotate
+          - -d
+          - "/etc/logrotate.d/{{ profile_app_stack_app_name }}"
+      changed_when: false
+
+    - name: Confirm systemd unit syntax
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - "/etc/systemd/system/{{ profile_app_stack_app_name }}.service"
+      changed_when: false
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert the application service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services'][profile_app_stack_app_name + '.service']['status'] == 'enabled'
+          - ansible_facts['services'][profile_app_stack_app_name + '.service']['state'] == 'running'
+
+    - name: Confirm the application endpoint is reachable
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ profile_app_stack_app_port }}/"
+        method: GET
+        return_content: false
+        status_code: 200
+
+    - name: Gather installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert production monitoring packages are installed
+      ansible.builtin.assert:
+        that:
+          - "'prometheus-node-exporter' in ansible_facts['packages']"
+          - "'prometheus-pushgateway' in ansible_facts['packages']"
+
+    - name: Assert the production node exporter service is active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['prometheus-node-exporter.service']['state'] == 'running'

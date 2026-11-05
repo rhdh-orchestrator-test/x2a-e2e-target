@@ -1,0 +1,99 @@
+---
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ profile_app_stack_app_dir }}" # noqa: R114 - path is a trusted role default
+    state: directory
+    owner: "{{ profile_app_stack_app_user }}"
+    group: "{{ profile_app_stack_app_group }}"
+    mode: "0755"
+
+- name: Check out application repository # noqa: R104,R106,R108 - repository URL is a trusted role default and the git source is intentionally parameterized; become is required to manage the application checkout ownership
+  ansible.builtin.git:
+    repo: "{{ profile_app_stack_app_repo }}"
+    dest: "{{ profile_app_stack_app_dir }}" # noqa: R114 - destination is a trusted role default
+    version: "{{ profile_app_stack_app_revision }}"
+    update: true
+    force: false
+  notify: Restart application service
+  become: true
+  become_user: "{{ profile_app_stack_app_user }}"
+
+- name: Create application virtual environment # noqa: R108,R101 - runs the trusted role-configured Python executable as the application user
+  ansible.builtin.command:
+    argv:
+      - "{{ profile_app_stack_python_version }}"
+      - -m
+      - venv
+      - "{{ profile_app_stack_app_dir }}/venv"
+    creates: "{{ profile_app_stack_app_dir }}/venv/bin/activate" # noqa: R114 - path is a trusted role default
+  become: true
+  become_user: "{{ profile_app_stack_app_user }}"
+
+- name: Install application requirements # noqa: R108,R113 - installs the role-configured dependency requirements into the role-managed virtual environment; become is required for the virtualenv operation
+  ansible.builtin.pip:
+    requirements: "{{ profile_app_stack_app_dir }}/requirements.txt" # noqa: R114 - path is a trusted role default
+    virtualenv: "{{ profile_app_stack_app_dir }}/venv" # noqa: R114 - path is a trusted role default
+    virtualenv_command: "{{ profile_app_stack_python_version }} -m venv"
+  notify: Restart application service
+  become: true
+  become_user: "{{ profile_app_stack_app_user }}"
+
+- name: Install extra Python packages # noqa: R108,R113 - installs trusted role-configured packages into the role-managed virtual environment
+  ansible.builtin.pip:
+    name: "{{ profile_app_stack_pip_packages }}"
+    virtualenv: "{{ profile_app_stack_app_dir }}/venv" # noqa: R114 - path is a trusted role default
+    state: present
+  when: profile_app_stack_pip_packages | length > 0
+  become: true
+  become_user: "{{ profile_app_stack_app_user }}"
+
+- name: Render application environment
+  ansible.builtin.template:
+    src: app.env.j2
+    dest: "{{ profile_app_stack_app_dir }}/.env" # noqa: R114 - path is a trusted role default
+    owner: "{{ profile_app_stack_app_user }}"
+    group: "{{ profile_app_stack_app_group }}"
+    mode: "0600"
+    backup: true
+  notify: Restart application service
+  no_log: "{{ profile_app_stack_secure_logging }}"
+  vars:
+    db_url: postgresql://{{ db_user }}:{{ db_password }}@{{ db_host }}:{{ db_port }}/{{ db_name }}
+    app_name: "{{ profile_app_stack_app_name }}"
+    app_port: "{{ profile_app_stack_app_port }}"
+    secret_key: "{{ secret_key }}"
+    log_level: "{{ profile_app_stack_log_level }}"
+    log_dir: "{{ profile_app_stack_log_dir }}"
+    worker_count: "{{ profile_app_stack_worker_count }}"
+    environment_name: "{{ profile_app_stack_environment_name }}"
+
+- name: Deploy application health check script
+  ansible.builtin.copy:
+    src: healthcheck.sh
+    dest: /usr/local/bin/app-healthcheck.sh
+    owner: root
+    group: root
+    mode: "0755"
+    backup: true
+
+- name: Check for migration environment
+  ansible.builtin.stat:
+    path: "{{ profile_app_stack_app_dir }}/migrations/env.py" # noqa: R114 - path is a trusted role default
+  register: profile_app_stack_migration_file
+
+- name: Run database migrations when present # noqa: L039,L045,R101,R108 - database credentials come from required AAP role inputs; environment is required by Alembic; command and escalation are intentional for the role-managed application
+  ansible.builtin.command:
+    argv:
+      - "{{ profile_app_stack_app_dir }}/venv/bin/python"
+      - -m
+      - alembic
+      - upgrade
+      - head
+    chdir: "{{ profile_app_stack_app_dir }}" # noqa: R114 - working directory is a trusted role default
+  when: profile_app_stack_migration_file.stat.exists
+  changed_when: true
+  become: true
+  become_user: "{{ profile_app_stack_app_user }}"
+  no_log: "{{ profile_app_stack_secure_logging }}"
+  environment:
+    DATABASE_URL: postgresql://{{ db_user }}:{{ db_password }}@{{ db_host }}:{{ db_port }}/{{ db_name }}
