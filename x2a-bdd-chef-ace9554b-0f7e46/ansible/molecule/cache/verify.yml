@@ -1,0 +1,20 @@
+---
+# Unsupported pre-flight checks: the source path is not defined in the test hosts;
+# Redis and Memcached service names, endpoints, and configuration paths are unknown;
+# endpoint and journal diagnostics have no stated expected outcome; directory stat
+# properties have no stated expected values.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify the Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert the Redis log directory is present
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+        fail_msg: Redis log directory is missing
