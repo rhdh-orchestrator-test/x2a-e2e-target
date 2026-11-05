@@ -1,0 +1,149 @@
+{
+  "module_name": "cache",
+  "items": [
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/run_cache.yml",
+      "status": "complete",
+      "description": "Deployment entry point for the migrated role",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/requirements.yml",
+      "status": "complete",
+      "description": "Test-only Podman collection dependency",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/README.md",
+      "status": "complete",
+      "description": "Developer instructions for running Molecule",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/cache/molecule.yml",
+      "status": "complete",
+      "description": "Ansible-native Molecule scenario configuration",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/cache/inventory/hosts.yml",
+      "status": "complete",
+      "description": "Disposable Podman target inventory",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/cache/create.yml",
+      "status": "complete",
+      "description": "Create and inspect disposable Podman targets",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/cache/destroy.yml",
+      "status": "complete",
+      "description": "Remove disposable Podman targets",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/cache/prepare.yml",
+      "status": "complete",
+      "description": "Bootstrap Python on the disposable Linux target",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/cache/converge.yml",
+      "status": "complete",
+      "description": "Run the deployment playbook under test",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/cache/verify.yml",
+      "status": "complete",
+      "description": "Verify migrated behavior against the source plan",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "recipes",
+      "source_path": "cookbooks/cache/recipes/default.rb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/cache/tasks/default.yml",
+      "status": "complete",
+      "description": "Migrate the cache default recipe, including Redis role orchestration and the verified /var/log/redis directory behavior; replace the ruby_block workaround with declarative configuration.",
+      "notes": "Converted Redis deployment to the approved eloy.redis.redis role, preserved the Redis log directory, and replaced the Ruby config workaround with declarative settings."
+    },
+    {
+      "category": "dependencies",
+      "source_path": "collection:eloy.redis",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/cache/requirements.yml",
+      "status": "complete",
+      "description": "Use the discovered eloy.redis.redis role for the standalone Redis instance on port 6379.",
+      "notes": "Added the pre-generated Private Hub collection requirement at the pinned version."
+    },
+    {
+      "category": "structure",
+      "source_path": "metadata.rb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/cache/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata for the cache role.",
+      "notes": "Converted Chef metadata to Galaxy role metadata, including supported platforms and cache-related tags. The duplicate checklist entry was already complete and was not overwritten."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/cache/defaults/main.yml",
+      "status": "complete",
+      "description": "Default variables for the cache role and Redis configuration.",
+      "notes": "Added user-facing defaults for the externally supplied Redis password and secret-safe task logging."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/cache/meta/argument_specs.yml",
+      "status": "complete",
+      "description": "Role argument specs for fail-fast parameter validation; generate after defaults/main.yml.",
+      "notes": "Documented cache role defaults and secret logging behavior."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/cache/handlers/main.yml",
+      "status": "complete",
+      "description": "Role handlers entry point, if service notification handling is required.",
+      "notes": "No local handlers are required because the approved Redis collection role manages the service."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/cache/tasks/main.yml",
+      "status": "complete",
+      "description": "Role task entry point to include the cache default task file.",
+      "notes": "Role entry point includes the converted default task file."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/cache/meta/main.yml",
+      "status": "complete",
+      "description": "Created standard meta/main.yml",
+      "notes": ""
+    }
+  ]
+}

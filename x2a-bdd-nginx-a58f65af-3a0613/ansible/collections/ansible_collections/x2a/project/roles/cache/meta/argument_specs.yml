@@ -1,0 +1,17 @@
+---
+argument_specs:
+  main:
+    short_description: Configure a Redis cache service
+    description:
+      - Installs and configures a standalone Redis cache using the approved Redis collection role.
+    options:
+      cache_redis_password:
+        type: str
+        required: false
+        default: ""
+        description: Redis authentication password; override with a value from Ansible Vault or an external secret manager.
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks that handle the Redis password.

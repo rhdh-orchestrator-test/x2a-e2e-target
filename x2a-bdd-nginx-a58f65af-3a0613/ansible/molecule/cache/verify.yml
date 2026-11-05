@@ -1,0 +1,20 @@
+---
+# Unsupported pre-flight checks: cookbook source-file presence is outside the
+# disposable target, service units are unspecified, the Redis endpoint and
+# configuration path require confirmation, and log review has no asserted
+# expected outcome. Memcached service and endpoint details are also unavailable.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify the Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert the Redis log directory is present
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+        fail_msg: The Redis log directory must exist as a directory.
