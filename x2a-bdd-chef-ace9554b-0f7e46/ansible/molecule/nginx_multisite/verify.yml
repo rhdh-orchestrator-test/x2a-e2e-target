@@ -1,0 +1,255 @@
+---
+# Unsupported pre-flight checks: HTTP response headers, certificate details, ownership/modes,
+# UFW and fail2ban status output, sysctl values, listening-port output, and log contents have
+# no stated expected outcome in the migration plan.
+- name: Verify nginx multisite pre-flight checks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Verify required packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts['packages']
+        fail_msg: "A required package is not installed"
+      loop:
+        - nginx
+        - fail2ban
+        - ufw
+        - openssl
+        - ca-certificates
+      loop_control:
+        loop_var: item_package
+
+    - name: Verify nginx is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - nginx
+      register: nginx_enabled
+      changed_when: false
+
+    - name: Assert nginx is enabled
+      ansible.builtin.assert:
+        that:
+          - nginx_enabled['rc'] == 0
+        fail_msg: "nginx is not enabled"
+
+    - name: Verify nginx is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - nginx
+      register: nginx_active
+      changed_when: false
+
+    - name: Assert nginx is active
+      ansible.builtin.assert:
+        that:
+          - nginx_active['rc'] == 0
+        fail_msg: "nginx is not active"
+
+    - name: Verify fail2ban is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - fail2ban
+      register: fail2ban_enabled
+      changed_when: false
+
+    - name: Assert fail2ban is enabled
+      ansible.builtin.assert:
+        that:
+          - fail2ban_enabled['rc'] == 0
+        fail_msg: "fail2ban is not enabled"
+
+    - name: Verify fail2ban is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - fail2ban
+      register: fail2ban_active
+      changed_when: false
+
+    - name: Assert fail2ban is active
+      ansible.builtin.assert:
+        that:
+          - fail2ban_active['rc'] == 0
+        fail_msg: "fail2ban is not active"
+
+    - name: Verify SSH is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - ssh
+      register: ssh_active
+      changed_when: false
+
+    - name: Assert SSH is active
+      ansible.builtin.assert:
+        that:
+          - ssh_active['rc'] == 0
+        fail_msg: "SSH is not active"
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: nginx_config_test
+      changed_when: false
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - nginx_config_test['rc'] == 0
+        fail_msg: "nginx configuration validation failed"
+
+    - name: Validate SSH daemon configuration
+      ansible.builtin.command:
+        argv:
+          - sshd
+          - -t
+      register: sshd_config_test
+      changed_when: false
+
+    - name: Assert SSH daemon configuration is valid
+      ansible.builtin.assert:
+        that:
+          - sshd_config_test['rc'] == 0
+        fail_msg: "SSH daemon configuration validation failed"
+
+    - name: Verify required configuration files exist
+      ansible.builtin.stat:
+        path: "{{ item_config_file }}"
+      register: configuration_files
+      loop:
+        - /etc/nginx/nginx.conf
+        - /etc/nginx/conf.d/security.conf
+        - /etc/fail2ban/jail.local
+        - /etc/sysctl.d/99-security.conf
+      loop_control:
+        loop_var: item_config_file
+
+    - name: Assert required configuration files exist
+      ansible.builtin.assert:
+        that:
+          - item_config_stat['stat']['exists']
+          - item_config_stat['stat']['isreg']
+        fail_msg: "A required configuration file is missing or not a regular file"
+      loop: "{{ configuration_files['results'] }}"
+      loop_control:
+        loop_var: item_config_stat
+
+    - name: Verify enabled site links exist
+      ansible.builtin.stat:
+        path: "{{ item_site_link }}"
+        follow: false
+      register: enabled_site_links
+      loop:
+        - /etc/nginx/sites-enabled/test.cluster.local
+        - /etc/nginx/sites-enabled/ci.cluster.local
+        - /etc/nginx/sites-enabled/status.cluster.local
+      loop_control:
+        loop_var: item_site_link
+
+    - name: Assert enabled site links exist
+      ansible.builtin.assert:
+        that:
+          - item_enabled_link['stat']['exists']
+          - item_enabled_link['stat']['islnk']
+        fail_msg: "An expected enabled-site symbolic link is missing"
+      loop: "{{ enabled_site_links['results'] }}"
+      loop_control:
+        loop_var: item_enabled_link
+
+    - name: Verify the default site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+        follow: false
+      register: default_site
+
+    - name: Assert the default site is absent
+      ansible.builtin.assert:
+        that:
+          - not default_site['stat']['exists']
+        fail_msg: "The default nginx site exists"
+
+    - name: Verify site directories and index files exist
+      ansible.builtin.stat:
+        path: "{{ item_site_path }}"
+      register: site_paths
+      loop:
+        - /opt/server/test
+        - /opt/server/test/index.html
+        - /opt/server/ci
+        - /opt/server/ci/index.html
+        - /opt/server/status
+        - /opt/server/status/index.html
+      loop_control:
+        loop_var: item_site_path
+
+    - name: Assert site directories and index files exist
+      ansible.builtin.assert:
+        that:
+          - item_site_stat['stat']['exists']
+        fail_msg: "An expected site path is missing"
+      loop: "{{ site_paths['results'] }}"
+      loop_control:
+        loop_var: item_site_stat
+
+    - name: Verify TLS certificates and private keys exist
+      ansible.builtin.stat:
+        path: "{{ item_tls_path }}"
+      register: tls_paths
+      loop:
+        - /etc/ssl/certs/test.cluster.local.crt
+        - /etc/ssl/private/test.cluster.local.key
+        - /etc/ssl/certs/ci.cluster.local.crt
+        - /etc/ssl/private/ci.cluster.local.key
+        - /etc/ssl/certs/status.cluster.local.crt
+        - /etc/ssl/private/status.cluster.local.key
+      loop_control:
+        loop_var: item_tls_path
+
+    - name: Assert TLS certificates and private keys exist
+      ansible.builtin.assert:
+        that:
+          - item_tls_stat['stat']['exists']
+          - item_tls_stat['stat']['isreg']
+        fail_msg: "An expected TLS file is missing or not a regular file"
+      loop: "{{ tls_paths['results'] }}"
+      loop_control:
+        loop_var: item_tls_stat
+
+    - name: Verify SSH hardening settings
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - "^[[:space:]]*{{ item_ssh_setting }}[[:space:]]+no"
+          - /etc/ssh/sshd_config
+      register: ssh_hardening
+      changed_when: false
+      loop:
+        - PermitRootLogin
+        - PasswordAuthentication
+      loop_control:
+        loop_var: item_ssh_setting
+
+    - name: Assert SSH hardening settings are disabled
+      ansible.builtin.assert:
+        that:
+          - item_ssh_result['rc'] == 0
+        fail_msg: "An expected SSH hardening setting is not configured"
+      loop: "{{ ssh_hardening['results'] }}"
+      loop_control:
+        loop_var: item_ssh_result
