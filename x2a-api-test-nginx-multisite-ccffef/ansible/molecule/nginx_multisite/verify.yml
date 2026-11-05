@@ -1,0 +1,152 @@
+# Unsupported pre-flight checks: package/service enablement, nginx/fail2ban/ufw/sshd diagnostics,
+# sysctl values, TLS ownership/modes, listening-port output, log tails, and template-content review
+# have no stated expected outcome in the pre-flight section.
+---
+- name: Verify nginx multisite pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify explicitly checked virtual-host files and directories exist
+      ansible.builtin.stat:
+        path: "{{ item_path['path'] }}"
+        follow: false
+      loop:
+        - path: /opt/server/test
+          kind: directory
+        - path: /opt/server/test/index.html
+          kind: file
+        - path: /etc/nginx/sites-available/test.cluster.local
+          kind: file
+        - path: /etc/nginx/sites-enabled/test.cluster.local
+          kind: link
+        - path: /etc/ssl/certs/test.cluster.local.crt
+          kind: file
+        - path: /etc/ssl/private/test.cluster.local.key
+          kind: file
+        - path: /opt/server/ci
+          kind: directory
+        - path: /opt/server/ci/index.html
+          kind: file
+        - path: /etc/nginx/sites-available/ci.cluster.local
+          kind: file
+        - path: /etc/nginx/sites-enabled/ci.cluster.local
+          kind: link
+        - path: /etc/ssl/certs/ci.cluster.local.crt
+          kind: file
+        - path: /etc/ssl/private/ci.cluster.local.key
+          kind: file
+        - path: /opt/server/status
+          kind: directory
+        - path: /opt/server/status/index.html
+          kind: file
+        - path: /etc/nginx/sites-available/status.cluster.local
+          kind: file
+        - path: /etc/nginx/sites-enabled/status.cluster.local
+          kind: link
+        - path: /etc/ssl/certs/status.cluster.local.crt
+          kind: file
+        - path: /etc/ssl/private/status.cluster.local.key
+          kind: file
+      loop_control:
+        loop_var: item_path
+      register: checked_paths
+
+    - name: Assert explicitly checked virtual-host paths have the expected type
+      ansible.builtin.assert:
+        that:
+          - item_stat['stat']['exists']
+          - (item_stat['stat']['isdir'] if item_stat['item']['kind'] == 'directory' else
+             item_stat['stat']['isreg'] if item_stat['item']['kind'] == 'file' else
+             item_stat['stat']['islnk'])
+        fail_msg: "An explicitly checked virtual-host path is missing or has the wrong type."
+      loop: "{{ checked_paths['results'] }}"
+      loop_control:
+        loop_var: item_stat
+
+    - name: Verify the default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: default_site
+
+    - name: Assert the default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not default_site['stat']['exists']
+        fail_msg: "The default nginx site must not exist."
+
+    - name: Verify HTTP redirects to HTTPS for each virtual host
+      ansible.builtin.uri:
+        url: http://127.0.0.1/
+        method: HEAD
+        headers:
+          Host: "{{ item_http['host'] }}"
+        follow_redirects: none
+        status_code: [301, 302, 307, 308]
+        return_content: false
+      loop:
+        - host: test.cluster.local
+        - host: ci.cluster.local
+        - host: status.cluster.local
+      loop_control:
+        loop_var: item_http
+      register: http_redirects
+
+    - name: Assert HTTP redirects use HTTPS
+      ansible.builtin.assert:
+        that:
+          - item_redirect['status'] in [301, 302, 307, 308]
+          - item_redirect['location'] is defined
+          - item_redirect['location'] is match('^https://')
+        fail_msg: "HTTP did not redirect to HTTPS for the requested virtual host."
+      loop: "{{ http_redirects['results'] }}"
+      loop_control:
+        loop_var: item_redirect
+
+    - name: Verify HTTPS returns a successful response for each virtual host
+      ansible.builtin.uri:
+        url: https://127.0.0.1/
+        method: GET
+        headers:
+          Host: "{{ item_https['host'] }}"
+        validate_certs: false
+        status_code: [200, 201, 202, 203, 204, 205, 206, 207, 208, 226]
+        return_content: false
+      loop:
+        - host: test.cluster.local
+        - host: ci.cluster.local
+        - host: status.cluster.local
+      loop_control:
+        loop_var: item_https
+
+    - name: Verify each certificate subject contains its virtual-host name
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - -in
+          - "{{ item_cert['certificate'] }}"
+          - -noout
+          - -subject
+          - -issuer
+          - -dates
+      changed_when: false
+      loop:
+        - host: test.cluster.local
+          certificate: /etc/ssl/certs/test.cluster.local.crt
+        - host: ci.cluster.local
+          certificate: /etc/ssl/certs/ci.cluster.local.crt
+        - host: status.cluster.local
+          certificate: /etc/ssl/certs/status.cluster.local.crt
+      loop_control:
+        loop_var: item_cert
+      register: certificate_subjects
+
+    - name: Assert each certificate has the expected common name
+      ansible.builtin.assert:
+        that:
+          - item_subject['rc'] == 0
+          - item_subject['stdout'] is search('CN=' ~ item_subject['item']['host'])
+        fail_msg: "The certificate subject does not contain the expected virtual-host name."
+      loop: "{{ certificate_subjects['results'] }}"
+      loop_control:
+        loop_var: item_subject
