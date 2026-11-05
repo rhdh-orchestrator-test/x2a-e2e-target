@@ -1,0 +1,241 @@
+---
+# Unsupported pre-flight checks: raw package listings, service/process/log output,
+# environment values beyond the named keys, database connectivity (requires a secret),
+# the systemd daemon-reload action, and the endpoint response have no safely stated
+# expected outcome suitable for a read-only assertion here.
+- name: Verify fastapi-tutorial deployment
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify required system packages are installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required system package is installed
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts['packages']
+        fail_msg: "A required system package is not installed."
+      loop:
+        - python3
+        - python3-pip
+        - python3-venv
+        - git
+        - postgresql
+        - postgresql-contrib
+        - libpq-dev
+      loop_control:
+        loop_var: item_package
+
+    - name: Check application source directory
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: fastapi_source_directory
+
+    - name: Assert application source directory exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_source_directory['stat']['exists']
+          - fastapi_source_directory['stat']['isdir']
+        fail_msg: "The FastAPI Tutorial source directory is missing."
+
+    - name: Check application requirements file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: fastapi_requirements_file
+
+    - name: Assert application requirements file exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_requirements_file['stat']['exists']
+          - fastapi_requirements_file['stat']['isreg']
+        fail_msg: "The FastAPI Tutorial requirements file is missing."
+
+    - name: Check virtual environment executables
+      ansible.builtin.stat:
+        path: "{{ item_venv_path }}"
+      loop:
+        - /opt/fastapi-tutorial/venv/bin/python
+        - /opt/fastapi-tutorial/venv/bin/pip
+        - /opt/fastapi-tutorial/venv/bin/uvicorn
+      loop_control:
+        loop_var: item_venv_path
+      register: fastapi_venv_executables
+
+    - name: Assert virtual environment executable exists
+      ansible.builtin.assert:
+        that:
+          - item_venv_result['stat']['exists']
+          - item_venv_result['stat']['isreg']
+          - item_venv_result['stat']['executable']
+        fail_msg: "A required FastAPI Tutorial virtual-environment executable is missing."
+      loop: "{{ fastapi_venv_executables['results'] }}"
+      loop_control:
+        loop_var: item_venv_result
+
+    - name: Run Python dependency consistency check
+      ansible.builtin.command:
+        argv:
+          - /opt/fastapi-tutorial/venv/bin/pip
+          - check
+      changed_when: false
+      register: fastapi_pip_check
+
+    - name: Assert Python dependencies are consistent
+      ansible.builtin.assert:
+        that:
+          - fastapi_pip_check['rc'] == 0
+        fail_msg: "The FastAPI Tutorial Python dependency check failed."
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert PostgreSQL service is active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['postgresql.service']['state'] == 'running'"
+        fail_msg: "The PostgreSQL service is not active."
+
+    - name: Check PostgreSQL service enablement
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - postgresql
+      changed_when: false
+      register: fastapi_postgresql_enabled
+
+    - name: Assert PostgreSQL service is enabled
+      ansible.builtin.assert:
+        that:
+          - fastapi_postgresql_enabled['rc'] == 0
+          - fastapi_postgresql_enabled['stdout'] | trim == 'enabled'
+        fail_msg: "The PostgreSQL service is not enabled."
+
+    - name: Check PostgreSQL listening port
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      changed_when: false
+      register: fastapi_postgresql_listener
+
+    - name: Assert PostgreSQL listens on localhost port 5432
+      ansible.builtin.assert:
+        that:
+          - fastapi_postgresql_listener['stdout'] is search('127\\.0\\.0\\.1:5432')
+        fail_msg: "PostgreSQL is not listening on localhost port 5432."
+
+    - name: Check PostgreSQL fastapi role
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - postgres
+          - --
+          - psql
+          - -tAc
+          - "SELECT rolname FROM pg_roles WHERE rolname = 'fastapi';"
+      changed_when: false
+      register: fastapi_postgresql_role
+
+    - name: Assert PostgreSQL fastapi role exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_postgresql_role['rc'] == 0
+          - fastapi_postgresql_role['stdout'] | trim == 'fastapi'
+        fail_msg: "The PostgreSQL fastapi role is missing."
+
+    - name: Check fastapi_db database owner
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - postgres
+          - --
+          - psql
+          - -tAc
+          - "SELECT datname, pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db';"
+      changed_when: false
+      register: fastapi_database_owner
+
+    - name: Assert fastapi_db is owned by fastapi
+      ansible.builtin.assert:
+        that:
+          - fastapi_database_owner['rc'] == 0
+          - fastapi_database_owner['stdout'] | trim == 'fastapi_db|fastapi'
+        fail_msg: "The fastapi_db database is missing or has the wrong owner."
+
+    - name: Read FastAPI environment file
+      ansible.builtin.slurp:
+        src: /opt/fastapi-tutorial/.env
+      register: fastapi_environment_file
+
+    - name: Assert FastAPI environment keys are present
+      ansible.builtin.assert:
+        that:
+          - fastapi_environment_file['content'] | b64decode is search('(?m)^PROJECT_NAME=')
+          - fastapi_environment_file['content'] | b64decode is search('(?m)^API_VERSION=')
+          - fastapi_environment_file['content'] | b64decode is search('(?m)^DATABASE_URL=')
+        fail_msg: "The FastAPI environment file is missing a required configuration key."
+
+    - name: Validate FastAPI systemd unit
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - /etc/systemd/system/fastapi-tutorial.service
+      changed_when: false
+      register: fastapi_unit_validation
+
+    - name: Assert FastAPI systemd unit is valid
+      ansible.builtin.assert:
+        that:
+          - fastapi_unit_validation['rc'] == 0
+        fail_msg: "The FastAPI systemd unit failed systemd-analyze verification."
+
+    - name: Check FastAPI service enablement
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - fastapi-tutorial
+      changed_when: false
+      register: fastapi_service_enabled
+
+    - name: Assert FastAPI service is enabled
+      ansible.builtin.assert:
+        that:
+          - fastapi_service_enabled['rc'] == 0
+          - fastapi_service_enabled['stdout'] | trim == 'enabled'
+        fail_msg: "The fastapi-tutorial service is not enabled."
+
+    - name: Check FastAPI service is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - fastapi-tutorial
+      changed_when: false
+      register: fastapi_service_active
+
+    - name: Assert FastAPI service is active
+      ansible.builtin.assert:
+        that:
+          - fastapi_service_active['rc'] == 0
+          - fastapi_service_active['stdout'] | trim == 'active'
+        fail_msg: "The fastapi-tutorial service is not active."
+
+    - name: Check FastAPI listening port
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      changed_when: false
+      register: fastapi_listener
+
+    - name: Assert FastAPI listens on 0.0.0.0 port 8000
+      ansible.builtin.assert:
+        that:
+          - fastapi_listener['stdout'] is search('0\\.0\\.0\\.0:8000')
+        fail_msg: "FastAPI is not listening on 0.0.0.0 port 8000."
