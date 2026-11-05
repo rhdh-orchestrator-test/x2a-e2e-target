@@ -1,0 +1,337 @@
+---
+# Unsupported pre-flight checks: detailed fail2ban option values, kernel sysctl values,
+# UFW rule parsing, nginx configuration content, and the exact static-file content.
+- name: Verify nginx multisite pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify required packages are installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts['packages']
+        loop:
+          - fail2ban
+          - ufw
+          - nginx
+          - openssl
+          - ca-certificates
+        loop_control:
+          loop_var: item_package
+        fail_msg: "A required package is not installed."
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert fail2ban and nginx are active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['fail2ban.service']['state'] == 'running'
+          - ansible_facts['services']['nginx.service']['state'] == 'running'
+        fail_msg: "The fail2ban and nginx services must be running."
+
+    - name: Assert SSH service is active
+      ansible.builtin.assert:
+        that:
+          - >-
+            ('ssh.service' in ansible_facts['services'] and
+            ansible_facts['services']['ssh.service']['state'] == 'running') or
+            ('sshd.service' in ansible_facts['services'] and
+            ansible_facts['services']['sshd.service']['state'] == 'running')
+        fail_msg: "The SSH service must be running."
+
+    - name: Check fail2ban jail status
+      ansible.builtin.command:
+        argv:
+          - fail2ban-client
+          - status
+          - "{{ item_fail2ban['name'] }}"
+      loop:
+        - name: sshd
+        - name: nginx-http-auth
+        - name: nginx-limit-req
+        - name: nginx-botsearch
+      loop_control:
+        loop_var: item_fail2ban
+      register: fail2ban_status
+      changed_when: false
+
+    - name: Assert every required fail2ban jail is available
+      ansible.builtin.assert:
+        that:
+          - item_jail['rc'] == 0
+        loop: "{{ fail2ban_status['results'] }}"
+        loop_control:
+          loop_var: item_jail
+        fail_msg: "A required fail2ban jail is unavailable."
+
+    - name: Check SSH hardening configuration
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - "^(PermitRootLogin no|PasswordAuthentication no)$"
+          - /etc/ssh/sshd_config
+      register: ssh_hardening
+      changed_when: false
+
+    - name: Assert SSH root login and password authentication are disabled
+      ansible.builtin.assert:
+        that:
+          - ssh_hardening['rc'] == 0
+          - "'PermitRootLogin no' in ssh_hardening['stdout_lines']"
+          - "'PasswordAuthentication no' in ssh_hardening['stdout_lines']"
+        fail_msg: "SSH hardening directives are not present."
+
+    - name: Validate SSH configuration syntax
+      ansible.builtin.command:
+        argv:
+          - sshd
+          - -t
+      register: sshd_syntax
+      changed_when: false
+
+    - name: Assert SSH configuration is valid
+      ansible.builtin.assert:
+        that:
+          - sshd_syntax['rc'] == 0
+        fail_msg: "The SSH configuration must pass sshd syntax validation."
+
+    - name: Check nginx configuration syntax
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: nginx_syntax
+      changed_when: false
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - nginx_syntax['rc'] == 0
+          - "'syntax is ok' in (nginx_syntax['stderr'] | lower)"
+          - "'test is successful' in (nginx_syntax['stderr'] | lower)"
+        fail_msg: "The nginx configuration must pass nginx -t."
+
+    - name: Check nginx enabled state
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - nginx
+      register: nginx_enabled
+      changed_when: false
+
+    - name: Assert nginx is enabled
+      ansible.builtin.assert:
+        that:
+          - nginx_enabled['rc'] == 0
+          - nginx_enabled['stdout'] | trim == 'enabled'
+        fail_msg: "The nginx service must be enabled."
+
+    - name: Check static site files and TLS keys
+      ansible.builtin.stat:
+        path: "{{ item_path['path'] }}"
+        follow: false
+      loop:
+        - path: /opt/server/test/index.html
+        - path: /opt/server/ci/index.html
+        - path: /opt/server/status/index.html
+        - path: /etc/ssl/private/test.cluster.local.key
+        - path: /etc/ssl/private/ci.cluster.local.key
+        - path: /etc/ssl/private/status.cluster.local.key
+      loop_control:
+        loop_var: item_path
+      register: required_files
+
+    - name: Assert static files and TLS keys have expected ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_file['stat']['exists']
+          - item_file['stat']['pw_name'] == item_file['expected_owner']
+          - item_file['stat']['gr_name'] == item_file['expected_group']
+          - item_file['stat']['mode'] == item_file['expected_mode']
+        loop:
+          - path: /opt/server/test/index.html
+            expected_owner: www-data
+            expected_group: www-data
+            expected_mode: '0644'
+          - path: /opt/server/ci/index.html
+            expected_owner: www-data
+            expected_group: www-data
+            expected_mode: '0644'
+          - path: /opt/server/status/index.html
+            expected_owner: www-data
+            expected_group: www-data
+            expected_mode: '0644'
+          - path: /etc/ssl/private/test.cluster.local.key
+            expected_owner: root
+            expected_group: ssl-cert
+            expected_mode: '0640'
+          - path: /etc/ssl/private/ci.cluster.local.key
+            expected_owner: root
+            expected_group: ssl-cert
+            expected_mode: '0640'
+          - path: /etc/ssl/private/status.cluster.local.key
+            expected_owner: root
+            expected_group: ssl-cert
+            expected_mode: '0640'
+        loop_control:
+          loop_var: item_file
+        fail_msg: "A required file has unexpected existence, ownership, or mode."
+
+    - name: Check enabled virtual host links
+      ansible.builtin.command:
+        argv:
+          - readlink
+          - -f
+          - "{{ item_link['link'] }}"
+      loop:
+        - link: /etc/nginx/sites-enabled/test.cluster.local
+          target: /etc/nginx/sites-available/test.cluster.local
+        - link: /etc/nginx/sites-enabled/ci.cluster.local
+          target: /etc/nginx/sites-available/ci.cluster.local
+        - link: /etc/nginx/sites-enabled/status.cluster.local
+          target: /etc/nginx/sites-available/status.cluster.local
+      loop_control:
+        loop_var: item_link
+      register: vhost_links
+      changed_when: false
+
+    - name: Assert enabled virtual host links point to the site configurations
+      ansible.builtin.assert:
+        that:
+          - item_link_result['rc'] == 0
+          - item_link_result['stdout'] | trim == item_link_result['item']['target']
+        loop: "{{ vhost_links['results'] }}"
+        loop_control:
+          loop_var: item_link_result
+        fail_msg: "An enabled virtual host link is missing or points to the wrong file."
+
+    - name: Check that the default virtual host is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: default_vhost
+
+    - name: Assert that the default virtual host is absent
+      ansible.builtin.assert:
+        that:
+          - not default_vhost['stat']['exists']
+        fail_msg: "The default nginx virtual host must be absent."
+
+    - name: Check certificate common names
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - -in
+          - "{{ item_certificate['path'] }}"
+          - -noout
+          - -subject
+      loop:
+        - path: /etc/ssl/certs/test.cluster.local.crt
+          common_name: test.cluster.local
+        - path: /etc/ssl/certs/ci.cluster.local.crt
+          common_name: ci.cluster.local
+        - path: /etc/ssl/certs/status.cluster.local.crt
+          common_name: status.cluster.local
+      loop_control:
+        loop_var: item_certificate
+      register: certificate_subjects
+      changed_when: false
+
+    - name: Assert certificate common names match their sites
+      ansible.builtin.assert:
+        that:
+          - item_subject['rc'] == 0
+          - "('CN=' ~ item_subject['item']['common_name']) in item_subject['stdout']"
+        loop: "{{ certificate_subjects['results'] }}"
+        loop_control:
+          loop_var: item_subject
+        fail_msg: "A certificate does not have the expected common name."
+
+    - name: Check HTTP redirect responses
+      ansible.builtin.command:
+        argv:
+          - curl
+          - -sS
+          - -I
+          - -H
+          - "Host: {{ item_http['host'] }}"
+          - http://127.0.0.1/
+      loop:
+        - host: test.cluster.local
+        - host: ci.cluster.local
+        - host: status.cluster.local
+      loop_control:
+        loop_var: item_http
+      register: http_redirects
+      changed_when: false
+
+    - name: Assert each HTTP endpoint redirects to HTTPS
+      ansible.builtin.assert:
+        that:
+          - item_redirect['rc'] == 0
+          - "'301' in item_redirect['stdout']"
+          - "('Location: https://' ~ item_redirect['item']['host'] ~ '/') in item_redirect['stdout']"
+        loop: "{{ http_redirects['results'] }}"
+        loop_control:
+          loop_var: item_redirect
+        fail_msg: "An HTTP site endpoint must return a 301 HTTPS redirect."
+
+    - name: Check HTTPS site responses
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --insecure
+          - -sS
+          - -D
+          - -
+          - --resolve
+          - "{{ item_https['host'] }}:443:127.0.0.1"
+          - https://{{ item_https['host'] }}/
+      loop:
+        - host: test.cluster.local
+          content_path: /opt/server/test/index.html
+        - host: ci.cluster.local
+          content_path: /opt/server/ci/index.html
+        - host: status.cluster.local
+          content_path: /opt/server/status/index.html
+      loop_control:
+        loop_var: item_https
+      register: https_responses
+      changed_when: false
+
+    - name: Read expected static response content
+      ansible.builtin.slurp:
+        src: "{{ item_content['path'] }}"
+      loop:
+        - path: /opt/server/test/index.html
+        - path: /opt/server/ci/index.html
+        - path: /opt/server/status/index.html
+      loop_control:
+        loop_var: item_content
+      register: static_contents
+
+    - name: Assert each HTTPS endpoint serves its site and security headers
+      ansible.builtin.assert:
+        that:
+          - item_https_response['rc'] == 0
+          - item_https_response['item']['host'] in item_https_response['stdout']
+          - >-
+            (static_contents['results'] | selectattr('item.path', 'equalto',
+            item_https_response['item']['content_path']) | map(attribute='content') | first | b64decode)
+            in item_https_response['stdout']
+          - "'HTTP/1.1 200' in item_https_response['stdout'] or 'HTTP/2 200' in item_https_response['stdout']"
+          - "'strict-transport-security:' in (item_https_response['stdout'] | lower)"
+          - "'x-frame-options: deny' in (item_https_response['stdout'] | lower)"
+          - "'x-content-type-options: nosniff' in (item_https_response['stdout'] | lower)"
+          - "'x-xss-protection: 1; mode=block' in (item_https_response['stdout'] | lower)"
+          - "'referrer-policy: strict-origin-when-cross-origin' in (item_https_response['stdout'] | lower)"
+        loop: "{{ https_responses['results'] }}"
+        loop_control:
+          loop_var: item_https_response
+        fail_msg: "An HTTPS site endpoint did not serve the expected response."
