@@ -1,0 +1,8 @@
+---
+- name: Run profile_haproxy role on Linux hosts
+  hosts: all
+  become: true
+  gather_facts: true
+  roles:
+    - role: x2a.project.profile_haproxy
+  when: ansible_facts['kernel'] | lower == 'linux'

@@ -1,0 +1,73 @@
+---
+# Role defaults
+profile_haproxy_package_name: haproxy
+profile_haproxy_config_dir: /etc/haproxy
+profile_haproxy_config_file: "{{ profile_haproxy_config_dir }}/haproxy.cfg"
+profile_haproxy_service_name: haproxy
+profile_haproxy_user: haproxy
+profile_haproxy_group: haproxy
+profile_haproxy_extra_packages: []
+profile_haproxy_firewall_provider: none
+profile_haproxy_firewall_zone: public
+profile_haproxy_firewall_ports:
+  - 80/tcp
+profile_haproxy_selinux_enabled: false
+profile_haproxy_ssl_enabled: false
+profile_haproxy_ssl_ciphers: 'ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384'
+profile_haproxy_ssl_cert_path: /etc/haproxy/certs
+profile_haproxy_log_server: 127.0.0.1:514
+profile_haproxy_log_facility: local0
+profile_haproxy_log_level: info
+profile_haproxy_global_maxconn: 4096
+profile_haproxy_connect_timeout: 5s
+profile_haproxy_client_timeout: 50s
+profile_haproxy_server_timeout: 50s
+profile_haproxy_retries: 3
+profile_haproxy_stats_enabled: false
+profile_haproxy_stats_port: 9001
+profile_haproxy_stats_uri: /stats
+profile_haproxy_stats_user: admin
+profile_haproxy_stats_password: ''
+profile_haproxy_backends: {}
+profile_haproxy_stick_table_enabled: false
+profile_haproxy_stick_table_size: 200k
+profile_haproxy_stick_table_expire: 30m
+profile_haproxy_discovery_enabled: false
+profile_haproxy_discovery_group: application
+profile_haproxy_secure_logging: false
+
+# Short names are retained by the migrated task/template files.
+package_name: "{{ profile_haproxy_package_name }}"
+config_dir: "{{ profile_haproxy_config_dir }}"
+config_file: "{{ profile_haproxy_config_file }}"
+service_name: "{{ profile_haproxy_service_name }}"
+user: "{{ profile_haproxy_user }}"
+group: "{{ profile_haproxy_group }}"
+extra_packages: "{{ profile_haproxy_extra_packages }}"
+firewall_provider: "{{ profile_haproxy_firewall_provider }}"
+firewall_zone: "{{ profile_haproxy_firewall_zone }}"
+haproxy_firewall_ports: "{{ profile_haproxy_firewall_ports }}"
+selinux_enabled: "{{ profile_haproxy_selinux_enabled }}"
+ssl_enabled: "{{ profile_haproxy_ssl_enabled }}"
+ssl_ciphers: "{{ profile_haproxy_ssl_ciphers }}"
+ssl_cert_path: "{{ profile_haproxy_ssl_cert_path }}"
+log_server: "{{ profile_haproxy_log_server }}"
+log_facility: "{{ profile_haproxy_log_facility }}"
+log_level: "{{ profile_haproxy_log_level }}"
+global_maxconn: "{{ profile_haproxy_global_maxconn }}"
+connect_timeout: "{{ profile_haproxy_connect_timeout }}"
+client_timeout: "{{ profile_haproxy_client_timeout }}"
+server_timeout: "{{ profile_haproxy_server_timeout }}"
+retries: "{{ profile_haproxy_retries }}"
+stats_enabled: "{{ profile_haproxy_stats_enabled }}"
+stats_port: "{{ profile_haproxy_stats_port }}"
+stats_uri: "{{ profile_haproxy_stats_uri }}"
+stats_user: "{{ profile_haproxy_stats_user }}"
+stats_password: "{{ profile_haproxy_stats_password }}"
+backends: "{{ profile_haproxy_backends }}"
+stick_table_enabled: "{{ profile_haproxy_stick_table_enabled }}"
+stick_table_size: "{{ profile_haproxy_stick_table_size }}"
+stick_table_expire: "{{ profile_haproxy_stick_table_expire }}"
+discovery_enabled: "{{ profile_haproxy_discovery_enabled }}"
+haproxy_discovery_group: "{{ profile_haproxy_discovery_group }}"
+profile_haproxy_secure_logging: "{{ profile_haproxy_secure_logging }}"

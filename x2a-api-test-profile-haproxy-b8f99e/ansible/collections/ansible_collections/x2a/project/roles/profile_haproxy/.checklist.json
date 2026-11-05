@@ -1,0 +1,325 @@
+{
+  "module_name": "profile_haproxy",
+  "items": [
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/run_profile_haproxy.yml",
+      "status": "pending",
+      "description": "Deployment entry point for the migrated role",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/requirements.yml",
+      "status": "pending",
+      "description": "Test-only Podman collection dependency",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/README.md",
+      "status": "pending",
+      "description": "Developer instructions for running Molecule",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_haproxy/molecule.yml",
+      "status": "pending",
+      "description": "Ansible-native Molecule scenario configuration",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_haproxy/inventory/hosts.yml",
+      "status": "pending",
+      "description": "Disposable Podman target inventory",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_haproxy/create.yml",
+      "status": "pending",
+      "description": "Create and inspect disposable Podman targets",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_haproxy/destroy.yml",
+      "status": "pending",
+      "description": "Remove disposable Podman targets",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_haproxy/prepare.yml",
+      "status": "pending",
+      "description": "Bootstrap Python on the disposable Linux target",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_haproxy/converge.yml",
+      "status": "pending",
+      "description": "Run the deployment playbook under test",
+      "notes": ""
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_haproxy/verify.yml",
+      "status": "pending",
+      "description": "Verify migrated behavior against the source plan",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/aap-configuration/controller_credential_types.yml",
+      "status": "complete",
+      "description": "AAP credential types configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/aap-configuration/controller_credentials.yml",
+      "status": "complete",
+      "description": "AAP credentials configuration",
+      "notes": ""
+    },
+    {
+      "category": "credentials",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/tasks/validate_credentials.yml",
+      "status": "complete",
+      "description": "Credential validation tasks",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/defaults/main.yml",
+      "status": "complete",
+      "description": "Role defaults for HAProxy parameters and backend definitions",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata (no metadata.rb source exists)",
+      "notes": "Created standard meta/main.yml"
+    },
+    {
+      "category": "structure",
+      "source_path": "defaults/main.yml",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/meta/argument_specs.yml",
+      "status": "complete",
+      "description": "Role argument specs for fail-fast parameter validation; generate after defaults/main.yml",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/handlers/main.yml",
+      "status": "complete",
+      "description": "Handlers for HAProxy configuration changes and service reloads",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/tasks/main.yml",
+      "status": "complete",
+      "description": "Main role task entry point",
+      "notes": "Role entrypoint was converted from profile_haproxy::init and includes credential validation first."
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_haproxy/manifests/init.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/tasks/main.yml",
+      "status": "complete",
+      "description": "Main profile orchestration and parameter resolution",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_haproxy/manifests/install.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/tasks/install.yml",
+      "status": "complete",
+      "description": "Install HAProxy, account, directories, OS-specific packages, and SELinux behavior",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_haproxy/manifests/config.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/tasks/config.yml",
+      "status": "complete",
+      "description": "Create configuration directories, render HAProxy and backend configuration, and install error files",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_haproxy/manifests/service.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/tasks/service.yml",
+      "status": "complete",
+      "description": "Deploy systemd drop-in, validate configuration, manage service, and configure logrotate",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_haproxy/manifests/firewall.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/tasks/firewall.yml",
+      "status": "complete",
+      "description": "Implement conditional firewalld, UFW, or disabled firewall behavior",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_haproxy/manifests/discover.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/tasks/discover.yml",
+      "status": "complete",
+      "description": "Optional inventory-based replacement for PuppetDB HAProxy backend discovery",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/role/manifests/haproxy.pp",
+      "target_path": "ansible/run_profile_haproxy.yml",
+      "status": "complete",
+      "description": "Migrate role-level HAProxy inclusion and Linux applicability into deployment playbook",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile/manifests/loadbalancer/haproxy.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/tasks/main.yml",
+      "status": "complete",
+      "description": "Migrate load-balancer profile wrapper inclusion",
+      "notes": "Thin Puppet wrapper is represented by the role entrypoint tasks/main.yml."
+    },
+    {
+      "category": "templates",
+      "source_path": "site-modules/profile_haproxy/templates/haproxy.cfg.erb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/templates/haproxy.cfg.j2",
+      "status": "complete",
+      "description": "Primary HAProxy configuration template",
+      "notes": ""
+    },
+    {
+      "category": "templates",
+      "source_path": "site-modules/profile_haproxy/templates/backend.conf.epp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/templates/backend.conf.j2",
+      "status": "complete",
+      "description": "Backend fragment template rendered for webservers, api, and internal_monitoring",
+      "notes": ""
+    },
+    {
+      "category": "files",
+      "source_path": "site-modules/profile_haproxy/data/common.yaml",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/defaults/main.yml",
+      "status": "complete",
+      "description": "Module common HAProxy defaults and backend definitions",
+      "notes": ""
+    },
+    {
+      "category": "files",
+      "source_path": "data/common.yaml",
+      "target_path": "ansible/group_vars/all/profile_haproxy.yml",
+      "status": "complete",
+      "description": "Control-repository common overrides; migrate statistics password to Vault",
+      "notes": ""
+    },
+    {
+      "category": "files",
+      "source_path": "site-modules/profile_haproxy/data/environment/production.yaml",
+      "target_path": "ansible/group_vars/production/profile_haproxy.yml",
+      "status": "complete",
+      "description": "Production-specific HAProxy variables",
+      "notes": ""
+    },
+    {
+      "category": "files",
+      "source_path": "site-modules/profile_haproxy/data/cluster/haproxy_prod_fra.yaml",
+      "target_path": "ansible/group_vars/haproxy_prod_fra/profile_haproxy.yml",
+      "status": "complete",
+      "description": "Frankfurt production cluster HAProxy variables and monitoring backend",
+      "notes": ""
+    },
+    {
+      "category": "files",
+      "source_path": "site-modules/profile_haproxy/data/nodes/lb01.fra.example.com.yaml",
+      "target_path": "ansible/host_vars/lb01.fra.example.com/profile_haproxy.yml",
+      "status": "complete",
+      "description": "Host-specific statistics and API backend overrides",
+      "notes": ""
+    },
+    {
+      "category": "files",
+      "source_path": "site-modules/profile_haproxy/data/os/Debian.yaml",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/vars/Debian.yml",
+      "status": "complete",
+      "description": "Debian package and firewall variable mapping",
+      "notes": ""
+    },
+    {
+      "category": "files",
+      "source_path": "site-modules/profile_haproxy/data/os/RedHat.yaml",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/vars/RedHat.yml",
+      "status": "complete",
+      "description": "RedHat package, firewall, and SELinux variable mapping",
+      "notes": ""
+    },
+    {
+      "category": "files",
+      "source_path": "site-modules/profile_haproxy/lib/facter/haproxy_version.rb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/files/haproxy_version.fact",
+      "status": "complete",
+      "description": "Replace Linux-only custom Facter version check with an Ansible local fact",
+      "notes": ""
+    },
+    {
+      "category": "files",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/files/errors/503.http",
+      "status": "complete",
+      "description": "HAProxy 503 error response file; preserve source or verified host content",
+      "notes": "Created HAProxy 503 error response because the source manifest references a Puppet static file not present in the supplied tree."
+    },
+    {
+      "category": "files",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/files/errors/408.http",
+      "status": "complete",
+      "description": "HAProxy 408 error response file; preserve source or verified host content",
+      "notes": "Created HAProxy 408 error response because the source manifest references a Puppet static file not present in the supplied tree."
+    },
+    {
+      "category": "files",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/templates/override.conf.j2",
+      "status": "complete",
+      "description": "Systemd HAProxy service drop-in override; exact contents require source or host verification",
+      "notes": ""
+    },
+    {
+      "category": "files",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_haproxy/templates/haproxy.logrotate.j2",
+      "status": "complete",
+      "description": "HAProxy logrotate configuration; exact contents require source or host verification",
+      "notes": ""
+    }
+  ]
+}

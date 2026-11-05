@@ -1,0 +1,65 @@
+---
+- name: Install UFW firewall package
+  ansible.builtin.package:
+    name: ufw
+    state: present
+  when: firewall_provider == 'ufw'
+
+- name: Check UFW HTTP rule
+  ansible.builtin.command:
+    argv: [ufw, status]
+  register: haproxy_ufw_status
+  changed_when: false
+  check_mode: false
+  when: firewall_provider == 'ufw'
+
+- name: Allow HTTP through UFW
+  ansible.builtin.command:
+    argv: [ufw, allow, 80/tcp]
+  when:
+    - firewall_provider == 'ufw'
+    - "'80/tcp' not in haproxy_ufw_status.stdout"
+  changed_when: true
+
+- name: Allow HTTPS through UFW
+  ansible.builtin.command:
+    argv: [ufw, allow, 443/tcp]
+  when:
+    - firewall_provider == 'ufw'
+    - ssl_enabled | bool
+    - "'443/tcp' not in haproxy_ufw_status.stdout"
+  changed_when: true
+
+- name: Allow HAProxy statistics through UFW
+  ansible.builtin.command:
+    argv: [ufw, allow, "{{ stats_port }}/tcp"]
+  when:
+    - firewall_provider == 'ufw'
+    - stats_enabled | bool
+    - "(stats_port | string) ~ '/tcp' not in haproxy_ufw_status.stdout"
+  changed_when: true
+
+- name: Enable UFW
+  ansible.builtin.command:
+    argv: [ufw, --force, enable]
+  when:
+    - firewall_provider == 'ufw'
+    - "'Status: active' not in haproxy_ufw_status.stdout"
+  changed_when: true
+
+- name: Allow HAProxy ports through firewalld
+  ansible.posix.firewalld:
+    zone: "{{ firewall_zone }}"
+    port: "{{ item_haproxy_firewall_port }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  when: firewall_provider == 'firewalld'
+  loop: "{{ haproxy_firewall_ports }}"
+  loop_control:
+    loop_var: item_haproxy_firewall_port
+
+- name: Report unknown firewall provider
+  ansible.builtin.debug:
+    msg: "Unknown firewall provider: {{ firewall_provider }}"
+  when: firewall_provider not in ['none', 'ufw', 'firewalld']

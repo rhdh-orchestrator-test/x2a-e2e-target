@@ -1,0 +1,9 @@
+---
+- name: Add discovered application servers to HAProxy API backend
+  ansible.builtin.set_fact:
+    haproxy_discovered_api_servers: "{{ haproxy_discovered_api_servers | default([]) + [{'name': item_haproxy_discovered_server, 'address': hostvars[item_haproxy_discovered_server]['ansible_host']
+      | default(item_haproxy_discovered_server), 'port': hostvars[item_haproxy_discovered_server]['haproxy_api_port'] | default(3000), 'weight': 100}] }}"
+  when: discovery_enabled | bool
+  loop: "{{ groups[haproxy_discovery_group] | default([]) }}"
+  loop_control:
+    loop_var: item_haproxy_discovered_server

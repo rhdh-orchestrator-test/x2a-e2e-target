@@ -1,0 +1,39 @@
+---
+argument_specs:
+  main:
+    short_description: Configure HAProxy as a load balancer.
+    options:
+      profile_haproxy_package_name: {type: str, default: haproxy, description: HAProxy package name.}
+      profile_haproxy_config_dir: {type: path, default: /etc/haproxy, description: HAProxy configuration directory.}
+      profile_haproxy_config_file: {type: path, default: /etc/haproxy/haproxy.cfg, description: Main configuration file.}
+      profile_haproxy_service_name: {type: str, default: haproxy, description: HAProxy service name.}
+      profile_haproxy_user: {type: str, default: haproxy, description: HAProxy user.}
+      profile_haproxy_group: {type: str, default: haproxy, description: HAProxy group.}
+      profile_haproxy_extra_packages: {type: list, elements: str, default: [], description: Additional packages.}
+      profile_haproxy_firewall_provider: {type: str, default: none, description: Firewall provider.}
+      profile_haproxy_firewall_zone: {type: str, default: public, description: Firewalld zone.}
+      profile_haproxy_firewall_ports: {type: list, elements: str, default: [80/tcp], description: Firewall ports.}
+      profile_haproxy_selinux_enabled: {type: bool, default: false, description: Manage SELinux setting.}
+      profile_haproxy_ssl_enabled: {type: bool, default: false, description: Enable SSL.}
+      profile_haproxy_ssl_ciphers: {type: str, description: SSL ciphers.}
+      profile_haproxy_ssl_cert_path: {type: path, default: /etc/haproxy/certs, description: SSL certificate path.}
+      profile_haproxy_log_server: {type: str, default: '127.0.0.1:514', description: Syslog server.}
+      profile_haproxy_log_facility: {type: str, default: local0, description: Syslog facility.}
+      profile_haproxy_log_level: {type: str, default: info, description: Log level.}
+      profile_haproxy_global_maxconn: {type: int, default: 4096, description: Maximum connections.}
+      profile_haproxy_connect_timeout: {type: str, default: 5s, description: Connect timeout.}
+      profile_haproxy_client_timeout: {type: str, default: 50s, description: Client timeout.}
+      profile_haproxy_server_timeout: {type: str, default: 50s, description: Server timeout.}
+      profile_haproxy_retries: {type: int, default: 3, description: Retry count.}
+      profile_haproxy_stats_enabled: {type: bool, default: false, description: Enable statistics.}
+      profile_haproxy_stats_port: {type: int, default: 9001, description: Statistics port.}
+      profile_haproxy_stats_uri: {type: str, default: /stats, description: Statistics URI.}
+      profile_haproxy_stats_user: {type: str, default: admin, description: Statistics user.}
+      profile_haproxy_stats_password: {type: str, default: '', no_log: true, description: Statistics password.}
+      profile_haproxy_backends: {type: dict, default: {}, description: Backend definitions.}
+      profile_haproxy_stick_table_enabled: {type: bool, default: false, description: Enable stick table.}
+      profile_haproxy_stick_table_size: {type: str, default: 200k, description: Stick table size.}
+      profile_haproxy_stick_table_expire: {type: str, default: 30m, description: Stick table expiry.}
+      profile_haproxy_discovery_enabled: {type: bool, default: false, description: Discover backends.}
+      profile_haproxy_discovery_group: {type: str, default: application, description: Discovery group.}
+      profile_haproxy_secure_logging: {type: bool, default: false, description: Suppress sensitive output.}
