@@ -1,0 +1,95 @@
+---
+# Unsupported pre-flight checks: the Redis configuration directive listing has no stated expected
+# outcome; authenticated Redis access requires a protected password variable; Redis log inspection
+# has no stated expected outcome; Memcached service/configuration inspection has no stated expected
+# outcome and its port is unspecified.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather Redis service facts for the service status checks
+      ansible.builtin.service_facts:
+
+    - name: Assert Redis service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'redis.service' in ansible_facts['services']"
+          - "ansible_facts['services']['redis.service']['state'] == 'running'"
+          - "ansible_facts['services']['redis.service']['status'] == 'enabled'"
+        fail_msg: Redis service is not enabled and running.
+
+    - name: Verify Redis is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+      register: redis_port_check
+      changed_when: false
+
+    - name: Assert Redis port check succeeded
+      ansible.builtin.assert:
+        that:
+          - redis_port_check['state'] == 'started'
+        fail_msg: Redis is not listening on TCP port 6379.
+
+    - name: Check that the Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_file
+
+    - name: Assert the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_file['stat']['exists']
+          - redis_config_file['stat']['isreg']
+        fail_msg: Redis configuration file /etc/redis/6379.conf is missing.
+
+    - name: Read the Redis configuration for directive checks
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert incompatible Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content['content'] | b64decode |
+            regex_search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)'))
+            is none
+        fail_msg: An incompatible replication directive is present in the Redis configuration.
+
+    - name: Check that unauthenticated Redis access is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+      register: redis_unauthenticated
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unauthenticated Redis access returns an authentication error
+      ansible.builtin.assert:
+        that:
+          - redis_unauthenticated['rc'] != 0
+          - >-
+            (redis_unauthenticated['stdout'] ~ redis_unauthenticated['stderr'])
+            is search('NOAUTH|Authentication required')
+        fail_msg: Unauthenticated Redis access was not rejected with an authentication error.
+
+    - name: Inspect Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+          - redis_log_directory['stat']['pw_name'] == 'redis'
+          - redis_log_directory['stat']['gr_name'] == 'redis'
+          - redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: Redis log directory does not have the expected ownership or permissions.
