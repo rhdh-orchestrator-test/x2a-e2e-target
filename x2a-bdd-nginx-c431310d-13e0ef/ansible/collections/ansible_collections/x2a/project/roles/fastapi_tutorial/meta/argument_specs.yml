@@ -1,0 +1,78 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure the FastAPI tutorial application
+    description:
+      - Deploys the FastAPI tutorial repository, Python environment, PostgreSQL resources, and systemd service.
+    options:
+      fastapi_tutorial_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to hide task output that handles the database password.
+      fastapi_tutorial_repository:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository containing the FastAPI application.
+      fastapi_tutorial_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      fastapi_tutorial_app_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Application installation directory.
+      fastapi_tutorial_venv_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial/venv
+        description: Python virtual environment directory.
+      fastapi_tutorial_db_username:
+        type: str
+        required: false
+        default: "{{ db_username }}"
+        description: PostgreSQL username supplied by the AAP credential.
+      fastapi_tutorial_database_name:
+        type: str
+        required: false
+        default: "{{ database_name }}"
+        description: PostgreSQL database name supplied by the AAP credential.
+      fastapi_tutorial_database_host:
+        type: str
+        required: false
+        default: "{{ database_host }}"
+        description: PostgreSQL database host supplied by the AAP credential.
+      fastapi_tutorial_app_port:
+        type: int
+        required: false
+        default: 8000
+        description: TCP port for the FastAPI service.
+      fastapi_tutorial_project_name:
+        type: str
+        required: false
+        default: FastAPI Tutorial
+        description: Application project name written to the environment file.
+      fastapi_tutorial_api_version:
+        type: str
+        required: false
+        default: 1.0.0
+        description: API version written to the environment file.
+      db_username:
+        type: str
+        required: true
+        description: PostgreSQL username injected by an AAP credential type.
+      db_password:
+        type: str
+        required: true
+        description: PostgreSQL password injected by an AAP credential type.
+      database_name:
+        type: str
+        required: true
+        description: PostgreSQL database name injected by an AAP credential type.
+      database_host:
+        type: str
+        required: true
+        description: PostgreSQL host injected by an AAP credential type.

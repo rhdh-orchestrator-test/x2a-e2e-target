@@ -1,0 +1,209 @@
+# Unsupported pre-flight checks: package-manager diagnostic output, repository remote/log output,
+# Python/pip/uvicorn version listings, environment-file ownership and grep output, password-authenticated
+# PostgreSQL login, service status/cat and journal diagnostics, process listing, root/docs response checks
+# without stated outcomes, and daemon-reload behavior.
+---
+- name: Verify fastapi-tutorial deployment
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Verify Debian-family pre-flight packages
+      ansible.builtin.assert:
+        that:
+          - "item_pkg in ansible_facts.packages"
+        fail_msg: "A required Debian-family package is missing."
+      loop:
+        - python3
+        - python3-pip
+        - python3-venv
+        - git
+        - postgresql
+        - postgresql-contrib
+        - libpq-dev
+      loop_control:
+        loop_var: item_pkg
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Verify RPM-family pre-flight packages
+      ansible.builtin.assert:
+        that:
+          - "item_pkg in ansible_facts.packages"
+        fail_msg: "A required RPM-family package is missing."
+      loop:
+        - python3
+        - git
+        - postgresql
+        - postgresql-contrib
+      loop_control:
+        loop_var: item_pkg
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Check application layout
+      ansible.builtin.stat:
+        path: "{{ item_path }}"
+      loop:
+        - /opt/fastapi-tutorial
+        - /opt/fastapi-tutorial/requirements.txt
+        - /opt/fastapi-tutorial/venv
+      loop_control:
+        loop_var: item_path
+      register: fastapi_layout
+
+    - name: Verify application layout
+      ansible.builtin.assert:
+        that:
+          - item_layout.stat.exists
+          - (item_layout.stat.isdir if item_layout.item in ['/opt/fastapi-tutorial', '/opt/fastapi-tutorial/venv'] else item_layout.stat.isreg)
+        fail_msg: "An application layout path is missing or has the wrong type."
+      loop: "{{ fastapi_layout.results }}"
+      loop_control:
+        loop_var: item_layout
+
+    - name: Read repository branch
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - /opt/fastapi-tutorial
+          - rev-parse
+          - --abbrev-ref
+          - HEAD
+      register: fastapi_branch
+      changed_when: false
+
+    - name: Verify repository branch
+      ansible.builtin.assert:
+        that:
+          - fastapi_branch.stdout | trim == 'main'
+        fail_msg: "The application repository is not on the main branch."
+
+    - name: Validate application import
+      ansible.builtin.command:
+        argv:
+          - /opt/fastapi-tutorial/venv/bin/python
+          - -c
+          - from app.main import app; print(app)
+        chdir: /opt/fastapi-tutorial
+      register: fastapi_import
+      changed_when: false
+
+    - name: Verify application import
+      ansible.builtin.assert:
+        that:
+          - fastapi_import.rc == 0
+        fail_msg: "The FastAPI application import failed."
+
+    - name: Check PostgreSQL service state
+      ansible.builtin.service_facts:
+
+    - name: Verify PostgreSQL service is active
+      ansible.builtin.assert:
+        that:
+          - "'postgresql.service' in ansible_facts.services"
+          - ansible_facts.services['postgresql.service']['state'] == 'running'
+        fail_msg: "The PostgreSQL service is not active."
+
+    - name: Check PostgreSQL service is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - postgresql
+      register: postgresql_enabled
+      changed_when: false
+
+    - name: Verify PostgreSQL service is enabled
+      ansible.builtin.assert:
+        that:
+          - postgresql_enabled.stdout | trim == 'enabled'
+        fail_msg: "The PostgreSQL service is not enabled."
+
+    - name: Query PostgreSQL role and database
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - "SELECT (SELECT rolname FROM pg_roles WHERE rolname = 'fastapi') || '|' || (SELECT datname FROM pg_database WHERE datname = 'fastapi_db') || '|' || (SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db');"
+      register: fastapi_database
+      changed_when: false
+
+    - name: Verify PostgreSQL role database and owner
+      ansible.builtin.assert:
+        that:
+          - fastapi_database.stdout | trim == 'fastapi|fastapi_db|fastapi'
+        fail_msg: "The expected PostgreSQL role, database, or owner is missing."
+
+    - name: Check application service state
+      ansible.builtin.service_facts:
+
+    - name: Verify application service is active
+      ansible.builtin.assert:
+        that:
+          - "'fastapi-tutorial.service' in ansible_facts.services"
+          - ansible_facts.services['fastapi-tutorial.service']['state'] == 'running'
+        fail_msg: "The fastapi-tutorial service is not active."
+
+    - name: Check application service is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - fastapi-tutorial
+      register: fastapi_enabled
+      changed_when: false
+
+    - name: Verify application service is enabled
+      ansible.builtin.assert:
+        that:
+          - fastapi_enabled.stdout | trim == 'enabled'
+        fail_msg: "The fastapi-tutorial service is not enabled."
+
+    - name: Read application service properties
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - fastapi-tutorial
+          - --property=User,WorkingDirectory,ExecStart,Restart,After
+      register: fastapi_properties
+      changed_when: false
+
+    - name: Verify application service properties
+      ansible.builtin.assert:
+        that:
+          - "'User=root' in fastapi_properties.stdout"
+          - "'WorkingDirectory=/opt/fastapi-tutorial' in fastapi_properties.stdout"
+          - "'/opt/fastapi-tutorial/venv/bin/uvicorn' in fastapi_properties.stdout"
+          - "'Restart=always' in fastapi_properties.stdout"
+          - fastapi_properties.stdout is search('After=.*postgresql\\.service')
+          - "'--port 8000' in fastapi_properties.stdout"
+          - "'app.main:app' in fastapi_properties.stdout"
+        fail_msg: "The fastapi-tutorial service properties are incorrect."
+
+    - name: Wait for FastAPI listener
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 8000
+        state: started
+        timeout: 30
+
+    - name: Verify OpenAPI endpoint returns success JSON
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8000/openapi.json
+        method: GET
+        status_code: 200
+        return_content: false
+      register: fastapi_openapi
+
+    - name: Assert OpenAPI endpoint response
+      ansible.builtin.assert:
+        that:
+          - fastapi_openapi.status == 200
+          - fastapi_openapi.content_type is search('application/json')
+        fail_msg: "The OpenAPI endpoint did not return successful JSON."
