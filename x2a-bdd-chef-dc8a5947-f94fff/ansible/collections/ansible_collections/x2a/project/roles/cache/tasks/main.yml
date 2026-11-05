@@ -1,0 +1,39 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Redis cache using the approved collection role  # noqa: L038 - approved eloy.redis.redis role is declared in this role's requirements.yml but is unavailable to static role resolution
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_port: "{{ cache_redis_port }}"
+    redis_cluster_enabled: "{{ cache_redis_cluster_enabled }}"
+    redis_sentinel_enabled: "{{ cache_redis_sentinel_enabled }}"
+    redis_replication_enabled: "{{ cache_redis_replication_enabled }}"
+    redis_aof_enabled: "{{ cache_redis_aof_enabled }}"
+    redis_rdb_enabled: "{{ cache_redis_rdb_enabled }}"
+
+- name: Ensure Redis log directory exists
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_path }}" # noqa: R114 - path is a role default, not user input
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Remove replication directives from Redis configuration
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path is a role default, not user input
+    regexp: ^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority).*$
+    replace: ""
+  failed_when: false
+  register: cache_redis_config_cleanup
+  no_log: "{{ cache_secure_logging }}"
+
+- name: Restart Redis after configuration cleanup  # noqa: L039 - variable is registered by the preceding configuration cleanup task
+  ansible.builtin.service:
+    name: redis
+    state: restarted
+  when: cache_redis_config_cleanup is changed

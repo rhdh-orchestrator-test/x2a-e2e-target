@@ -1,0 +1,70 @@
+# Unsupported pre-flight checks: Redis service enabled/active checks require the unresolved
+# service name; Redis authentication checks require the migrated vaulted password; all
+# Memcached checks require its unresolved service name, port, package, and configuration.
+---
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis TCP port 6379 is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Preserve Redis process pre-flight diagnostic
+      ansible.builtin.command:
+        argv:
+          - ps
+          - aux
+      register: cache_redis_processes
+      changed_when: false
+
+    - name: Verify a Redis process is running
+      ansible.builtin.assert:
+        that:
+          - cache_redis_processes.stdout is search('[rR]edis')
+        fail_msg: A Redis process was not found in the process list.
+
+    - name: Check Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config
+
+    - name: Verify Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config.stat.exists
+          - cache_redis_config.stat.isreg
+        fail_msg: The Redis configuration file is missing.
+
+    - name: Read Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_config_content
+
+    - name: Verify replication cleanup directives are absent
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config_content.content | b64decode is not search('(?m)^replica-serve-stale-data.*$')
+          - cache_redis_config_content.content | b64decode is not search('(?m)^replica-read-only.*$')
+          - cache_redis_config_content.content | b64decode is not search('(?m)^repl-ping-replica-period.*$')
+          - cache_redis_config_content.content | b64decode is not search('(?m)^client-output-buffer-limit.*$')
+          - cache_redis_config_content.content | b64decode is not search('(?m)^replica-priority.*$')
+        fail_msg: Redis replication cleanup directives are present in the configuration.
+
+    - name: Check Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_directory
+
+    - name: Verify Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_directory.stat.exists
+          - cache_redis_log_directory.stat.isdir
+          - cache_redis_log_directory.stat.pw_name == 'redis'
+          - cache_redis_log_directory.stat.gr_name == 'redis'
+          - cache_redis_log_directory.stat.mode == '0755'
+        fail_msg: Redis log directory ownership, group, or mode is incorrect.
