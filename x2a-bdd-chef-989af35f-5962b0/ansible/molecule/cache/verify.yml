@@ -1,0 +1,89 @@
+# Unsupported pre-flight checks: service-discovery listings; exact Redis log ownership,
+# group, and mode; Redis INFO/logging output; Redis password-authenticated redis-cli
+# checks (the vault password is intentionally not included); and all Memcached checks,
+# whose endpoint and service details are explicitly unconfirmed.
+---
+- name: Verify Redis cache pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Check that the Redis service is active
+      ansible.builtin.service_facts:
+
+    - name: Assert that the redis service is running
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services.get('redis.service', {}).get('state') == 'running'
+        fail_msg: Redis service is not running.
+
+    - name: Check that the redis service is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - redis
+      register: item_redis_enabled
+      changed_when: false
+
+    - name: Assert that the redis service is enabled
+      ansible.builtin.assert:
+        that:
+          - item_redis_enabled.rc == 0
+        fail_msg: Redis service is not enabled.
+
+    - name: Check the Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Assert that the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_config.stat.exists
+          - item_redis_config.stat.isreg
+        fail_msg: Redis configuration file is missing.
+
+    - name: Read the Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: item_redis_config_contents
+
+    - name: Decode the Redis configuration for verification
+      ansible.builtin.set_fact:
+        redis_config_text: "{{ item_redis_config_contents.content | b64decode }}"
+
+    - name: Assert the Redis port and password directive are configured
+      ansible.builtin.assert:
+        that:
+          - redis_config_text is regex('(?m)^port[ \t]+6379$')
+          - redis_config_text is regex('(?m)^requirepass[ \t]+')
+        fail_msg: Redis port or password configuration is missing.
+
+    - name: Assert replication directives are not active in Redis configuration
+      ansible.builtin.assert:
+        that:
+          - redis_config_text is not regex('(?m)^replica-serve-stale-data')
+          - redis_config_text is not regex('(?m)^replica-read-only')
+          - redis_config_text is not regex('(?m)^repl-ping-replica-period')
+          - redis_config_text is not regex('(?m)^client-output-buffer-limit')
+          - redis_config_text is not regex('(?m)^replica-priority')
+        fail_msg: A prohibited active Redis replication directive is present.
+
+    - name: Check that Redis listens on port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Check that the Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_directory
+
+    - name: Assert that the Redis log directory exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory.stat.exists
+          - item_redis_log_directory.stat.isdir
+        fail_msg: Redis log directory is missing.
