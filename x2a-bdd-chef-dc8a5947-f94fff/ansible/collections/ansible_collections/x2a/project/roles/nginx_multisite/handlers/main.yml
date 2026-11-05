@@ -1,0 +1,35 @@
+---
+- name: Restart fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: restarted
+
+- name: Reload nginx multisite sysctl  # noqa: L039 - loop variable is defined by this task's loop
+  ansible.posix.sysctl:
+    name: "{{ item_nginx_sysctl['key'] }}"
+    value: "{{ item_nginx_sysctl['value'] }}"
+    sysctl_file: /etc/sysctl.d/99-security.conf
+    reload: true
+    state: present
+  loop:
+    - key: net.ipv4.conf.default.rp_filter
+      value: "1"
+  loop_control:
+    loop_var: item_nginx_sysctl
+
+- name: Restart SSH
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
+
+- name: Validate nginx configuration
+  ansible.builtin.command:
+    cmd: nginx -t
+  changed_when: false
+  listen: Reload nginx
+
+- name: Reload nginx service
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded
+  listen: Reload nginx
