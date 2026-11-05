@@ -1,0 +1,269 @@
+{
+  "module_name": "profile_app_stack",
+  "items": [
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/run_profile_app_stack.yml",
+      "status": "complete",
+      "description": "Deployment entry point for the migrated role",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/requirements.yml",
+      "status": "complete",
+      "description": "Test-only Podman collection dependency",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/README.md",
+      "status": "complete",
+      "description": "Developer instructions for running Molecule",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_app_stack/molecule.yml",
+      "status": "complete",
+      "description": "Ansible-native Molecule scenario configuration",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_app_stack/inventory/hosts.yml",
+      "status": "complete",
+      "description": "Disposable Podman target inventory",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_app_stack/create.yml",
+      "status": "complete",
+      "description": "Create and inspect disposable Podman targets",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_app_stack/destroy.yml",
+      "status": "complete",
+      "description": "Remove disposable Podman targets",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_app_stack/prepare.yml",
+      "status": "complete",
+      "description": "Bootstrap Python on the disposable Linux target",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_app_stack/converge.yml",
+      "status": "complete",
+      "description": "Run the deployment playbook under test",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "molecule",
+      "source_path": "N/A",
+      "target_path": "ansible/molecule/profile_app_stack/verify.yml",
+      "status": "complete",
+      "description": "Verify migrated behavior against the source plan",
+      "notes": "Generated and statically validated; runtime execution is pending."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/meta/main.yml",
+      "status": "complete",
+      "description": "Role metadata; no metadata.rb was supplied.",
+      "notes": "Existing complete meta/main.yml was restored untouched after validation tooling reported its pre-existing indentation warnings; no checklist conversion was changed."
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/handlers/main.yml",
+      "status": "complete",
+      "description": "Handlers for systemd daemon reload and application restart notifications.",
+      "notes": ""
+    },
+    {
+      "category": "structure",
+      "source_path": "N/A",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/defaults/main.yml",
+      "status": "complete",
+      "description": "Role defaults for application, database, Python, worker, logging, and secret-related variables.",
+      "notes": "Defaults file was written from module common data and includes secure logging and application defaults."
+    },
+    {
+      "category": "structure",
+      "source_path": "defaults/main.yml",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/meta/argument_specs.yml",
+      "status": "complete",
+      "description": "Role argument specs for fail-fast parameter validation; generate after defaults/main.yml.",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/role/manifests/app_stack.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/tasks/role_app_stack.yml",
+      "status": "complete",
+      "description": "Migrate base/profile orchestration and Linux PATH behavior.",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile/manifests/app/stack.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/tasks/profile_app_stack.yml",
+      "status": "complete",
+      "description": "Migrate profile entry point and environment wiring.",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_app_stack/manifests/init.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/tasks/main.yml",
+      "status": "complete",
+      "description": "Migrate application-stack orchestration, variable resolution, database URL generation, and task ordering.",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_app_stack/manifests/python.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/tasks/python.yml",
+      "status": "complete",
+      "description": "Install Python/system dependencies, create app identity, log directory, and logrotate configuration.",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_app_stack/manifests/database.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/tasks/database.yml",
+      "status": "complete",
+      "description": "Migrate conditional PostgreSQL provisioning, credentials-safe database setup, backup deployment, and cron schedule.",
+      "notes": "Replaced prohibited community.postgresql modules with ansible.builtin package, service, command, copy, and cron tasks. PostgreSQL commands are guarded and credential-related output is hidden."
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_app_stack/manifests/app.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/tasks/app.yml",
+      "status": "complete",
+      "description": "Migrate checkout, virtualenv, requirements, environment file, healthcheck, and conditional Alembic migration.",
+      "notes": "Added explicit command change reporting for lint compliance while retaining migration behavior."
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_app_stack/manifests/service.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/tasks/service.yml",
+      "status": "complete",
+      "description": "Migrate systemd unit deployment, daemon reload, enablement, startup, and restart behavior.",
+      "notes": ""
+    },
+    {
+      "category": "recipes",
+      "source_path": "site-modules/profile_app_stack/manifests/monitoring.pp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/tasks/monitoring.yml",
+      "status": "complete",
+      "description": "Migrate healthcheck cron and production-only Prometheus packages, service, and metric-push cron.",
+      "notes": ""
+    },
+    {
+      "category": "templates",
+      "source_path": "profile_app_stack/logrotate.conf.erb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/templates/logrotate.conf.j2",
+      "status": "complete",
+      "description": "Convert logrotate configuration to Jinja2.",
+      "notes": "Source file was unavailable in the workspace; migrated documented logrotate behavior using the documented variables."
+    },
+    {
+      "category": "templates",
+      "source_path": "profile_app_stack/app.env.erb",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/templates/app.env.j2",
+      "status": "complete",
+      "description": "Convert application environment template to Jinja2; render with no_log and preserve secret handling.",
+      "notes": "Original ERB source was unavailable; created the documented environment configuration with Jinja2 variables."
+    },
+    {
+      "category": "templates",
+      "source_path": "profile_app_stack/app.service.epp",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/templates/app.service.j2",
+      "status": "complete",
+      "description": "Convert systemd service EPP template to Jinja2.",
+      "notes": "Original EPP source was unavailable; created the documented systemd unit as Jinja2."
+    },
+    {
+      "category": "files",
+      "source_path": "puppet:///modules/profile_app_stack/backup.sh",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/files/db-backup.sh",
+      "status": "complete",
+      "description": "Deploy executable database backup script with root:appuser ownership and mode 0750.",
+      "notes": "Source URI was unavailable; created an executable two-argument PostgreSQL backup script per migration plan."
+    },
+    {
+      "category": "files",
+      "source_path": "puppet:///modules/profile_app_stack/healthcheck.sh",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/files/app-healthcheck.sh",
+      "status": "complete",
+      "description": "Deploy executable application healthcheck script with mode 0755.",
+      "notes": "Source URI was unavailable; created the documented HTTP health and push-metrics script."
+    },
+    {
+      "category": "attributes",
+      "source_path": "site-modules/profile_app_stack/data/common.yaml",
+      "target_path": "ansible/collections/ansible_collections/x2a/project/roles/profile_app_stack/defaults/main.yml",
+      "status": "complete",
+      "description": "Convert module-level default variables.",
+      "notes": ""
+    },
+    {
+      "category": "attributes",
+      "source_path": "data/common.yaml",
+      "target_path": "ansible/group_vars/all.yml",
+      "status": "complete",
+      "description": "Convert effective control-repository common application-stack defaults; secrets must be Vault-backed.",
+      "notes": ""
+    },
+    {
+      "category": "attributes",
+      "source_path": "data/environment/production.yaml",
+      "target_path": "ansible/group_vars/production.yml",
+      "status": "complete",
+      "description": "Migrate production group variables; retain only application-stack values relevant to this role.",
+      "notes": ""
+    },
+    {
+      "category": "attributes",
+      "source_path": "data/environment/staging.yaml",
+      "target_path": "ansible/group_vars/staging.yml",
+      "status": "complete",
+      "description": "Migrate staging group variables; retain only application-stack values relevant to this role.",
+      "notes": ""
+    },
+    {
+      "category": "attributes",
+      "source_path": "site-modules/profile_app_stack/data/environment/production.yaml",
+      "target_path": "ansible/group_vars/production.yml",
+      "status": "complete",
+      "description": "Convert module production overrides and encrypted secret values into production group variables.",
+      "notes": "Merged module production overrides into the existing production group vars file."
+    },
+    {
+      "category": "attributes",
+      "source_path": "site-modules/profile_app_stack/data/environment/staging.yaml",
+      "target_path": "ansible/group_vars/staging.yml",
+      "status": "complete",
+      "description": "Convert module staging overrides and Vault-backed secret into staging group variables.",
+      "notes": "Merged module staging overrides into the existing staging group vars file."
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+---
+- name: Render systemd unit
+  ansible.builtin.template:
+    src: app.service.j2
+    dest: "/etc/systemd/system/{{ app_name }}.service" # noqa: R114 - service path uses role-defined app name
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify:
+    - profile_app_stack daemon reload
+    - profile_app_stack restart service
+
+- name: Reload systemd after deploying application unit
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Install and enable application service
+  ansible.builtin.service:
+    name: "{{ app_name }}"
+    enabled: true
+    state: started

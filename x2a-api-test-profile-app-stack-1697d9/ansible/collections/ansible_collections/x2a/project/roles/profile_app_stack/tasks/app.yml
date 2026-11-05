@@ -1,0 +1,89 @@
+---
+- name: Create application directory  # noqa: R114 - path is role-defined
+  ansible.builtin.file:
+    path: "{{ app_dir }}" # noqa R114 - path is role-defined
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0755"
+
+- name: Check out application repository  # noqa: R104,R106,R108 - repository URL is role-defined and git checkout runs as the application user
+  ansible.builtin.git:
+    repo: "{{ app_repo }}"
+    dest: "{{ app_dir }}"
+    version: "{{ app_revision }}"
+    update: true
+    force: false
+  register: app_stack_checkout
+  become: true
+  become_user: "{{ app_user }}"
+
+- name: Create Python virtual environment  # noqa: R101,R108 - command executable and paths are role-defined; virtual environment creation runs as the application user
+  ansible.builtin.command:
+    argv:
+      - "{{ python_version }}"
+      - -m
+      - venv
+      - "{{ app_dir }}/venv"
+    creates: "{{ app_dir }}/venv/bin/activate"
+  changed_when: false
+  become: true
+  become_user: "{{ app_user }}"
+
+- name: Install application requirements  # noqa: R108,R113 - pip installs configured requirements into the application virtualenv as the application user
+  ansible.builtin.pip:
+    requirements: "{{ app_dir }}/requirements.txt"
+    virtualenv: "{{ app_dir }}/venv"
+  notify: profile_app_stack restart service
+  become: true
+  become_user: "{{ app_user }}"
+
+- name: Install configured application Python packages  # noqa: R108,R113 - pip runs as the application user and package names come from role configuration
+  ansible.builtin.pip:
+    name: "{{ item_app_package }}"
+    virtualenv: "{{ app_dir }}/venv"
+    state: present
+  loop: "{{ pip_packages }}"
+  loop_control:
+    loop_var: item_app_package
+  become: true
+  become_user: "{{ app_user }}"
+
+- name: Render application environment  # noqa: R114 - destination is role-defined
+  ansible.builtin.template:
+    src: app.env.j2
+    dest: "{{ app_dir }}/.env" # noqa R114 - path is role-defined
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0600"
+    backup: true
+  notify: profile_app_stack restart service
+  no_log: "{{ app_stack_secure_logging }}"
+
+- name: Deploy application healthcheck
+  ansible.builtin.copy:
+    src: app-healthcheck.sh
+    dest: /usr/local/bin/app-healthcheck.sh
+    owner: root
+    group: root
+    mode: "0755"
+    backup: true
+
+- name: Run database migrations after changed checkout  # noqa: L039,L045,R101,R108 - checkout is registered by the preceding task; database environment is required; command paths are role-defined; migrations run as the application user
+  ansible.builtin.command:
+    argv:
+      - "{{ app_dir }}/venv/bin/python"
+      - -m
+      - alembic
+      - upgrade
+      - head
+    chdir: "{{ app_dir }}"
+  when:
+    - app_stack_checkout.changed
+    - (app_dir + '/migrations/env.py') is file
+  changed_when: true
+  become: true
+  become_user: "{{ app_user }}"
+  no_log: "{{ app_stack_secure_logging }}"
+  environment:
+    DATABASE_URL: "{{ app_stack_db_url }}"

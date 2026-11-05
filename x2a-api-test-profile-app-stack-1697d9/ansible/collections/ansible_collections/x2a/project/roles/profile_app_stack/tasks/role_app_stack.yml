@@ -1,0 +1,7 @@
+---
+- name: Configure role-level application stack defaults
+  ansible.builtin.set_fact:
+    app_stack_role_loaded: true
+
+- name: Include profile application stack tasks
+  ansible.builtin.include_tasks: tasks/main.yml

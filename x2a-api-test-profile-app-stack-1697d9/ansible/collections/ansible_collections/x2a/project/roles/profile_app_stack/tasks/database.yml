@@ -1,0 +1,69 @@
+---
+- name: Install local PostgreSQL packages
+  ansible.builtin.package:
+    name:
+      - postgresql-client
+      - postgresql
+    state: present
+  when: db_host == 'localhost'
+
+- name: Install PostgreSQL client for remote database backups
+  ansible.builtin.package:
+    name: postgresql-client
+    state: present
+  when: db_host != 'localhost'
+
+- name: Ensure PostgreSQL service is running
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true
+  when: db_host == 'localhost'
+
+- name: Create PostgreSQL application user  # noqa: R101,R108 - database username comes from trusted role configuration; PostgreSQL user creation requires the postgres account
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/createuser
+      - --no-createdb
+      - --no-createrole
+      - --no-superuser
+      - "{{ db_user }}"
+  when: db_host == 'localhost'
+  changed_when: app_stack_create_user.rc == 0
+  failed_when: app_stack_create_user.rc not in [0, 1]
+  register: app_stack_create_user
+  become: true
+  become_user: postgres
+  no_log: "{{ app_stack_secure_logging }}"
+
+- name: Create application database  # noqa: R101,R108 - database name and owner come from trusted role configuration; database creation requires the postgres account
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/createdb
+      - --owner
+      - "{{ db_user }}"
+      - "{{ db_name }}"
+  when: db_host == 'localhost'
+  changed_when: app_stack_create_db.rc == 0
+  failed_when: app_stack_create_db.rc not in [0, 1]
+  register: app_stack_create_db
+  become: true
+  become_user: postgres
+  no_log: "{{ app_stack_secure_logging }}"
+
+- name: Deploy database backup script
+  ansible.builtin.copy:
+    src: db-backup.sh
+    dest: /usr/local/bin/db-backup.sh
+    owner: root
+    group: "{{ app_group }}"
+    mode: "0750"
+    backup: true
+
+- name: Schedule daily database backup
+  ansible.builtin.cron:
+    name: "{{ app_name }} database backup"
+    user: root
+    minute: "30"
+    hour: "2"
+    job: "/usr/local/bin/db-backup.sh {{ db_name }} {{ db_host }}"

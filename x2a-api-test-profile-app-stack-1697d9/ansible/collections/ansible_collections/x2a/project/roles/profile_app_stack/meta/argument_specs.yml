@@ -1,0 +1,139 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy and manage the test-app Python application stack
+    description:
+      - Installs Python dependencies, configures the application, and manages its systemd service.
+      - Optionally provisions local PostgreSQL and production Prometheus monitoring.
+    options:
+      app_name:
+        type: str
+        required: false
+        default: test-app
+        description: Application and systemd service name.
+      app_repo:
+        type: str
+        required: false
+        default: file:///tmp/test-app-repo
+        description: Git repository URL.
+      app_revision:
+        type: str
+        required: false
+        default: master
+        description: Git revision to deploy.
+      app_port:
+        type: int
+        required: false
+        default: 8000
+        description: HTTP listen port.
+      app_dir:
+        type: str
+        required: false
+        default: /opt/test-app
+        description: Application installation directory.
+      app_user:
+        type: str
+        required: false
+        default: appuser
+        description: Application system user.
+      app_group:
+        type: str
+        required: false
+        default: appuser
+        description: Application system group.
+      python_version:
+        type: str
+        required: false
+        default: python3
+        description: Python interpreter package and command.
+      pip_packages:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: Additional Python packages.
+      db_host:
+        type: str
+        required: false
+        default: localhost
+        description: Database host.
+      db_port:
+        type: int
+        required: false
+        default: 5432
+        description: Database port.
+      db_name:
+        type: str
+        required: false
+        default: testdb
+        description: Database name.
+      db_user:
+        type: str
+        required: false
+        default: testuser
+        description: Database user.
+      db_password:
+        type: str
+        required: false
+        default: test-db-password
+        description: Database password; override with an Ansible Vault value.
+      worker_count:
+        type: int
+        required: false
+        default: 2
+        description: Number of application workers.
+      worker_class:
+        type: str
+        required: false
+        default: sync
+        description: Gunicorn worker class.
+      max_requests:
+        type: int
+        required: false
+        default: 1000
+        description: Maximum requests per worker.
+      graceful_timeout:
+        type: int
+        required: false
+        default: 30
+        description: Graceful worker shutdown timeout.
+      log_dir:
+        type: str
+        required: false
+        default: /var/log/test-app
+        description: Application log directory.
+      log_level:
+        type: str
+        required: false
+        default: info
+        description: Application log level.
+      log_max_size:
+        type: str
+        required: false
+        default: 100M
+        description: Log rotation size threshold.
+      log_rotate_count:
+        type: int
+        required: false
+        default: 7
+        description: Number of rotated logs to retain.
+      secret_key:
+        type: str
+        required: false
+        default: test-secret-key
+        description: Application secret; override with an Ansible Vault value.
+      app_stack_environment:
+        type: str
+        required: false
+        default: staging
+        description: Deployment environment name.
+      app_stack_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide tasks that handle credentials from output.
+      app_stack_db_url:
+        type: str
+        required: false
+        default: postgresql://{{ db_user }}:{{ db_password }}@{{ db_host }}:{{ db_port }}/{{ db_name }}
+        description: Database URL passed to the application.

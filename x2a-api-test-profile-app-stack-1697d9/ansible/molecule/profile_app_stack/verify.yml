@@ -1,0 +1,294 @@
+---
+# Unsupported pre-flight checks: diagnostic output from systemctl status/cat and stat,
+# mutating daemon-reload/restart commands, optional commands ending with || true,
+# and the unspecified backup --help behavior are not asserted here.
+- name: Verify profile_app_stack pre-flight checks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Check appuser account
+      ansible.builtin.getent:
+        database: passwd
+        key: appuser
+        fail_key: false
+      register: verify_passwd
+      changed_when: false
+
+    - name: Assert appuser account exists
+      ansible.builtin.assert:
+        that: verify_passwd['ansible_facts']['getent_passwd']['appuser'] is defined
+        fail_msg: appuser was not found
+
+    - name: Check appuser group
+      ansible.builtin.getent:
+        database: group
+        key: appuser
+        fail_key: false
+      register: verify_group
+      changed_when: false
+
+    - name: Assert appuser group exists
+      ansible.builtin.assert:
+        that: verify_group['ansible_facts']['getent_group']['appuser'] is defined
+        fail_msg: appuser group was not found
+
+    - name: Check Python
+      ansible.builtin.command:
+        argv: [python3, --version]
+      register: verify_python
+      changed_when: false
+
+    - name: Assert Python is available
+      ansible.builtin.assert:
+        that: verify_python['rc'] == 0
+        fail_msg: python3 --version failed
+
+    - name: Check Git
+      ansible.builtin.command:
+        argv: [git, --version]
+      register: verify_git
+      changed_when: false
+
+    - name: Assert Git is available
+      ansible.builtin.assert:
+        that: verify_git['rc'] == 0
+        fail_msg: git --version failed
+
+    - name: Check required application paths
+      ansible.builtin.stat:
+        path: "{{ item_path }}"
+      loop:
+        - /opt/test-app
+        - /opt/test-app/venv
+        - /opt/test-app/venv/bin/python
+        - /opt/test-app/requirements.txt
+        - /opt/test-app/.env
+      loop_control:
+        loop_var: item_path
+      register: verify_paths
+
+    - name: Assert required application paths exist
+      ansible.builtin.assert:
+        that:
+          - item_path_result['stat']['exists'] | default(false)
+        fail_msg: a required application path is missing
+      loop: "{{ verify_paths['results'] }}"
+      loop_control:
+        loop_var: item_path_result
+
+    - name: Assert the virtual environment Python is executable
+      ansible.builtin.assert:
+        that:
+          - verify_paths['results'][2]['stat']['isreg'] | default(false)
+          - verify_paths['results'][2]['stat']['executable'] | default(false)
+        fail_msg: the virtual environment Python is not executable
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert test-app is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['test-app.service']['status'] == 'enabled'
+          - ansible_facts['services']['test-app.service']['state'] == 'running'
+        fail_msg: test-app is not enabled and active
+
+    - name: Check the test-app systemd unit
+      ansible.builtin.stat:
+        path: /etc/systemd/system/test-app.service
+      register: verify_unit
+
+    - name: Assert the test-app systemd unit exists
+      ansible.builtin.assert:
+        that: verify_unit['stat']['isreg'] | default(false)
+        fail_msg: the test-app systemd unit is missing
+
+    - name: Check the application health endpoint
+      ansible.builtin.uri:
+        url: http://localhost:8000/health
+        method: GET
+        status_code: 200
+        return_content: false
+
+    - name: Check the application health-check script
+      ansible.builtin.stat:
+        path: /usr/local/bin/app-healthcheck.sh
+      register: verify_healthcheck
+
+    - name: Assert the application health-check script is executable
+      ansible.builtin.assert:
+        that:
+          - verify_healthcheck['stat']['isreg'] | default(false)
+          - verify_healthcheck['stat']['executable'] | default(false)
+        fail_msg: the application health-check script is missing or not executable
+
+    - name: Run the application health-check script
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/app-healthcheck.sh
+          - http://localhost:8000/health
+      register: verify_healthcheck_run
+      changed_when: false
+
+    - name: Assert the application health-check succeeds
+      ansible.builtin.assert:
+        that: verify_healthcheck_run['rc'] == 0
+        fail_msg: the application health-check failed
+
+    - name: Check the logrotate configuration
+      ansible.builtin.stat:
+        path: /etc/logrotate.d/test-app
+      register: verify_logrotate
+
+    - name: Assert the logrotate configuration exists
+      ansible.builtin.assert:
+        that: verify_logrotate['stat']['isreg'] | default(false)
+        fail_msg: the logrotate configuration is missing
+
+    - name: Validate the logrotate configuration
+      ansible.builtin.command:
+        argv: [logrotate, -d, /etc/logrotate.d/test-app]
+      register: verify_logrotate_run
+      changed_when: false
+
+    - name: Assert logrotate accepts the configuration
+      ansible.builtin.assert:
+        that: verify_logrotate_run['rc'] == 0
+        fail_msg: logrotate rejected the configuration
+
+    - name: Check the database backup script
+      ansible.builtin.stat:
+        path: /usr/local/bin/db-backup.sh
+      register: verify_backup
+
+    - name: Assert the database backup script is executable
+      ansible.builtin.assert:
+        that:
+          - verify_backup['stat']['isreg'] | default(false)
+          - verify_backup['stat']['executable'] | default(false)
+        fail_msg: the database backup script is missing or not executable
+
+    - name: Check application environment keys
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -Eq
+          - ^(APP_REVISION|WORKER_COUNT|MAX_REQUESTS|LOG_LEVEL)=
+          - /opt/test-app/.env
+      register: verify_environment
+      changed_when: false
+
+    - name: Assert application environment keys are present
+      ansible.builtin.assert:
+        that: verify_environment['rc'] == 0
+        fail_msg: expected application environment keys are missing
+
+    - name: Assert local PostgreSQL is active
+      ansible.builtin.assert:
+        that: ansible_facts['services']['postgresql.service']['state'] == 'running'
+        fail_msg: PostgreSQL is not active
+      when: app_stack_environment | default('') in ['default', 'staging']
+
+    - name: Check local PostgreSQL role
+      ansible.builtin.command:
+        argv: [sudo, -u, postgres, psql, -tAc, "SELECT 1 FROM pg_roles WHERE rolname='testuser'"]
+      register: verify_pg_role
+      changed_when: false
+      when: app_stack_environment | default('') in ['default', 'staging']
+
+    - name: Assert local PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - verify_pg_role['rc'] == 0
+          - verify_pg_role['stdout'] | trim == '1'
+        fail_msg: the testuser PostgreSQL role is missing
+      when: app_stack_environment | default('') in ['default', 'staging']
+
+    - name: Check local PostgreSQL database
+      ansible.builtin.command:
+        argv: [sudo, -u, postgres, psql, -tAc, "SELECT 1 FROM pg_catalog.pg_database WHERE datname='testdb'"]
+      register: verify_pg_database
+      changed_when: false
+      when: app_stack_environment | default('') in ['default', 'staging']
+
+    - name: Assert local PostgreSQL database exists
+      ansible.builtin.assert:
+        that:
+          - verify_pg_database['rc'] == 0
+          - verify_pg_database['stdout'] | trim == '1'
+        fail_msg: the testdb PostgreSQL database is missing
+      when: app_stack_environment | default('') in ['default', 'staging']
+
+    - name: Check local PostgreSQL port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 5432
+        state: started
+        timeout: 5
+      when: app_stack_environment | default('') in ['default', 'staging']
+
+    - name: Check production database hostname
+      ansible.builtin.getent:
+        database: hosts
+        key: db-primary.prod.internal
+        fail_key: false
+      register: verify_prod_host
+      when: app_stack_environment | default('') == 'production'
+
+    - name: Assert production database hostname resolves
+      ansible.builtin.assert:
+        that: verify_prod_host['ansible_facts']['getent_hosts']['db-primary.prod.internal'] is defined
+        fail_msg: the production database hostname does not resolve
+      when: app_stack_environment | default('') == 'production'
+
+    - name: Check production database port
+      ansible.builtin.wait_for:
+        host: db-primary.prod.internal
+        port: 5432
+        state: started
+        timeout: 5
+      when: app_stack_environment | default('') == 'production'
+
+    - name: Assert production node exporter is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['prometheus-node-exporter.service']['status'] == 'enabled'
+          - ansible_facts['services']['prometheus-node-exporter.service']['state'] == 'running'
+        fail_msg: Prometheus node exporter is not enabled and active
+      when: app_stack_environment | default('') == 'production'
+
+    - name: Check production metric cron
+      ansible.builtin.command:
+        argv: [crontab, -u, appuser, -l]
+      register: verify_metrics_cron
+      changed_when: false
+      when: app_stack_environment | default('') == 'production'
+
+    - name: Assert production metric pushing is scheduled
+      ansible.builtin.assert:
+        that:
+          - verify_metrics_cron['rc'] == 0
+          - "'--push-metrics' in verify_metrics_cron['stdout']"
+        fail_msg: the production metric-push cron entry is missing
+      when: app_stack_environment | default('') == 'production'
+
+    - name: Check migration environment file
+      ansible.builtin.stat:
+        path: /opt/test-app/migrations/env.py
+      register: verify_migration_file
+
+    - name: Check current database migration
+      ansible.builtin.command:
+        argv: [/opt/test-app/venv/bin/python, -m, alembic, current]
+        chdir: /opt/test-app
+      become: true
+      become_user: appuser
+      register: verify_migration
+      changed_when: false
+      when: verify_migration_file['stat']['isreg'] | default(false)
+
+    - name: Assert current database migration succeeds
+      ansible.builtin.assert:
+        that: verify_migration['rc'] == 0
+        fail_msg: the Alembic current check failed
+      when: verify_migration_file['stat']['isreg'] | default(false)
