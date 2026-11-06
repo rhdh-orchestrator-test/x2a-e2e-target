@@ -1,0 +1,47 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure a Redis cache server.
+    description:
+      - Deploys a standalone Redis cache server on the configured port.
+      - Creates the Redis log directory and removes obsolete replication directives.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide output from tasks that handle the Redis authentication password.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by the Redis cache server.
+      cache_redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis cluster mode is enabled.
+      cache_redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel mode is enabled.
+      cache_redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      cache_redis_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis RDB persistence is enabled.
+      cache_redis_aof_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis AOF persistence is enabled.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.

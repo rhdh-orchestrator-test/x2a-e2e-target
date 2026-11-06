@@ -1,0 +1,76 @@
+---
+# Unsupported checks: Redis PING and CONFIG GET require a protected credential that is not
+# supplied here; INFO server and authentication grep have no stated expected outcome; the
+# Redis service name is unconfirmed, so service status and enablement cannot be checked.
+- name: Verify cache pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat.stat.exists
+          - redis_config_stat.stat.isreg
+        fail_msg: Redis configuration file /etc/redis/6379.conf is missing.
+
+    - name: Verify Redis TCP port 6379 is listening
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltn
+      register: redis_listener_check
+      changed_when: false
+
+    - name: Assert Redis TCP port 6379 is listening
+      ansible.builtin.assert:
+        that:
+          - redis_listener_check.stdout is search(':6379(?:\\s|$)')
+        fail_msg: Redis TCP port 6379 is not listening.
+
+    - name: Verify Redis log directory metadata
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory has expected metadata
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+          - redis_log_directory.stat.mode == '0755'
+          - redis_log_directory.stat.pw_name == 'redis'
+          - redis_log_directory.stat.gr_name == 'redis'
+        fail_msg: Redis log directory metadata does not match the pre-flight expectation.
+
+    - name: Read Redis configuration for removed directives
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_contents
+
+    - name: Assert removed Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_contents.content | b64decode) is not
+            search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: A removed Redis configuration directive is present.
+
+    - name: Verify a Redis process is running
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -a
+          - redis
+      register: redis_process_check
+      changed_when: false
+
+    - name: Assert a Redis process is running
+      ansible.builtin.assert:
+        that:
+          - redis_process_check.rc == 0
+        fail_msg: No Redis process is running.
