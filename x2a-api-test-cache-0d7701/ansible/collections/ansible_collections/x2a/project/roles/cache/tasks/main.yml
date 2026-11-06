@@ -1,0 +1,38 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Redis cache service  # noqa: L038 - external eloy.redis.redis role is required and is not available in this collection
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_port: 6379
+    redis_requirepass: "{{ redis_password }}"
+    redis_replication_enabled: false
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_aof_enabled: false
+    redis_rdb_enabled: true
+
+- name: Ensure Redis log directory exists
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+
+- name: Check whether the Redis configuration exists
+  ansible.builtin.stat:
+    path: "{{ cache_redis_config_path }}"
+  register: cache_redis_config
+
+- name: Remove unsupported Redis replication directives
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path is a role default for the fixed Redis instance configuration
+    regexp: (?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)\b.*?
+    replace: ""
+    backup: true
+  when: cache_redis_config.stat.exists  # noqa: L039 - cache_redis_config is registered by the preceding stat task
+  notify: Restart Redis

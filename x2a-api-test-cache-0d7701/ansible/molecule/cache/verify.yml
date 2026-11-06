@@ -1,0 +1,79 @@
+# Unsupported pre-flight checks: authenticated redis-cli checks require the Vault-managed password;
+# journal/log inspection has no stated expected result; Memcached listener and protocol checks omit
+# the configured endpoint; logfile inspection has no stated expected result.
+---
+- name: Verify cache services and Redis instance
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather service facts for Redis and Memcached status checks
+      ansible.builtin.service_facts:
+
+    - name: Verify the selected Redis service is running
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts.services.get('redis.service', {}).get('state') == 'running') or
+            (ansible_facts.services.get('redis-server.service', {}).get('state') == 'running')
+        fail_msg: Redis service (redis or redis-server) is not running.
+
+    - name: Verify the Memcached service is running
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services.get('memcached.service', {}).get('state') == 'running'
+        fail_msg: Memcached service is not running.
+
+    - name: Check that the Redis instance configuration exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config
+
+    - name: Verify that the Redis instance configuration exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config.stat.exists
+          - cache_redis_config.stat.isreg
+        fail_msg: Redis instance configuration /etc/redis/6379.conf is missing.
+
+    - name: Read the Redis instance configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_config_content
+
+    - name: Verify that cleaned Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            not (cache_redis_config_content.content | b64decode |
+            regex_search('(?m)^' ~ item_cache_directive))
+        fail_msg: A cleaned Redis directive remains in /etc/redis/6379.conf.
+      loop:
+        - replica-serve-stale-data
+        - replica-read-only
+        - repl-ping-replica-period
+        - client-output-buffer-limit
+        - replica-priority
+      loop_control:
+        loop_var: item_cache_directive
+
+    - name: Verify that Redis listens on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Check the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_directory
+
+    - name: Verify Redis log directory properties
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_directory.stat.exists
+          - cache_redis_log_directory.stat.isdir
+          - cache_redis_log_directory.stat.pw_name == 'redis'
+          - cache_redis_log_directory.stat.gr_name == 'redis'
+          - cache_redis_log_directory.stat.mode == '0755'
+        fail_msg: Redis log directory does not have the expected properties.
