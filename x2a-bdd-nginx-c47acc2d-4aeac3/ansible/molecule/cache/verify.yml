@@ -1,0 +1,68 @@
+---
+# Unsupported pre-flight checks: Redis service status/enabled state, Redis process listing,
+# Redis port/configuration-value grep, authenticated Redis access (the protected variable
+# name is not provided), Redis directory listing/log output, and all Memcached checks have
+# no safely stated expected outcome or require unavailable dependency details.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check that the Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_file
+
+    - name: Assert that the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_file['stat']['exists']
+          - redis_config_file['stat']['isreg']
+        fail_msg: Redis configuration file /etc/redis/6379.conf is missing or is not a regular file.
+
+    - name: Read the Redis configuration for removed-directive verification
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert that removed Redis replication directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content['content'] | b64decode) is not
+            search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: Unexpected Redis replication directives remain in /etc/redis/6379.conf.
+
+    - name: Check unauthenticated Redis access is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - PING
+      register: redis_unauthenticated_ping
+      changed_when: false
+      failed_when: false
+
+    - name: Assert that unauthenticated Redis access is rejected
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_unauthenticated_ping['stdout'] | lower) is search('noauth|authentication required') or
+            (redis_unauthenticated_ping['stderr'] | lower) is search('noauth|authentication required') or
+            redis_unauthenticated_ping['rc'] != 0
+        fail_msg: Unauthenticated Redis access was not rejected.
+
+    - name: Inspect the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+          - redis_log_directory['stat']['pw_name'] == 'redis'
+          - redis_log_directory['stat']['gr_name'] == 'redis'
+          - redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: Redis log directory does not have the expected ownership or mode.

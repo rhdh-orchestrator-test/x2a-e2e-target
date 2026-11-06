@@ -1,0 +1,35 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure standalone Redis with the discovered collection
+  ansible.builtin.include_role:
+    name: eloy.redis.redis  # noqa: L038 - external role is declared in requirements.yml and is unavailable in this checkout
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_requirepass: "{{ redis_password }}"
+
+- name: Ensure Redis log directory exists
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Remove unwanted Redis replication directives
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^{{ item_cache_directive }}.*$
+    state: absent
+    create: false
+  loop:
+    - replica-serve-stale-data
+    - replica-read-only
+    - repl-ping-replica-period
+    - client-output-buffer-limit
+    - replica-priority
+  loop_control:
+    loop_var: item_cache_directive
+  notify: Restart Redis service

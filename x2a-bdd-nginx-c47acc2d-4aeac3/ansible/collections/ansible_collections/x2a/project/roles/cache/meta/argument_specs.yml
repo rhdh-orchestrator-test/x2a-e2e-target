@@ -1,0 +1,47 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure a standalone Redis cache service.
+    description:
+      - Installs and configures Redis through the eloy.redis collection.
+      - Creates the Redis log directory and removes unwanted replication directives.
+    options:
+      redis_install_method:
+        type: str
+        required: false
+        default: package
+        description: Redis installation method.
+      redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by Redis.
+      redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis cluster mode is enabled.
+      redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel mode is enabled.
+      redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      redis_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis RDB persistence is enabled.
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide task output for operations involving the injected Redis password.
+      redis_password:
+        type: str
+        required: true
+        description: Redis password injected by an AAP credential type.
