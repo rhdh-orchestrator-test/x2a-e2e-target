@@ -1,0 +1,239 @@
+# Unsupported pre-flight checks: PostgreSQL authentication, the secret DATABASE_URL value,
+# service logs, pip package listing, and git status/commit output have no safe expected
+# outcome here or would require embedding a secret. The explicit restart command is
+# exercised below; diagnostic status/cat commands are covered by equivalent assertions.
+---
+- name: Verify FastAPI tutorial deployment
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify PostgreSQL is enabled and active
+      ansible.builtin.service_facts:
+
+    - name: Assert PostgreSQL is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts.services['postgresql.service']['status'] == 'enabled'"
+          - "ansible_facts.services['postgresql.service']['state'] == 'running'"
+
+    - name: Verify the fastapi PostgreSQL role exists
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT rolname FROM pg_roles WHERE rolname = 'fastapi';
+      register: item_role_query
+      changed_when: false
+
+    - name: Assert the fastapi PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - item_role_query.stdout | trim == 'fastapi'
+
+    - name: Verify the database owner
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT datname, pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db';
+      register: item_database_owner_query
+      changed_when: false
+
+    - name: Assert fastapi_db is owned by fastapi
+      ansible.builtin.assert:
+        that:
+          - item_database_owner_query.stdout | trim == 'fastapi_db|fastapi'
+
+    - name: Verify all database privileges for fastapi
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - >-
+            SELECT has_database_privilege('fastapi', 'fastapi_db', 'CONNECT') AND
+            has_database_privilege('fastapi', 'fastapi_db', 'CREATE') AND
+            has_database_privilege('fastapi', 'fastapi_db', 'TEMPORARY');
+      register: item_database_privileges_query
+      changed_when: false
+
+    - name: Assert fastapi has all database privileges
+      ansible.builtin.assert:
+        that:
+          - item_database_privileges_query.stdout | trim == 't'
+
+    - name: Verify the FastAPI service is enabled and active
+      ansible.builtin.service_facts:
+
+    - name: Assert the FastAPI service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts.services['fastapi-tutorial.service']['status'] == 'enabled'"
+          - "ansible_facts.services['fastapi-tutorial.service']['state'] == 'running'"
+
+    - name: Verify the FastAPI HTTP endpoint responds
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8000/
+        method: GET
+        status_code: "{{ range(100, 600) | list }}"
+        return_content: false
+      register: item_http_response
+
+    - name: Assert the FastAPI endpoint returned an HTTP response
+      ansible.builtin.assert:
+        that:
+          - item_http_response.status is defined
+          - item_http_response.status >= 100
+          - item_http_response.status < 600
+
+    - name: Verify the FastAPI listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: item_listener_query
+      changed_when: false
+
+    - name: Assert the FastAPI listener is on the IPv4 wildcard and uses Uvicorn
+      ansible.builtin.assert:
+        that:
+          - item_listener_query.stdout is search('0\\.0\\.0\\.0:8000')
+          - item_listener_query.stdout is search('uvicorn', ignorecase=true)
+
+    - name: Verify the Uvicorn application process
+      ansible.builtin.command:
+        argv:
+          - ps
+          - aux
+      register: item_process_query
+      changed_when: false
+
+    - name: Assert the expected Uvicorn command is running
+      ansible.builtin.assert:
+        that:
+          - item_process_query.stdout is search('/opt/fastapi-tutorial/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000')
+
+    - name: Verify the virtual environment executables
+      ansible.builtin.stat:
+        path: "{{ item_venv_executable['path'] }}"
+      loop:
+        - path: /opt/fastapi-tutorial/venv/bin/python
+        - path: /opt/fastapi-tutorial/venv/bin/pip
+        - path: /opt/fastapi-tutorial/venv/bin/uvicorn
+      loop_control:
+        loop_var: item_venv_executable
+      register: item_venv_stats
+
+    - name: Assert the virtual environment executables are present and executable
+      ansible.builtin.assert:
+        that:
+          - item_venv_stat['stat']['exists']
+          - item_venv_stat['stat']['isreg']
+          - item_venv_stat['stat']['executable']
+      loop: "{{ item_venv_stats['results'] }}"
+      loop_control:
+        loop_var: item_venv_stat
+
+    - name: Verify the application directory and requirements file
+      ansible.builtin.stat:
+        path: "{{ item_application_path['path'] }}"
+      loop:
+        - path: /opt/fastapi-tutorial
+        - path: /opt/fastapi-tutorial/requirements.txt
+      loop_control:
+        loop_var: item_application_path
+      register: item_application_stats
+
+    - name: Assert the application directory and requirements file exist
+      ansible.builtin.assert:
+        that:
+          - item_application_stat['stat']['exists']
+      loop: "{{ item_application_stats['results'] }}"
+      loop_control:
+        loop_var: item_application_stat
+
+    - name: Verify non-secret application configuration
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -Fx
+          - "{{ item_configuration_line }}"
+          - /opt/fastapi-tutorial/.env
+      loop:
+        - 'PROJECT_NAME="FastAPI Tutorial"'
+        - API_VERSION=1.0.0
+      loop_control:
+        loop_var: item_configuration_line
+      register: item_configuration_checks
+      changed_when: false
+
+    - name: Assert non-secret application configuration is present
+      ansible.builtin.assert:
+        that:
+          - item_configuration_check['rc'] == 0
+      loop: "{{ item_configuration_checks['results'] }}"
+      loop_control:
+        loop_var: item_configuration_check
+
+    - name: Verify the systemd unit properties
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - fastapi-tutorial
+          - --property=User
+          - --property=WorkingDirectory
+          - --property=ExecStart
+          - --property=Restart
+      register: item_unit_properties
+      changed_when: false
+
+    - name: Assert the systemd unit properties
+      ansible.builtin.assert:
+        that:
+          - item_unit_properties.stdout is search('User=root')
+          - item_unit_properties.stdout is search('WorkingDirectory=/opt/fastapi-tutorial')
+          - item_unit_properties.stdout is search('/opt/fastapi-tutorial/venv/bin/uvicorn')
+          - item_unit_properties.stdout is search('Restart=always')
+
+    - name: Validate the systemd unit
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - /etc/systemd/system/fastapi-tutorial.service
+      register: item_unit_validation
+      changed_when: false
+
+    - name: Assert the systemd unit has no syntax errors
+      ansible.builtin.assert:
+        that:
+          - item_unit_validation.rc == 0
+
+    - name: Exercise the FastAPI service restart lifecycle check
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - restart
+          - fastapi-tutorial
+      changed_when: false
+
+    - name: Verify FastAPI is active after restart
+      ansible.builtin.service_facts:
+
+    - name: Assert FastAPI is active after restart
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts.services['fastapi-tutorial.service']['state'] == 'running'"
+
+    - name: Verify the HTTP endpoint after restart
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8000/
+        method: GET
+        status_code: "{{ range(100, 600) | list }}"
+        return_content: false
