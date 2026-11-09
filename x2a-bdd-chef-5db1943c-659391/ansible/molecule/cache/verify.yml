@@ -1,0 +1,78 @@
+# Unsupported pre-flight checks: Redis service discovery/status has no stated expected outcome;
+# expected values for bind, requirepass, dir, pidfile, logfile, and syslog-enabled were not stated;
+# authenticated Redis PING requires an approved secret store; Redis process inspection and journal
+# inspection have no stated expected outcome; /run/redis and /etc/redis/6379.conf ownership/mode
+# expectations were not stated; Memcached service discovery has no stated expected outcome.
+---
+- name: Verify Redis cache pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check that the Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_file
+
+    - name: Assert that the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_file['stat']['exists']
+          - redis_config_file['stat']['isreg']
+        fail_msg: The Redis configuration file is missing or is not a regular file.
+
+    - name: Read the Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert that selected Redis directives were removed
+      ansible.builtin.assert:
+        that:
+          - >-
+            not (redis_config_content['content'] | b64decode
+            | regex_search(item_redis_directive['pattern'], multiline=true))
+        fail_msg: A selected Redis directive is still active in the configuration.
+      loop:
+        - pattern: '^replica-serve-stale-data.*$'
+        - pattern: '^replica-read-only.*$'
+        - pattern: '^repl-ping-replica-period.*$'
+        - pattern: '^client-output-buffer-limit.*$'
+        - pattern: '^replica-priority.*$'
+      loop_control:
+        loop_var: item_redis_directive
+
+    - name: Verify that Redis is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Inspect listening sockets for Redis port 6379
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: redis_listening_sockets
+      changed_when: false
+
+    - name: Assert that a listening socket exists for port 6379
+      ansible.builtin.assert:
+        that:
+          - redis_listening_sockets['stdout'] is regex('(?m)[.:]6379\\s')
+        fail_msg: No listening TCP socket for port 6379 was found.
+
+    - name: Check the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+          - redis_log_directory['stat']['pw_name'] == 'redis'
+          - redis_log_directory['stat']['gr_name'] == 'redis'
+          - redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: The Redis log directory does not have the expected properties.
