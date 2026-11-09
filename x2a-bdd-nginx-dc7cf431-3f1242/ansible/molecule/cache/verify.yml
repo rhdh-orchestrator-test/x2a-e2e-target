@@ -1,0 +1,104 @@
+# Unsupported pre-flight checks: Redis service status/log checks require an unavailable
+# external service name; authenticated Redis PING requires the vaulted password; Memcached
+# service and endpoint checks require unavailable external cookbook values.
+---
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: stat_redis_config
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - stat_redis_config.stat.exists
+          - stat_redis_config.stat.isreg
+        fail_msg: Redis configuration file /etc/redis/6379.conf is missing.
+
+    - name: Check Redis port configuration
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -Eq
+          - '^port[[:space:]]+6379([[:space:]]|$)'
+          - /etc/redis/6379.conf
+      register: command_redis_port
+      changed_when: false
+      failed_when: false
+
+    - name: Check Redis password configuration without exposing credentials
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -Eq
+          - '^requirepass[[:space:]]+[^[:space:]]+([[:space:]]|$)'
+          - /etc/redis/6379.conf
+      register: command_redis_password
+      changed_when: false
+      failed_when: false
+
+    - name: Assert Redis port and password configuration are present
+      ansible.builtin.assert:
+        that:
+          - command_redis_port.rc == 0
+          - command_redis_password.rc == 0
+        fail_msg: Redis port 6379 or password configuration is missing.
+
+    - name: Check unwanted Redis directives are absent
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -Eq
+          - '^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)([[:space:]]|$)'
+          - /etc/redis/6379.conf
+      register: command_redis_directives
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unwanted Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - command_redis_directives.rc == 1
+        fail_msg: An unwanted replication directive remains in the Redis configuration.
+
+    - name: Wait for Redis TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Check unauthenticated Redis access is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+      register: command_redis_unauthenticated
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unauthenticated Redis access does not return PONG
+      ansible.builtin.assert:
+        that:
+          - "'PONG' not in command_redis_unauthenticated.stdout"
+        fail_msg: Redis accepted an unauthenticated PING.
+
+    - name: Check Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: stat_redis_log
+
+    - name: Assert Redis log directory ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - stat_redis_log.stat.exists
+          - stat_redis_log.stat.isdir
+          - stat_redis_log.stat.pw_name == 'redis'
+          - stat_redis_log.stat.gr_name == 'redis'
+          - stat_redis_log.stat.mode == '0755'
+        fail_msg: Redis log directory has incorrect existence, ownership, or permissions.
