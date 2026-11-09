@@ -1,0 +1,45 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install and configure standalone Redis
+  ansible.builtin.include_role:
+    name: eloy.redis.redis # noqa: L038 - the required external Redis role is not included in this collection
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_version: "7.2"
+    redis_install_method: package
+    redis_port: "{{ cache_redis_port }}"
+    redis_requirepass: "{{ redis_password }}"
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_replication_enabled: false
+    redis_aof_enabled: false
+    redis_rdb_enabled: true
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_directory }}" # noqa: R114 - path is a role default, not user input
+    state: directory
+    owner: "{{ cache_redis_log_owner }}"
+    group: "{{ cache_redis_log_group }}"
+    mode: "{{ cache_redis_log_mode }}"
+    recurse: true
+
+- name: Ensure Redis PID directory exists
+  ansible.builtin.file:
+    path: "{{ cache_redis_pid_directory }}" # noqa: R114 - path is a role default, not user input
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+
+- name: Remove unsupported replication directives from Redis configuration
+  ansible.builtin.lineinfile:
+    path: /etc/redis/{{ cache_redis_port }}.conf # noqa: R114,R115 - the path is a fixed Redis configuration location with a role-defined port
+    regexp: ^{{ item_cache_directive }}.*$
+    state: absent
+  when: cache_redis_remove_replication_directives | bool
+  loop: "{{ cache_redis_replication_directives }}"
+  loop_control:
+    loop_var: item_cache_directive

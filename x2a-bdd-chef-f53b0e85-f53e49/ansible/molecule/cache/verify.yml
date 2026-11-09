@@ -1,0 +1,40 @@
+---
+# Unsupported pre-flight checks: source-recipe inspection, directory ownership/mode output,
+# Redis service-unit discovery/status, configuration value inspection, Redis authentication/INFO,
+# service-log review, and logfile-path inspection have no stated expected outcome or require
+# an undisclosed/discovered value.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Confirm the Redis configuration file exists for port 6379
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Assert that the Redis configuration file exists for port 6379
+      ansible.builtin.assert:
+        that:
+          - item_redis_config['stat']['exists']
+          - item_redis_config['stat']['isreg']
+        fail_msg: The Redis configuration file for port 6379 is missing or is not a regular file.
+
+    - name: Confirm that Redis is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Read the Redis configuration for directive verification
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: item_redis_config_content
+
+    - name: Assert that configured replication directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (item_redis_config_content['content'] | b64decode) is not
+            search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: One or more configured replication directives remain in the Redis configuration.

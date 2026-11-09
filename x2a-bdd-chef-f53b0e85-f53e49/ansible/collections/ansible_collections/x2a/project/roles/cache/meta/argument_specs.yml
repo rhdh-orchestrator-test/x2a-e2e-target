@@ -1,0 +1,63 @@
+---
+argument_specs:
+  main:
+    short_description: Configure an authenticated standalone Redis cache.
+    description:
+      - Installs and configures Redis through the eloy.redis collection.
+      - Creates the Redis runtime and log directories and removes unsupported replication directives.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to hide output from tasks that handle the Redis password.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by the Redis instance.
+      cache_redis_pid_directory:
+        type: str
+        required: false
+        default: /run/redis
+        description: Directory used for Redis PID files.
+      cache_redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Directory used for Redis logs.
+      cache_redis_log_owner:
+        type: str
+        required: false
+        default: redis
+        description: Owner of the Redis log directory.
+      cache_redis_log_group:
+        type: str
+        required: false
+        default: redis
+        description: Group owner of the Redis log directory.
+      cache_redis_log_mode:
+        type: str
+        required: false
+        default: "0755"
+        description: Permissions for the Redis log directory.
+      cache_redis_remove_replication_directives:
+        type: bool
+        required: false
+        default: true
+        description: Whether unsupported replication directives are removed from Redis configuration.
+      cache_redis_replication_directives:
+        type: list
+        elements: str
+        required: false
+        default:
+          - replica-serve-stale-data
+          - replica-read-only
+          - repl-ping-replica-period
+          - client-output-buffer-limit
+          - replica-priority
+        description: Redis directives removed from the standalone configuration.
+      redis_password:
+        type: str
+        required: true
+        description: Redis password injected by an AAP credential type.
