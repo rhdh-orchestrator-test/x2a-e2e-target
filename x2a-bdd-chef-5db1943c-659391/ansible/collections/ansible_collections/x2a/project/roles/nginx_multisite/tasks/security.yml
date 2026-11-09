@@ -1,0 +1,82 @@
+---
+- name: Install security packages
+  ansible.builtin.package:
+    name:
+      - fail2ban
+      - ufw
+      - openssh-server
+    state: present
+
+- name: Render fail2ban configuration
+  ansible.builtin.template:
+    src: fail2ban.jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: "0644"
+    backup: true
+  notify: Restart fail2ban
+
+- name: Enable and start fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: true
+    state: started
+
+- name: Set UFW default incoming policy
+  ansible.builtin.command:
+    cmd: ufw --force default deny
+  changed_when: "'Default incoming policy changed' in nginx_multisite_ufw_default.stdout"
+  register: nginx_multisite_ufw_default
+
+- name: Allow SSH through UFW
+  ansible.builtin.command:
+    cmd: ufw allow ssh
+  changed_when: "'Skipping adding existing rule' not in nginx_multisite_ufw_ssh.stdout"
+  register: nginx_multisite_ufw_ssh
+
+- name: Allow HTTP through UFW
+  ansible.builtin.command:
+    cmd: ufw allow http
+  changed_when: "'Skipping adding existing rule' not in nginx_multisite_ufw_http.stdout"
+  register: nginx_multisite_ufw_http
+
+- name: Allow HTTPS through UFW
+  ansible.builtin.command:
+    cmd: ufw allow https
+  changed_when: "'Skipping adding existing rule' not in nginx_multisite_ufw_https.stdout"
+  register: nginx_multisite_ufw_https
+
+- name: Enable UFW
+  ansible.builtin.command:
+    cmd: ufw --force enable
+  changed_when: "'Firewall is active and enabled on system startup' in nginx_multisite_ufw_enable.stdout"
+  register: nginx_multisite_ufw_enable
+
+- name: Render sysctl security configuration
+  ansible.builtin.template:
+    src: sysctl-security.conf.j2
+    dest: /etc/sysctl.d/99-security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload sysctl
+
+- name: Disable root SSH login
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PermitRootLogin\\s+"
+    line: PermitRootLogin no
+    backup: true
+  register: nginx_multisite_root_ssh
+
+- name: Disable SSH password authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PasswordAuthentication\\s+"
+    line: PasswordAuthentication no
+    backup: true
+  register: nginx_multisite_password_ssh
+
+- name: Restart SSH service after hardening # noqa: L039 - variables are registered by the preceding SSH hardening tasks
+  ansible.builtin.service:
+    name: "{{ nginx_multisite_ssh_service }}"
+    state: restarted
+  when: nginx_multisite_root_ssh.changed or nginx_multisite_password_ssh.changed
