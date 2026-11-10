@@ -1,0 +1,261 @@
+---
+# Unsupported pre-flight checks: package inventory, service enablement/activity, sshd status,
+# raw sysctl values, unqualified configuration grep output, access/error log existence,
+# fail2ban status/details, and TLS certificate dates/issuer have no stated expected outcome.
+- name: Verify nginx multisite pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check required files and directories
+      ansible.builtin.stat:
+        path: "{{ item_path['path'] }}"
+        follow: false
+      loop:
+        - path: /etc/nginx/nginx.conf
+        - path: /etc/nginx/conf.d/security.conf
+        - path: /etc/nginx/sites-available/test.cluster.local
+        - path: /etc/nginx/sites-available/ci.cluster.local
+        - path: /etc/nginx/sites-available/status.cluster.local
+        - path: /etc/nginx/sites-enabled/test.cluster.local
+        - path: /etc/nginx/sites-enabled/ci.cluster.local
+        - path: /etc/nginx/sites-enabled/status.cluster.local
+        - path: /opt/server/test
+        - path: /opt/server/test/index.html
+        - path: /opt/server/ci
+        - path: /opt/server/ci/index.html
+        - path: /opt/server/status
+        - path: /opt/server/status/index.html
+        - path: /etc/ssl/certs/test.cluster.local.crt
+        - path: /etc/ssl/certs/ci.cluster.local.crt
+        - path: /etc/ssl/certs/status.cluster.local.crt
+        - path: /etc/ssl/private/test.cluster.local.key
+        - path: /etc/ssl/private/ci.cluster.local.key
+        - path: /etc/ssl/private/status.cluster.local.key
+        - path: /etc/fail2ban/jail.local
+        - path: /etc/sysctl.d/99-security.conf
+        - path: /etc/ssh/sshd_config
+      loop_control:
+        loop_var: item_path
+      register: required_paths
+
+    - name: Assert required files and directories exist
+      ansible.builtin.assert:
+        that:
+          - item_required['stat']['exists']
+          - item_required['stat']['isreg'] | default(false) or item_required['stat']['isdir'] | default(false) or item_required['stat']['islnk'] | default(false)
+      loop: "{{ required_paths['results'] }}"
+      loop_control:
+        loop_var: item_required
+
+    - name: Check the default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+        follow: false
+      register: default_site
+
+    - name: Assert the default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not default_site['stat']['exists']
+
+    - name: Assert enabled nginx sites are symbolic links
+      ansible.builtin.stat:
+        path: "{{ item_site['path'] }}"
+        follow: false
+      loop:
+        - path: /etc/nginx/sites-enabled/test.cluster.local
+        - path: /etc/nginx/sites-enabled/ci.cluster.local
+        - path: /etc/nginx/sites-enabled/status.cluster.local
+      loop_control:
+        loop_var: item_site
+      register: enabled_sites
+
+    - name: Confirm enabled nginx sites are links
+      ansible.builtin.assert:
+        that:
+          - item_link['stat']['islnk']
+      loop: "{{ enabled_sites['results'] }}"
+      loop_control:
+        loop_var: item_link
+
+    - name: Check private key ownership and permissions
+      ansible.builtin.stat:
+        path: "{{ item_key['path'] }}"
+      loop:
+        - path: /etc/ssl/private/test.cluster.local.key
+        - path: /etc/ssl/private/ci.cluster.local.key
+        - path: /etc/ssl/private/status.cluster.local.key
+      loop_control:
+        loop_var: item_key
+      register: private_keys
+
+    - name: Assert private keys are root ssl-cert mode 0640
+      ansible.builtin.assert:
+        that:
+          - item_private['stat']['pw_name'] == 'root'
+          - item_private['stat']['gr_name'] == 'ssl-cert'
+          - item_private['stat']['mode'] == '0640'
+      loop: "{{ private_keys['results'] }}"
+      loop_control:
+        loop_var: item_private
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      changed_when: false
+      register: nginx_test
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - nginx_test['rc'] == 0
+
+    - name: Validate SSH configuration
+      ansible.builtin.command:
+        argv:
+          - sshd
+          - -t
+      changed_when: false
+      register: sshd_test
+
+    - name: Assert SSH configuration is valid
+      ansible.builtin.assert:
+        that:
+          - sshd_test['rc'] == 0
+
+    - name: Read SSH hardening configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: ssh_config
+
+    - name: Assert SSH root login and password authentication are disabled
+      ansible.builtin.assert:
+        that:
+          - (ssh_config['content'] | b64decode) is search('(?m)^\\s*PermitRootLogin\\s+no\\s*$')
+          - (ssh_config['content'] | b64decode) is search('(?m)^\\s*PasswordAuthentication\\s+no\\s*$')
+
+    - name: Check UFW status
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      changed_when: false
+      register: ufw_status
+
+    - name: Assert UFW is active with the expected default and allowed ports
+      ansible.builtin.assert:
+        that:
+          - ufw_status['rc'] == 0
+          - ufw_status['stdout'] is search('Status: active')
+          - ufw_status['stdout'] is search('Default: deny \(incoming\)')
+          - ufw_status['stdout'] is search('22/tcp')
+          - ufw_status['stdout'] is search('80/tcp')
+          - ufw_status['stdout'] is search('443/tcp')
+
+    - name: Check HTTP endpoints
+      ansible.builtin.uri:
+        url: "http://127.0.0.1/"
+        headers:
+          Host: "{{ item_http['host'] }}"
+        status_code: 301
+        follow_redirects: none
+      loop:
+        - host: test.cluster.local
+        - host: ci.cluster.local
+        - host: status.cluster.local
+      loop_control:
+        loop_var: item_http
+
+    - name: Check HTTPS endpoints
+      ansible.builtin.uri:
+        url: "https://{{ item_https['host'] }}/"
+        headers:
+          Host: "{{ item_https['host'] }}"
+        validate_certs: false
+        status_code: 200
+      loop:
+        - host: test.cluster.local
+        - host: ci.cluster.local
+        - host: status.cluster.local
+      loop_control:
+        loop_var: item_https
+
+    - name: Check HTTPS security headers
+      ansible.builtin.uri:
+        url: https://127.0.0.1/
+        headers:
+          Host: test.cluster.local
+        validate_certs: false
+        status_code: 200
+      register: https_headers
+
+    - name: Assert expected HTTPS security headers are present
+      ansible.builtin.assert:
+        that:
+          - "'strict-transport-security' in https_headers['headers']"
+          - "'x-frame-options' in https_headers['headers']"
+          - "'x-content-type-options' in https_headers['headers']"
+          - "'x-xss-protection' in https_headers['headers']"
+          - "'referrer-policy' in https_headers['headers']"
+          - "'content-security-policy' in https_headers['headers']"
+
+    - name: Validate certificate subjects
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - -in
+          - "{{ item_certificate['path'] }}"
+          - -noout
+          - -subject
+      changed_when: false
+      loop:
+        - path: /etc/ssl/certs/test.cluster.local.crt
+          name: test.cluster.local
+        - path: /etc/ssl/certs/ci.cluster.local.crt
+          name: ci.cluster.local
+        - path: /etc/ssl/certs/status.cluster.local.crt
+          name: status.cluster.local
+      loop_control:
+        loop_var: item_certificate
+      register: certificate_subjects
+
+    - name: Assert certificate subjects contain the expected host names
+      ansible.builtin.assert:
+        that:
+          - item_subject['rc'] == 0
+          - item_subject['stdout'] is search('CN=' ~ item_subject['item']['name'])
+      loop: "{{ certificate_subjects['results'] }}"
+      loop_control:
+        loop_var: item_subject
+
+    - name: Check TLS 1.2 and TLS 1.3 support
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - s_client
+          - -connect
+          - 127.0.0.1:443
+          - -servername
+          - test.cluster.local
+          - "{{ item_tls['flag'] }}"
+      args:
+        stdin: ""
+      changed_when: false
+      loop:
+        - flag: -tls1_2
+        - flag: -tls1_3
+      loop_control:
+        loop_var: item_tls
+      register: tls_checks
+
+    - name: Assert both required TLS protocol checks succeeded
+      ansible.builtin.assert:
+        that:
+          - item_tls_result['rc'] == 0
+      loop: "{{ tls_checks['results'] }}"
+      loop_control:
+        loop_var: item_tls_result
