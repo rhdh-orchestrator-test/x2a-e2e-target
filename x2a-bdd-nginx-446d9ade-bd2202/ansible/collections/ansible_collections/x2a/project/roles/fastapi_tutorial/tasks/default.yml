@@ -1,0 +1,156 @@
+---
+- name: Load operating system variables
+  ansible.builtin.set_fact:
+    fastapi_tutorial_is_redhat: "{{ ansible_facts['os_family'] == 'RedHat' }}"
+
+- name: Install FastAPI and PostgreSQL packages on RedHat systems # noqa: L039 - variable is set by the preceding task
+  ansible.builtin.package:
+    name:
+      - python3
+      - python3-pip
+      - git
+      - postgresql-server
+      - postgresql-contrib
+      - libpq-devel
+    state: present
+  when: fastapi_tutorial_is_redhat | bool
+
+- name: Install FastAPI and PostgreSQL packages on Debian systems # noqa: L039 - variable is set by the preceding task
+  ansible.builtin.package:
+    name:
+      - python3
+      - python3-pip
+      - python3-venv
+      - git
+      - postgresql
+      - postgresql-contrib
+      - libpq-dev
+    state: present
+  when: not fastapi_tutorial_is_redhat | bool
+
+- name: Initialize PostgreSQL on RedHat systems # noqa: L039 - variable is set by the preceding task
+  ansible.builtin.command:
+    argv:
+      - postgresql-setup
+      - --initdb
+    creates: /var/lib/pgsql/data/PG_VERSION
+  when: fastapi_tutorial_is_redhat | bool
+
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ fastapi_tutorial_app_path }}" # noqa: R114 - path is a role default
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Synchronize application repository # noqa: R104 - repository URL comes from role defaults and uses HTTPS
+  ansible.builtin.git: # noqa: R106 - repository source comes from a role default and is controlled by the role author
+    repo: "{{ fastapi_tutorial_repository }}"
+    dest: "{{ fastapi_tutorial_app_path }}" # noqa: R114 - destination is a role default
+    version: "{{ fastapi_tutorial_revision }}"
+    update: true
+  notify: Restart FastAPI tutorial service
+
+- name: Create Python virtual environment # noqa: R101 - command path comes from a role default
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -m
+      - venv
+      - "{{ fastapi_tutorial_venv_path }}"
+    creates: "{{ fastapi_tutorial_venv_path }}/bin/python" # noqa: R114 - path is a role default
+
+- name: Install Python dependencies # noqa: R113 - dependency target comes from role defaults
+  ansible.builtin.pip:
+    requirements: "{{ fastapi_tutorial_app_path }}/requirements.txt" # noqa: R114 - path is a role default
+    virtualenv: "{{ fastapi_tutorial_venv_path }}" # noqa: R114 - path is a role default
+  notify: Restart FastAPI tutorial service
+
+- name: Enable and start PostgreSQL
+  ansible.builtin.service:
+    name: "{{ fastapi_tutorial_postgresql_service }}"
+    state: started
+    enabled: true
+
+- name: Set PostgreSQL initialization marker path # noqa: L039 - variable is set by the preceding task
+  ansible.builtin.set_fact:
+    fastapi_tutorial_db_marker: "{{ '/var/lib/pgsql/.fastapi_tutorial_db_initialized' if fastapi_tutorial_is_redhat else '/var/lib/postgresql/.fastapi_tutorial_db_initialized' }}"
+
+- name: Create PostgreSQL role and database # noqa: L039,R101 - database variables are required role arguments validated by an earlier task; SQL values come from required role arguments
+  ansible.builtin.shell:
+    cmd: |
+      psql -v ON_ERROR_STOP=1 -d postgres <<'SQL'
+      DO $do$
+      BEGIN
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '{{ db_user }}') THEN
+          CREATE ROLE "{{ db_user }}" LOGIN PASSWORD '{{ db_password }}';
+        ELSE
+          ALTER ROLE "{{ db_user }}" WITH LOGIN PASSWORD '{{ db_password }}';
+        END IF;
+      END
+      $do$;
+      SELECT 'CREATE DATABASE {{ db_name }} OWNER {{ db_user }}'
+      WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{{ db_name }}')\gexec
+      GRANT ALL PRIVILEGES ON DATABASE "{{ db_name }}" TO "{{ db_user }}";
+      SQL
+    creates: "{{ fastapi_tutorial_db_marker }}"
+  changed_when: true
+  become: true # noqa: R108 - PostgreSQL role and database administration requires the postgres account
+  become_user: postgres
+  no_log: "{{ fastapi_tutorial_secure_logging }}"
+
+- name: Mark PostgreSQL role and database as initialized
+  ansible.builtin.file:
+    path: "{{ fastapi_tutorial_db_marker }}" # noqa: R114 - marker path is derived from fixed role-controlled paths
+    state: touch
+    modification_time: preserve
+    access_time: preserve
+    owner: postgres
+    group: postgres
+    mode: "0600"
+  become: true # noqa: R108 - creating the PostgreSQL-owned marker requires root
+
+- name: Write application environment file # noqa: L039 - database variables are required role arguments validated by an earlier task
+  ansible.builtin.copy:
+    content: |
+      PROJECT_NAME="{{ fastapi_tutorial_project_name }}"
+      API_VERSION={{ fastapi_tutorial_api_version }}
+      DATABASE_URL=postgresql://{{ db_user }}:{{ db_password }}@{{ db_host }}/{{ db_name }}
+    dest: "{{ fastapi_tutorial_app_path }}/.env" # noqa: R114 - path is a role default
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
+  notify: Restart FastAPI tutorial service
+  no_log: "{{ fastapi_tutorial_secure_logging }}"
+
+- name: Write FastAPI systemd unit
+  ansible.builtin.copy:
+    content: |
+      [Unit]
+      Description=FastAPI Tutorial Service
+      After=network.target {{ fastapi_tutorial_postgresql_service }}.service
+      [Service]
+      Type=simple
+      User=root
+      WorkingDirectory={{ fastapi_tutorial_app_path }}
+      Environment="PATH={{ fastapi_tutorial_venv_path }}/bin"
+      ExecStart={{ fastapi_tutorial_venv_path }}/bin/uvicorn app.main:app --host 0.0.0.0 --port {{ fastapi_tutorial_app_port }}
+      Restart=always
+      [Install]
+      WantedBy=multi-user.target
+    dest: "/etc/systemd/system/{{ fastapi_tutorial_service_name }}.service" # noqa: R114 - service name is a role default
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify:
+    - Reload systemd
+    - Restart FastAPI tutorial service
+
+- name: Enable and start FastAPI service
+  ansible.builtin.service:
+    name: "{{ fastapi_tutorial_service_name }}"
+    state: started
+    enabled: true
