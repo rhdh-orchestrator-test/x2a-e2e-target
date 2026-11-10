@@ -1,0 +1,233 @@
+---
+# Unsupported: repository branch/log, pip list, redacted .env values, service status/journal,
+# PostgreSQL version/socket and privilege listings, HTTP body, process output, and version output.
+- name: Verify fastapi-tutorial deployment
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify application paths
+      ansible.builtin.stat:
+        path: "{{ item_fastapi_path }}"
+      loop:
+        - /opt/fastapi-tutorial
+        - /opt/fastapi-tutorial/requirements.txt
+        - /opt/fastapi-tutorial/app/main.py
+        - /opt/fastapi-tutorial/venv
+        - /opt/fastapi-tutorial/venv/bin/python
+        - /opt/fastapi-tutorial/venv/bin/pip
+        - /opt/fastapi-tutorial/venv/bin/uvicorn
+        - /opt/fastapi-tutorial/.env
+        - /etc/systemd/system/fastapi-tutorial.service
+      loop_control:
+        loop_var: item_fastapi_path
+      register: fastapi_paths
+
+    - name: Assert application paths exist
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_result['stat']['exists']
+          - item_fastapi_result['stat']['isreg'] or item_fastapi_result['stat']['isdir']
+        loop: "{{ fastapi_paths['results'] }}"
+        loop_control:
+          loop_var: item_fastapi_result
+
+    - name: Assert virtual-environment tools are executable
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_executable['stat']['executable']
+        loop: "{{ fastapi_paths['results'] }}"
+        loop_control:
+          loop_var: item_fastapi_executable
+        when: >-
+          item_fastapi_executable['item'] in ['/opt/fastapi-tutorial/venv/bin/python',
+          '/opt/fastapi-tutorial/venv/bin/pip', '/opt/fastapi-tutorial/venv/bin/uvicorn']
+
+    - name: Verify application import
+      ansible.builtin.command:
+        argv:
+          - /opt/fastapi-tutorial/venv/bin/python
+          - -c
+          - from app.main import app; print(app)
+        chdir: /opt/fastapi-tutorial
+      register: fastapi_import
+      changed_when: false
+      failed_when: false
+
+    - name: Assert application import succeeds
+      ansible.builtin.assert:
+        that:
+          - fastapi_import['rc'] == 0
+
+    - name: Verify application service enabled
+      ansible.builtin.command:
+        argv: [systemctl, is-enabled, fastapi-tutorial]
+      register: fastapi_enabled
+      changed_when: false
+      failed_when: false
+
+    - name: Assert application service enabled
+      ansible.builtin.assert:
+        that:
+          - fastapi_enabled['rc'] == 0
+          - fastapi_enabled['stdout'] | trim == 'enabled'
+
+    - name: Verify application service active
+      ansible.builtin.command:
+        argv: [systemctl, is-active, fastapi-tutorial]
+      register: fastapi_active
+      changed_when: false
+      failed_when: false
+
+    - name: Assert application service active
+      ansible.builtin.assert:
+        that:
+          - fastapi_active['rc'] == 0
+          - fastapi_active['stdout'] | trim == 'active'
+
+    - name: Verify application systemd unit
+      ansible.builtin.command:
+        argv: [systemd-analyze, verify, /etc/systemd/system/fastapi-tutorial.service]
+      register: fastapi_unit_verify
+      changed_when: false
+      failed_when: false
+
+    - name: Assert application systemd unit is valid
+      ansible.builtin.assert:
+        that:
+          - fastapi_unit_verify['rc'] == 0
+
+    - name: Verify application systemd properties
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - fastapi-tutorial
+          - --property=User,WorkingDirectory,ExecStart,Restart,Environment
+      register: fastapi_properties
+      changed_when: false
+      failed_when: false
+
+    - name: Assert application systemd properties
+      ansible.builtin.assert:
+        that:
+          - fastapi_properties['rc'] == 0
+          - "'User=root' in fastapi_properties['stdout_lines']"
+          - "'WorkingDirectory=/opt/fastapi-tutorial' in fastapi_properties['stdout_lines']"
+          - "'Restart=always' in fastapi_properties['stdout_lines']"
+          - "'Environment=PATH=/opt/fastapi-tutorial/venv/bin' in fastapi_properties['stdout_lines']"
+          - >-
+            fastapi_properties['stdout'] is search(
+            '/opt/fastapi-tutorial/venv/bin/uvicorn.*app\\.main:app.*--port 8000')
+
+    - name: Verify FastAPI listener
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 8000
+        state: started
+        timeout: 10
+
+    - name: Verify PostgreSQL service enabled
+      ansible.builtin.command:
+        argv: [systemctl, is-enabled, postgresql]
+      register: postgresql_enabled
+      changed_when: false
+      failed_when: false
+
+    - name: Assert PostgreSQL service enabled
+      ansible.builtin.assert:
+        that:
+          - postgresql_enabled['rc'] == 0
+          - postgresql_enabled['stdout'] | trim == 'enabled'
+
+    - name: Verify PostgreSQL service active
+      ansible.builtin.command:
+        argv: [systemctl, is-active, postgresql]
+      register: postgresql_active
+      changed_when: false
+      failed_when: false
+
+    - name: Assert PostgreSQL service active
+      ansible.builtin.assert:
+        that:
+          - postgresql_active['rc'] == 0
+          - postgresql_active['stdout'] | trim == 'active'
+
+    - name: Verify PostgreSQL listener
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 5432
+        state: started
+        timeout: 10
+
+    - name: Verify PostgreSQL role
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv: [psql, -tAc, "SELECT rolname FROM pg_roles WHERE rolname = 'fastapi';"]
+      register: postgresql_role
+      changed_when: false
+      failed_when: false
+
+    - name: Assert PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - postgresql_role['rc'] == 0
+          - postgresql_role['stdout'] | trim == 'fastapi'
+
+    - name: Verify PostgreSQL database owner
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - "SELECT datname || ':' || pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db';"
+      register: postgresql_database
+      changed_when: false
+      failed_when: false
+
+    - name: Assert PostgreSQL database is owned by fastapi
+      ansible.builtin.assert:
+        that:
+          - postgresql_database['rc'] == 0
+          - postgresql_database['stdout'] | trim == 'fastapi_db:fastapi'
+
+    - name: Verify RHEL PostgreSQL initialization marker
+      ansible.builtin.stat:
+        path: /var/lib/pgsql/data/PG_VERSION
+      register: postgresql_rhel_marker
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Assert RHEL PostgreSQL initialization marker exists
+      ansible.builtin.assert:
+        that:
+          - postgresql_rhel_marker['stat']['exists']
+          - postgresql_rhel_marker['stat']['isreg']
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Gather installed packages
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert Debian packages
+      ansible.builtin.assert:
+        that:
+          - "'python3' in ansible_facts['packages']"
+          - "'python3-pip' in ansible_facts['packages']"
+          - "'python3-venv' in ansible_facts['packages']"
+          - "'git' in ansible_facts['packages']"
+          - "'postgresql' in ansible_facts['packages']"
+          - "'postgresql-contrib' in ansible_facts['packages']"
+          - "'libpq-dev' in ansible_facts['packages']"
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Assert RedHat packages
+      ansible.builtin.assert:
+        that:
+          - "'python3' in ansible_facts['packages']"
+          - "'python3-pip' in ansible_facts['packages']"
+          - "'git' in ansible_facts['packages']"
+          - "'postgresql-server' in ansible_facts['packages']"
+          - "'postgresql-contrib' in ansible_facts['packages']"
+          - "'libpq-devel' in ansible_facts['packages']"
+      when: ansible_facts['os_family'] == 'RedHat'
