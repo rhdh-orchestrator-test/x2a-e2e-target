@@ -1,0 +1,98 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure the FastAPI Tutorial application
+    description:
+      - Deploys the FastAPI Tutorial repository, Python environment, PostgreSQL dependency, and systemd service.
+    options:
+      fastapi_tutorial_repository:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository URL for the application.
+      fastapi_tutorial_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      fastapi_tutorial_root:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Application checkout directory.
+      fastapi_tutorial_venv:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial/venv
+        description: Python virtual environment directory.
+      fastapi_tutorial_host:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: Address on which Uvicorn listens.
+      fastapi_tutorial_port:
+        type: int
+        required: false
+        default: 8000
+        description: TCP port for the FastAPI service.
+      fastapi_tutorial_app:
+        type: str
+        required: false
+        default: app.main:app
+        description: Uvicorn application import path.
+      fastapi_tutorial_project_name:
+        type: str
+        required: false
+        default: FastAPI Tutorial
+        description: Project name written to the application environment.
+      fastapi_tutorial_api_version:
+        type: str
+        required: false
+        default: 1.0.0
+        description: API version written to the application environment.
+      fastapi_tutorial_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide output from tasks handling database credentials.
+      fastapi_tutorial_python_packages:
+        type: list
+        elements: str
+        required: false
+        default:
+          - python3
+          - python3-pip
+          - git
+          - postgresql-server
+          - postgresql-contrib
+          - libpq-devel
+        description: Packages installed on RedHat-family systems.
+      fastapi_tutorial_debian_python_packages:
+        type: list
+        elements: str
+        required: false
+        default:
+          - python3
+          - python3-pip
+          - python3-venv
+          - git
+          - postgresql
+          - postgresql-contrib
+          - libpq-dev
+        description: Packages installed on Debian-family systems.
+      database_user:
+        type: str
+        required: true
+        description: AAP-injected PostgreSQL username.
+      database_password:
+        type: str
+        required: true
+        description: AAP-injected PostgreSQL password.
+      database_name:
+        type: str
+        required: true
+        description: AAP-injected PostgreSQL database name.
+      database_url:
+        type: str
+        required: true
+        description: AAP-injected database connection URL.

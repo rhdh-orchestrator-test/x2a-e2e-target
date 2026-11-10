@@ -1,0 +1,402 @@
+---
+# Unsupported pre-flight checks: environment-file grep values, PostgreSQL password
+# connectivity, service/status/log output diagnostics, non-RHEL data-directory path,
+# and systemd-analyze validation have no safe, explicit expected outcome here.
+- name: Verify fastapi-tutorial pre-flight checks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Check Python version command
+      ansible.builtin.command:
+        argv:
+          - python3
+          - --version
+      register: item_python_version
+      changed_when: false
+
+    - name: Assert Python is available
+      ansible.builtin.assert:
+        that:
+          - item_python_version.rc == 0
+        fail_msg: "python3 --version did not succeed"
+
+    - name: Check pip version command
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -m
+          - pip
+          - --version
+      register: item_pip_version
+      changed_when: false
+
+    - name: Assert pip is available
+      ansible.builtin.assert:
+        that:
+          - item_pip_version.rc == 0
+        fail_msg: "python3 -m pip --version did not succeed"
+
+    - name: Check Git version command
+      ansible.builtin.command:
+        argv:
+          - git
+          - --version
+      register: item_git_version
+      changed_when: false
+
+    - name: Assert Git is available
+      ansible.builtin.assert:
+        that:
+          - item_git_version.rc == 0
+        fail_msg: "git --version did not succeed"
+
+    - name: Check FastAPI application directory
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: item_app_directory
+
+    - name: Assert FastAPI application directory exists
+      ansible.builtin.assert:
+        that:
+          - item_app_directory.stat.exists
+          - item_app_directory.stat.isdir
+        fail_msg: "The FastAPI application directory is missing"
+
+    - name: Check FastAPI virtual environment directory
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv
+      register: item_venv_directory
+
+    - name: Assert FastAPI virtual environment directory exists
+      ansible.builtin.assert:
+        that:
+          - item_venv_directory.stat.exists
+          - item_venv_directory.stat.isdir
+        fail_msg: "The FastAPI virtual environment directory is missing"
+
+    - name: Check application requirements file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: item_requirements_file
+
+    - name: Assert application requirements file exists
+      ansible.builtin.assert:
+        that:
+          - item_requirements_file.stat.exists
+          - item_requirements_file.stat.isreg
+        fail_msg: "The application requirements file is missing"
+
+    - name: Check virtual environment Python executable
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/python
+      register: item_venv_python
+
+    - name: Assert virtual environment Python is executable
+      ansible.builtin.assert:
+        that:
+          - item_venv_python.stat.exists
+          - item_venv_python.stat.isreg
+          - item_venv_python.stat.executable
+        fail_msg: "The virtual environment Python executable is missing"
+
+    - name: Check virtual environment pip executable
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/pip
+      register: item_venv_pip
+
+    - name: Assert virtual environment pip is executable
+      ansible.builtin.assert:
+        that:
+          - item_venv_pip.stat.exists
+          - item_venv_pip.stat.isreg
+          - item_venv_pip.stat.executable
+        fail_msg: "The virtual environment pip executable is missing"
+
+    - name: Check RHEL PostgreSQL initialization file
+      ansible.builtin.stat:
+        path: /var/lib/pgsql/data/PG_VERSION
+      register: item_rhel_pg_version
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Assert RHEL PostgreSQL initialization file exists
+      ansible.builtin.assert:
+        that:
+          - item_rhel_pg_version.stat.exists
+          - item_rhel_pg_version.stat.isreg
+        fail_msg: "The RHEL PostgreSQL initialization file is missing"
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Check repository remote
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - /opt/fastapi-tutorial
+          - remote
+          - -v
+      register: item_git_remote
+      changed_when: false
+
+    - name: Assert repository remote is the requested repository
+      ansible.builtin.assert:
+        that:
+          - item_git_remote.rc == 0
+          - "'https://github.com/dibanez/fastapi_tutorial.git' in item_git_remote.stdout"
+        fail_msg: "The repository remote is not the requested repository"
+
+    - name: Check repository branch
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - /opt/fastapi-tutorial
+          - branch
+          - --show-current
+      register: item_git_branch
+      changed_when: false
+
+    - name: Assert repository is on the requested revision
+      ansible.builtin.assert:
+        that:
+          - item_git_branch.rc == 0
+          - item_git_branch.stdout | trim == 'main'
+        fail_msg: "The repository is not on the requested main revision"
+
+    - name: Check repository HEAD
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - /opt/fastapi-tutorial
+          - rev-parse
+          - --verify
+          - HEAD
+      register: item_git_head
+      changed_when: false
+
+    - name: Assert repository HEAD is valid
+      ansible.builtin.assert:
+        that:
+          - item_git_head.rc == 0
+        fail_msg: "The repository HEAD cannot be verified"
+
+    - name: Check PostgreSQL service is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - postgresql
+      register: item_postgresql_enabled
+      changed_when: false
+
+    - name: Assert PostgreSQL service is enabled
+      ansible.builtin.assert:
+        that:
+          - item_postgresql_enabled.rc == 0
+          - item_postgresql_enabled.stdout | trim == 'enabled'
+        fail_msg: "PostgreSQL is not enabled"
+
+    - name: Check PostgreSQL service is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - postgresql
+      register: item_postgresql_active
+      changed_when: false
+
+    - name: Assert PostgreSQL service is active
+      ansible.builtin.assert:
+        that:
+          - item_postgresql_active.rc == 0
+          - item_postgresql_active.stdout | trim == 'active'
+        fail_msg: "PostgreSQL is not active"
+
+    - name: Check PostgreSQL role
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - "SELECT 1 FROM pg_roles WHERE rolname='fastapi';"
+      register: item_pg_role
+      changed_when: false
+
+    - name: Assert PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - item_pg_role.rc == 0
+          - item_pg_role.stdout | trim == '1'
+        fail_msg: "The fastapi PostgreSQL role is missing"
+
+    - name: Check PostgreSQL database
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - "SELECT datname FROM pg_database WHERE datname='fastapi_db';"
+      register: item_pg_database
+      changed_when: false
+
+    - name: Assert PostgreSQL database exists
+      ansible.builtin.assert:
+        that:
+          - item_pg_database.rc == 0
+          - item_pg_database.stdout | trim == 'fastapi_db'
+        fail_msg: "The fastapi_db PostgreSQL database is missing"
+
+    - name: Check PostgreSQL database owner
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname='fastapi_db';"
+      register: item_pg_owner
+      changed_when: false
+
+    - name: Assert PostgreSQL database owner is fastapi
+      ansible.builtin.assert:
+        that:
+          - item_pg_owner.rc == 0
+          - item_pg_owner.stdout | trim == 'fastapi'
+        fail_msg: "The fastapi_db database owner is not fastapi"
+
+    - name: Check environment file exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/.env
+      register: item_environment_file
+
+    - name: Assert environment file exists
+      ansible.builtin.assert:
+        that:
+          - item_environment_file.stat.exists
+          - item_environment_file.stat.isreg
+        fail_msg: "The FastAPI environment file is missing"
+
+    - name: Check FastAPI systemd unit file
+      ansible.builtin.stat:
+        path: /etc/systemd/system/fastapi-tutorial.service
+      register: item_unit_file
+
+    - name: Assert FastAPI systemd unit file exists
+      ansible.builtin.assert:
+        that:
+          - item_unit_file.stat.exists
+          - item_unit_file.stat.isreg
+        fail_msg: "The FastAPI systemd unit file is missing"
+
+    - name: Check FastAPI service properties
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - fastapi-tutorial.service
+          - --property=User,WorkingDirectory,ExecStart,Restart
+      register: item_fastapi_properties
+      changed_when: false
+
+    - name: Assert FastAPI service has expected properties
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_properties.rc == 0
+          - "'User=root' in item_fastapi_properties.stdout"
+          - "'WorkingDirectory=/opt/fastapi-tutorial' in item_fastapi_properties.stdout"
+          - "'Restart=always' in item_fastapi_properties.stdout"
+          - "'/opt/fastapi-tutorial/venv/bin/uvicorn' in item_fastapi_properties.stdout"
+          - "'--host 0.0.0.0' in item_fastapi_properties.stdout"
+          - "'--port 8000' in item_fastapi_properties.stdout"
+        fail_msg: "The FastAPI systemd unit properties are not as expected"
+
+    - name: Check FastAPI service is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - fastapi-tutorial.service
+      register: item_fastapi_enabled
+      changed_when: false
+
+    - name: Assert FastAPI service is enabled
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_enabled.rc == 0
+          - item_fastapi_enabled.stdout | trim == 'enabled'
+        fail_msg: "The FastAPI service is not enabled"
+
+    - name: Check FastAPI service is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - fastapi-tutorial.service
+      register: item_fastapi_active
+      changed_when: false
+
+    - name: Assert FastAPI service is active
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_active.rc == 0
+          - item_fastapi_active.stdout | trim == 'active'
+        fail_msg: "The FastAPI service is not active"
+
+    - name: Check FastAPI listening socket
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: item_fastapi_socket
+      changed_when: false
+
+    - name: Assert FastAPI listens on the expected address and port
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_socket.rc == 0
+          - item_fastapi_socket.stdout is search('0\\.0\\.0\\.0:8000')
+        fail_msg: "FastAPI is not listening on 0.0.0.0:8000"
+
+    - name: Check application directory ownership and mode
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: item_app_directory_attributes
+
+    - name: Assert application directory has expected ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_app_directory_attributes.stat.pw_name == 'root'
+          - item_app_directory_attributes.stat.gr_name == 'root'
+          - item_app_directory_attributes.stat.mode == '0755'
+        fail_msg: "The application directory ownership or mode is incorrect"
+
+    - name: Check environment file ownership and mode
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/.env
+      register: item_environment_attributes
+
+    - name: Assert environment file has expected ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_environment_attributes.stat.pw_name == 'root'
+          - item_environment_attributes.stat.gr_name == 'root'
+          - item_environment_attributes.stat.mode in ['0644', '0600']
+        fail_msg: "The environment file ownership or mode is incorrect"
+
+    - name: Check systemd unit ownership and mode
+      ansible.builtin.stat:
+        path: /etc/systemd/system/fastapi-tutorial.service
+      register: item_unit_attributes
+
+    - name: Assert systemd unit has expected ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_unit_attributes.stat.pw_name == 'root'
+          - item_unit_attributes.stat.gr_name == 'root'
+          - item_unit_attributes.stat.mode == '0644'
+        fail_msg: "The systemd unit ownership or mode is incorrect"
