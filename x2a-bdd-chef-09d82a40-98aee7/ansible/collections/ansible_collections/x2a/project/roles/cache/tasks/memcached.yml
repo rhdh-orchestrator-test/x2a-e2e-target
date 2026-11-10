@@ -1,0 +1,11 @@
+---
+- name: Install Memcached package
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Configure and start Memcached
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true

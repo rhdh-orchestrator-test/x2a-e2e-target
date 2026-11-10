@@ -1,0 +1,193 @@
+# Unsupported pre-flight checks: source-file inventory, process/log review, Redis password authentication,
+# restart/log validation, and checks without a stated expected outcome are not represented here.
+---
+- name: Verify cache services and endpoints
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Collect service facts for Memcached and Redis checks
+      ansible.builtin.service_facts:
+
+    - name: Assert Memcached is enabled and active
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['services'] | dict2items
+            | selectattr('key', 'in', ['memcached.service', 'memcached'])
+            | selectattr('value.status', 'equalto', 'enabled') | list | length) > 0
+          - >-
+            (ansible_facts['services'] | dict2items
+            | selectattr('key', 'in', ['memcached.service', 'memcached'])
+            | selectattr('value.state', 'equalto', 'running') | list | length) > 0
+        fail_msg: Memcached must be enabled and active.
+
+    - name: Assert a Redis service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['services'] | dict2items
+            | selectattr('key', 'in', ['redis.service', 'redis-server.service', 'redis', 'redis-server'])
+            | selectattr('value.status', 'equalto', 'enabled') | list | length) > 0
+          - >-
+            (ansible_facts['services'] | dict2items
+            | selectattr('key', 'in', ['redis.service', 'redis-server.service', 'redis', 'redis-server'])
+            | selectattr('value.state', 'equalto', 'running') | list | length) > 0
+        fail_msg: A Redis service unit must be enabled and active.
+
+    - name: Inspect the Memcached process command line
+      ansible.builtin.command:
+        argv:
+          - ps
+          - auxww
+      register: item_memcached_process
+      changed_when: false
+
+    - name: Assert reported Memcached configuration values are present
+      ansible.builtin.assert:
+        that:
+          - "'64' in item_memcached_process['stdout']"
+          - "'11211' in item_memcached_process['stdout']"
+          - "'0.0.0.0' in item_memcached_process['stdout']"
+          - "'1024' in item_memcached_process['stdout']"
+          - "'1m' in item_memcached_process['stdout']"
+        fail_msg: The Memcached process command line does not expose all expected values.
+
+    - name: Wait for the Memcached TCP endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 2
+
+    - name: Query the Memcached TCP endpoint
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - "2"
+          - 127.0.0.1
+          - "11211"
+        stdin: "version\r\nquit\r\n"
+      register: item_memcached_tcp
+      changed_when: false
+      failed_when: false
+
+    - name: Assert the Memcached TCP endpoint returns a version
+      ansible.builtin.assert:
+        that:
+          - item_memcached_tcp['stdout'] is match('(?s)^VERSION')
+        fail_msg: The Memcached TCP endpoint did not return a VERSION response.
+
+    - name: Query the Memcached UDP endpoint
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -u
+          - -w
+          - "2"
+          - 127.0.0.1
+          - "11211"
+        stdin: "version\r\n"
+      register: item_memcached_udp
+      changed_when: false
+      failed_when: false
+
+    - name: Assert the Memcached UDP endpoint returns a version
+      ansible.builtin.assert:
+        that:
+          - item_memcached_udp['stdout'] is match('(?s)^VERSION')
+        fail_msg: The Memcached UDP endpoint did not return a VERSION response.
+
+    - name: Verify the Memcached TCP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: item_memcached_tcp_listener
+      changed_when: false
+
+    - name: Assert the Memcached TCP listener is on port 11211
+      ansible.builtin.assert:
+        that:
+          - item_memcached_tcp_listener['stdout'] is search(':[0-9.]*11211\\b')
+        fail_msg: No Memcached TCP listener was found on port 11211.
+
+    - name: Verify the Memcached UDP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ulnp
+      register: item_memcached_udp_listener
+      changed_when: false
+
+    - name: Assert the Memcached UDP listener is on port 11211
+      ansible.builtin.assert:
+        that:
+          - item_memcached_udp_listener['stdout'] is search(':[0-9.]*11211\\b')
+        fail_msg: No Memcached UDP listener was found on port 11211.
+
+    - name: Verify the Redis runtime directory
+      ansible.builtin.stat:
+        path: /run/redis
+      register: item_redis_runtime
+
+    - name: Assert the Redis runtime directory exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_runtime['stat']['exists']
+          - item_redis_runtime['stat']['isdir']
+        fail_msg: /run/redis must exist as a directory.
+
+    - name: Wait for the Redis TCP endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 2
+
+    - name: Verify the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_redis_log['stat']['exists']
+          - item_redis_log['stat']['isdir']
+          - item_redis_log['stat']['pw_name'] == 'redis'
+          - item_redis_log['stat']['gr_name'] == 'redis'
+          - item_redis_log['stat']['mode'] == '0755'
+        fail_msg: /var/log/redis must be redis:redis with mode 0755.
+
+    - name: Check Redis configuration for removed active directives
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -nE
+          - '^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)'
+          - /etc/redis/6379.conf
+      register: item_redis_cleanup
+      changed_when: false
+      failed_when: false
+
+    - name: Assert Redis configuration has no active removed directives
+      ansible.builtin.assert:
+        that:
+          - item_redis_cleanup['rc'] in [1, 2] or item_redis_cleanup['stdout'] == ''
+        fail_msg: Redis configuration contains an active removed directive.
+
+    - name: Verify combined TCP listeners
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: item_combined_tcp
+      changed_when: false
+
+    - name: Assert Redis and Memcached TCP listeners are present
+      ansible.builtin.assert:
+        that:
+          - item_combined_tcp['stdout'] is search(':[0-9.]*6379\\b')
+          - item_combined_tcp['stdout'] is search(':[0-9.]*11211\\b')
+        fail_msg: Redis port 6379 and Memcached port 11211 must have TCP listeners.
