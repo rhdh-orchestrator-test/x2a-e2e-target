@@ -1,0 +1,116 @@
+---
+# Unsupported pre-flight checks: the Redis service name is not supplied; authenticated Redis
+# read/write checks require a migrated secret that is not available to this verification playbook;
+# process listings and journal output have no additional stated assertion; Memcached checks are
+# explicitly unavailable; the source recipe-file check has no expected container outcome.
+- name: Verify Redis cache instance
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check that Redis configuration exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config
+
+    - name: Assert that Redis configuration exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config['stat']['exists']
+          - cache_redis_config['stat']['isreg']
+        fail_msg: Redis configuration file is missing
+
+    - name: Check Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_dir
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_dir['stat']['exists']
+          - cache_redis_log_dir['stat']['isdir']
+          - cache_redis_log_dir['stat']['pw_name'] == 'redis'
+          - cache_redis_log_dir['stat']['gr_name'] == 'redis'
+          - cache_redis_log_dir['stat']['mode'] == '0755'
+        fail_msg: Redis log directory is missing or has unexpected ownership or mode
+
+    - name: Check Redis PID directory
+      ansible.builtin.stat:
+        path: /run/redis
+      register: cache_redis_pid_dir
+
+    - name: Assert Redis PID directory exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_pid_dir['stat']['exists']
+          - cache_redis_pid_dir['stat']['isdir']
+        fail_msg: Redis PID directory is missing
+
+    - name: Read Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_config_content
+
+    - name: Assert Redis listener and authentication settings are configured
+      ansible.builtin.assert:
+        that:
+          - >-
+            (cache_redis_config_content['content'] | b64decode) is
+            regex_search('(?m)^port[[:space:]]+6379$')
+          - >-
+            (cache_redis_config_content['content'] | b64decode) is
+            regex_search('(?m)^requirepass[[:space:]]+[^[:space:]]+')
+        fail_msg: Redis port or password configuration is missing
+
+    - name: Assert Redis PID file uses the requested directory
+      ansible.builtin.assert:
+        that:
+          - >-
+            (cache_redis_config_content['content'] | b64decode) is
+            regex_search('(?m)^pidfile[[:space:]]+/run/redis/')
+        fail_msg: Redis PID file is not configured under /run/redis
+
+    - name: Assert cleaned Redis replication directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            not ((cache_redis_config_content['content'] | b64decode) is
+            regex_search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)([[:space:]]|$)'))
+        fail_msg: A removed Redis replication directive is still present
+
+    - name: Check for a Redis listener on TCP port 6379
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -H
+          - -ltn
+      register: cache_redis_listeners
+      changed_when: false
+      failed_when: false
+
+    - name: Assert Redis listens on TCP port 6379
+      ansible.builtin.assert:
+        that:
+          - cache_redis_listeners['rc'] == 0
+          - cache_redis_listeners['stdout'] is regex(':[0-9]*6379([[:space:]]|$)')
+        fail_msg: Redis is not listening on TCP port 6379
+
+    - name: Check unauthenticated Redis access is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+      register: cache_redis_unauthenticated_ping
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unauthenticated Redis access returns an authentication error
+      ansible.builtin.assert:
+        that:
+          - cache_redis_unauthenticated_ping['rc'] != 0
+          - >-
+            (cache_redis_unauthenticated_ping['stdout'] ~ cache_redis_unauthenticated_ping['stderr'])
+            is regex('(?i)(noauth|authentication required)')
+        fail_msg: Unauthenticated Redis access was not rejected
