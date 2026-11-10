@@ -1,0 +1,27 @@
+[DEFAULT]
+bantime = {{ nginx_multisite_fail2ban_bantime }}
+findtime = {{ nginx_multisite_fail2ban_findtime }}
+maxretry = {{ nginx_multisite_fail2ban_maxretry }}
+backend = {{ nginx_multisite_fail2ban_backend }}
+
+[sshd]
+enabled = true
+port = ssh
+logpath = %(sshd_log)s
+
+[nginx-http-auth]
+enabled = true
+port = http,https
+logpath = /var/log/nginx/error.log
+
+[nginx-limit-req]
+enabled = true
+port = http,https
+logpath = /var/log/nginx/error.log
+maxretry = 10
+
+[nginx-botsearch]
+enabled = true
+port = http,https
+logpath = /var/log/nginx/access.log
+maxretry = 2

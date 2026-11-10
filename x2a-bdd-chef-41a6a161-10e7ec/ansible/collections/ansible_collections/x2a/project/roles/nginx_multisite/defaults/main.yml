@@ -1,0 +1,36 @@
+---
+nginx_multisite_nginx_user: "{{ 'www-data' if ansible_facts['os_family'] == 'Debian' else 'nginx' }}"
+nginx_multisite_fail2ban_bantime: 3600
+nginx_multisite_fail2ban_findtime: 600
+nginx_multisite_fail2ban_maxretry: 3
+nginx_multisite_fail2ban_backend: auto
+nginx_multisite_request_rate: 10
+nginx_multisite_client_body_buffer_size: 16k
+nginx_multisite_client_header_buffer_size: 1k
+nginx_multisite_client_max_body_size: 1k
+nginx_multisite_large_client_header_buffer_size: 8k
+nginx_multisite_client_body_timeout: 10
+nginx_multisite_client_header_timeout: 10
+nginx_multisite_send_timeout: 10
+nginx_multisite_ssl_ciphers: HIGH:!aNULL:!MD5
+nginx_multisite_sysctl_rp_filter: 1
+nginx_multisite_tcp_max_syn_backlog: 4096
+nginx_multisite_tcp_synack_retries: 2
+nginx_multisite_enable_ssh_hardening: true
+nginx_multisite_disable_password_authentication: true
+nginx_multisite_sites:
+  test.cluster.local:
+    root: /opt/server/test
+    certificate: /etc/ssl/certs/test.cluster.local.crt
+    key: /etc/ssl/private/test.cluster.local.key
+    subject: /C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN=test.cluster.local/emailAddress=admin@example.com
+  ci.cluster.local:
+    root: /opt/server/ci
+    certificate: /etc/ssl/certs/ci.cluster.local.crt
+    key: /etc/ssl/private/ci.cluster.local.key
+    subject: /C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN=ci.cluster.local/emailAddress=admin@example.com
+  status.cluster.local:
+    root: /opt/server/status
+    certificate: /etc/ssl/certs/status.cluster.local.crt
+    key: /etc/ssl/private/status.cluster.local.key
+    subject: /C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN=status.cluster.local/emailAddress=admin@example.com

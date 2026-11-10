@@ -1,0 +1,23 @@
+---
+- name: Reload nginx
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded
+
+- name: Restart fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: restarted
+
+- name: Reload sysctl settings
+  ansible.builtin.command:
+    argv:
+      - /sbin/sysctl
+      - -p
+      - /etc/sysctl.d/99-security.conf
+  changed_when: false
+
+- name: Restart sshd
+  ansible.builtin.service:
+    name: "{{ 'sshd' if ansible_facts['os_family'] == 'RedHat' else 'ssh' }}"
+    state: restarted

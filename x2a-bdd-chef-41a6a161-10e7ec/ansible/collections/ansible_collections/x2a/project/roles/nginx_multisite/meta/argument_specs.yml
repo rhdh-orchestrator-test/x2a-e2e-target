@@ -1,0 +1,107 @@
+---
+argument_specs:
+  main:
+    short_description: Configure nginx with multiple HTTPS static sites and security hardening
+    description:
+      - Installs and configures nginx, fail2ban, UFW, TLS certificates, and hardened virtual hosts.
+    options:
+      nginx_multisite_nginx_user:
+        type: str
+        required: false
+        default: nginx
+        description: User under which nginx workers run.
+      nginx_multisite_fail2ban_bantime:
+        type: int
+        required: false
+        default: 3600
+        description: Default fail2ban ban duration in seconds.
+      nginx_multisite_fail2ban_findtime:
+        type: int
+        required: false
+        default: 600
+        description: Fail2ban observation window in seconds.
+      nginx_multisite_fail2ban_maxretry:
+        type: int
+        required: false
+        default: 3
+        description: Default failed attempts before banning.
+      nginx_multisite_fail2ban_backend:
+        type: str
+        required: false
+        default: auto
+        description: Fail2ban log backend.
+      nginx_multisite_request_rate:
+        type: int
+        required: false
+        default: 10
+        description: Nginx request rate limit.
+      nginx_multisite_client_body_buffer_size:
+        type: str
+        required: false
+        default: 16k
+        description: Client request body buffer size.
+      nginx_multisite_client_header_buffer_size:
+        type: str
+        required: false
+        default: 1k
+        description: Client request header buffer size.
+      nginx_multisite_client_max_body_size:
+        type: str
+        required: false
+        default: 1k
+        description: Maximum request body size.
+      nginx_multisite_large_client_header_buffer_size:
+        type: str
+        required: false
+        default: 8k
+        description: Large client header buffer size.
+      nginx_multisite_client_body_timeout:
+        type: int
+        required: false
+        default: 10
+        description: Client body timeout in seconds.
+      nginx_multisite_client_header_timeout:
+        type: int
+        required: false
+        default: 10
+        description: Client header timeout in seconds.
+      nginx_multisite_send_timeout:
+        type: int
+        required: false
+        default: 10
+        description: Response send timeout in seconds.
+      nginx_multisite_ssl_ciphers:
+        type: str
+        required: false
+        default: HIGH:!aNULL:!MD5
+        description: TLS cipher suite configuration.
+      nginx_multisite_sysctl_rp_filter:
+        type: int
+        required: false
+        default: 1
+        description: Reverse path filtering value.
+      nginx_multisite_tcp_max_syn_backlog:
+        type: int
+        required: false
+        default: 4096
+        description: Maximum TCP SYN backlog.
+      nginx_multisite_tcp_synack_retries:
+        type: int
+        required: false
+        default: 2
+        description: TCP SYN-ACK retry count.
+      nginx_multisite_enable_ssh_hardening:
+        type: bool
+        required: false
+        default: true
+        description: Disable SSH root login.
+      nginx_multisite_disable_password_authentication:
+        type: bool
+        required: false
+        default: true
+        description: Disable SSH password authentication.
+      nginx_multisite_sites:
+        type: dict
+        required: false
+        default: {}
+        description: Virtual hosts and their document roots, certificates, keys, and subjects.
