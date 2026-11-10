@@ -1,0 +1,174 @@
+---
+# Unsupported pre-flight checks: service status/cat output, Git status and branch,
+# process listing, application HTTP response, environment-file ownership/content values,
+# journal output, PostgreSQL version, application-role connectivity, and table privileges
+# have no stated expected outcome (or would require an undisclosed credential).
+- name: Verify fastapi-tutorial deployment
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Collect service facts for PostgreSQL and FastAPI checks
+      ansible.builtin.service_facts:
+
+    - name: Verify PostgreSQL is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services.get('postgresql.service', {}).get('enabled', false)
+          - ansible_facts.services.get('postgresql.service', {}).get('state') == 'running'
+        fail_msg: PostgreSQL must be enabled and active.
+
+    - name: Verify fastapi-tutorial is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services.get('fastapi-tutorial.service', {}).get('enabled', false)
+          - ansible_facts.services.get('fastapi-tutorial.service', {}).get('state') == 'running'
+        fail_msg: fastapi-tutorial must be enabled and active.
+
+    - name: Verify PostgreSQL is listening on port 5432
+      ansible.builtin.wait_for:
+        host: localhost
+        port: 5432
+        state: started
+        timeout: 5
+
+    - name: Verify FastAPI is listening on port 8000
+      ansible.builtin.wait_for:
+        host: localhost
+        port: 8000
+        state: started
+        timeout: 5
+
+    - name: Inspect the FastAPI application directory
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: fastapi_application_directory
+
+    - name: Verify the FastAPI application directory exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_application_directory.stat.exists
+          - fastapi_application_directory.stat.isdir
+        fail_msg: The FastAPI application directory must exist.
+
+    - name: Inspect the application requirements file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: fastapi_requirements_file
+
+    - name: Verify the application requirements file exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_requirements_file.stat.exists
+          - fastapi_requirements_file.stat.isreg
+        fail_msg: The application requirements file must exist.
+
+    - name: Inspect the Python virtual environment executables
+      ansible.builtin.stat:
+        path: "{{ item_fastapi_executable['path'] }}"
+      loop:
+        - path: /opt/fastapi-tutorial/venv/bin/python
+        - path: /opt/fastapi-tutorial/venv/bin/pip
+        - path: /opt/fastapi-tutorial/venv/bin/uvicorn
+      loop_control:
+        loop_var: item_fastapi_executable
+      register: fastapi_virtualenv_executables
+
+    - name: Verify the Python virtual environment executables are executable
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_executable_result.stat.exists
+          - item_fastapi_executable_result.stat.executable
+        fail_msg: A required Python virtual environment executable is missing or not executable.
+      loop: "{{ fastapi_virtualenv_executables.results }}"
+      loop_control:
+        loop_var: item_fastapi_executable_result
+
+    - name: Inspect the application environment file
+      ansible.builtin.slurp:
+        src: /opt/fastapi-tutorial/.env
+      register: fastapi_environment_file
+
+    - name: Verify required application environment variable names
+      ansible.builtin.assert:
+        that:
+          - (fastapi_environment_file.content | b64decode) is search('(?m)^PROJECT_NAME=')
+          - (fastapi_environment_file.content | b64decode) is search('(?m)^API_VERSION=')
+          - (fastapi_environment_file.content | b64decode) is search('(?m)^DATABASE_URL=')
+        fail_msg: The application environment file must define the required variables.
+
+    - name: Inspect the FastAPI systemd unit
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_systemd_unit
+
+    - name: Verify required FastAPI systemd unit settings are present
+      ansible.builtin.assert:
+        that:
+          - (fastapi_systemd_unit.content | b64decode) is search('(?m)^Description=')
+          - (fastapi_systemd_unit.content | b64decode) is search('(?m)^After=')
+          - (fastapi_systemd_unit.content | b64decode) is search('(?m)^Type=')
+          - (fastapi_systemd_unit.content | b64decode) is search('(?m)^User=')
+          - (fastapi_systemd_unit.content | b64decode) is search('(?m)^WorkingDirectory=')
+          - (fastapi_systemd_unit.content | b64decode) is search('(?m)^Environment=')
+          - (fastapi_systemd_unit.content | b64decode) is search('(?m)^ExecStart=')
+          - (fastapi_systemd_unit.content | b64decode) is search('(?m)^Restart=')
+          - (fastapi_systemd_unit.content | b64decode) is search('(?m)^WantedBy=')
+        fail_msg: The FastAPI systemd unit must contain the required settings.
+
+    - name: Validate the FastAPI systemd unit
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - /etc/systemd/system/fastapi-tutorial.service
+      changed_when: false
+
+    - name: Verify PostgreSQL role fastapi exists
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT 1 FROM pg_roles WHERE rolname = 'fastapi';
+      register: fastapi_role_query
+      changed_when: false
+
+    - name: Assert PostgreSQL role fastapi exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_role_query.stdout | trim == '1'
+        fail_msg: The PostgreSQL role fastapi must exist.
+
+    - name: Verify PostgreSQL database and owner
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - >-
+            SELECT datname || ':' || pg_get_userbyid(datdba) FROM pg_database
+            WHERE datname = 'fastapi_db';
+      register: fastapi_database_query
+      changed_when: false
+
+    - name: Assert PostgreSQL database and owner
+      ansible.builtin.assert:
+        that:
+          - fastapi_database_query.stdout | trim == 'fastapi_db:fastapi'
+        fail_msg: The fastapi_db database must be owned by fastapi.
+
+    - name: Verify Fedora or RHEL PostgreSQL initialization marker
+      ansible.builtin.stat:
+        path: /var/lib/pgsql/data/PG_VERSION
+      register: postgresql_initialization_marker
+      when: ansible_facts['os_family'] in ['RedHat', 'Fedora']
+
+    - name: Assert Fedora or RHEL PostgreSQL initialization marker exists
+      ansible.builtin.assert:
+        that:
+          - postgresql_initialization_marker.stat.exists
+          - postgresql_initialization_marker.stat.isreg
+        fail_msg: The Fedora or RHEL PostgreSQL initialization marker must exist.
+      when: ansible_facts['os_family'] in ['RedHat', 'Fedora']
