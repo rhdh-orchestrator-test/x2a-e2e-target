@@ -1,0 +1,150 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install Fedora and RHEL packages
+  ansible.builtin.package:
+    name:
+      - python3
+      - python3-pip
+      - git
+      - postgresql-server
+      - postgresql-contrib
+      - libpq-devel
+    state: present
+  when: ansible_facts['os_family'] in ['RedHat', 'Fedora']
+
+- name: Install Debian and other platform packages
+  ansible.builtin.package:
+    name:
+      - python3
+      - python3-pip
+      - python3-venv
+      - git
+      - postgresql
+      - postgresql-contrib
+      - libpq-dev
+    state: present
+  when: ansible_facts['os_family'] not in ['RedHat', 'Fedora']
+
+- name: Initialize PostgreSQL on Fedora and RHEL
+  ansible.builtin.command:
+    cmd: postgresql-setup --initdb
+    creates: /var/lib/pgsql/data/PG_VERSION
+  when: ansible_facts['os_family'] in ['RedHat', 'Fedora']
+
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ fastapi_app_directory }}" # noqa: R114 - path is from role defaults
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Check out FastAPI tutorial  # noqa: R104 - repository URL is a trusted HTTPS role default
+  ansible.builtin.git:
+    repo: "{{ fastapi_repository }}" # noqa: R106 - repository source is a trusted role default
+    dest: "{{ fastapi_app_directory }}" # noqa: R114 - destination is from role defaults
+    version: "{{ fastapi_revision }}"
+    update: true
+
+- name: Create Python virtual environment  # noqa: R101 - command uses a trusted role-default virtualenv path
+  ansible.builtin.command:
+    cmd: python3 -m venv {{ fastapi_venv }}
+    creates: "{{ fastapi_venv }}" # noqa: R114 - path is from role defaults
+
+- name: Install application dependencies  # noqa: R113 - dependency requirements path and virtualenv are trusted role defaults
+  ansible.builtin.pip:
+    requirements: "{{ fastapi_app_directory }}/requirements.txt" # noqa: R114 - path is from role defaults
+    virtualenv: "{{ fastapi_venv }}" # noqa: R114 - path is from role defaults
+
+- name: Enable and start PostgreSQL
+  ansible.builtin.service:
+    name: postgresql
+    enabled: true
+    state: started
+
+- name: Check whether the FastAPI PostgreSQL role exists
+  ansible.builtin.command: # noqa: R101 - command uses trusted database role configuration
+    argv:
+      - psql
+      - -tAc
+      - SELECT 1 FROM pg_roles WHERE rolname = '{{ fastapi_db_user }}';
+  changed_when: false
+  failed_when: false
+  register: fastapi_role_check
+  become: true # noqa: R108 - PostgreSQL role inspection requires postgres privileges
+  become_user: postgres
+
+- name: Create the FastAPI PostgreSQL role
+  ansible.builtin.command: # noqa: R101 - command uses trusted database role configuration
+    argv:
+      - psql
+      - -c
+      - CREATE ROLE {{ fastapi_db_user }} LOGIN PASSWORD '{{ fastapi_db_password }}';
+  when: fastapi_role_check.stdout | trim != '1' # noqa: L039 - variable is registered by the prior role-existence check
+  become: true # noqa: R108 - PostgreSQL role creation requires postgres privileges
+  become_user: postgres
+  no_log: "{{ fastapi_secure_logging }}"
+
+- name: Check whether the FastAPI database exists
+  ansible.builtin.command: # noqa: R101 - command uses trusted database configuration
+    argv:
+      - psql
+      - -tAc
+      - SELECT 1 FROM pg_database WHERE datname = '{{ fastapi_db_name }}';
+  changed_when: false
+  failed_when: false
+  register: fastapi_database_check
+  become: true # noqa: R108 - PostgreSQL database inspection requires postgres privileges
+  become_user: postgres
+
+- name: Create the FastAPI database
+  ansible.builtin.command: # noqa: R101 - command uses trusted database configuration
+    argv:
+      - createdb
+      - -O
+      - "{{ fastapi_db_user }}"
+      - "{{ fastapi_db_name }}"
+  when: fastapi_database_check.stdout | trim != '1' # noqa: L039 - variable is registered by the prior database-existence check
+  become: true # noqa: R108 - PostgreSQL database creation requires postgres privileges
+  become_user: postgres
+
+- name: Grant all privileges on the FastAPI database
+  ansible.builtin.command: # noqa: R101 - command uses trusted database configuration
+    argv:
+      - psql
+      - -c
+      - GRANT ALL PRIVILEGES ON DATABASE {{ fastapi_db_name }} TO {{ fastapi_db_user }};
+  changed_when: false
+  become: true # noqa: R108 - PostgreSQL privilege management requires postgres privileges
+  become_user: postgres
+
+- name: Render application environment
+  ansible.builtin.template:
+    src: fastapi.env.j2
+    dest: "{{ fastapi_app_directory }}/.env" # noqa: R114 - path is from role defaults
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  no_log: "{{ fastapi_secure_logging }}"
+
+- name: Deploy FastAPI systemd unit
+  ansible.builtin.template:
+    src: fastapi-tutorial.service.j2
+    dest: /etc/systemd/system/fastapi-tutorial.service
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Reload systemd
+
+- name: Apply systemd unit changes before starting FastAPI
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start FastAPI service
+  ansible.builtin.service:
+    name: fastapi-tutorial
+    enabled: true
+    state: started
