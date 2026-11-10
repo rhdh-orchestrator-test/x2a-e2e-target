@@ -1,0 +1,139 @@
+---
+# Unsupported pre-flight checks: OS/package discovery, Memcached version output, Redis CLI
+# authentication (secret injection is not available here), Redis process/log listings, and
+# the second-run idempotence check are not asserted because no safe explicit outcome is
+# available to this verification play.
+- name: Verify cache services and configuration
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather service facts for the cache services
+      ansible.builtin.service_facts:
+
+    - name: Assert Memcached is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts['services']"
+          - ansible_facts['services']['memcached.service']['status'] == 'enabled'
+          - ansible_facts['services']['memcached.service']['state'] == 'running'
+        fail_msg: Memcached must be enabled and active.
+
+    - name: Assert a Redis service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['services'] | dict2items |
+            selectattr('key', 'match', '^redis.*\\.service$') |
+            selectattr('value.status', 'equalto', 'enabled') |
+            selectattr('value.state', 'equalto', 'running') | list | length) > 0
+        fail_msg: A Redis service must be enabled and active.
+
+    - name: Check Memcached TCP port 11211
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 2
+
+    - name: Check Redis TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 2
+
+    - name: Inspect Memcached TCP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      changed_when: false
+      register: item_memcached_tcp_listener
+
+    - name: Assert Memcached TCP listener is present on port 11211
+      ansible.builtin.assert:
+        that:
+          - item_memcached_tcp_listener['stdout'] is search('[:.]11211\\b')
+        fail_msg: Memcached must listen on TCP port 11211.
+
+    - name: Inspect Memcached UDP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ulnp
+      changed_when: false
+      register: item_memcached_udp_listener
+
+    - name: Assert Memcached UDP listener is present on port 11211
+      ansible.builtin.assert:
+        that:
+          - item_memcached_udp_listener['stdout'] is search('[:.]11211\\b')
+        fail_msg: Memcached must listen on UDP port 11211.
+
+    - name: Read Memcached configuration
+      ansible.builtin.slurp:
+        src: /etc/memcached.conf
+      register: item_memcached_config
+
+    - name: Assert Memcached configuration settings
+      ansible.builtin.assert:
+        that:
+          - item_memcached_config['content'] | b64decode is search('(^|[[:space:]])(-m[[:space:]]+64|64)([[:space:]]|$)', multiline=true)
+          - item_memcached_config['content'] | b64decode is search('(^|[[:space:]])(-p[[:space:]]+11211|11211)([[:space:]]|$)', multiline=true)
+          - item_memcached_config['content'] | b64decode is search('(^|[[:space:]])(-U[[:space:]]+11211|11211)([[:space:]]|$)', multiline=true)
+          - item_memcached_config['content'] | b64decode is search('(^|[[:space:]])(-c[[:space:]]+1024|1024)([[:space:]]|$)', multiline=true)
+        fail_msg: Memcached configuration must contain the requested memory, port, UDP, and connection settings.
+
+    - name: Read Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Assert Redis port and configuration cleanup
+      ansible.builtin.assert:
+        that:
+          - item_redis_config['content'] | b64decode is search('^port[[:space:]]+6379([[:space:]]|$)', multiline=true)
+          - item_redis_config['content'] | b64decode is search('^requirepass[[:space:]]+[^[:space:]]+', multiline=true)
+          - item_redis_config['content'] | b64decode is not search('^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)([[:space:]]|$)', multiline=true)
+        fail_msg: Redis must use port 6379, require authentication, and omit the removed directive families.
+
+    - name: Inspect Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_directory
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory['stat']['exists']
+          - item_redis_log_directory['stat']['isdir']
+          - item_redis_log_directory['stat']['pw_name'] == 'redis'
+          - item_redis_log_directory['stat']['gr_name'] == 'redis'
+          - item_redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: Redis log directory must be owned by redis:redis with mode 0755.
+
+    - name: Inspect Redis PID directory
+      ansible.builtin.stat:
+        path: /run/redis
+      register: item_redis_pid_directory
+
+    - name: Assert Redis PID directory exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_pid_directory['stat']['exists']
+          - item_redis_pid_directory['stat']['isdir']
+        fail_msg: Redis PID directory /run/redis must exist.
+
+    - name: Inspect Redis TCP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      changed_when: false
+      register: item_redis_tcp_listener
+
+    - name: Assert Redis TCP listener is present on port 6379
+      ansible.builtin.assert:
+        that:
+          - item_redis_tcp_listener['stdout'] is search('[:.]6379\\b')
+        fail_msg: Redis must listen on TCP port 6379.

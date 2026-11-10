@@ -1,0 +1,97 @@
+---
+- name: Install Memcached package
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Configure Memcached service
+  block:
+    - name: Set Memcached memory on RedHat systems
+      ansible.builtin.lineinfile:
+        path: /etc/sysconfig/memcached
+        regexp: "^-m .*$"
+        line: "-m {{ cache_memcached_memory }}"
+        create: false
+      notify: Restart Memcached
+
+    - name: Set Memcached port on RedHat systems
+      ansible.builtin.lineinfile:
+        path: /etc/sysconfig/memcached
+        regexp: "^-p .*$"
+        line: "-p {{ cache_memcached_port }}"
+        create: false
+      notify: Restart Memcached
+
+    - name: Set Memcached UDP port on RedHat systems
+      ansible.builtin.lineinfile:
+        path: /etc/sysconfig/memcached
+        regexp: "^-U .*$"
+        line: "-U {{ cache_memcached_udp_port }}"
+        create: false
+      notify: Restart Memcached
+
+    - name: Set Memcached listen address on RedHat systems
+      ansible.builtin.lineinfile:
+        path: /etc/sysconfig/memcached
+        regexp: "^-l .*$"
+        line: "-l {{ cache_memcached_listen }}"
+        create: false
+      notify: Restart Memcached
+
+    - name: Set Memcached maximum connections on RedHat systems
+      ansible.builtin.lineinfile:
+        path: /etc/sysconfig/memcached
+        regexp: "^-c .*$"
+        line: "-c {{ cache_memcached_maxconn }}"
+        create: false
+      notify: Restart Memcached
+  when: ansible_facts["os_family"] == "RedHat"
+
+- name: Configure Memcached service on Debian systems
+  block:
+    - name: Set Memcached memory on Debian systems
+      ansible.builtin.lineinfile:
+        path: /etc/memcached.conf
+        regexp: "^-m .*$"
+        line: "-m {{ cache_memcached_memory }}"
+        create: false
+      notify: Restart Memcached
+
+    - name: Set Memcached port on Debian systems
+      ansible.builtin.lineinfile:
+        path: /etc/memcached.conf
+        regexp: "^-p .*$"
+        line: "-p {{ cache_memcached_port }}"
+        create: false
+      notify: Restart Memcached
+
+    - name: Set Memcached UDP port on Debian systems
+      ansible.builtin.lineinfile:
+        path: /etc/memcached.conf
+        regexp: "^-U .*$"
+        line: "-U {{ cache_memcached_udp_port }}"
+        create: false
+      notify: Restart Memcached
+
+    - name: Set Memcached listen address on Debian systems
+      ansible.builtin.lineinfile:
+        path: /etc/memcached.conf
+        regexp: "^-l .*$"
+        line: "-l {{ cache_memcached_listen }}"
+        create: false
+      notify: Restart Memcached
+
+    - name: Set Memcached maximum connections on Debian systems
+      ansible.builtin.lineinfile:
+        path: /etc/memcached.conf
+        regexp: "^-c .*$"
+        line: "-c {{ cache_memcached_maxconn }}"
+        create: false
+      notify: Restart Memcached
+  when: ansible_facts["os_family"] == "Debian"
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: memcached
+    enabled: true
+    state: started
