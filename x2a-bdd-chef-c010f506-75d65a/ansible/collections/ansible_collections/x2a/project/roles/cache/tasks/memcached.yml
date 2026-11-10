@@ -1,0 +1,46 @@
+---
+- name: Install Memcached
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Configure Memcached on Debian-family systems
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: "^{{ item_memcached['key'] }} "
+    line: "{{ item_memcached['key'] }} {{ item_memcached['value'] }}"
+    create: true
+    mode: "0644"
+    backup: true
+  when: ansible_facts['os_family'] == 'Debian'
+  loop:
+    - key: -m
+      value: "{{ cache_memcached_memory }}"
+    - key: -p
+      value: "{{ cache_memcached_port }}"
+    - key: -U
+      value: "{{ cache_memcached_udp_port }}"
+    - key: -l
+      value: "{{ cache_memcached_listen }}"
+    - key: -c
+      value: "{{ cache_memcached_maxconn }}"
+  loop_control:
+    loop_var: item_memcached
+  notify: Restart memcached
+
+- name: Configure Memcached on RedHat-family systems
+  ansible.builtin.lineinfile:
+    path: /etc/sysconfig/memcached
+    regexp: ^PORT=
+    line: PORT="{{ cache_memcached_port }}"
+    create: true
+    mode: "0644"
+    backup: true
+  when: ansible_facts['os_family'] == 'RedHat'
+  notify: Restart memcached
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true
