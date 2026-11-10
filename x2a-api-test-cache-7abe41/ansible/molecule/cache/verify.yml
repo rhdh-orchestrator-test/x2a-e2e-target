@@ -1,0 +1,259 @@
+# Unsupported pre-flight checks: service logs, Redis authenticated PING/INFO (no password is supplied),
+# detailed filesystem listings, and confirmation of the platform-specific Memcached configuration path.
+---
+- name: Verify cache services
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Confirm required commands are available
+      ansible.builtin.command:
+        argv:
+          - /bin/sh
+          - -c
+          - "command -v {{ item_command }}"
+      loop:
+        - systemctl
+        - ss
+        - nc
+        - redis-cli
+      loop_control:
+        loop_var: item_command
+      register: required_commands
+      changed_when: false
+
+    - name: Assert required commands are available
+      ansible.builtin.assert:
+        that:
+          - item_command_result['rc'] == 0
+      loop: "{{ required_commands['results'] }}"
+      loop_control:
+        loop_var: item_command_result
+
+    - name: Check for failed systemd units
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - --failed
+          - --no-legend
+          - --plain
+      register: failed_units
+      changed_when: false
+
+    - name: Assert that no systemd units have failed
+      ansible.builtin.assert:
+        that:
+          - failed_units['rc'] == 0
+          - failed_units['stdout'] | trim == ''
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert that Memcached is active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['memcached.service']['state'] == 'running'"
+
+    - name: Check whether Memcached is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - memcached
+      register: memcached_enabled
+      changed_when: false
+
+    - name: Assert that Memcached is enabled
+      ansible.builtin.assert:
+        that:
+          - memcached_enabled['rc'] == 0
+          - memcached_enabled['stdout'] | trim == 'enabled'
+
+    - name: Confirm that the Memcached process is running
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -a
+          - memcached
+      register: memcached_process
+      changed_when: false
+
+    - name: Assert that the Memcached process is running
+      ansible.builtin.assert:
+        that:
+          - memcached_process['rc'] == 0
+
+    - name: Inspect TCP listeners
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+      register: tcp_listeners
+      changed_when: false
+
+    - name: Assert that Memcached and Redis TCP listeners exist
+      ansible.builtin.assert:
+        that:
+          - "(tcp_listeners['stdout'] | regex_search(':11211\\\\b')) is not none"
+          - "(tcp_listeners['stdout'] | regex_search(':6379\\\\b')) is not none"
+
+    - name: Inspect UDP listeners
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -lunp
+      register: udp_listeners
+      changed_when: false
+
+    - name: Assert that the Memcached UDP listener exists
+      ansible.builtin.assert:
+        that:
+          - "(udp_listeners['stdout'] | regex_search(':11211\\\\b')) is not none"
+
+    - name: Test the Memcached TCP protocol
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - '2'
+          - 127.0.0.1
+          - '11211'
+        stdin: "version\\r\\n"
+        stdin_add_newline: false
+      register: memcached_protocol
+      changed_when: false
+
+    - name: Assert that Memcached returns a VERSION response
+      ansible.builtin.assert:
+        that:
+          - memcached_protocol['rc'] == 0
+          - "(memcached_protocol['stdout'] | regex_search('(?m)^VERSION')) is not none"
+
+    - name: Test Memcached TCP reachability
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 2
+
+    - name: Assert that a Redis service unit is active
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['services'].get('redis.service', {}).get('state') == 'running') or
+            (ansible_facts['services'].get('redis-server.service', {}).get('state') == 'running')
+
+    - name: Check Redis service units for enablement
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - "{{ item_redis_unit }}"
+      loop:
+        - redis
+        - redis-server
+      loop_control:
+        loop_var: item_redis_unit
+      register: redis_enabled_units
+      changed_when: false
+
+    - name: Assert that the active Redis service unit is enabled
+      ansible.builtin.assert:
+        that:
+          - "redis_enabled_units['results'] | selectattr('rc', 'equalto', 0) | list | length > 0"
+
+    - name: Confirm that the Redis process is running
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -a
+          - redis-server
+      register: redis_process
+      changed_when: false
+
+    - name: Assert that the Redis process is running
+      ansible.builtin.assert:
+        that:
+          - redis_process['rc'] == 0
+
+    - name: Test Redis TCP reachability
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 2
+
+    - name: Check Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config
+
+    - name: Assert that the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config['stat']['exists']
+          - redis_config['stat']['isreg']
+
+    - name: Read the Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+      when: redis_config['stat']['exists'] and redis_config['stat']['isreg']
+
+    - name: Assert that removed Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content['content'] | b64decode |
+            regex_search('(?m)^' ~ item_redis_directive ~ '(?:\\\\s|$)')) is none
+      loop:
+        - replica-serve-stale-data
+        - replica-read-only
+        - repl-ping-replica-period
+        - client-output-buffer-limit
+        - replica-priority
+      loop_control:
+        loop_var: item_redis_directive
+      when: redis_config['stat']['exists'] and redis_config['stat']['isreg']
+
+    - name: Check the Redis PID directory
+      ansible.builtin.stat:
+        path: /run/redis
+      register: redis_pid_directory
+
+    - name: Assert that the Redis PID directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_pid_directory['stat']['exists']
+          - redis_pid_directory['stat']['isdir']
+
+    - name: Check the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+          - redis_log_directory['stat']['pw_name'] == 'redis'
+          - redis_log_directory['stat']['gr_name'] == 'redis'
+          - redis_log_directory['stat']['mode'] == '0755'
+
+    - name: Check unauthenticated Redis access
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+      register: redis_unauthenticated_ping
+      changed_when: false
+
+    - name: Assert that unauthenticated Redis access is rejected
+      ansible.builtin.assert:
+        that:
+          - redis_unauthenticated_ping['rc'] != 0
+          - >-
+            ((redis_unauthenticated_ping['stdout'] ~ redis_unauthenticated_ping['stderr']) |
+            regex_search('(?i)(noauth|authentication required)')) is not none
