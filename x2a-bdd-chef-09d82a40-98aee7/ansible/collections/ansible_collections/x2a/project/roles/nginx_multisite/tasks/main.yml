@@ -1,0 +1,12 @@
+---
+- name: Run nginx multisite security tasks
+  ansible.builtin.include_tasks: security.yml
+
+- name: Run nginx installation tasks
+  ansible.builtin.include_tasks: nginx.yml
+
+- name: Run nginx SSL tasks
+  ansible.builtin.include_tasks: ssl.yml
+
+- name: Run nginx site tasks
+  ansible.builtin.include_tasks: sites.yml
