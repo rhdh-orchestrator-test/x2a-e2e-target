@@ -1,0 +1,86 @@
+---
+- name: Install Memcached
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Configure Memcached memory
+  ansible.builtin.lineinfile:
+    path: /etc/sysconfig/memcached
+    regexp: ^CACHESIZE=
+    line: CACHESIZE="{{ cache_memcached_memory }}"
+    create: false
+    mode: "0644"
+  when: ansible_facts.os_family == 'RedHat'
+
+- name: Configure Memcached memory on Debian-family systems
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^-m\s
+    line: "-m {{ cache_memcached_memory }}"
+    create: false
+    mode: "0644"
+  when: ansible_facts.os_family == 'Debian'
+
+- name: Configure Memcached options
+  ansible.builtin.lineinfile:
+    path: /etc/sysconfig/memcached
+    regexp: ^OPTIONS=
+    line: >-
+      OPTIONS="-l {{ cache_memcached_listen }} -p {{ cache_memcached_port }}
+      -U {{ cache_memcached_udp_port }} -c {{ cache_memcached_maxconn }}
+      -I {{ cache_memcached_max_object_size }}"
+    create: false
+    mode: "0644"
+  when: ansible_facts.os_family == 'RedHat'
+
+- name: Configure Memcached listen options on Debian-family systems
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^-l\s
+    line: "-l {{ cache_memcached_listen }}"
+    create: false
+    mode: "0644"
+  when: ansible_facts.os_family == 'Debian'
+
+- name: Configure Memcached TCP port on Debian-family systems
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^-p\s
+    line: "-p {{ cache_memcached_port }}"
+    create: false
+    mode: "0644"
+  when: ansible_facts.os_family == 'Debian'
+
+- name: Configure Memcached UDP port on Debian-family systems
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^-U\s
+    line: "-U {{ cache_memcached_udp_port }}"
+    create: false
+    mode: "0644"
+  when: ansible_facts.os_family == 'Debian'
+
+- name: Configure Memcached maximum connections on Debian-family systems
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^-c\s
+    line: "-c {{ cache_memcached_maxconn }}"
+    create: false
+    mode: "0644"
+  when: ansible_facts.os_family == 'Debian'
+
+- name: Configure Memcached maximum object size on Debian-family systems
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^-I\s
+    line: "-I {{ cache_memcached_max_object_size }}"
+    create: false
+    mode: "0644"
+  when: ansible_facts.os_family == 'Debian'
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: memcached
+    enabled: true
+    state: started
