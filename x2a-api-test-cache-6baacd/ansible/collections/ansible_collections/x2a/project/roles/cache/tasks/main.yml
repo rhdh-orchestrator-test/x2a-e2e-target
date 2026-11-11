@@ -1,0 +1,75 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Memcached
+  ansible.builtin.include_tasks: memcached.yml
+
+- name: Deploy Redis  # noqa: L038 - role is declared in role requirements.yml
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_version: "{{ cache_redis_version }}"
+    redis_install_method: package
+    redis_port: "{{ cache_redis_port }}"
+    redis_requirepass: "{{ redis_password }}"
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_replication_enabled: false
+    redis_aof_enabled: false
+    redis_rdb_enabled: true
+
+- name: Ensure Redis log directory exists
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_directory }}" # noqa: R114 - path is a role default
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Check whether Redis configuration exists
+  ansible.builtin.stat:
+    path: "{{ cache_redis_config_file }}"
+  register: cache_redis_config_stat
+
+- name: Remove replica serve stale data directive  # noqa: L039 - variable is registered by the prior stat task
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default
+    regexp: ^replica-serve-stale-data.*$
+    replace: ""
+  notify: Restart Redis
+  when: cache_redis_config_stat.stat.exists
+
+- name: Remove replica read only directive  # noqa: L039 - variable is registered by the prior stat task
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default
+    regexp: ^replica-read-only.*$
+    replace: ""
+  notify: Restart Redis
+  when: cache_redis_config_stat.stat.exists
+
+- name: Remove replica ping period directive  # noqa: L039 - variable is registered by the prior stat task
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default
+    regexp: ^repl-ping-replica-period.*$
+    replace: ""
+  notify: Restart Redis
+  when: cache_redis_config_stat.stat.exists
+
+- name: Remove client output buffer limit directive  # noqa: L039 - variable is registered by the prior stat task
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default
+    regexp: ^client-output-buffer-limit.*$
+    replace: ""
+  notify: Restart Redis
+  when: cache_redis_config_stat.stat.exists
+
+- name: Remove replica priority directive  # noqa: L039 - variable is registered by the prior stat task
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default
+    regexp: ^replica-priority.*$
+    replace: ""
+  notify: Restart Redis
+  when: cache_redis_config_stat.stat.exists

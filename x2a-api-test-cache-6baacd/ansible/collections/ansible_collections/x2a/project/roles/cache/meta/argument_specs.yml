@@ -1,0 +1,144 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Memcached and Redis cache services.
+    description:
+      - Installs and configures Memcached on port 11211 and a standalone Redis instance on port 6379.
+      - Redis authentication is supplied through the AAP credential variable redis_password.
+    options:
+      cache_memcached_package:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached package name.
+      cache_memcached_version:
+        type: str
+        required: false
+        default:
+        description: Optional Memcached package version.
+      cache_memcached_memory:
+        type: int
+        required: false
+        default: 64
+        description: Memcached memory allocation in megabytes.
+      cache_memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: Memcached TCP port.
+      cache_memcached_udp_port:
+        type: int
+        required: false
+        default: 11211
+        description: Memcached UDP port.
+      cache_memcached_listen:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: Memcached listen address.
+      cache_memcached_maxconn:
+        type: int
+        required: false
+        default: 1024
+        description: Maximum Memcached connections.
+      cache_memcached_max_object_size:
+        type: str
+        required: false
+        default: 1m
+        description: Maximum Memcached object size.
+      cache_memcached_experimental_options:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: Additional experimental Memcached options.
+      cache_memcached_extra_cli_options:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: Additional Memcached command-line options.
+      cache_memcached_ulimit:
+        type: int
+        required: false
+        default: 1024
+        description: Memcached file descriptor limit.
+      cache_memcached_logfilepath:
+        type: str
+        required: false
+        default: /var/log/memcached
+        description: Memcached log path.
+      cache_memcached_service_user:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached service user.
+      cache_memcached_service_group:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached service group.
+      cache_memcached_log_directory:
+        type: str
+        required: false
+        default: /var/log/memcached
+        description: Memcached log directory.
+      cache_memcached_runtime_directory:
+        type: str
+        required: false
+        default: /var/run/memcached
+        description: Memcached runtime directory.
+      cache_memcached_threads:
+        type: int
+        required: false
+        default: 4
+        description: Number of Memcached worker threads.
+      cache_redis_package:
+        type: str
+        required: false
+        default: redis
+        description: Redis package name.
+      cache_redis_service:
+        type: str
+        required: false
+        default: redis
+        description: Redis service name.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: Redis TCP port.
+      cache_redis_version:
+        type: str
+        required: false
+        default: "7.2"
+        description: Redis version requested from the Redis collection role.
+      cache_redis_pid_directory:
+        type: str
+        required: false
+        default: /run/redis
+        description: Redis PID directory.
+      cache_redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Redis log directory.
+      cache_redis_config_file:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Redis configuration file path.
+      cache_redis_requirepass:
+        type: str
+        required: false
+        default: "{{ redis_password }}"
+        description: Redis password sourced from the AAP credential variable.
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide task output when handling Redis credentials.
+      redis_password:
+        type: str
+        required: true
+        description: Redis password injected by an AAP credential type.
