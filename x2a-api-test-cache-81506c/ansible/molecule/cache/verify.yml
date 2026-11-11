@@ -1,0 +1,185 @@
+---
+# Unsupported pre-flight checks: the Memcached service account and ownership are
+# unresolved; Memcached stats values have no stated expected result; Redis
+# authentication requires a secret; log review and process-account checks have
+# no machine-readable expected result; and the Redis service name is discovered
+# dynamically rather than being specified.
+- name: Verify cache services
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather service facts for Memcached and Redis checks
+      ansible.builtin.service_facts:
+
+    - name: Identify the Memcached service unit
+      ansible.builtin.set_fact:
+        memcached_services: >-
+          {{ ansible_facts['services'] | dict2items
+             | selectattr('key', 'match', '^memcached(\\.service)?$')
+             | map(attribute='key') | list }}
+
+    - name: Verify the Memcached service unit was found
+      ansible.builtin.assert:
+        that:
+          - memcached_services | length > 0
+        fail_msg: Memcached service unit was not found.
+
+    - name: Verify Memcached is active and enabled
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services'][item_memcached_service]['state'] == 'running'
+          - ansible_facts['services'][item_memcached_service]['status'] == 'enabled'
+        fail_msg: Memcached is not active and enabled.
+      loop: "{{ memcached_services }}"
+      loop_control:
+        loop_var: item_memcached_service
+
+    - name: Gather installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Verify the Memcached package is installed
+      ansible.builtin.assert:
+        that:
+          - "'memcached' in ansible_facts['packages']"
+        fail_msg: The memcached package is not installed.
+
+    - name: Check TCP and UDP listeners for Memcached
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnup
+      register: memcached_listeners
+      changed_when: false
+
+    - name: Verify TCP and UDP listeners exist on port 11211
+      ansible.builtin.assert:
+        that:
+          - memcached_listeners.stdout is search('(?m)^tcp.*:11211\\b')
+          - memcached_listeners.stdout is search('(?m)^udp.*:11211\\b')
+        fail_msg: TCP and UDP listeners were not both found on port 11211.
+
+    - name: Check the Memcached protocol version response
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - '2'
+          - 127.0.0.1
+          - '11211'
+        stdin: "version\r\n"
+      register: memcached_version
+      changed_when: false
+
+    - name: Verify Memcached returns a VERSION response
+      ansible.builtin.assert:
+        that:
+          - memcached_version.stdout is search('(?m)^VERSION\\s')
+        fail_msg: Memcached did not return a VERSION response.
+
+    - name: Check the Memcached log directory
+      ansible.builtin.stat:
+        path: /var/log/memcached
+      register: memcached_log_directory
+
+    - name: Verify the Memcached log directory exists with mode 0755
+      ansible.builtin.assert:
+        that:
+          - memcached_log_directory.stat.exists
+          - memcached_log_directory.stat.isdir
+          - memcached_log_directory.stat.mode == '0755'
+        fail_msg: The Memcached log directory is missing or has the wrong mode.
+
+    - name: Check the Memcached runtime directory
+      ansible.builtin.stat:
+        path: /var/run/memcached
+      register: memcached_runtime_directory
+
+    - name: Verify the Memcached runtime directory exists with mode 0755
+      ansible.builtin.assert:
+        that:
+          - memcached_runtime_directory.stat.exists
+          - memcached_runtime_directory.stat.isdir
+          - memcached_runtime_directory.stat.mode == '0755'
+        fail_msg: The Memcached runtime directory is missing or has the wrong mode.
+
+    - name: Identify Redis service units
+      ansible.builtin.set_fact:
+        redis_services: >-
+          {{ ansible_facts['services'] | dict2items
+             | selectattr('key', 'search', '(?i)redis')
+             | map(attribute='key') | list }}
+
+    - name: Verify a Redis service unit was found
+      ansible.builtin.assert:
+        that:
+          - redis_services | length > 0
+        fail_msg: No Redis service unit was found.
+
+    - name: Verify the discovered Redis service is active and enabled
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services'][item_redis_service]['state'] == 'running'
+          - ansible_facts['services'][item_redis_service]['status'] == 'enabled'
+        fail_msg: A discovered Redis service is not active and enabled.
+      loop: "{{ redis_services }}"
+      loop_control:
+        loop_var: item_redis_service
+
+    - name: Check the Redis TCP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+      register: redis_listener
+      changed_when: false
+
+    - name: Verify Redis listens on TCP port 6379
+      ansible.builtin.assert:
+        that:
+          - redis_listener.stdout is search('(?m)^LISTEN.*:6379\\b')
+        fail_msg: Redis is not listening on TCP port 6379.
+
+    - name: Check the Redis PID directory
+      ansible.builtin.stat:
+        path: /run/redis
+      register: redis_pid_directory
+
+    - name: Verify the Redis PID directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_pid_directory.stat.exists
+          - redis_pid_directory.stat.isdir
+        fail_msg: The Redis PID directory does not exist.
+
+    - name: Check the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Verify the Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+          - redis_log_directory.stat.pw_name == 'redis'
+          - redis_log_directory.stat.gr_name == 'redis'
+          - redis_log_directory.stat.mode == '0755'
+        fail_msg: The Redis log directory has incorrect ownership or mode.
+
+    - name: Check Redis configuration for removed directives
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -nE
+          - '^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)'
+          - /etc/redis/6379.conf
+      register: redis_removed_directives
+      changed_when: false
+      failed_when: redis_removed_directives.rc not in [0, 1]
+
+    - name: Verify Redis configuration has no removed active directives
+      ansible.builtin.assert:
+        that:
+          - redis_removed_directives.rc == 1
+        fail_msg: Removed replication directives are still active in Redis configuration.
