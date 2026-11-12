@@ -1,0 +1,17 @@
+---
+- name: Validate explicitly supplied HAProxy discovery servers
+  ansible.builtin.assert:
+    that:
+      - item_discovery_server is mapping
+      - item_discovery_server['certname'] is defined
+      - item_discovery_server['port'] is defined
+    fail_msg: Each discovery server must define certname and port.
+  when: haproxy_discovery_enabled | bool
+  loop: "{{ haproxy_discovered_app_servers }}"
+  loop_control:
+    loop_var: item_discovery_server
+
+- name: Report disabled HAProxy discovery
+  ansible.builtin.debug:
+    msg: HAProxy dynamic discovery is disabled; configured backend membership is used.
+  when: not haproxy_discovery_enabled | bool

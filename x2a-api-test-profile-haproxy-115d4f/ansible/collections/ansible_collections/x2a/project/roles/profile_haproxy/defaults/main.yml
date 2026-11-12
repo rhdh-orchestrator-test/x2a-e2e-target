@@ -1,0 +1,42 @@
+---
+# Defaults for x2a.project.profile_haproxy
+haproxy_package_name: haproxy
+haproxy_extra_packages: []
+haproxy_user: haproxy
+haproxy_group: haproxy
+haproxy_config_dir: /etc/haproxy
+haproxy_config_file: /etc/haproxy/haproxy.cfg
+haproxy_service_name: haproxy
+haproxy_selinux_enabled: false
+
+haproxy_log_server: 127.0.0.1
+haproxy_log_facility: local0
+haproxy_log_level: info
+haproxy_global_maxconn: 4096
+haproxy_ssl_enabled: false
+haproxy_ssl_ciphers: ECDHE+AESGCM:!aNULL:!MD5:!DSS
+haproxy_ssl_cert_path: /etc/haproxy/certs
+haproxy_connect_timeout: 5s
+haproxy_client_timeout: 50s
+haproxy_server_timeout: 50s
+haproxy_retries: 3
+haproxy_stats_enabled: true
+haproxy_stats_port: 8404
+haproxy_stats_uri: /stats
+haproxy_backends:
+  webservers:
+    balance: roundrobin
+    port: 80
+    servers: []
+
+haproxy_stick_table_enabled: false
+haproxy_stick_table_size: 10m
+haproxy_stick_table_expire: 30m
+haproxy_firewall_provider: none
+haproxy_firewall_zone: public
+haproxy_discovery_enabled: false
+haproxy_discovered_app_servers: []
+profile_haproxy_secure_logging: true
+
+# Supplied by the AAP credential attached to the job template.
+# These are intentionally not defaulted; validate_credentials.yml checks them.

@@ -1,0 +1,135 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure HAProxy as a load balancer.
+    options:
+      haproxy_package_name:
+        type: str
+        description: HAProxy package name.
+        default: haproxy
+      haproxy_extra_packages:
+        type: list
+        elements: str
+        description: Additional packages to install.
+        default: []
+      haproxy_user:
+        type: str
+        description: HAProxy service user.
+        default: haproxy
+      haproxy_group:
+        type: str
+        description: HAProxy service group.
+        default: haproxy
+      haproxy_config_dir:
+        type: path
+        description: HAProxy configuration directory.
+        default: /etc/haproxy
+      haproxy_config_file:
+        type: path
+        description: Main HAProxy configuration file.
+        default: /etc/haproxy/haproxy.cfg
+      haproxy_service_name:
+        type: str
+        description: HAProxy service name.
+        default: haproxy
+      haproxy_selinux_enabled:
+        type: bool
+        description: Enable the HAProxy SELinux network boolean.
+        default: false
+      haproxy_log_server:
+        type: str
+        description: Syslog server for HAProxy logs.
+        default: 127.0.0.1
+      haproxy_log_facility:
+        type: str
+        description: Syslog facility.
+        default: local0
+      haproxy_log_level:
+        type: str
+        description: Syslog level.
+        default: info
+      haproxy_global_maxconn:
+        type: int
+        description: Global maximum connections.
+        default: 4096
+      haproxy_ssl_enabled:
+        type: bool
+        description: Enable TLS listeners.
+        default: false
+      haproxy_ssl_ciphers:
+        type: str
+        description: TLS cipher list.
+        default: ECDHE+AESGCM:!aNULL:!MD5:!DSS
+      haproxy_ssl_cert_path:
+        type: path
+        description: Directory containing haproxy.pem.
+        default: /etc/haproxy/certs
+      haproxy_connect_timeout:
+        type: str
+        description: HAProxy connect timeout.
+        default: 5s
+      haproxy_client_timeout:
+        type: str
+        description: HAProxy client timeout.
+        default: 50s
+      haproxy_server_timeout:
+        type: str
+        description: HAProxy server timeout.
+        default: 50s
+      haproxy_retries:
+        type: int
+        description: Number of connection retries.
+        default: 3
+      haproxy_stats_enabled:
+        type: bool
+        description: Enable the statistics listener.
+        default: true
+      haproxy_stats_port:
+        type: int
+        description: Statistics listener port.
+        default: 8404
+      haproxy_stats_uri:
+        type: str
+        description: Statistics URI.
+        default: /stats
+      haproxy_backends:
+        type: dict
+        description: HAProxy backend definitions.
+        default:
+          webservers:
+            balance: roundrobin
+            port: 80
+            servers: []
+      haproxy_stick_table_enabled:
+        type: bool
+        description: Enable the stick-table fragment.
+        default: false
+      haproxy_stick_table_size:
+        type: str
+        description: Stick-table size.
+        default: 10m
+      haproxy_stick_table_expire:
+        type: str
+        description: Stick-table expiry.
+        default: 30m
+      haproxy_firewall_provider:
+        type: str
+        description: Firewall provider.
+        default: none
+        choices: [none, ufw, firewalld]
+      haproxy_firewall_zone:
+        type: str
+        description: Firewalld zone.
+        default: public
+      haproxy_discovery_enabled:
+        type: bool
+        description: Enable supplied HAProxy discovery data validation.
+        default: false
+      haproxy_discovered_app_servers:
+        type: list
+        description: Explicitly supplied discovered application servers.
+        default: []
+      profile_haproxy_secure_logging:
+        type: bool
+        description: Suppress sensitive configuration task output.
+        default: true
