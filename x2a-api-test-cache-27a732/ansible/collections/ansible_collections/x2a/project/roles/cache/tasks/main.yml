@@ -1,0 +1,47 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Memcached
+  ansible.builtin.include_tasks: memcached.yml
+
+- name: Configure Redis using the approved collection role
+  ansible.builtin.include_role:
+    name: eloy.redis.redis # noqa: L038 - role is provided by the declared eloy.redis collection dependency
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_install_method: package
+    redis_version: "7.2"
+    redis_port: "{{ cache_redis_port }}"
+    redis_requirepass: "{{ redis_password }}"
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_replication_enabled: false
+    redis_rdb_enabled: true
+    redis_aof_enabled: false
+    redis_pid_dir: "{{ cache_redis_pid_dir }}"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_dir }}" # noqa: R114 - path is a role default, not user input
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Remove legacy Redis replication directives # noqa: R115 - required Redis configuration path is a role default, not user input
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default, not user input
+    regexp: ^{{ item_redis_directive }}.*$
+    state: absent
+    backup: true
+  loop:
+    - replica-serve-stale-data
+    - replica-read-only
+    - repl-ping-replica-period
+    - client-output-buffer-limit
+    - replica-priority
+  loop_control:
+    loop_var: item_redis_directive
+  notify: Restart Redis
