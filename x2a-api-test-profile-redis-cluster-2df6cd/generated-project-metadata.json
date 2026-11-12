@@ -1,0 +1,50 @@
+[
+  {
+    "name": "base_utils",
+    "path": "site-modules/base_utils",
+    "description": "Manages common host utilities, including optional MOTD configuration and installation of Hiera-provided utility packages, with supporting custom types, functions, facts, plans, tasks, and templates.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_app_stack",
+    "path": "site-modules/profile_app_stack",
+    "description": "Provisions a full Python application stack with dependencies, PostgreSQL-backed application setup, Git or local-source deployment, environment configuration, systemd service management, monitoring, and log rotation.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_haproxy",
+    "path": "site-modules/profile_haproxy",
+    "description": "Configures an HAProxy load balancer, including packages, generated configuration, backend discovery, service management, firewall integration, statistics, logging, TLS settings, and structured backends.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_postgresql",
+    "path": "site-modules/profile_postgresql",
+    "description": "Installs and configures PostgreSQL using the PGDG repository, pinned packages, and service enablement and startup management.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile_redis_cluster",
+    "path": "site-modules/profile_redis_cluster",
+    "description": "Installs and configures Redis with password protection, persistence, memory limits, and intended PuppetDB-based node discovery.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "profile",
+    "path": "site-modules/profile",
+    "description": "Composes nested base, application, cache, and load-balancer profiles to define the site-level configuration boundary used by roles.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "role",
+    "path": "site-modules/role",
+    "description": "Provides node-level orchestration for application, HAProxy, and Redis roles, applying the base profile before service-specific profiles and defining Linux command path defaults.",
+    "technology": "Puppet"
+  },
+  {
+    "name": "puppetdb_query_stub",
+    "path": "site-modules/puppetdb_query_stub",
+    "description": "Provides a supporting custom Puppet function library for PuppetDB queries used by the Redis profile's discovery mechanism.",
+    "technology": "Puppet"
+  }
+]
