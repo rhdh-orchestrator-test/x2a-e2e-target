@@ -1,0 +1,19 @@
+---
+- name: Install Memcached
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Configure Memcached
+  ansible.builtin.template:
+    src: memcached.conf.j2
+    dest: /etc/memcached.conf
+    mode: "0644"
+    backup: true
+  notify: Restart memcached
+
+- name: Start and enable Memcached
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true

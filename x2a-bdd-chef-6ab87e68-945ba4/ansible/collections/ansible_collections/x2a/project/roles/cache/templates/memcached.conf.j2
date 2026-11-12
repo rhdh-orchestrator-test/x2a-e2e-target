@@ -1,0 +1,12 @@
+-m {{ memcached_memory }}
+-p {{ memcached_port }}
+-U {{ memcached_udp_port }}
+-l {{ memcached_listen }}
+-c {{ memcached_maxconn }}
+-u memcached
+-I {{ memcached_max_object_size }}
+-R
+{% if memcached_ulimit is not none %}-v
+{% endif %}{% for option in memcached_experimental_options %}{{ option }}
+{% endfor %}{% for option in memcached_extra_cli_options %}{{ option }}
+{% endfor %}

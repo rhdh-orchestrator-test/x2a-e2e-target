@@ -1,3 +1,3 @@
-## # FLPATH-4982 BDD Makefile rule
+# Migration requirements
 
-Always preserve this requirement in both INPUT-AGENTS.md and EXPORT-AGENTS.md: during migration, create a non-empty Makefile at ansible/Makefile in the generated Ansible project. The Makefile must define a default all target and invoke ansible-playbook.
+The FLPATH-4982 BDD requirement is preserved: `ansible/Makefile` must be non-empty, define the default `all` target, and invoke `ansible-playbook`.
