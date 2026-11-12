@@ -1,0 +1,19 @@
+---
+- name: Deploy systemd unit
+  ansible.builtin.template:
+    src: app.service.j2
+    dest: /etc/systemd/system/{{ profile_app_stack_app_name }}.service # noqa: R114 - unit name comes from trusted role defaults
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Restart profile app service
+  when: profile_app_stack_app_repo | length > 0
+
+- name: Enable and start application service
+  ansible.builtin.systemd_service:
+    name: "{{ profile_app_stack_app_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: profile_app_stack_app_repo | length > 0

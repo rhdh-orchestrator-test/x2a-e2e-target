@@ -1,0 +1,33 @@
+---
+- name: Install optional monitoring packages
+  ansible.builtin.package:
+    name:
+      - prometheus-node-exporter
+      - prometheus-pushgateway
+    state: present
+  when: profile_app_stack_monitoring_enabled | bool
+
+- name: Enable node exporter
+  ansible.builtin.service:
+    name: prometheus-node-exporter
+    enabled: true
+    state: started
+  when: profile_app_stack_monitoring_enabled | bool
+
+- name: Create health check log directory
+  ansible.builtin.file:
+    path: /var/log/myapp-api
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: profile_app_stack_app_repo | length > 0
+
+- name: Schedule application health check
+  ansible.builtin.cron:
+    name: app_health_check
+    user: root
+    minute: "*/5"
+    job: /usr/local/bin/app-healthcheck.sh
+    state: present
+  when: profile_app_stack_app_repo | length > 0

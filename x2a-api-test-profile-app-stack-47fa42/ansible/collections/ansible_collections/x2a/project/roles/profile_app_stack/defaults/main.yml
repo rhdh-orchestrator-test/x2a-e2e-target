@@ -1,0 +1,33 @@
+---
+profile_app_stack_app_name: profile-app
+profile_app_stack_app_repo: ""
+profile_app_stack_app_revision: main
+profile_app_stack_app_port: 8000
+profile_app_stack_app_dir: /opt/profile-app
+profile_app_stack_app_user: profile-app
+profile_app_stack_app_group: profile-app
+profile_app_stack_db_host: "{{ db_host }}"
+profile_app_stack_db_port: "{{ db_port }}"
+profile_app_stack_db_name: "{{ db_name }}"
+profile_app_stack_db_user: "{{ db_user }}"
+profile_app_stack_worker_count: 2
+profile_app_stack_worker_class: sync
+profile_app_stack_max_requests: 1000
+profile_app_stack_graceful_timeout: 30
+profile_app_stack_log_dir: /var/log/profile-app
+profile_app_stack_log_level: INFO
+profile_app_stack_python_version: python3
+profile_app_stack_python_packages:
+  - git
+  - python3
+  - python3-pip
+  - python3-venv
+  - curl
+  - logrotate
+  - postgresql-client
+  - sudo
+profile_app_stack_pip_packages: []
+profile_app_stack_log_max_size: 100M
+profile_app_stack_log_rotate_count: 5
+profile_app_stack_monitoring_enabled: false
+profile_app_stack_secure_logging: true

@@ -1,0 +1,36 @@
+---
+- name: Install local PostgreSQL packages
+  ansible.builtin.package:
+    name:
+      - postgresql
+      - postgresql-client
+    state: present
+  when: profile_app_stack_db_host == 'localhost'
+
+- name: Ensure local PostgreSQL service is running
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+  when: profile_app_stack_db_host == 'localhost'
+
+- name: Deploy database backup script
+  ansible.builtin.copy:
+    src: backup.sh
+    dest: /usr/local/bin/db-backup.sh
+    owner: root
+    group: root
+    mode: "0750"
+    backup: true
+  no_log: "{{ profile_app_stack_secure_logging }}"
+
+- name: Schedule database backup
+  ansible.builtin.cron:
+    name: database_backup
+    user: root
+    minute: "0"
+    hour: "2"
+    job: >-
+      /usr/local/bin/db-backup.sh
+      {{ profile_app_stack_db_name | quote }}
+      {{ profile_app_stack_db_host | quote }}
+    state: present

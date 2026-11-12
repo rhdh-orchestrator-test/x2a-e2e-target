@@ -1,0 +1,245 @@
+---
+# Unsupported pre-flight checks: recording all resolved variables; database/user existence
+# with unspecified PostgreSQL client commands; intentional monitoring/Pushgateway/metric
+# realization; Python/package-repository version checks; secret-provider and environment
+# separation checks; exact cron schedules/commands/credential handling; and exact file
+# permission expectations. No expected outcome was supplied for those checks.
+
+- name: Verify profile_app_stack deployment
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Confirm the target is Linux
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['system'] | lower == 'linux'
+        fail_msg: Target is not Linux.
+        success_msg: Target is Linux.
+
+    - name: Check the application service unit with systemctl cat
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - cat
+          - "{{ profile_app_stack_app_name }}.service"
+      register: profile_app_stack_systemctl_cat
+      changed_when: false
+
+    - name: Assert the application service unit can be read
+      ansible.builtin.assert:
+        that:
+          - profile_app_stack_systemctl_cat.rc == 0
+        fail_msg: The application service unit could not be read.
+        success_msg: The application service unit can be read.
+
+    - name: Verify the application service unit syntax
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - "/etc/systemd/system/{{ profile_app_stack_app_name }}.service"
+      register: profile_app_stack_systemd_verify
+      changed_when: false
+
+    - name: Assert the application service unit is valid
+      ansible.builtin.assert:
+        that:
+          - profile_app_stack_systemd_verify.rc == 0
+        fail_msg: The application service unit failed systemd verification.
+        success_msg: The application service unit passed systemd verification.
+
+    - name: Gather application service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert the application service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - (profile_app_stack_app_name ~ '.service') in ansible_facts['services']
+          - ansible_facts['services'][profile_app_stack_app_name ~ '.service']['enabled'] | bool
+          - ansible_facts['services'][profile_app_stack_app_name ~ '.service']['state'] == 'running'
+        fail_msg: The application service is not enabled and active.
+        success_msg: The application service is enabled and active.
+
+    - name: Check the application health endpoint
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ profile_app_stack_app_port }}/health"
+        method: GET
+        status_code: 200
+        return_content: false
+      register: profile_app_stack_health_endpoint
+
+    - name: Assert the application health endpoint responded successfully
+      ansible.builtin.assert:
+        that:
+          - profile_app_stack_health_endpoint.status == 200
+        fail_msg: The application health endpoint did not return HTTP 200.
+        success_msg: The application health endpoint returned HTTP 200.
+
+    - name: Resolve the configured database host
+      ansible.builtin.getent:
+        database: hosts
+        key: "{{ profile_app_stack_db_host }}"
+
+    - name: Assert the configured database host resolves
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['getent_hosts'] is defined
+          - ansible_facts['getent_hosts'] | length > 0
+        fail_msg: The configured database host does not resolve.
+        success_msg: The configured database host resolves.
+
+    - name: Check connectivity to the configured database port
+      ansible.builtin.wait_for:
+        host: "{{ profile_app_stack_db_host }}"
+        port: "{{ profile_app_stack_db_port }}"
+        state: started
+        timeout: 10
+      register: profile_app_stack_database_port
+
+    - name: Assert the configured database port is reachable
+      ansible.builtin.assert:
+        that:
+          - profile_app_stack_database_port is succeeded
+        fail_msg: The configured database port is not reachable.
+        success_msg: The configured database port is reachable.
+
+    - name: Check local PostgreSQL when the database host is localhost
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - postgresql
+      register: profile_app_stack_postgresql_active
+      changed_when: false
+      when: profile_app_stack_db_host == 'localhost'
+
+    - name: Assert local PostgreSQL is active
+      ansible.builtin.assert:
+        that:
+          - profile_app_stack_postgresql_active.rc == 0
+        fail_msg: Local PostgreSQL is not active.
+        success_msg: Local PostgreSQL is active.
+      when: profile_app_stack_db_host == 'localhost'
+
+    - name: Check the application directory
+      ansible.builtin.stat:
+        path: "{{ profile_app_stack_app_dir }}"
+      register: profile_app_stack_app_directory
+
+    - name: Assert the application directory exists
+      ansible.builtin.assert:
+        that:
+          - profile_app_stack_app_directory.stat.exists
+          - profile_app_stack_app_directory.stat.isdir
+        fail_msg: The application directory is missing.
+        success_msg: The application directory exists.
+
+    - name: Resolve the application user
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ profile_app_stack_app_user }}"
+
+    - name: Assert the application user exists
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['getent_passwd'] is defined
+          - profile_app_stack_app_user in ansible_facts['getent_passwd']
+        fail_msg: The application user is missing.
+        success_msg: The application user exists.
+
+    - name: Resolve the application group
+      ansible.builtin.getent:
+        database: group
+        key: "{{ profile_app_stack_app_group }}"
+
+    - name: Assert the application group exists
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['getent_group'] is defined
+          - profile_app_stack_app_group in ansible_facts['getent_group']
+        fail_msg: The application group is missing.
+        success_msg: The application group exists.
+
+    - name: Check the application virtual-environment Python executable
+      ansible.builtin.stat:
+        path: "{{ profile_app_stack_app_dir }}/venv/bin/python"
+      register: profile_app_stack_venv_python
+
+    - name: Assert the virtual-environment Python executable exists
+      ansible.builtin.assert:
+        that:
+          - profile_app_stack_venv_python.stat.exists
+          - profile_app_stack_venv_python.stat.isreg
+          - profile_app_stack_venv_python.stat.executable
+        fail_msg: The application virtual-environment Python executable is missing or not executable.
+        success_msg: The application virtual-environment Python executable exists and is executable.
+
+    - name: Check the application environment file
+      ansible.builtin.stat:
+        path: "{{ profile_app_stack_app_dir }}/.env"
+      register: profile_app_stack_environment_file
+
+    - name: Assert the application environment file exists
+      ansible.builtin.assert:
+        that:
+          - profile_app_stack_environment_file.stat.exists
+          - profile_app_stack_environment_file.stat.isreg
+        fail_msg: The application environment file is missing.
+        success_msg: The application environment file exists.
+
+    - name: Check the application health-check script
+      ansible.builtin.stat:
+        path: /usr/local/bin/app-healthcheck.sh
+      register: profile_app_stack_healthcheck_script
+
+    - name: Assert the application health-check script is executable
+      ansible.builtin.assert:
+        that:
+          - profile_app_stack_healthcheck_script.stat.exists
+          - profile_app_stack_healthcheck_script.stat.executable
+        fail_msg: The application health-check script is missing or not executable.
+        success_msg: The application health-check script exists and is executable.
+
+    - name: Run the application health-check script
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/app-healthcheck.sh
+      register: profile_app_stack_healthcheck_result
+      changed_when: false
+
+    - name: Assert the application health-check script succeeds
+      ansible.builtin.assert:
+        that:
+          - profile_app_stack_healthcheck_result.rc == 0
+        fail_msg: The application health-check script failed.
+        success_msg: The application health-check script succeeded.
+
+    - name: Check the database backup script
+      ansible.builtin.stat:
+        path: /usr/local/bin/db-backup.sh
+      register: profile_app_stack_backup_script
+
+    - name: Assert the database backup script is executable
+      ansible.builtin.assert:
+        that:
+          - profile_app_stack_backup_script.stat.exists
+          - profile_app_stack_backup_script.stat.executable
+        fail_msg: The database backup script is missing or not executable.
+        success_msg: The database backup script exists and is executable.
+
+    - name: Verify the application repository and requested revision are reachable
+      ansible.builtin.command:
+        argv:
+          - git
+          - ls-remote
+          - "{{ profile_app_stack_app_repo }}"
+          - "{{ profile_app_stack_app_revision }}"
+      register: profile_app_stack_git_remote
+      changed_when: false
+
+    - name: Assert the application repository and revision are reachable
+      ansible.builtin.assert:
+        that:
+          - profile_app_stack_git_remote.rc == 0
+        fail_msg: The application repository or requested revision is not reachable.
+        success_msg: The application repository and requested revision are reachable.

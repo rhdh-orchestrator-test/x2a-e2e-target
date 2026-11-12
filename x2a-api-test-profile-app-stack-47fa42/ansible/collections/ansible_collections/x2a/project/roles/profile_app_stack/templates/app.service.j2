@@ -1,0 +1,16 @@
+[Unit]
+Description={{ profile_app_stack_app_name }} application service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ profile_app_stack_app_user }}
+Group={{ profile_app_stack_app_group }}
+WorkingDirectory={{ profile_app_stack_app_dir }}
+EnvironmentFile={{ profile_app_stack_app_dir }}/.env
+ExecStart={{ profile_app_stack_app_dir }}/venv/bin/gunicorn --bind 0.0.0.0:{{ profile_app_stack_app_port }} --workers {{ profile_app_stack_worker_count }} --worker-class {{ profile_app_stack_worker_class }} --max-requests {{ profile_app_stack_max_requests }} --graceful-timeout {{ profile_app_stack_graceful_timeout }} app:app
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

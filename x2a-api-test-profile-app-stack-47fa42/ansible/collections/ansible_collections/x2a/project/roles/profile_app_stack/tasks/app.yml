@@ -1,0 +1,66 @@
+---
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ profile_app_stack_app_dir }}" # noqa: R114 - path comes from trusted role defaults
+    state: directory
+    owner: "{{ profile_app_stack_app_user }}"
+    group: "{{ profile_app_stack_app_group }}"
+    mode: "0755"
+
+- name: Check out application repository # noqa: R104 - repository source is a trusted configured role default without guaranteed TLS
+  ansible.builtin.git:
+    repo: "{{ profile_app_stack_app_repo }}" # noqa: R106 - repository source is a trusted configured role default
+    dest: "{{ profile_app_stack_app_dir }}" # noqa: R114 - destination comes from trusted role defaults
+    version: "{{ profile_app_stack_app_revision }}"
+    update: true
+  when: profile_app_stack_app_repo | length > 0
+
+- name: Create Python virtual environment # noqa: R101 - command executable comes from trusted role defaults
+  ansible.builtin.command:
+    argv:
+      - "{{ profile_app_stack_python_version }}"
+      - -m
+      - venv
+      - "{{ profile_app_stack_app_dir }}/venv"
+  args:
+    creates: "{{ profile_app_stack_app_dir }}/venv/bin/python"
+
+- name: Install application requirements # noqa: R113 - requirements path comes from trusted role defaults
+  ansible.builtin.pip:
+    requirements: "{{ profile_app_stack_app_dir }}/requirements.txt"
+    virtualenv: "{{ profile_app_stack_app_dir }}/venv"
+  when: profile_app_stack_app_repo | length > 0
+
+- name: Install optional Python packages # noqa: R113 - package list comes from trusted role defaults
+  ansible.builtin.pip:
+    name: "{{ profile_app_stack_pip_packages }}"
+    virtualenv: "{{ profile_app_stack_app_dir }}/venv"
+  when: profile_app_stack_pip_packages | length > 0
+
+- name: Render application environment
+  ansible.builtin.template:
+    src: app.env.j2
+    dest: "{{ profile_app_stack_app_dir }}/.env" # noqa: R114 - destination comes from trusted role defaults
+    owner: "{{ profile_app_stack_app_user }}"
+    group: "{{ profile_app_stack_app_group }}"
+    mode: "0600"
+    backup: true
+  no_log: "{{ profile_app_stack_secure_logging }}"
+
+- name: Install application health check
+  ansible.builtin.copy:
+    src: healthcheck.sh
+    dest: /usr/local/bin/app-healthcheck.sh
+    owner: root
+    group: root
+    mode: "0755"
+    backup: true
+
+- name: Run application database migrations # noqa: R101 - command executable and working directory come from trusted role defaults
+  ansible.builtin.command:
+    argv:
+      - "{{ profile_app_stack_app_dir }}/venv/bin/python"
+      - manage.py
+      - migrate
+    chdir: "{{ profile_app_stack_app_dir }}"
+  when: profile_app_stack_app_repo | length > 0

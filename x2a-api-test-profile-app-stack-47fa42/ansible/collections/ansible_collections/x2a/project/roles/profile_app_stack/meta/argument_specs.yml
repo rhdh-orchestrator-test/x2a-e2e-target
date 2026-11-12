@@ -1,0 +1,148 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure the profile application stack
+    description:
+      - Deploys a Python application, its runtime, database integration, systemd service, and health checks.
+    options:
+      profile_app_stack_app_name:
+        type: str
+        required: false
+        default: profile-app
+        description: Application and systemd service name.
+      profile_app_stack_app_repo:
+        type: str
+        required: false
+        default: ""
+        description: Git repository URL for the application.
+      profile_app_stack_app_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      profile_app_stack_app_port:
+        type: int
+        required: false
+        default: 8000
+        description: Application listening port.
+      profile_app_stack_app_dir:
+        type: str
+        required: false
+        default: /opt/profile-app
+        description: Application installation directory.
+      profile_app_stack_app_user:
+        type: str
+        required: false
+        default: profile-app
+        description: Application service user.
+      profile_app_stack_app_group:
+        type: str
+        required: false
+        default: profile-app
+        description: Application service group.
+      profile_app_stack_db_host:
+        type: str
+        required: false
+        description: Database host, normally derived from db_host.
+      profile_app_stack_db_port:
+        type: int
+        required: false
+        description: Database port, normally derived from db_port.
+      profile_app_stack_db_name:
+        type: str
+        required: false
+        description: Database name, normally derived from db_name.
+      profile_app_stack_db_user:
+        type: str
+        required: false
+        description: Database user, normally derived from db_user.
+      profile_app_stack_worker_count:
+        type: int
+        required: false
+        default: 2
+        description: Number of application workers.
+      profile_app_stack_worker_class:
+        type: str
+        required: false
+        default: sync
+        description: Gunicorn worker class.
+      profile_app_stack_max_requests:
+        type: int
+        required: false
+        default: 1000
+        description: Maximum requests handled by a worker.
+      profile_app_stack_graceful_timeout:
+        type: int
+        required: false
+        default: 30
+        description: Graceful worker shutdown timeout.
+      profile_app_stack_log_dir:
+        type: str
+        required: false
+        default: /var/log/profile-app
+        description: Application log directory.
+      profile_app_stack_log_level:
+        type: str
+        required: false
+        default: INFO
+        description: Application log level.
+      profile_app_stack_python_version:
+        type: str
+        required: false
+        default: python3
+        description: Python interpreter used for the virtual environment.
+      profile_app_stack_python_packages:
+        type: list
+        elements: str
+        required: false
+        description: OS packages required by the runtime and role utilities.
+      profile_app_stack_pip_packages:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: Optional Python packages to install in the virtual environment.
+      profile_app_stack_log_max_size:
+        type: str
+        required: false
+        default: 100M
+        description: Maximum log file size before rotation.
+      profile_app_stack_log_rotate_count:
+        type: int
+        required: false
+        default: 5
+        description: Number of rotated logs to retain.
+      profile_app_stack_monitoring_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Install and enable optional monitoring services.
+      profile_app_stack_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide tasks that render or handle application credentials.
+      db_host:
+        type: str
+        required: true
+        description: Database host injected by an AAP credential type.
+      db_port:
+        type: int
+        required: true
+        description: Database port injected by an AAP credential type.
+      db_name:
+        type: str
+        required: true
+        description: Database name injected by an AAP credential type.
+      db_user:
+        type: str
+        required: true
+        description: Database user injected by an AAP credential type.
+      db_password:
+        type: str
+        required: true
+        description: Database password injected by an AAP credential type.
+      secret_key:
+        type: str
+        required: true
+        description: Application secret key injected by an AAP credential type.

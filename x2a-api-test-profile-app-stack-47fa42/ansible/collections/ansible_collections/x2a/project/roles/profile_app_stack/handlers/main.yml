@@ -1,0 +1,6 @@
+---
+- name: Restart profile app service
+  ansible.builtin.systemd_service:
+    name: "{{ profile_app_stack_app_name }}"
+    state: restarted
+    daemon_reload: true
