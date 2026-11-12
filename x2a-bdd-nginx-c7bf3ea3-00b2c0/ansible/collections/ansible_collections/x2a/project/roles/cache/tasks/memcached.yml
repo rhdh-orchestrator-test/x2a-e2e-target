@@ -1,0 +1,67 @@
+---
+- name: Install Memcached package
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Create Memcached service group
+  ansible.builtin.group:
+    name: "{{ cache_memcached_group }}"
+    system: true
+    state: present
+
+- name: Create Memcached service user
+  ansible.builtin.user:
+    name: "{{ cache_memcached_user }}"
+    group: "{{ cache_memcached_group }}"
+    comment: Memcached
+    home: /nonexistent
+    shell: /bin/false
+    system: true
+    create_home: false
+    state: present
+
+- name: Create Memcached runtime and log directories
+  ansible.builtin.file:
+    path: "{{ item_cache_memcached_dir['path'] }}" # noqa: R114 - paths are fixed role defaults
+    state: directory
+    owner: "{{ cache_memcached_user }}"
+    group: "{{ cache_memcached_group }}"
+    mode: "0755"
+  loop:
+    - path: /var/run/memcached
+    - path: /var/log/memcached
+  loop_control:
+    loop_var: item_cache_memcached_dir
+
+- name: Configure Memcached service options  # noqa: R114 - destination is a fixed OS-specific system path
+  ansible.builtin.copy:
+    dest: "{{ '/etc/memcached.conf' if ansible_facts['os_family'] == 'Debian' else '/etc/sysconfig/memcached' }}"
+    content: |
+      {% if ansible_facts['os_family'] == 'Debian' %}
+      -p {{ cache_memcached_port }}
+      -U {{ cache_memcached_udp_port }}
+      -u {{ cache_memcached_user }}
+      -m {{ cache_memcached_memory }}
+      -c {{ cache_memcached_maxconn }}
+      -l {{ cache_memcached_listen }}
+      -I {{ cache_memcached_max_object_size }}
+      -t {{ cache_memcached_threads }}
+      {% else %}
+      PORT="{{ cache_memcached_port }}"
+      USER="{{ cache_memcached_user }}"
+      MAXCONN="{{ cache_memcached_maxconn }}"
+      CACHESIZE="{{ cache_memcached_memory }}"
+      OPTIONS="-l {{ cache_memcached_listen }} -U {{ cache_memcached_udp_port }} -I {{ cache_memcached_max_object_size }} -t {{ cache_memcached_threads }}"
+      {% endif %}
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Restart Memcached
+
+- name: Ensure Memcached service is enabled and started
+  ansible.builtin.service:
+    name: memcached
+    enabled: true
+    state: started

@@ -1,0 +1,51 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install Redis package
+  ansible.builtin.package:
+    name: "{{ 'redis-server' if ansible_facts['os_family'] == 'Debian' else 'redis' }}"
+    state: present
+
+- name: Configure Memcached
+  ansible.builtin.include_tasks: memcached.yml
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+    recurse: true
+
+- name: Check for Redis configuration
+  ansible.builtin.stat:
+    path: "{{ '/etc/redis/6379.conf' if ansible_facts['os_family'] == 'Debian' else '/etc/redis.conf' }}"
+  register: cache_redis_config
+
+- name: Configure Redis authentication  # noqa: L039 - redis_password is supplied by the attached AAP credential
+  ansible.builtin.lineinfile:
+    path: "{{ '/etc/redis/6379.conf' if ansible_facts['os_family'] == 'Debian' else '/etc/redis.conf' }}" # noqa: R114 - paths are fixed OS-specific role paths
+    regexp: ^requirepass\s+
+    line: requirepass {{ redis_password }}
+    create: false
+    backup: true
+  notify: Restart Redis
+  no_log: "{{ cache_secure_logging }}"
+  when: cache_redis_config.stat.exists
+
+- name: Remove replication directives from Redis configuration  # noqa: L039 - cache_redis_config is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: "{{ '/etc/redis/6379.conf' if ansible_facts['os_family'] == 'Debian' else '/etc/redis.conf' }}" # noqa: R114 - paths are fixed OS-specific role paths
+    regexp: ^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority).*$
+    replace: ""
+    backup: true
+  notify: Restart Redis
+  when: cache_redis_config.stat.exists
+
+- name: Ensure Redis service is enabled and started
+  ansible.builtin.service:
+    name: "{{ cache_redis_service if (cache_redis_service != 'redis-server' or ansible_facts['os_family'] == 'Debian') else 'redis' }}"
+    enabled: true
+    state: started
