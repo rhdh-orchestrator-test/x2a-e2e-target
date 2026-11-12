@@ -1,0 +1,37 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure nginx with multiple SSL-enabled sites
+    description:
+      - Configures nginx virtual hosts, TLS certificates, static content, and security hardening.
+    options:
+      nginx:
+        type: dict
+        required: false
+        default:
+          sites:
+            test.cluster.local:
+              document_root: /opt/server/test
+              ssl_enabled: true
+            ci.cluster.local:
+              document_root: /opt/server/ci
+              ssl_enabled: true
+            status.cluster.local:
+              document_root: /opt/server/status
+              ssl_enabled: true
+          ssl:
+            certificate_path: /etc/ssl/certs
+            private_key_path: /etc/ssl/private
+        description: Nginx site and TLS path configuration.
+      security:
+        type: dict
+        required: false
+        default:
+          fail2ban:
+            enabled: true
+          ufw:
+            enabled: true
+          ssh:
+            disable_root: true
+            password_auth: false
+        description: Security hardening and service configuration.
