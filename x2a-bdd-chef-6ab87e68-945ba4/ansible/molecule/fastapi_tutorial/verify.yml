@@ -1,0 +1,213 @@
+---
+# Unsupported: pip/package/version diagnostics, controller-side Makefile checks, logs,
+# process listings, restart behavior, and the optional /health check have no stated
+# expected result or cannot be safely checked from hosts: all. Credential validation
+# is omitted so the database password is not exposed.
+- name: Verify fastapi-tutorial pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check application paths and executables
+      ansible.builtin.stat:
+        path: "{{ item_path['path'] }}"
+      loop:
+        - name: application directory
+          path: /opt/fastapi-tutorial
+        - name: requirements file
+          path: /opt/fastapi-tutorial/requirements.txt
+        - name: virtualenv Python
+          path: /opt/fastapi-tutorial/venv/bin/python
+        - name: virtualenv pip
+          path: /opt/fastapi-tutorial/venv/bin/pip
+        - name: virtualenv uvicorn
+          path: /opt/fastapi-tutorial/venv/bin/uvicorn
+      loop_control:
+        loop_var: item_path
+      register: item_path_results
+
+    - name: Assert application paths and executables
+      ansible.builtin.assert:
+        that:
+          - item_path_result.stat.exists
+          - item_path_result.stat.isdir if item_path_result.item['name'] == 'application directory' else item_path_result.stat.isreg
+          - item_path_result.stat.executable if item_path_result.item['name'] in ['virtualenv Python', 'virtualenv pip', 'virtualenv uvicorn'] else true
+        fail_msg: A required application path or executable is missing.
+      loop: "{{ item_path_results.results }}"
+      loop_control:
+        loop_var: item_path_result
+
+    - name: Read checked-out branch
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - /opt/fastapi-tutorial
+          - rev-parse
+          - --abbrev-ref
+          - HEAD
+      changed_when: false
+      register: item_branch
+
+    - name: Assert checked-out branch is main
+      ansible.builtin.assert:
+        that:
+          - item_branch.stdout | trim == 'main'
+        fail_msg: The application is not checked out on the main branch.
+
+    - name: Check environment file metadata
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/.env
+      register: item_env
+
+    - name: Assert environment file metadata
+      ansible.builtin.assert:
+        that:
+          - item_env.stat.exists
+          - item_env.stat.pw_name == 'root'
+          - item_env.stat.gr_name == 'root'
+          - item_env.stat.mode == '0644'
+        fail_msg: The environment file has unexpected metadata.
+
+    - name: Read environment file without exposing its contents
+      ansible.builtin.slurp:
+        src: /opt/fastapi-tutorial/.env
+      register: item_env_content
+      no_log: true
+
+    - name: Assert required environment settings
+      ansible.builtin.assert:
+        that:
+          - "'PROJECT_NAME=\"FastAPI Tutorial\"' in (item_env_content.content | b64decode)"
+          - "'API_VERSION=1.0.0' in (item_env_content.content | b64decode)"
+          - "item_env_content.content | b64decode is search('^DATABASE_URL=postgresql://fastapi:[^@]+@localhost/fastapi_db$', multiline=True)"
+        fail_msg: The environment file is missing a required setting.
+      no_log: true
+
+    - name: Check fastapi-tutorial service state
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - "{{ item_service['check'] }}"
+          - fastapi-tutorial
+      changed_when: false
+      loop:
+        - name: enabled
+          check: is-enabled
+        - name: active
+          check: is-active
+      loop_control:
+        loop_var: item_service
+
+    - name: Read fastapi-tutorial unit
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - cat
+          - fastapi-tutorial
+      changed_when: false
+      register: item_unit
+
+    - name: Assert fastapi-tutorial unit settings
+      ansible.builtin.assert:
+        that:
+          - "'[Unit]' in item_unit.stdout"
+          - "'After=network.target postgresql.service' in item_unit.stdout"
+          - "'User=root' in item_unit.stdout"
+          - "'WorkingDirectory=/opt/fastapi-tutorial' in item_unit.stdout"
+          - "'Environment=\"PATH=/opt/fastapi-tutorial/venv/bin\"' in item_unit.stdout"
+          - "'ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000' in item_unit.stdout"
+          - "'Restart=always' in item_unit.stdout"
+          - "'WantedBy=multi-user.target' in item_unit.stdout"
+        fail_msg: The fastapi-tutorial systemd unit is missing a required setting.
+
+    - name: Validate fastapi-tutorial systemd unit
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - /etc/systemd/system/fastapi-tutorial.service
+      changed_when: false
+
+    - name: Wait for fastapi-tutorial TCP port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 8000
+        state: started
+        timeout: 30
+
+    - name: Check postgresql service state
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - "{{ item_postgresql['check'] }}"
+          - postgresql
+      changed_when: false
+      loop:
+        - name: enabled
+          check: is-enabled
+        - name: active
+          check: is-active
+      loop_control:
+        loop_var: item_postgresql
+
+    - name: Wait for PostgreSQL TCP port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 5432
+        state: started
+        timeout: 30
+
+    - name: Check fastapi PostgreSQL role
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT rolname FROM pg_roles WHERE rolname = 'fastapi';
+      changed_when: false
+      register: item_role
+
+    - name: Assert fastapi PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - item_role.stdout | trim == 'fastapi'
+        fail_msg: The fastapi PostgreSQL role was not found.
+
+    - name: Check fastapi_db owner
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT datname || ' | ' || pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db';
+      changed_when: false
+      register: item_database
+
+    - name: Assert fastapi_db is owned by fastapi
+      ansible.builtin.assert:
+        that:
+          - item_database.stdout | trim == 'fastapi_db | fastapi'
+        fail_msg: The fastapi_db database is missing or has the wrong owner.
+
+    - name: Check local PostgreSQL database connection
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -h
+          - localhost
+          - -d
+          - fastapi_db
+          - -tAc
+          - SELECT 1;
+      changed_when: false
+      register: item_connection
+
+    - name: Assert local PostgreSQL connection succeeds
+      ansible.builtin.assert:
+        that:
+          - item_connection.stdout | trim == '1'
+        fail_msg: PostgreSQL did not accept a local connection to fastapi_db.
