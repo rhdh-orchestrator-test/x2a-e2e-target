@@ -1,0 +1,17 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure standalone Redis
+  ansible.builtin.include_role:  # noqa: L038 - External eloy.redis collection is declared in requirements.yml and resolves the redis role when installed
+    name: eloy.redis.redis
+  no_log: "{{ redis_cluster_secure_logging }}"
+  vars:
+    redis_port: "{{ redis_cluster_redis_port }}"
+    redis_requirepass: "{{ redis_password }}"
+    redis_maxmemory: "{{ redis_cluster_maxmemory }}"
+    redis_aof_enabled: "{{ redis_cluster_appendonly }}"
+    redis_rdb_enabled: "{{ redis_cluster_rdb_enabled }}"
+    redis_cluster_enabled: "{{ redis_cluster_enabled }}"
+    redis_sentinel_enabled: "{{ redis_cluster_sentinel_enabled }}"
+    redis_replication_enabled: "{{ redis_cluster_replication_enabled }}"

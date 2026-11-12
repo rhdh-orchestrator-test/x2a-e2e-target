@@ -1,0 +1,8 @@
+#!/usr/bin/env ruby
+
+config_file = '/etc/redis/conf.d/replica.conf'
+if File.exist?(config_file) && File.read(config_file).include?('replicaof')
+  puts 'replica'
+else
+  puts 'primary'
+end

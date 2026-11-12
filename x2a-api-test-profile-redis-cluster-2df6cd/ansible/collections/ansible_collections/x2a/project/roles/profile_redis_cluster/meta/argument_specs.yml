@@ -1,0 +1,72 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure a standalone Redis instance.
+    description:
+      - Deploys Redis with authentication, persistence, memory limits, and service management.
+      - Redis cluster, Sentinel, and replication modes remain disabled for this standalone instance.
+    options:
+      redis_cluster_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by Redis.
+      redis_cluster_maxmemory_mb:
+        type: int
+        required: false
+        default: 256
+        description: Redis memory limit in megabytes.
+      redis_cluster_maxmemory_policy:
+        type: str
+        required: false
+        default: allkeys-lru
+        description: Redis eviction policy setting retained for role configuration.
+      redis_cluster_bind:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: Address on which Redis listens.
+      redis_cluster_maxmemory:
+        type: str
+        required: false
+        default: 256mb
+        description: Redis maxmemory value.
+      redis_cluster_appendonly:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis append-only persistence is enabled.
+      redis_cluster_appendfsync:
+        type: str
+        required: false
+        default: everysec
+        description: Append-only file synchronization policy.
+      redis_cluster_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether RDB persistence is enabled.
+      redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Cluster mode is enabled.
+      redis_cluster_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel mode is enabled.
+      redis_cluster_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.
+      redis_cluster_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide output from tasks that handle the Redis password.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.

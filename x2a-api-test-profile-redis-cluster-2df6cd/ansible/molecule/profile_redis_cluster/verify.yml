@@ -1,0 +1,110 @@
+---
+# Unsupported pre-flight checks: platform/package diagnostic output, directory ownership and
+# modes, authenticated redis-cli checks, effective CONFIG GET values, and service status
+# output have no safely expressible expected result here or require an unavailable secret.
+- name: Verify profile_redis_cluster pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify Debian or Red Hat Redis configuration source path exists
+      ansible.builtin.stat:
+        path: "{{ item_redis_config_source }}"
+      loop:
+        - /etc/redis/redis.conf.puppet
+        - /etc/redis.conf.puppet
+      loop_control:
+        loop_var: item_redis_config_source
+      register: redis_config_source_stats
+
+    - name: Assert a Redis configuration source path exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_source_stats.results | selectattr('stat.exists', 'equalto', true) | list | length > 0
+        fail_msg: A Redis configuration source file was not found.
+
+    - name: Verify Debian or Red Hat active Redis configuration path exists
+      ansible.builtin.stat:
+        path: "{{ item_redis_active_config }}"
+      loop:
+        - /etc/redis/redis.conf
+        - /etc/redis.conf
+      loop_control:
+        loop_var: item_redis_active_config
+      register: redis_active_config_stats
+
+    - name: Assert an active Redis configuration path exists
+      ansible.builtin.assert:
+        that:
+          - redis_active_config_stats.results | selectattr('stat.exists', 'equalto', true) | list | length > 0
+        fail_msg: An active Redis configuration file was not found.
+
+    - name: Validate Redis configuration with redis-server
+      ansible.builtin.command:
+        argv:
+          - redis-server
+          - --test-memory
+          - "2"
+      register: redis_memory_test
+      changed_when: false
+      failed_when: false
+
+    - name: Assert Redis configuration validation succeeds
+      ansible.builtin.assert:
+        that:
+          - redis_memory_test.rc == 0
+        fail_msg: redis-server configuration validation failed.
+
+    - name: Gather service facts for the default Redis instance
+      ansible.builtin.service_facts:
+
+    - name: Assert the Debian default Redis service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'redis-server.service' in ansible_facts.services"
+          - ansible_facts.services['redis-server.service']['enabled'] | default(false) | bool
+          - ansible_facts.services['redis-server.service']['state'] == 'running'
+        fail_msg: The Debian default Redis service is not enabled and active.
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Assert the Red Hat default Redis service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'redis.service' in ansible_facts.services"
+          - ansible_facts.services['redis.service']['enabled'] | default(false) | bool
+          - ansible_facts.services['redis.service']['state'] == 'running'
+        fail_msg: The Red Hat default Redis service is not enabled and active.
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Verify the Redis Unix socket exists
+      ansible.builtin.stat:
+        path: /var/run/redis/redis.sock
+      register: redis_socket
+
+    - name: Assert the Redis Unix socket is present
+      ansible.builtin.assert:
+        that:
+          - redis_socket.stat.exists
+          - redis_socket.stat.issock
+        fail_msg: The Redis Unix socket is not present.
+
+    - name: Check obsolete Debian Redis ulimit drop-in
+      ansible.builtin.stat:
+        path: /etc/systemd/system/redis-server.service.d/limit.conf
+      register: redis_debian_limit_dropin
+
+    - name: Assert obsolete Debian Redis ulimit drop-in is absent
+      ansible.builtin.assert:
+        that:
+          - not redis_debian_limit_dropin.stat.exists
+        fail_msg: The obsolete Debian Redis ulimit drop-in exists.
+
+    - name: Check obsolete Red Hat Redis ulimit drop-in
+      ansible.builtin.stat:
+        path: /etc/systemd/system/redis.service.d/limit.conf
+      register: redis_redhat_limit_dropin
+
+    - name: Assert obsolete Red Hat Redis ulimit drop-in is absent
+      ansible.builtin.assert:
+        that:
+          - not redis_redhat_limit_dropin.stat.exists
+        fail_msg: The obsolete Red Hat Redis ulimit drop-in exists.
