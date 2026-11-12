@@ -1,0 +1,22 @@
+---
+- name: Create Memcached log directory
+  ansible.builtin.file:
+    path: "{{ memcached_logfilepath }}" # noqa: R114 - path is a role default
+    state: directory
+    owner: memcached
+    group: memcached
+    mode: "0755"
+
+- name: Create Memcached runtime directory
+  ansible.builtin.file:
+    path: /var/run/memcached
+    state: directory
+    owner: memcached
+    group: memcached
+    mode: "0755"
+
+- name: Start and enable Memcached
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true

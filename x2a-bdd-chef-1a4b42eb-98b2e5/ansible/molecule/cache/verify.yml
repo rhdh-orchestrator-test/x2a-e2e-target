@@ -1,0 +1,115 @@
+---
+# Unsupported pre-flight checks: command discovery, Memcached UDP/client diagnostics,
+# Memcached resource/account values, Memcached directory metadata, Redis authentication,
+# process listings, and journal output have no safely translatable expected outcome here
+# or would require exposing a secret.
+- name: Verify cache services and files
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather service facts for Memcached and Redis checks
+      ansible.builtin.service_facts:
+
+    - name: Assert the Memcached service is active and enabled
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts['services']"
+          - ansible_facts['services']['memcached.service']['state'] == 'running'
+          - ansible_facts['services']['memcached.service']['status'] == 'enabled'
+        fail_msg: Memcached must be active and enabled.
+
+    - name: Assert the Memcached TCP endpoint is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 2
+
+    - name: Discover Redis service units
+      ansible.builtin.set_fact:
+        redis_unit_items: >-
+          {{ ansible_facts['services'] | dict2items
+             | selectattr('key', 'match', '^redis.*\\.service$') | list }}
+
+    - name: Assert a Redis service unit was discovered
+      ansible.builtin.assert:
+        that:
+          - redis_unit_items | length > 0
+        fail_msg: A Redis service unit must be present.
+
+    - name: Assert each discovered Redis service is active and enabled
+      ansible.builtin.assert:
+        that:
+          - item_redis_unit['value']['state'] == 'running'
+          - item_redis_unit['value']['status'] == 'enabled'
+        fail_msg: Every discovered Redis service must be active and enabled.
+      loop: "{{ redis_unit_items }}"
+      loop_control:
+        loop_var: item_redis_unit
+
+    - name: Assert the Redis TCP endpoint is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 2
+
+    - name: Check that the Redis configuration exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Assert the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat['stat']['exists']
+          - redis_config_stat['stat']['isreg']
+        fail_msg: The Redis configuration file must exist.
+
+    - name: Check the Redis directives that must be absent
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -nE
+          - '^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)'
+          - /etc/redis/6379.conf
+      register: redis_config_lines
+      changed_when: false
+      failed_when: false
+
+    - name: Assert the specified Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - redis_config_lines['stdout'] is not search('replica-serve-stale-data')
+          - redis_config_lines['stdout'] is not search('replica-read-only')
+          - redis_config_lines['stdout'] is not search('repl-ping-replica-period')
+          - redis_config_lines['stdout'] is not search('client-output-buffer-limit')
+          - redis_config_lines['stdout'] is not search('replica-priority')
+        fail_msg: The specified Redis replication directives must be absent.
+
+    - name: Check the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_dir
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - redis_log_dir['stat']['exists']
+          - redis_log_dir['stat']['isdir']
+          - redis_log_dir['stat']['pw_name'] == 'redis'
+          - redis_log_dir['stat']['gr_name'] == 'redis'
+          - redis_log_dir['stat']['mode'] == '0755'
+        fail_msg: The Redis log directory must be redis:redis with mode 0755.
+
+    - name: Check the Redis PID directory
+      ansible.builtin.stat:
+        path: /run/redis
+      register: redis_pid_dir
+
+    - name: Assert the Redis PID directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_pid_dir['stat']['exists']
+          - redis_pid_dir['stat']['isdir']
+        fail_msg: The Redis PID directory must exist.
