@@ -1,4 +1,4 @@
 .PHONY: all
 
 all:
-	ansible-playbook run_cache.yml
+	ansible-playbook -i inventory/hosts.yml run_fastapi_tutorial.yml

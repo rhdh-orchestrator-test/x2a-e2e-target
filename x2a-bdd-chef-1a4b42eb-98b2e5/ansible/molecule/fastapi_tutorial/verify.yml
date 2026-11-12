@@ -1,0 +1,200 @@
+# Unsupported pre-flight checks: ansible/Makefile is outside the isolated hosts;
+# distribution-dependent PostgreSQL data-directory inspection; raw diagnostic output
+# for versions and git log; unrestricted journal review; and password-authenticated
+# psql validation, which is omitted to avoid exposing the database password.
+---
+- name: Verify fastapi-tutorial deployment
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert named services are active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['postgresql.service']['state'] == 'running'"
+          - "ansible_facts['services']['fastapi-tutorial.service']['state'] == 'running'"
+        fail_msg: "A required service is not running."
+
+    - name: Check named services are enabled
+      ansible.builtin.command:
+        argv: [systemctl, is-enabled, "{{ item_service }}"]
+      loop:
+        - postgresql
+        - fastapi-tutorial
+      loop_control:
+        loop_var: item_service
+      register: enabled_services
+      changed_when: false
+
+    - name: Assert named services are enabled
+      ansible.builtin.assert:
+        that:
+          - item_enabled['rc'] == 0
+          - item_enabled['stdout'] | trim == 'enabled'
+        fail_msg: "A required service is not enabled."
+      loop: "{{ enabled_services['results'] }}"
+      loop_control:
+        loop_var: item_enabled
+
+    - name: Check PostgreSQL responds to a version query
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv: [psql, -c, SELECT version();]
+      register: postgresql_version
+      changed_when: false
+
+    - name: Assert PostgreSQL version query succeeded
+      ansible.builtin.assert:
+        that:
+          - postgresql_version['rc'] == 0
+          - postgresql_version['stdout'] | length > 0
+        fail_msg: "PostgreSQL did not return a version."
+
+    - name: Check required PostgreSQL objects
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv: [psql, -tAc, "{{ item_query['query'] }}"]
+      loop:
+        - name: role
+          query: "SELECT rolname FROM pg_roles WHERE rolname = 'fastapi';"
+          expected: fastapi
+        - name: database
+          query: "SELECT datname FROM pg_database WHERE datname = 'fastapi_db';"
+          expected: fastapi_db
+        - name: owner
+          query: "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db';"
+          expected: fastapi
+      loop_control:
+        loop_var: item_query
+      register: postgresql_objects
+      changed_when: false
+
+    - name: Assert required PostgreSQL objects
+      ansible.builtin.assert:
+        that:
+          - item_object['rc'] == 0
+          - item_object['stdout'] | trim == item_object['item']['expected']
+        fail_msg: "A required PostgreSQL object is missing or has the wrong owner."
+      loop: "{{ postgresql_objects['results'] }}"
+      loop_control:
+        loop_var: item_object
+
+    - name: Verify PostgreSQL and FastAPI ports
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ item_port }}"
+        state: started
+        timeout: 5
+      loop:
+        - 5432
+        - 8000
+      loop_control:
+        loop_var: item_port
+
+    - name: Check the Uvicorn process
+      ansible.builtin.command:
+        argv: [ps, aux]
+      register: uvicorn_processes
+      changed_when: false
+
+    - name: Assert the expected Uvicorn process is present
+      ansible.builtin.assert:
+        that:
+          - uvicorn_processes['stdout'] is search('uvicorn app\\.main:app')
+        fail_msg: "The expected Uvicorn process is not running."
+
+    - name: Check the FastAPI HTTP endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8000/
+        method: GET
+        status_code: 200
+        return_content: true
+
+    - name: Read application configuration files
+      ansible.builtin.slurp:
+        src: "{{ item_config['path'] }}"
+      loop:
+        - name: environment
+          path: /opt/fastapi-tutorial/.env
+        - name: systemd unit
+          path: /etc/systemd/system/fastapi-tutorial.service
+      loop_control:
+        loop_var: item_config
+      register: configuration_files
+
+    - name: Assert application environment settings
+      ansible.builtin.assert:
+        that:
+          - "(configuration_files['results'][0]['content'] | b64decode) is search('(?m)^PROJECT_NAME=\\\"FastAPI Tutorial\\\"$')"
+          - "(configuration_files['results'][0]['content'] | b64decode) is search('(?m)^API_VERSION=1\\.0\\.0$')"
+          - "(configuration_files['results'][0]['content'] | b64decode) is search('(?m)^DATABASE_URL=postgresql://fastapi:.+@localhost/fastapi_db$')"
+        fail_msg: "Required application environment settings are missing."
+
+    - name: Assert systemd unit settings
+      ansible.builtin.assert:
+        that:
+          - "(configuration_files['results'][1]['content'] | b64decode) is search('(?m)^After=network\\.target postgresql\\.service$')"
+          - "(configuration_files['results'][1]['content'] | b64decode) is search('(?m)^User=root$')"
+          - "(configuration_files['results'][1]['content'] | b64decode) is search('(?m)^WorkingDirectory=/opt/fastapi-tutorial$')"
+          - "(configuration_files['results'][1]['content'] | b64decode) is search('(?m)^Environment=\\\"PATH=/opt/fastapi-tutorial/venv/bin\\\"$')"
+          - "(configuration_files['results'][1]['content'] | b64decode) is search('(?m)^ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn app\\.main:app --host 0\\.0\\.0\\.0 --port 8000$')"
+          - "(configuration_files['results'][1]['content'] | b64decode) is search('(?m)^Restart=always$')"
+          - "(configuration_files['results'][1]['content'] | b64decode) is search('(?m)^WantedBy=multi-user\\.target$')"
+        fail_msg: "The systemd unit is missing a required setting."
+
+    - name: Validate the FastAPI systemd unit
+      ansible.builtin.command:
+        argv: [systemd-analyze, verify, /etc/systemd/system/fastapi-tutorial.service]
+      changed_when: false
+
+    - name: Check virtual environment executables
+      ansible.builtin.stat:
+        path: "{{ item_venv['path'] }}"
+      loop:
+        - path: /opt/fastapi-tutorial/venv/bin/python
+        - path: /opt/fastapi-tutorial/venv/bin/pip
+      loop_control:
+        loop_var: item_venv
+      register: venv_executables
+
+    - name: Assert virtual environment executables are present and executable
+      ansible.builtin.assert:
+        that:
+          - item_venv_result['stat']['isreg'] | default(false)
+          - item_venv_result['stat']['executable'] | default(false)
+        fail_msg: "A required virtual environment executable is missing."
+      loop: "{{ venv_executables['results'] }}"
+      loop_control:
+        loop_var: item_venv_result
+
+    - name: Verify Python dependencies are consistent
+      ansible.builtin.command:
+        argv: [/opt/fastapi-tutorial/venv/bin/pip, check]
+      changed_when: false
+
+    - name: Check the application checkout branch
+      ansible.builtin.command:
+        argv: [git, -C, /opt/fastapi-tutorial, branch, --show-current]
+      register: git_branch
+      changed_when: false
+
+    - name: Assert the application checkout is on main
+      ansible.builtin.assert:
+        that:
+          - git_branch['stdout'] | trim == 'main'
+        fail_msg: "The application checkout is not on the main branch."
+
+    - name: Check the application requirements file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: requirements_file
+
+    - name: Assert the application requirements file exists
+      ansible.builtin.assert:
+        that:
+          - requirements_file['stat']['isreg'] | default(false)
+        fail_msg: "The application requirements file is missing."

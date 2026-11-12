@@ -1,0 +1,19 @@
+---
+# argument spec file for x2a.project.fastapi_tutorial
+argument_specs:
+  main:
+    short_description: Deploy the FastAPI tutorial application and PostgreSQL database.
+    options:
+      fastapi_tutorial_my_variable:
+        type: str
+        description: A simple string argument for demonstration.
+        default: default_value
+      fastapi_tutorial_secure_logging:
+        type: bool
+        description: Whether tasks containing database credentials suppress their output.
+        default: true
+      fastapi_db_password:
+        type: str
+        description: Password for the PostgreSQL application role, supplied by AAP or another secret manager.
+        required: true
+        no_log: true
