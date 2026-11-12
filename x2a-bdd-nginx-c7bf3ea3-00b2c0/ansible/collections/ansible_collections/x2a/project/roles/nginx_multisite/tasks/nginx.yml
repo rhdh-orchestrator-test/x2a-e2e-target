@@ -1,0 +1,56 @@
+---
+- name: Install nginx
+  ansible.builtin.package:
+    name: nginx
+    state: present
+
+- name: Determine nginx account
+  ansible.builtin.set_fact:
+    nginx_multisite_runtime_user: "{{ nginx_multisite_user }}"
+    nginx_multisite_runtime_group: "{{ nginx_multisite_group }}"
+
+- name: Deploy nginx main configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+
+- name: Deploy nginx security configuration
+  ansible.builtin.template:
+    src: security.conf.j2
+    dest: /etc/nginx/conf.d/security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+
+- name: Enable and start nginx
+  ansible.builtin.service:
+    name: nginx
+    enabled: true
+    state: started
+
+- name: Create site document roots
+  ansible.builtin.file:
+    path: "{{ item_nginx_site['value']['document_root'] }}"  # noqa: R114 - path comes from role defaults site configuration
+    owner: "{{ nginx_multisite_runtime_user }}"
+    group: "{{ nginx_multisite_runtime_group }}"
+    mode: "0755"
+    state: directory
+    recurse: true
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_site
+
+- name: Deploy site index files
+  ansible.builtin.copy:
+    src: "{{ item_nginx_site_file['key'].split('.')[0] }}/index.html"
+    dest: "{{ item_nginx_site_file['value']['document_root'] }}/index.html"  # noqa: R114 - path comes from role defaults site configuration
+    owner: "{{ nginx_multisite_runtime_user }}"
+    group: "{{ nginx_multisite_runtime_group }}"
+    mode: "0644"
+    backup: true
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_site_file

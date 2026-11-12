@@ -1,0 +1,29 @@
+---
+argument_specs:
+  main:
+    short_description: Configure nginx, virtual hosts, TLS, and host security.
+    options:
+      nginx_multisite_my_variable:
+        type: str
+        description: A simple string argument for demonstration.
+        default: default_value
+      nginx_multisite_user:
+        type: str
+        description: User used to own nginx document roots.
+        default: "{{ 'www-data' if ansible_facts.os_family == 'Debian' else 'nginx' }}"
+      nginx_multisite_group:
+        type: str
+        description: Group used to own nginx document roots.
+        default: "{{ 'www-data' if ansible_facts.os_family == 'Debian' else 'nginx' }}"
+      nginx_multisite_ssl_certificate_path:
+        type: path
+        description: Directory containing site certificates.
+        default: /etc/ssl/certs
+      nginx_multisite_ssl_private_key_path:
+        type: path
+        description: Directory containing site private keys.
+        default: /etc/ssl/private
+      nginx_multisite_sites:
+        type: dict
+        description: Mapping of site names to document root and TLS settings.
+        default: {}
