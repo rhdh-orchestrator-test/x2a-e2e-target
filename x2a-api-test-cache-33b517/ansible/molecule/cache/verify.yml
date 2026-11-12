@@ -1,0 +1,117 @@
+---
+# Unsupported pre-flight checks: Redis unit discovery/status, Redis authentication and
+# data operations, conditional directory ownership/modes, conditional Redis config
+# existence/content, and journal inspections have no fixed expected outcome or require
+# a verified unit name and/or a secret that is not available to this verification play.
+- name: Verify cache services and endpoints
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather service facts for the memcached service
+      ansible.builtin.service_facts:
+
+    - name: Verify memcached is active and enabled
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts['services']"
+          - "ansible_facts['services']['memcached.service']['state'] == 'running'"
+          - "ansible_facts['services']['memcached.service']['status'] == 'enabled'"
+        fail_msg: "The memcached service is not active and enabled."
+        success_msg: "The memcached service is active and enabled."
+
+    - name: Verify the memcached process is present
+      ansible.builtin.command:
+        argv:
+          - ps
+          - aux
+      changed_when: false
+      register: memcached_processes
+
+    - name: Assert that the memcached process is present
+      ansible.builtin.assert:
+        that:
+          - "memcached_processes.stdout is search('[m]emcached')"
+        fail_msg: "The memcached process was not found."
+        success_msg: "The memcached process is present."
+
+    - name: Verify the memcached TCP endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 5
+
+    - name: Verify the memcached UDP endpoint
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -lunp
+      changed_when: false
+      register: memcached_udp_sockets
+
+    - name: Assert that UDP port 11211 is bound
+      ansible.builtin.assert:
+        that:
+          - "memcached_udp_sockets.stdout is search('[:.]11211\\b')"
+        fail_msg: "UDP port 11211 is not bound."
+        success_msg: "UDP port 11211 is bound."
+
+    - name: Check the memcached version protocol response
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - '2'
+          - 127.0.0.1
+          - '11211'
+        stdin: "version\r\n"
+      changed_when: false
+      register: memcached_version
+
+    - name: Assert that memcached returns a VERSION response
+      ansible.builtin.assert:
+        that:
+          - "memcached_version.stdout is search('VERSION')"
+        fail_msg: "Memcached did not return a VERSION response."
+        success_msg: "Memcached returned a VERSION response."
+
+    - name: Check the memcached stats protocol response
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - '2'
+          - 127.0.0.1
+          - '11211'
+        stdin: "stats\r\n"
+      changed_when: false
+      register: memcached_stats
+
+    - name: Assert that memcached returns statistics
+      ansible.builtin.assert:
+        that:
+          - "memcached_stats.stdout is search('STAT')"
+        fail_msg: "Memcached did not return statistics."
+        success_msg: "Memcached returned statistics."
+
+    - name: Verify the Redis process is present
+      ansible.builtin.command:
+        argv:
+          - ps
+          - aux
+      changed_when: false
+      register: redis_processes
+
+    - name: Assert that the Redis process is present
+      ansible.builtin.assert:
+        that:
+          - "redis_processes.stdout is search('[r]edis')"
+        fail_msg: "The Redis process was not found."
+        success_msg: "The Redis process is present."
+
+    - name: Verify the Redis TCP endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
