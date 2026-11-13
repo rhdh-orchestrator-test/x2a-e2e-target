@@ -1,0 +1,240 @@
+---
+# Unsupported pre-flight checks: OS identification; account/group names; Redis password-authenticated
+# redis-cli checks; Redis journal review; and service resource summaries have no stated expected
+# outcome or require unresolved/secret values. Memcached configuration representation is also
+# implementation-dependent because the pre-flight checks do not specify its configuration path.
+- name: Verify cache services and explicitly requested files and endpoints
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Confirm the memcached executable is available
+      ansible.builtin.command:
+        argv:
+          - command
+          - -v
+          - memcached
+      register: cache_memcached_command
+      changed_when: false
+
+    - name: Assert the memcached executable is available
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_command.rc == 0
+        fail_msg: "The memcached executable is not available."
+
+    - name: Check the redis-server executable
+      ansible.builtin.command:
+        argv:
+          - command
+          - -v
+          - redis-server
+      register: cache_redis_server_command
+      changed_when: false
+
+    - name: Check the redis executable fallback
+      ansible.builtin.command:
+        argv:
+          - command
+          - -v
+          - redis
+      register: cache_redis_command
+      changed_when: false
+
+    - name: Assert a Redis executable is available
+      ansible.builtin.assert:
+        that:
+          - cache_redis_server_command.rc == 0 or cache_redis_command.rc == 0
+        fail_msg: "Neither redis-server nor redis is available."
+
+    - name: Gather service facts for cache service state checks
+      ansible.builtin.service_facts:
+
+    - name: Assert memcached is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts['services']"
+          - ansible_facts['services']['memcached.service']['state'] == 'running'
+          - ansible_facts['services']['memcached.service']['status'] == 'enabled'
+        fail_msg: "The memcached service is not enabled and running."
+
+    - name: Identify the discovered Redis service unit
+      ansible.builtin.set_fact:
+        cache_redis_units: >-
+          {{ ansible_facts['services'].keys()
+             | select('match', '^(redis|redis-server)(@.*)?\\.service$') | list }}
+
+    - name: Assert a Redis service unit was discovered
+      ansible.builtin.assert:
+        that:
+          - cache_redis_units | length > 0
+        fail_msg: "No redis or redis-server service unit was discovered."
+
+    - name: Assert each discovered Redis service unit is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services'][item_redis_unit]['state'] == 'running'
+          - ansible_facts['services'][item_redis_unit]['status'] == 'enabled'
+        loop: "{{ cache_redis_units }}"
+        loop_control:
+          loop_var: item_redis_unit
+        fail_msg: "A discovered Redis service unit is not enabled and running."
+
+    - name: Confirm the memcached process is present
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -x
+          - memcached
+      register: cache_memcached_process
+      changed_when: false
+
+    - name: Assert the memcached process is present
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_process.rc == 0
+        fail_msg: "The memcached process is not present."
+
+    - name: Confirm the Redis server process is present
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -af
+          - redis-server
+      register: cache_redis_process
+      changed_when: false
+
+    - name: Assert the Redis server process is present
+      ansible.builtin.assert:
+        that:
+          - cache_redis_process.rc == 0
+        fail_msg: "The Redis server process is not present."
+
+    - name: Wait for the memcached TCP endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 10
+
+    - name: Wait for the Redis TCP endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Confirm the memcached UDP endpoint is listening
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -lunp
+      register: cache_memcached_udp_socket
+      changed_when: false
+
+    - name: Assert the memcached UDP port is listening
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_udp_socket.rc == 0
+          - "':11211' in cache_memcached_udp_socket.stdout"
+        fail_msg: "The memcached UDP port is not listening."
+
+    - name: Check the memcached version protocol
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - '2'
+          - 127.0.0.1
+          - '11211'
+        stdin: "version\r\n"
+      register: cache_memcached_version
+      changed_when: false
+      failed_when: false
+
+    - name: Assert the memcached version protocol responds
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_version.rc == 0
+          - "'VERSION' in cache_memcached_version.stdout"
+        fail_msg: "The memcached version protocol did not respond."
+
+    - name: Check the memcached stats protocol
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - '2'
+          - 127.0.0.1
+          - '11211'
+        stdin: "stats\r\n"
+      register: cache_memcached_stats
+      changed_when: false
+      failed_when: false
+
+    - name: Assert the memcached stats protocol responds
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_stats.rc == 0
+          - "'STAT' in cache_memcached_stats.stdout"
+        fail_msg: "The memcached stats protocol did not respond."
+
+    - name: Check the Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config
+
+    - name: Assert the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config.stat.exists
+          - cache_redis_config.stat.isreg
+        fail_msg: "The Redis configuration file is missing."
+
+    - name: Check the Redis and memcached directories
+      ansible.builtin.stat:
+        path: "{{ item_cache_directory['path'] }}"
+      loop:
+        - path: /run/redis
+        - path: /var/log/redis
+        - path: /var/log/memcached
+        - path: /var/run/memcached
+      loop_control:
+        loop_var: item_cache_directory
+      register: cache_directory_checks
+
+    - name: Assert the Redis and memcached directories exist
+      ansible.builtin.assert:
+        that:
+          - item_cache_directory_check['stat']['exists']
+          - item_cache_directory_check['stat']['isdir']
+        fail_msg: "A required cache service directory is missing."
+      loop: "{{ cache_directory_checks['results'] }}"
+      loop_control:
+        loop_var: item_cache_directory_check
+
+    - name: Confirm the memcached TCP listener address
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+      register: cache_memcached_tcp_socket
+      changed_when: false
+
+    - name: Assert the memcached TCP listener uses the wildcard address
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_tcp_socket.rc == 0
+          - "'0.0.0.0:11211' in cache_memcached_tcp_socket.stdout"
+        fail_msg: "The memcached TCP listener is not bound to 0.0.0.0:11211."
+
+    - name: Read the Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_config_content
+
+    - name: Assert the Redis port and removed directives
+      ansible.builtin.assert:
+        that:
+          - "(cache_redis_config_content['content'] | b64decode) is search('(?m)^port\\s+6379(?:\\s|$)')"
+          - "(cache_redis_config_content['content'] | b64decode) is not search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)(?:\\s|$)')"
+        fail_msg: "The Redis port or configuration cleanup is incorrect."

@@ -1,0 +1,124 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Select Redis package and service names for Debian
+  ansible.builtin.set_fact:
+    cache_selected_redis_package: redis-server
+    cache_selected_redis_service: redis-server
+    cache_selected_redis_config_file: "{{ cache_redis_config_file | default('/etc/redis/redis.conf', true) }}"
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Select Redis package and service names for RedHat
+  ansible.builtin.set_fact:
+    cache_selected_redis_package: redis
+    cache_selected_redis_service: redis
+    cache_selected_redis_config_file: "{{ cache_redis_config_file | default('/etc/redis.conf', true) }}"
+  when: ansible_facts['os_family'] == 'RedHat'
+
+- name: Fail on unsupported operating system
+  ansible.builtin.assert:
+    that:
+      - cache_selected_redis_package is defined
+      - cache_selected_redis_service is defined
+    fail_msg: Redis is supported only on Debian-family and RedHat-family operating systems.
+
+- name: Install Redis
+  ansible.builtin.package:
+    name: "{{ cache_selected_redis_package }}"
+    state: present
+
+- name: Configure Memcached
+  ansible.builtin.include_tasks: memcached_default.yml
+
+- name: Ensure Redis account exists
+  ansible.builtin.user:
+    name: redis
+    system: true
+    shell: /usr/sbin/nologin
+    home: /var/lib/redis
+    create_home: false
+    state: present
+
+- name: Create Redis runtime directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_pid_dir }}" # noqa: R114 - path is a role default
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_dir }}" # noqa: R114 - path is a role default
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Configure Redis port
+  ansible.builtin.lineinfile:
+    path: "{{ cache_selected_redis_config_file }}" # noqa: R114 - path is a role default
+    regexp: "^port "
+    line: port {{ cache_redis_port }}
+    create: true
+    owner: redis
+    group: redis
+    mode: "0640"
+  notify: Restart Redis
+
+- name: Configure Redis authentication  # noqa: L039 - redis_password is validated by the preceding credential validation task
+  ansible.builtin.lineinfile:
+    path: "{{ cache_selected_redis_config_file }}" # noqa: R114 - path is a role default
+    regexp: "^#?\\s*requirepass "
+    line: requirepass {{ redis_password }}
+    create: true
+    owner: redis
+    group: redis
+    mode: "0640"
+  notify: Restart Redis
+  no_log: "{{ cache_secure_logging }}"
+
+- name: Configure Redis PID file
+  ansible.builtin.lineinfile:
+    path: "{{ cache_selected_redis_config_file }}" # noqa: R114 - path is a role default
+    regexp: "^#?\\s*pidfile "
+    line: pidfile {{ cache_redis_pid_dir }}/redis-{{ cache_redis_port }}.pid
+    create: true
+    owner: redis
+    group: redis
+    mode: "0640"
+  notify: Restart Redis
+
+- name: Configure Redis log file
+  ansible.builtin.lineinfile:
+    path: "{{ cache_selected_redis_config_file }}" # noqa: R114 - path is a role default
+    regexp: "^#?\\s*logfile "
+    line: logfile {{ cache_redis_log_dir }}/redis-{{ cache_redis_port }}.log
+    create: true
+    owner: redis
+    group: redis
+    mode: "0640"
+  notify: Restart Redis
+
+- name: Remove unsupported replica directives from Redis configuration  # noqa: R115 - removes only known directives from the role-selected Redis configuration file
+  ansible.builtin.lineinfile:
+    path: "{{ cache_selected_redis_config_file }}" # noqa: R114 - path is a role default
+    regexp: ^{{ item_cache_directive }}.*$
+    state: absent
+  loop:
+    - replica-serve-stale-data
+    - replica-read-only
+    - repl-ping-replica-period
+    - client-output-buffer-limit
+    - replica-priority
+  loop_control:
+    loop_var: item_cache_directive
+  notify: Restart Redis
+
+- name: Enable and start Redis
+  ansible.builtin.service:
+    name: "{{ cache_selected_redis_service }}"
+    enabled: true
+    state: started

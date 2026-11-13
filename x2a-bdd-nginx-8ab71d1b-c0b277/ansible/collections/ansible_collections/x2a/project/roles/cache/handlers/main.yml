@@ -1,0 +1,10 @@
+---
+- name: Restart Redis  # noqa: L039 - cache_selected_redis_service is set by the preceding OS selection task
+  ansible.builtin.service:
+    name: "{{ cache_selected_redis_service }}"
+    state: restarted
+
+- name: Restart Memcached
+  ansible.builtin.service:
+    name: memcached
+    state: restarted
