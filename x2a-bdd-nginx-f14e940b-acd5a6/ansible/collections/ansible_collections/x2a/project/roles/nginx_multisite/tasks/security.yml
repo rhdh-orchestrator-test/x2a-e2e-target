@@ -1,0 +1,165 @@
+---
+- name: Install security packages
+  ansible.builtin.package:
+    name:
+      - fail2ban
+      - ufw
+      - openssh-server
+    state: present
+
+- name: Configure fail2ban
+  ansible.builtin.template:
+    src: fail2ban.jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: "0644"
+    backup: true
+  when: nginx_multisite_fail2ban_enabled | bool
+  notify: Restart fail2ban
+
+- name: Ensure fail2ban is enabled and started
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: true
+    state: started
+  when: nginx_multisite_fail2ban_enabled | bool
+
+- name: Check UFW status before applying rules
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - status
+      - verbose
+  when: nginx_multisite_ufw_enabled | bool
+  changed_when: false
+  register: nginx_multisite_ufw_status
+
+- name: Set UFW default incoming policy # noqa: L039 - registered by the preceding UFW status task
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - --force
+      - default
+      - deny
+  when: nginx_multisite_ufw_enabled | bool
+  changed_when: "'Default: deny' not in (nginx_multisite_ufw_status.stdout | default(''))"
+  register: nginx_multisite_ufw_default
+
+- name: Allow SSH through UFW # noqa: L039 - registered by the preceding UFW status task
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - ssh
+  when:
+    - nginx_multisite_ufw_enabled | bool
+    - "'22/tcp' not in (nginx_multisite_ufw_status.stdout | default(''))"
+
+- name: Allow HTTP through UFW # noqa: L039 - registered by the preceding UFW status task
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - http
+  when:
+    - nginx_multisite_ufw_enabled | bool
+    - "'80/tcp' not in (nginx_multisite_ufw_status.stdout | default(''))"
+
+- name: Allow HTTPS through UFW # noqa: L039 - registered by the preceding UFW status task
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - https
+  when:
+    - nginx_multisite_ufw_enabled | bool
+    - "'443/tcp' not in (nginx_multisite_ufw_status.stdout | default(''))"
+
+- name: Enable UFW # noqa: L039 - registered by the preceding UFW status task
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - --force
+      - enable
+  when:
+    - nginx_multisite_ufw_enabled | bool
+    - "'Status: active' not in (nginx_multisite_ufw_status.stdout | default(''))"
+
+- name: Configure kernel security settings
+  ansible.builtin.template:
+    src: sysctl-security.conf.j2
+    dest: /etc/sysctl.d/99-security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx multisite sysctl
+
+- name: Apply kernel security settings
+  ansible.posix.sysctl:
+    name: "{{ item_nginx_multisite_sysctl['key'] }}"
+    value: "{{ item_nginx_multisite_sysctl['value'] }}"
+    sysctl_file: /etc/sysctl.d/99-security.conf
+    sysctl_set: true
+    reload: false
+    state: present
+  loop:
+    - key: net.ipv4.conf.default.rp_filter
+      value: "1"
+    - key: net.ipv4.conf.all.rp_filter
+      value: "1"
+    - key: net.ipv4.conf.all.accept_redirects
+      value: "0"
+    - key: net.ipv6.conf.all.accept_redirects
+      value: "0"
+    - key: net.ipv4.conf.default.accept_redirects
+      value: "0"
+    - key: net.ipv6.conf.default.accept_redirects
+      value: "0"
+    - key: net.ipv4.conf.all.send_redirects
+      value: "0"
+    - key: net.ipv4.conf.default.send_redirects
+      value: "0"
+    - key: net.ipv4.conf.all.accept_source_route
+      value: "0"
+    - key: net.ipv6.conf.all.accept_source_route
+      value: "0"
+    - key: net.ipv4.conf.all.log_martians
+      value: "1"
+    - key: net.ipv4.conf.default.log_martians
+      value: "1"
+    - key: net.ipv4.icmp_echo_ignore_all
+      value: "1"
+    - key: net.ipv4.icmp_echo_ignore_broadcasts
+      value: "1"
+    - key: net.ipv6.conf.all.disable_ipv6
+      value: "1"
+    - key: net.ipv6.conf.default.disable_ipv6
+      value: "1"
+    - key: net.ipv6.conf.lo.disable_ipv6
+      value: "1"
+    - key: net.ipv4.tcp_syncookies
+      value: "1"
+    - key: net.ipv4.tcp_max_syn_backlog
+      value: "2048"
+    - key: net.ipv4.tcp_synack_retries
+      value: "2"
+    - key: net.ipv4.tcp_syn_retries
+      value: "5"
+  loop_control:
+    loop_var: item_nginx_multisite_sysctl
+
+- name: Disable SSH root login
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PermitRootLogin
+    line: PermitRootLogin no
+    backup: true
+  when: nginx_multisite_disable_root | bool
+  notify: Restart sshd
+
+- name: Disable SSH password authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PasswordAuthentication
+    line: PasswordAuthentication no
+    backup: true
+  when: not (nginx_multisite_password_auth | bool)
+  notify: Restart sshd

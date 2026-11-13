@@ -1,0 +1,201 @@
+---
+# Unsupported pre-flight checks: HTTP response headers/statuses, certificate validity details,
+# TLS handshake output, and diagnostic-only ls/readlink output have no stated expected outcome.
+- name: Verify nginx multisite pre-flight checks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify required packages are installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are present
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts['packages']
+        quiet: true
+      loop:
+        - nginx
+        - fail2ban
+        - ufw
+        - openssl
+        - ca-certificates
+      loop_control:
+        loop_var: item_package
+
+    - name: Gather service status for pre-flight services
+      ansible.builtin.service_facts:
+
+    - name: Assert pre-flight services are active
+      ansible.builtin.assert:
+        that:
+          - item_service in ansible_facts['services']
+          - ansible_facts['services'][item_service]['state'] == 'running'
+        quiet: true
+      loop:
+        - nginx.service
+        - fail2ban.service
+        - sshd.service
+      loop_control:
+        loop_var: item_service
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: nginx_test
+      changed_when: false
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - nginx_test['rc'] == 0
+        quiet: true
+
+    - name: Inspect complete nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -T
+      register: nginx_dump
+      changed_when: false
+
+    - name: Assert named sites and listeners are present in nginx configuration
+      ansible.builtin.assert:
+        that:
+          - nginx_dump['rc'] == 0
+          - nginx_dump['stdout'] is search(item_nginx_pattern)
+        quiet: true
+      loop:
+        - test.cluster.local
+        - ci.cluster.local
+        - status.cluster.local
+        - 'listen 80'
+        - 'listen 443'
+      loop_control:
+        loop_var: item_nginx_pattern
+
+    - name: Read nginx and security configuration files
+      ansible.builtin.slurp:
+        src: "{{ item_config['path'] }}"
+      register: nginx_config_files
+      loop:
+        - path: /etc/nginx/nginx.conf
+        - path: /etc/nginx/conf.d/security.conf
+      loop_control:
+        loop_var: item_config
+
+    - name: Assert nginx configuration files contain required pre-flight directives
+      ansible.builtin.assert:
+        that:
+          - item_config_check['content'] | b64decode is search(item_config_check['pattern'])
+        quiet: true
+      loop:
+        - pattern: '^(user|worker_processes|pid|worker_connections|keepalive_timeout|access_log|error_log|gzip)'
+          content: "{{ nginx_config_files['results'][0]['content'] }}"
+        - pattern: 'include /etc/nginx/(conf.d|sites-enabled)'
+          content: "{{ nginx_config_files['results'][0]['content'] }}"
+        - pattern: 'server_tokens|limit_req_zone|client_body_buffer_size|client_header_buffer_size|client_max_body_size|ssl_protocols|ssl_session_cache'
+          content: "{{ nginx_config_files['results'][1]['content'] }}"
+      loop_control:
+        loop_var: item_config_check
+
+    - name: Verify firewall status and allowed service ports
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      register: ufw_status
+      changed_when: false
+
+    - name: Assert firewall status lists required service ports
+      ansible.builtin.assert:
+        that:
+          - ufw_status['rc'] == 0
+          - ufw_status['stdout'] is search(item_firewall_pattern)
+        quiet: true
+      loop:
+        - '22/tcp'
+        - '80/tcp'
+        - '443/tcp'
+      loop_control:
+        loop_var: item_firewall_pattern
+
+    - name: Read SSH hardening configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: ssh_config
+
+    - name: Assert SSH hardening directives are present
+      ansible.builtin.assert:
+        that:
+          - ssh_config['content'] | b64decode is search(item_ssh_pattern)
+        quiet: true
+      loop:
+        - '^PermitRootLogin'
+        - '^PasswordAuthentication'
+      loop_control:
+        loop_var: item_ssh_pattern
+
+    - name: Read kernel security configuration
+      ansible.builtin.slurp:
+        src: /etc/sysctl.d/99-security.conf
+      register: sysctl_config
+
+    - name: Assert kernel security directives are present
+      ansible.builtin.assert:
+        that:
+          - sysctl_config['content'] | b64decode is search(item_sysctl_pattern)
+        quiet: true
+      loop:
+        - rp_filter
+        - accept_redirects
+        - send_redirects
+        - accept_source_route
+        - log_martians
+        - icmp_echo_ignore
+        - disable_ipv6
+        - tcp_syncookies
+        - tcp_max_syn_backlog
+        - tcp_synack_retries
+        - tcp_syn_retries
+      loop_control:
+        loop_var: item_sysctl_pattern
+
+    - name: Verify enabled-site links
+      ansible.builtin.stat:
+        path: "{{ item_site_link['link'] }}"
+        follow: false
+      register: enabled_site_links
+      loop:
+        - link: /etc/nginx/sites-enabled/test.cluster.local
+          target: /etc/nginx/sites-available/test.cluster.local
+        - link: /etc/nginx/sites-enabled/ci.cluster.local
+          target: /etc/nginx/sites-available/ci.cluster.local
+        - link: /etc/nginx/sites-enabled/status.cluster.local
+          target: /etc/nginx/sites-available/status.cluster.local
+      loop_control:
+        loop_var: item_site_link
+
+    - name: Assert enabled-site links have expected targets
+      ansible.builtin.assert:
+        that:
+          - item_site_link_stat['stat']['islnk']
+          - item_site_link_stat['stat']['lnk_source'] == item_site_link_stat['item']['target']
+        quiet: true
+      loop: "{{ enabled_site_links['results'] }}"
+      loop_control:
+        loop_var: item_site_link_stat
+
+    - name: Verify default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: default_site
+
+    - name: Assert default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not default_site['stat']['exists']
+        quiet: true
