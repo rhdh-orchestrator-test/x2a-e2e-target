@@ -1,0 +1,78 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy the FastAPI tutorial application and PostgreSQL dependency.
+    description:
+      - Installs Python and PostgreSQL prerequisites.
+      - Clones the application, creates its virtual environment, and manages its systemd service.
+    options:
+      fastapi_tutorial_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether tasks handling the database password suppress output.
+      fastapi_tutorial_repository:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository containing the FastAPI application.
+      fastapi_tutorial_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      fastapi_tutorial_app_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Application deployment directory.
+      fastapi_tutorial_venv_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial/venv
+        description: Python virtual environment directory.
+      fastapi_tutorial_app_host:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: Address on which Uvicorn listens.
+      fastapi_tutorial_app_port:
+        type: int
+        required: false
+        default: 8000
+        description: TCP port used by Uvicorn.
+      fastapi_tutorial_app_module:
+        type: str
+        required: false
+        default: app.main:app
+        description: ASGI application import path.
+      fastapi_tutorial_service_name:
+        type: str
+        required: false
+        default: fastapi-tutorial
+        description: Systemd service name.
+      fastapi_tutorial_service_unit:
+        type: str
+        required: false
+        default: /etc/systemd/system/fastapi-tutorial.service
+        description: Systemd unit file path.
+      fastapi_tutorial_database_user:
+        type: str
+        required: false
+        default: fastapi
+        description: PostgreSQL application role name.
+      fastapi_tutorial_database_name:
+        type: str
+        required: false
+        default: fastapi_db
+        description: PostgreSQL application database name.
+      fastapi_tutorial_database_host:
+        type: str
+        required: false
+        default: localhost
+        description: PostgreSQL connection host used in the application URL.
+      fastapi_tutorial_database_port:
+        type: int
+        required: false
+        default: 5432
+        description: PostgreSQL connection port.
