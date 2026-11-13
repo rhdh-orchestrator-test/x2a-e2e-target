@@ -1,0 +1,68 @@
+---
+- name: Install SSL packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create SSL certificate group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Create SSL certificate directory
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_certificate_path }}" # noqa: R114 - fixed role default path
+    owner: root
+    group: root
+    mode: "0755"
+    state: directory
+
+- name: Create SSL private key directory
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_private_key_path }}" # noqa: R114 - fixed role default path
+    owner: root
+    group: ssl-cert
+    mode: "0710"
+    state: directory
+
+- name: Check SSL certificate files
+  ansible.builtin.stat:
+    path: "{{ item_nginx_ssl['value']['cert_file'] }}" # noqa: R114 - path from role-defined sites dictionary
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_ssl
+  register: nginx_multisite_certificate_stats
+
+- name: Check SSL private key files
+  ansible.builtin.stat:
+    path: "{{ item_nginx_key['value']['key_file'] }}" # noqa: R114 - path from role-defined sites dictionary
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_key
+  register: nginx_multisite_key_stats
+
+- name: Generate missing self-signed certificates
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        -keyout "{{ item_nginx_cert['value']['key_file'] }}" \
+        -out "{{ item_nginx_cert['value']['cert_file'] }}" \
+        -subj "/C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN={{ item_nginx_cert['key'] }}/emailAddress=admin@example.com"
+      chmod 640 "{{ item_nginx_cert['value']['key_file'] }}"
+      chown root:ssl-cert "{{ item_nginx_cert['value']['key_file'] }}"
+  when:
+    - item_nginx_cert['value']['ssl_enabled']
+    - >-
+      not (nginx_multisite_certificate_stats.results
+      | selectattr('item', 'equalto', item_nginx_cert)
+      | map(attribute='stat.exists') | first | default(false))
+      or not (nginx_multisite_key_stats.results
+      | selectattr('item', 'equalto', item_nginx_cert)
+      | map(attribute='stat.exists') | first | default(false))
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_cert
+  notify: Reload nginx
