@@ -1,0 +1,323 @@
+---
+# Unsupported pre-flight checks: diagnostic journal/tail output, exact access-log correlation,
+# UFW's formatted policy output, and the sysctl values are not asserted because the plan
+# does not provide a stable structured result for them here. Certificate validity is also
+# not asserted beyond successful parsing because "approximately 365 days" is time-relative.
+- name: Verify nginx multisite deployment
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Verify all required packages are installed
+      ansible.builtin.assert:
+        that:
+          - "'nginx' in ansible_facts.packages"
+          - "'fail2ban' in ansible_facts.packages"
+          - "'ufw' in ansible_facts.packages"
+          - "'openssl' in ansible_facts.packages"
+          - "'ca-certificates' in ansible_facts.packages"
+        fail_msg: A required nginx multisite package is not installed.
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Verify nginx and Fail2ban are enabled and active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts.services['nginx.service']['status'] == 'enabled'"
+          - "ansible_facts.services['nginx.service']['state'] == 'running'"
+          - "ansible_facts.services['fail2ban.service']['status'] == 'enabled'"
+          - "ansible_facts.services['fail2ban.service']['state'] == 'running'"
+        fail_msg: Nginx or Fail2ban is not enabled and active.
+
+    - name: Verify SSH is active
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts.services.get('sshd.service', {}).get('state') == 'running') or
+            (ansible_facts.services.get('ssh.service', {}).get('state') == 'running')
+        fail_msg: SSH is not active.
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: item_nginx_test
+      changed_when: false
+
+    - name: Verify nginx configuration validation succeeded
+      ansible.builtin.assert:
+        that:
+          - item_nginx_test['rc'] == 0
+          - >-
+            ('syntax is ok' in (item_nginx_test['stdout'] ~ item_nginx_test['stderr']))
+          - >-
+            ('test is successful' in (item_nginx_test['stdout'] ~ item_nginx_test['stderr']))
+        fail_msg: Nginx configuration validation failed.
+
+    - name: Read nginx configuration files
+      ansible.builtin.slurp:
+        src: "{{ item_nginx_config['path'] }}"
+      loop:
+        - path: /etc/nginx/nginx.conf
+        - path: /etc/nginx/conf.d/security.conf
+      loop_control:
+        loop_var: item_nginx_config
+      register: item_nginx_configs
+
+    - name: Verify nginx configuration directives
+      ansible.builtin.assert:
+        that:
+          - >-
+            (item_nginx_config_result['item']['path'] != '/etc/nginx/nginx.conf') or
+            ('user ' in (item_nginx_config_result['content'] | b64decode))
+          - >-
+            (item_nginx_config_result['item']['path'] != '/etc/nginx/nginx.conf') or
+            ('worker_processes' in (item_nginx_config_result['content'] | b64decode))
+          - >-
+            (item_nginx_config_result['item']['path'] != '/etc/nginx/nginx.conf') or
+            ('worker_connections' in (item_nginx_config_result['content'] | b64decode))
+          - >-
+            (item_nginx_config_result['item']['path'] != '/etc/nginx/nginx.conf') or
+            ('access_log' in (item_nginx_config_result['content'] | b64decode))
+          - >-
+            (item_nginx_config_result['item']['path'] != '/etc/nginx/nginx.conf') or
+            ('error_log' in (item_nginx_config_result['content'] | b64decode))
+          - >-
+            (item_nginx_config_result['item']['path'] != '/etc/nginx/conf.d/security.conf') or
+            ('server_tokens' in (item_nginx_config_result['content'] | b64decode))
+          - >-
+            (item_nginx_config_result['item']['path'] != '/etc/nginx/conf.d/security.conf') or
+            ('limit_req_zone' in (item_nginx_config_result['content'] | b64decode))
+          - >-
+            (item_nginx_config_result['item']['path'] != '/etc/nginx/conf.d/security.conf') or
+            ('ssl_protocols' in (item_nginx_config_result['content'] | b64decode))
+          - >-
+            (item_nginx_config_result['item']['path'] != '/etc/nginx/conf.d/security.conf') or
+            ('ssl_ciphers' in (item_nginx_config_result['content'] | b64decode))
+        fail_msg: A required nginx configuration directive is missing.
+      loop: "{{ item_nginx_configs['results'] }}"
+      loop_control:
+        loop_var: item_nginx_config_result
+
+    - name: Verify required static content files exist
+      ansible.builtin.stat:
+        path: "{{ item_content['path'] }}"
+      loop:
+        - path: /opt/server/test/index.html
+        - path: /opt/server/ci/index.html
+        - path: /opt/server/status/index.html
+      loop_control:
+        loop_var: item_content
+      register: item_content_results
+
+    - name: Assert required static content files exist
+      ansible.builtin.assert:
+        that:
+          - item_content_result['stat']['isreg']
+        fail_msg: A required site index file is missing.
+      loop: "{{ item_content_results['results'] }}"
+      loop_control:
+        loop_var: item_content_result
+
+    - name: Verify site links resolve to the expected files
+      ansible.builtin.command:
+        argv:
+          - readlink
+          - -f
+          - "{{ item_site_link['link'] }}"
+      loop:
+        - link: /etc/nginx/sites-enabled/test.cluster.local
+          target: /etc/nginx/sites-available/test.cluster.local
+        - link: /etc/nginx/sites-enabled/ci.cluster.local
+          target: /etc/nginx/sites-available/ci.cluster.local
+        - link: /etc/nginx/sites-enabled/status.cluster.local
+          target: /etc/nginx/sites-available/status.cluster.local
+      loop_control:
+        loop_var: item_site_link
+      register: item_site_link_results
+      changed_when: false
+
+    - name: Assert site links resolve correctly
+      ansible.builtin.assert:
+        that:
+          - item_site_link_result['stdout'] == item_site_link_result['item']['target']
+        fail_msg: A site link does not resolve to its expected configuration.
+      loop: "{{ item_site_link_results['results'] }}"
+      loop_control:
+        loop_var: item_site_link_result
+
+    - name: Verify default site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: item_default_site
+
+    - name: Assert default site is absent
+      ansible.builtin.assert:
+        that:
+          - not item_default_site['stat']['exists']
+        fail_msg: The default nginx site must not exist.
+
+    - name: Verify HTTP redirects for every site
+      ansible.builtin.uri:
+        url: http://127.0.0.1/
+        headers:
+          Host: "{{ item_http_site['name'] }}"
+        follow_redirects: none
+        status_code: 301
+      loop:
+        - name: test.cluster.local
+        - name: ci.cluster.local
+        - name: status.cluster.local
+      loop_control:
+        loop_var: item_http_site
+
+    - name: Verify HTTPS status and security headers for every site
+      ansible.builtin.uri:
+        url: "https://{{ item_https_site['name'] }}/"
+        headers:
+          Host: "{{ item_https_site['name'] }}"
+        validate_certs: false
+        status_code: 200
+      loop:
+        - name: test.cluster.local
+        - name: ci.cluster.local
+        - name: status.cluster.local
+      loop_control:
+        loop_var: item_https_site
+      register: item_https_results
+
+    - name: Assert required HTTPS response headers
+      ansible.builtin.assert:
+        that:
+          - "item_https_result['headers']['strict-transport-security'] is defined"
+          - "item_https_result['headers']['x-frame-options'] | lower == 'deny'"
+          - "item_https_result['headers']['x-content-type-options'] | lower == 'nosniff'"
+        fail_msg: An HTTPS site is missing a required security header.
+      loop: "{{ item_https_results['results'] }}"
+      loop_control:
+        loop_var: item_https_result
+
+    - name: Verify nginx listens on HTTP and HTTPS
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ item_listener['port'] }}"
+        state: started
+        timeout: 5
+      loop:
+        - port: 80
+        - port: 443
+      loop_control:
+        loop_var: item_listener
+
+    - name: Inspect TLS certificates
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - -in
+          - "{{ item_certificate['path'] }}"
+          - -noout
+          - -subject
+          - -issuer
+          - -dates
+          - -text
+      loop:
+        - path: /etc/ssl/certs/test.cluster.local.crt
+          name: test.cluster.local
+        - path: /etc/ssl/certs/ci.cluster.local.crt
+          name: ci.cluster.local
+        - path: /etc/ssl/certs/status.cluster.local.crt
+          name: status.cluster.local
+      loop_control:
+        loop_var: item_certificate
+      register: item_certificate_results
+      changed_when: false
+
+    - name: Verify certificate identity and key type
+      ansible.builtin.assert:
+        that:
+          - item_certificate_result['rc'] == 0
+          - "('CN=' ~ item_certificate_result['item']['name']) in item_certificate_result['stdout']"
+          - "item_certificate_result['stdout'] | regex_search('Subject:.*' ~ item_certificate_result['item']['name'])"
+          - "item_certificate_result['stdout'] | regex_search('Issuer:.*' ~ item_certificate_result['item']['name'])"
+          - "'Public-Key: (2048 bit)' in item_certificate_result['stdout']"
+        fail_msg: A TLS certificate does not have the expected identity or RSA key size.
+      loop: "{{ item_certificate_results['results'] }}"
+      loop_control:
+        loop_var: item_certificate_result
+
+    - name: Verify TLS private-key ownership and permissions
+      ansible.builtin.stat:
+        path: "{{ item_key['path'] }}"
+        follow: false
+      loop:
+        - path: /etc/ssl/private/test.cluster.local.key
+        - path: /etc/ssl/private/ci.cluster.local.key
+        - path: /etc/ssl/private/status.cluster.local.key
+      loop_control:
+        loop_var: item_key
+      register: item_key_results
+
+    - name: Assert TLS private-key ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - item_key_result['stat']['pw_name'] == 'root'
+          - item_key_result['stat']['gr_name'] == 'ssl-cert'
+          - item_key_result['stat']['mode'] == '0640'
+        fail_msg: A TLS private key has incorrect ownership or permissions.
+      loop: "{{ item_key_results['results'] }}"
+      loop_control:
+        loop_var: item_key_result
+
+    - name: Verify expected Fail2ban jails
+      ansible.builtin.command:
+        argv:
+          - fail2ban-client
+          - status
+          - "{{ item_jail['name'] }}"
+      loop:
+        - name: sshd
+        - name: nginx-http-auth
+        - name: nginx-limit-req
+        - name: nginx-botsearch
+      loop_control:
+        loop_var: item_jail
+      changed_when: false
+
+    - name: Read Fail2ban configuration
+      ansible.builtin.slurp:
+        src: /etc/fail2ban/jail.local
+      register: item_fail2ban_config
+
+    - name: Verify Fail2ban defaults are present
+      ansible.builtin.assert:
+        that:
+          - "'bantime' in (item_fail2ban_config['content'] | b64decode)"
+          - "'findtime' in (item_fail2ban_config['content'] | b64decode)"
+          - "'maxretry' in (item_fail2ban_config['content'] | b64decode)"
+          - "'backend' in (item_fail2ban_config['content'] | b64decode)"
+        fail_msg: Required Fail2ban defaults are missing.
+
+    - name: Validate SSH daemon configuration
+      ansible.builtin.command:
+        argv:
+          - sshd
+          - -t
+      changed_when: false
+
+    - name: Read SSH hardening configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: item_sshd_config
+
+    - name: Verify SSH hardening directives
+      ansible.builtin.assert:
+        that:
+          - "'PermitRootLogin no' in (item_sshd_config['content'] | b64decode)"
+          - "'PasswordAuthentication no' in (item_sshd_config['content'] | b64decode)"
+        fail_msg: Required SSH hardening directives are missing.
