@@ -1,0 +1,40 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install Redis package
+  ansible.builtin.package:
+    name: "{{ 'redis-server' if ansible_facts['os_family'] == 'Debian' else 'redis' }}"
+    state: present
+
+- name: Include Memcached configuration tasks
+  ansible.builtin.include_tasks: memcached.yml
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_dir }}"  # noqa: R114 - path from role defaults
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Check whether Redis configuration exists
+  ansible.builtin.stat:
+    path: "{{ cache_redis_config_file }}"
+  register: redis_config
+
+- name: Remove unsupported replication directives from Redis configuration  # noqa: L039 - redis_config is registered by the prior stat task
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_file }}"  # noqa: R114 - path from role defaults
+    regexp: ^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority).*$
+    replace: ""
+    backup: true
+    create: false
+  when: redis_config.stat.exists
+
+- name: Ensure Redis service is enabled and started
+  ansible.builtin.service:
+    name: "{{ 'redis-server' if ansible_facts['os_family'] == 'Debian' else 'redis' }}"
+    enabled: true
+    state: started
