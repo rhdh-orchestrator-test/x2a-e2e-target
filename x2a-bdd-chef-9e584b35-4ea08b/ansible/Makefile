@@ -1,4 +1,4 @@
 .PHONY: all
 
 all:
-	ansible-playbook run_nginx_multisite.yml
+	ansible-playbook -i inventory site.yml
