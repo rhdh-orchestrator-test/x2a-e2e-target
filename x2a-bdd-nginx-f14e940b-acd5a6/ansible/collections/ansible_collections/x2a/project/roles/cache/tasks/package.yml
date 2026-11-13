@@ -1,0 +1,39 @@
+---
+- name: Install Memcached package
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Ensure Memcached service group exists
+  ansible.builtin.group:
+    name: "{{ cache_memcached_group }}"
+    system: true
+    state: present
+
+- name: Ensure Memcached service user exists and is locked
+  ansible.builtin.user:
+    name: "{{ cache_memcached_user }}"
+    system: true
+    create_home: false
+    group: "{{ cache_memcached_group }}"
+    home: /nonexistent
+    comment: Memcached
+    shell: /bin/false
+    password_lock: true
+    state: present
+
+- name: Create Memcached log directory
+  ansible.builtin.file:
+    path: "{{ cache_memcached_log_directory }}" # noqa: R114 - path is a role default, not user input
+    state: directory
+    owner: "{{ cache_memcached_user }}"
+    group: "{{ cache_memcached_group }}"
+    mode: "0755"
+
+- name: Create Memcached runtime directory
+  ansible.builtin.file:
+    path: "{{ cache_memcached_runtime_directory }}" # noqa: R114 - path is a role default, not user input
+    state: directory
+    owner: "{{ cache_memcached_user }}"
+    group: "{{ cache_memcached_group }}"
+    mode: "0755"

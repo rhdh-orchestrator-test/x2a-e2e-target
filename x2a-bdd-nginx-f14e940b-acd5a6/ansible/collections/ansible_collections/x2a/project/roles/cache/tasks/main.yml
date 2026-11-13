@@ -1,0 +1,78 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Memcached
+  ansible.builtin.include_tasks: memcached.yml
+
+- name: Install Redis package
+  ansible.builtin.package:
+    name: "{{ cache_redis_package }}"
+    state: present
+
+- name: Ensure Redis service group exists
+  ansible.builtin.group:
+    name: "{{ cache_redis_group }}"
+    system: true
+    state: present
+
+- name: Ensure Redis service account exists
+  ansible.builtin.user:
+    name: "{{ cache_redis_user }}"
+    system: true
+    home: /var/lib/redis
+    shell: /usr/sbin/nologin
+    create_home: false
+    group: "{{ cache_redis_group }}"
+    state: present
+
+- name: Create Redis PID directory
+  ansible.builtin.file:
+    path: "{{ cache_redis_pid_directory }}" # noqa: R114 - path is a role default, not user input
+    state: directory
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0755"
+
+- name: Ensure Redis configuration has the listen port
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default, not user input
+    regexp: ^port\s+
+    line: "port {{ cache_redis_port }}"
+    create: true
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0640"
+
+- name: Configure Redis authentication # noqa: L039 - redis_password is supplied by the AAP credential and validated by the preceding task
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default, not user input
+    regexp: ^requirepass\s+
+    line: requirepass {{ redis_password }}
+    create: true
+    owner: "{{ cache_redis_user }}"
+    group: "{{ cache_redis_group }}"
+    mode: "0640"
+  notify: Restart Redis
+  no_log: "{{ cache_secure_logging }}"
+
+- name: Remove obsolete Redis replica directives
+  ansible.builtin.replace:
+    path: "{{ cache_redis_config_file }}" # noqa: R114 - path is a role default, not user input
+    regexp: ^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)\s+.*$
+    replace: ""
+  notify: Restart Redis
+
+- name: Enable and start Redis
+  ansible.builtin.service:
+    name: "{{ cache_redis_service }}"
+    state: started
+    enabled: true

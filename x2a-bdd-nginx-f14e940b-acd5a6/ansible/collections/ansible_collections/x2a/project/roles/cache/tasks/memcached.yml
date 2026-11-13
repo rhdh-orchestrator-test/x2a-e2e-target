@@ -1,0 +1,60 @@
+---
+- name: Install Memcached dependencies and create service account
+  ansible.builtin.include_tasks: package.yml
+
+- name: Configure Memcached memory
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^\s*-m\s+
+    line: -m {{ cache_memcached_memory }}
+    create: true
+    mode: "0644"
+  notify: Restart Memcached
+
+- name: Configure Memcached TCP port
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^\s*-p\s+
+    line: -p {{ cache_memcached_port }}
+  notify: Restart Memcached
+
+- name: Configure Memcached UDP port
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^\s*-U\s+
+    line: -U {{ cache_memcached_udp_port }}
+  notify: Restart Memcached
+
+- name: Configure Memcached listen address
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^\s*-l\s+
+    line: -l {{ cache_memcached_listen }}
+  notify: Restart Memcached
+
+- name: Configure Memcached maximum connections
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^\s*-c\s+
+    line: -c {{ cache_memcached_max_connections }}
+  notify: Restart Memcached
+
+- name: Configure Memcached service user
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^\s*-u\s+
+    line: -u {{ cache_memcached_user }}
+  notify: Restart Memcached
+
+- name: Configure Memcached maximum object size
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^\s*-I\s+
+    line: -I {{ cache_memcached_max_object_size }}
+  notify: Restart Memcached
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true
