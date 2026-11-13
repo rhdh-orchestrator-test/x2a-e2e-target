@@ -1,0 +1,223 @@
+---
+# Unsupported: optional health route, optional PostgreSQL TCP listener, and diagnostic-only
+# version, disk-usage, and journal review checks have no stated expected outcome.
+- name: Verify fastapi-tutorial deployment
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check required deployment paths
+      ansible.builtin.stat:
+        path: "{{ item_fastapi_path }}"
+      loop:
+        - /opt/fastapi-tutorial
+        - /opt/fastapi-tutorial/requirements.txt
+        - /opt/fastapi-tutorial/.env
+        - /opt/fastapi-tutorial/app/main.py
+        - /etc/systemd/system/fastapi-tutorial.service
+      loop_control:
+        loop_var: item_fastapi_path
+      register: fastapi_paths
+
+    - name: Assert required deployment paths exist
+      ansible.builtin.assert:
+        that:
+          - fastapi_paths.results | map(attribute='stat.exists') | list | min
+
+    - name: Check virtual-environment executables
+      ansible.builtin.command:
+        argv:
+          - test
+          - -x
+          - "{{ item_fastapi_executable }}"
+      loop:
+        - /opt/fastapi-tutorial/venv/bin/python
+        - /opt/fastapi-tutorial/venv/bin/pip
+        - /opt/fastapi-tutorial/venv/bin/uvicorn
+      loop_control:
+        loop_var: item_fastapi_executable
+      register: fastapi_executables
+      changed_when: false
+
+    - name: Assert virtual-environment executables are usable
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_executable_result.rc == 0
+      loop: "{{ fastapi_executables.results }}"
+      loop_control:
+        loop_var: item_fastapi_executable_result
+
+    - name: Check application configuration keys without exposing credentials
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - >-
+            import pathlib, re, sys; text = pathlib.Path(sys.argv[1]).read_text();
+            print(all(re.search(r'^' + key + r'=', text, re.MULTILINE) for key in
+            ('PROJECT_NAME', 'API_VERSION', 'DATABASE_URL')))
+          - /opt/fastapi-tutorial/.env
+      register: fastapi_configuration
+      changed_when: false
+
+    - name: Assert application configuration keys are present
+      ansible.builtin.assert:
+        that:
+          - fastapi_configuration.stdout | trim == 'True'
+
+    - name: Read the systemd unit
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_unit
+
+    - name: Assert systemd unit settings
+      ansible.builtin.assert:
+        that:
+          - "'User=root' in (fastapi_unit.content | b64decode)"
+          - "'WorkingDirectory=/opt/fastapi-tutorial' in (fastapi_unit.content | b64decode)"
+          - "'ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000' in (fastapi_unit.content | b64decode)"
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert services are active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['fastapi-tutorial.service']['state'] == 'running'
+          - ansible_facts.services['postgresql.service']['state'] == 'running'
+
+    - name: Check enabled services
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - "{{ item_fastapi_service }}"
+      loop:
+        - fastapi-tutorial
+        - postgresql
+      loop_control:
+        loop_var: item_fastapi_service
+      register: fastapi_enabled_services
+      changed_when: false
+
+    - name: Assert services are enabled
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_enabled_service.stdout | trim == 'enabled'
+      loop: "{{ fastapi_enabled_services.results }}"
+      loop_control:
+        loop_var: item_fastapi_enabled_service
+
+    - name: Check application process
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -af
+          - /opt/fastapi-tutorial/venv/bin/uvicorn
+      register: fastapi_process
+      changed_when: false
+
+    - name: Assert application process is running
+      ansible.builtin.assert:
+        that:
+          - fastapi_process.rc == 0
+
+    - name: Wait for application port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 8000
+        state: started
+        timeout: 5
+
+    - name: Check application HTTP endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8000/
+        method: GET
+        return_content: false
+        status_code: "{{ range(200, 600) | list }}"
+      register: fastapi_http
+
+    - name: Assert application returned an HTTP response
+      ansible.builtin.assert:
+        that:
+          - fastapi_http.status | int >= 200
+          - fastapi_http.status | int < 600
+
+    - name: Verify PostgreSQL role
+      become: true
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT rolname FROM pg_roles WHERE rolname = 'fastapi';
+      register: postgresql_role
+      changed_when: false
+
+    - name: Assert PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - postgresql_role.stdout | trim == 'fastapi'
+
+    - name: Verify PostgreSQL database owner
+      become: true
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT datname, pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db';
+      register: postgresql_database
+      changed_when: false
+
+    - name: Assert PostgreSQL database owner
+      ansible.builtin.assert:
+        that:
+          - postgresql_database.stdout | trim == 'fastapi_db | fastapi'
+
+    - name: Verify PostgreSQL database privilege
+      become: true
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -d
+          - fastapi_db
+          - -tAc
+          - SELECT has_database_privilege('fastapi', 'fastapi_db', 'CONNECT');
+      register: postgresql_privilege
+      changed_when: false
+
+    - name: Assert PostgreSQL user can connect to database
+      ansible.builtin.assert:
+        that:
+          - postgresql_privilege.stdout | trim == 't'
+
+    - name: Check ownership and permissions of generated files
+      ansible.builtin.stat:
+        path: "{{ item_fastapi_generated['path'] }}"
+      loop:
+        - path: /opt/fastapi-tutorial
+          mode: '0755'
+        - path: /opt/fastapi-tutorial/.env
+          mode: '0644'
+        - path: /etc/systemd/system/fastapi-tutorial.service
+          mode: '0644'
+      loop_control:
+        loop_var: item_fastapi_generated
+      register: fastapi_generated_files
+
+    - name: Assert generated file ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_generated_result.stat.pw_name == 'root'
+          - item_fastapi_generated_result.stat.gr_name == 'root'
+          - item_fastapi_generated_result.stat.mode == item_fastapi_generated_result.item['mode']
+      loop: "{{ fastapi_generated_files.results }}"
+      loop_control:
+        loop_var: item_fastapi_generated_result
