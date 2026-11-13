@@ -1,0 +1,65 @@
+---
+- name: Validate supported operating system for Memcached
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] in ['Debian', 'RedHat']
+    fail_msg: The cache role supports Debian-family and RedHat-family systems for Memcached.
+
+- name: Install Memcached package
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Configure Memcached on Debian-family systems
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: "^\\s*{{ item_memcached.key }}(?:\\s|$)"
+    line: "{{ item_memcached.key }} {{ item_memcached.value }}"
+    create: false
+  loop:
+    - {key: '-m', value: '{{ cache_memcached_memory }}'}
+    - {key: '-p', value: '{{ cache_memcached_port }}'}
+    - {key: '-U', value: '{{ cache_memcached_udp_port }}'}
+    - {key: '-l', value: '{{ cache_memcached_listen }}'}
+    - {key: '-c', value: '{{ cache_memcached_maxconn }}'}
+    - {key: '-I', value: '{{ cache_memcached_max_object_size }}'}
+    - {key: '-u', value: 'memcached'}
+  loop_control:
+    loop_var: item_memcached
+  notify: Restart Memcached after handler-triggered changes
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Configure Memcached on RedHat-family systems
+  ansible.builtin.lineinfile:
+    path: /etc/sysconfig/memcached
+    regexp: "^{{ item_memcached.key }}="
+    line: "{{ item_memcached.key }}={{ item_memcached.value }}"
+    create: false
+  loop:
+    - {key: 'PORT', value: '{{ cache_memcached_port }}'}
+    - {key: 'USER', value: 'memcached'}
+    - {key: 'MAXCONN', value: '{{ cache_memcached_maxconn }}'}
+    - {key: 'CACHESIZE', value: '{{ cache_memcached_memory }}'}
+    - {key: 'OPTIONS', value: '"-U {{ cache_memcached_udp_port }} -l {{ cache_memcached_listen }} -I {{ cache_memcached_max_object_size }}"'}
+  loop_control:
+    loop_var: item_memcached
+  notify: Restart Memcached after handler-triggered changes
+  when: ansible_facts['os_family'] == 'RedHat'
+
+- name: Configure Memcached service
+  ansible.builtin.service:
+    name: memcached
+    enabled: true
+    state: started
+
+- name: Report preserved Memcached settings
+  ansible.builtin.debug:
+    msg:
+      - "Memory: {{ cache_memcached_memory }} MB"
+      - "TCP port: {{ cache_memcached_port }}"
+      - "UDP port: {{ cache_memcached_udp_port }}"
+      - "Listen address: {{ cache_memcached_listen }}"
+      - "Maximum connections: {{ cache_memcached_maxconn }}"
+      - "Maximum object size: {{ cache_memcached_max_object_size }}"
+      - "Ulimit: {{ cache_memcached_ulimit }}"
+      - Threads remain attribute-driven because the source supplied no default.
