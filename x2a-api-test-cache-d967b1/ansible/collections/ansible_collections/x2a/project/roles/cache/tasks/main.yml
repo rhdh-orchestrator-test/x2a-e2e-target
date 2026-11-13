@@ -1,0 +1,61 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Memcached cache service
+  ansible.builtin.include_tasks: memcached.yml
+
+- name: Configure Redis cache service
+  ansible.builtin.include_role:
+    name: eloy.redis.redis  # noqa: L038 - role is declared in requirements.yml and resolved when dependencies are installed
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_port: 6379
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_replication_enabled: false
+    redis_base_piddir: /run/redis
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Remove replica stale-data directive from Redis configuration
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^replica-serve-stale-data.*$
+    state: absent
+  notify: Restart Redis after configuration changes
+
+- name: Remove replica read-only directive from Redis configuration
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^replica-read-only.*$
+    state: absent
+  notify: Restart Redis after configuration changes
+
+- name: Remove replica ping period directive from Redis configuration
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^repl-ping-replica-period.*$
+    state: absent
+  notify: Restart Redis after configuration changes
+
+- name: Remove client output buffer directive from Redis configuration
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^client-output-buffer-limit.*$
+    state: absent
+  notify: Restart Redis after configuration changes
+
+- name: Remove replica priority directive from Redis configuration
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^replica-priority.*$
+    state: absent
+  notify: Restart Redis after configuration changes

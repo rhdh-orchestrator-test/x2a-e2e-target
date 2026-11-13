@@ -1,0 +1,57 @@
+---
+- name: Install Memcached package
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Create Memcached service user
+  ansible.builtin.user:
+    name: service_user
+    state: present
+    system: true
+
+- name: Create Memcached log directory
+  ansible.builtin.file:
+    path: "{{ cache_memcached_logfilepath }}" # noqa: R114 - path is a role default controlled by the operator
+    state: directory
+    owner: service_user
+    group: service_user
+    mode: "0755"
+
+- name: Create Memcached configuration directory
+  ansible.builtin.file:
+    path: "{{ cache_memcached_config_file | dirname }}" # noqa: R114 - path is a role default controlled by the operator
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure Memcached startup options
+  ansible.builtin.lineinfile:
+    path: "{{ cache_memcached_config_file }}" # noqa: R114 - path is a role default controlled by the operator
+    regexp: ^OPTIONS=
+    line: >-
+      OPTIONS="-m {{ cache_memcached_memory }} -p {{ cache_memcached_port }}
+      -U {{ cache_memcached_udp_port }} -l {{ cache_memcached_listen }}
+      -c {{ cache_memcached_maxconn }} -u service_user -I {{ cache_memcached_max_object_size }}
+      -t {{ cache_memcached_threads }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Set Memcached file descriptor limit
+  ansible.builtin.lineinfile:
+    path: "{{ cache_memcached_config_file }}" # noqa: R114 - path is a role default controlled by the operator
+    regexp: "^ulimit -n "
+    line: ulimit -n {{ cache_memcached_ulimit }}
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true
