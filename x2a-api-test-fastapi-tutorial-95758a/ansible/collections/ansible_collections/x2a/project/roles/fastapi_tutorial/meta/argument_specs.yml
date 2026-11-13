@@ -1,0 +1,67 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy and configure the FastAPI Tutorial application with PostgreSQL.
+    description:
+      - Deploys the FastAPI Tutorial repository, Python virtual environment, PostgreSQL database, and systemd service.
+    options:
+      fastapi_tutorial_repository:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository containing the FastAPI Tutorial application.
+      fastapi_tutorial_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      fastapi_tutorial_app_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Directory where the application is checked out.
+      fastapi_tutorial_venv_dir:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial/venv
+        description: Python virtual environment directory.
+      fastapi_tutorial_service_name:
+        type: str
+        required: false
+        default: fastapi-tutorial
+        description: Systemd service name for the application.
+      fastapi_tutorial_service_user:
+        type: str
+        required: false
+        default: root
+        description: User that runs the application service.
+      fastapi_tutorial_app_port:
+        type: int
+        required: false
+        default: 8000
+        description: TCP port for the FastAPI application.
+      fastapi_tutorial_db_service_name:
+        type: str
+        required: false
+        default: postgresql
+        description: PostgreSQL systemd service name.
+      fastapi_tutorial_db_user:
+        type: str
+        required: false
+        default: "{{ db_username }}"
+        description: PostgreSQL application username, supplied by the AAP credential.
+      fastapi_tutorial_db_host:
+        type: str
+        required: false
+        default: "{{ db_host }}"
+        description: PostgreSQL host, supplied by the AAP credential.
+      fastapi_tutorial_db_name:
+        type: str
+        required: false
+        default: "{{ db_name }}"
+        description: PostgreSQL database name, supplied by the AAP credential.
+      fastapi_tutorial_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether tasks handling the database password suppress output.

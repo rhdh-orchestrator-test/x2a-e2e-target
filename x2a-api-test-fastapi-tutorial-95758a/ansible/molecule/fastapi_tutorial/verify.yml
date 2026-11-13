@@ -1,0 +1,187 @@
+---
+# Unsupported pre-flight checks: version-output checks, git status, package-manager
+# diagnostics, database SQL checks, environment-file values, systemd unit text,
+# journal/process diagnostics, and restart-behavior checks have no stated
+# expected outcome or require environment-specific credentials/tools.
+- name: Verify fastapi-tutorial pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify application directory exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: fastapi_application_directory
+
+    - name: Assert application directory exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_application_directory.stat.exists
+          - fastapi_application_directory.stat.isdir
+        fail_msg: The FastAPI application directory is missing.
+
+    - name: Verify application requirements file exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: fastapi_requirements_file
+
+    - name: Assert application requirements file exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_requirements_file.stat.exists
+          - fastapi_requirements_file.stat.isreg
+        fail_msg: The FastAPI requirements file is missing.
+
+    - name: Verify application virtual environment exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv
+      register: fastapi_virtualenv
+
+    - name: Assert application virtual environment exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_virtualenv.stat.exists
+          - fastapi_virtualenv.stat.isdir
+        fail_msg: The FastAPI virtual environment is missing.
+
+    - name: Verify repository branch is main
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - /opt/fastapi-tutorial
+          - branch
+          - --show-current
+      register: fastapi_git_branch
+      changed_when: false
+
+    - name: Assert repository is checked out at main
+      ansible.builtin.assert:
+        that:
+          - fastapi_git_branch.stdout == 'main'
+        fail_msg: The FastAPI repository is not checked out at main.
+
+    - name: Verify Python dependencies expose FastAPI
+      ansible.builtin.command:
+        argv:
+          - /opt/fastapi-tutorial/venv/bin/python
+          - -c
+          - import fastapi; print(fastapi.__version__)
+      register: fastapi_import_check
+      changed_when: false
+
+    - name: Assert FastAPI can be imported
+      ansible.builtin.assert:
+        that:
+          - fastapi_import_check.rc == 0
+        fail_msg: FastAPI could not be imported from the virtual environment.
+
+    - name: Verify Python dependencies expose Uvicorn
+      ansible.builtin.command:
+        argv:
+          - /opt/fastapi-tutorial/venv/bin/python
+          - -c
+          - import uvicorn; print(uvicorn.__version__)
+      register: uvicorn_import_check
+      changed_when: false
+
+    - name: Assert Uvicorn can be imported
+      ansible.builtin.assert:
+        that:
+          - uvicorn_import_check.rc == 0
+        fail_msg: Uvicorn could not be imported from the virtual environment.
+
+    - name: Collect installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert Fedora or RHEL packages are installed
+      ansible.builtin.assert:
+        that:
+          - "'postgresql-server' in ansible_facts.packages"
+          - "'postgresql-contrib' in ansible_facts.packages"
+          - "'libpq-devel' in ansible_facts.packages"
+        fail_msg: A required Fedora or RHEL PostgreSQL package is missing.
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Assert non-Fedora or RHEL packages are installed
+      ansible.builtin.assert:
+        that:
+          - "'postgresql' in ansible_facts.packages"
+          - "'postgresql-contrib' in ansible_facts.packages"
+          - "'libpq-dev' in ansible_facts.packages"
+          - "'python3-venv' in ansible_facts.packages"
+        fail_msg: A required Debian-family package is missing.
+      when: ansible_facts['os_family'] != 'RedHat'
+
+    - name: Collect service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert PostgreSQL service is active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts.services['postgresql.service']['state'] == 'running'"
+        fail_msg: PostgreSQL is not active.
+
+    - name: Check PostgreSQL service is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - postgresql
+      register: postgresql_enabled
+      changed_when: false
+
+    - name: Assert PostgreSQL service is enabled
+      ansible.builtin.assert:
+        that:
+          - postgresql_enabled.rc == 0
+          - postgresql_enabled.stdout == 'enabled'
+        fail_msg: PostgreSQL is not enabled.
+
+    - name: Verify PostgreSQL listens on localhost port 5432
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 5432
+        state: started
+        timeout: 10
+
+    - name: Verify FastAPI service file exists
+      ansible.builtin.stat:
+        path: /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_service_file
+
+    - name: Assert FastAPI service file exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_service_file.stat.exists
+          - fastapi_service_file.stat.isreg
+        fail_msg: The FastAPI systemd unit file is missing.
+
+    - name: Assert FastAPI service is active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts.services['fastapi-tutorial.service']['state'] == 'running'"
+        fail_msg: The FastAPI service is not active.
+
+    - name: Check FastAPI service is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - fastapi-tutorial
+      register: fastapi_enabled
+      changed_when: false
+
+    - name: Assert FastAPI service is enabled
+      ansible.builtin.assert:
+        that:
+          - fastapi_enabled.rc == 0
+          - fastapi_enabled.stdout == 'enabled'
+        fail_msg: The FastAPI service is not enabled.
+
+    - name: Verify FastAPI listens on port 8000
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 8000
+        state: started
+        timeout: 10
