@@ -1,0 +1,24 @@
+---
+- name: Install Memcached
+  ansible.builtin.package:
+    name: "{{ cache_memcached_package }}"
+    state: present
+
+- name: Configure Memcached service arguments
+  ansible.builtin.copy:
+    dest: "{{ cache_memcached_config_file }}" # noqa: R114 - path from role defaults, not user input
+    content: |
+      PORT="{{ cache_memcached_port }}"
+      UDPPORT="{{ cache_memcached_udp_port }}"
+      USER="{{ cache_memcached_user }}"
+      MAXCONN="{{ cache_memcached_maxconn }}"
+      CACHESIZE="{{ cache_memcached_memory }}"
+      OPTIONS="-l {{ cache_memcached_listen }} -U {{ cache_memcached_udp_port }} -I {{ cache_memcached_max_object_size }}"
+    mode: "0644"
+    backup: true
+
+- name: Start and enable Memcached
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service }}"
+    state: started
+    enabled: true

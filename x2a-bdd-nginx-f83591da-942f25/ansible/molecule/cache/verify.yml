@@ -1,0 +1,186 @@
+---
+# Unsupported: OS/package-manager discovery, target-specific unit discovery, Redis
+# authentication/database queries, option representation, and journal inspection.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Confirm the Redis account exists
+      ansible.builtin.getent:
+        database: passwd
+        key: redis
+        fail_key: false
+      changed_when: false
+
+    - name: Assert the Redis account is available
+      ansible.builtin.assert:
+        that:
+          - "'redis' in ansible_facts.getent_passwd"
+        fail_msg: Redis account is unavailable.
+
+    - name: Confirm the Redis group exists
+      ansible.builtin.getent:
+        database: group
+        key: redis
+        fail_key: false
+      changed_when: false
+
+    - name: Assert the Redis group is available
+      ansible.builtin.assert:
+        that:
+          - "'redis' in ansible_facts.getent_group"
+        fail_msg: Redis group is unavailable.
+
+    - name: Confirm the Memcached account exists
+      ansible.builtin.getent:
+        database: passwd
+        key: service_user
+        fail_key: false
+      changed_when: false
+
+    - name: Assert the Memcached account is available
+      ansible.builtin.assert:
+        that:
+          - "'service_user' in ansible_facts.getent_passwd"
+        fail_msg: Memcached account is unavailable.
+
+    - name: Gather service state
+      ansible.builtin.service_facts:
+
+    - name: Assert Memcached is active and enabled
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts.services | dict2items |
+            selectattr('key', 'match', '^(memcached)(\\.service)?$') |
+            selectattr('value.state', 'equalto', 'running') | list | length) > 0
+          - >-
+            (ansible_facts.services | dict2items |
+            selectattr('key', 'match', '^(memcached)(\\.service)?$') |
+            selectattr('value.status', 'equalto', 'enabled') | list | length) > 0
+        fail_msg: Memcached is not active and enabled.
+
+    - name: Assert Redis is active and enabled
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts.services | dict2items |
+            selectattr('key', 'match', '^(redis|redis-server)(\\.service)?$') |
+            selectattr('value.state', 'equalto', 'running') | list | length) > 0
+          - >-
+            (ansible_facts.services | dict2items |
+            selectattr('key', 'match', '^(redis|redis-server)(\\.service)?$') |
+            selectattr('value.status', 'equalto', 'enabled') | list | length) > 0
+        fail_msg: Redis is not active and enabled.
+
+    - name: Check the Memcached TCP listener
+      ansible.builtin.command:
+        argv: [ss, -tlnp]
+      register: cache_memcached_tcp
+      changed_when: false
+
+    - name: Assert TCP port 11211 is listening
+      ansible.builtin.assert:
+        that:
+          - "cache_memcached_tcp.stdout is search(':11211\\b')"
+        fail_msg: Memcached TCP port 11211 is not listening.
+
+    - name: Check the Memcached UDP listener
+      ansible.builtin.command:
+        argv: [ss, -ulnp]
+      register: cache_memcached_udp
+      changed_when: false
+
+    - name: Assert UDP port 11211 is bound
+      ansible.builtin.assert:
+        that:
+          - "cache_memcached_udp.stdout is search(':11211\\b')"
+        fail_msg: Memcached UDP port 11211 is not bound.
+
+    - name: Check the Memcached protocol
+      ansible.builtin.command:
+        argv: [nc, -w, '2', 127.0.0.1, '11211']
+        stdin: "version\r\nquit\r\n"
+      register: cache_memcached_protocol
+      changed_when: false
+
+    - name: Assert the Memcached protocol returns VERSION
+      ansible.builtin.assert:
+        that:
+          - "cache_memcached_protocol.stdout is search('VERSION')"
+        fail_msg: Memcached did not return a VERSION response.
+
+    - name: Check the Redis TCP listener
+      ansible.builtin.command:
+        argv: [ss, -tlnp]
+      register: cache_redis_tcp
+      changed_when: false
+
+    - name: Assert TCP port 6379 is listening
+      ansible.builtin.assert:
+        that:
+          - "cache_redis_tcp.stdout is search(':6379\\b')"
+        fail_msg: Redis TCP port 6379 is not listening.
+
+    - name: Check the Redis process
+      ansible.builtin.command:
+        argv: [ps, aux]
+      register: cache_redis_process
+      changed_when: false
+
+    - name: Assert a Redis server process is running
+      ansible.builtin.assert:
+        that:
+          - "cache_redis_process.stdout is search('[r]edis-server')"
+        fail_msg: Redis server process is not running.
+
+    - name: Check the Redis runtime directory
+      ansible.builtin.stat:
+        path: /run/redis
+      register: cache_redis_runtime_dir
+
+    - name: Assert the Redis runtime directory exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_runtime_dir.stat.exists
+          - cache_redis_runtime_dir.stat.isdir
+        fail_msg: Redis runtime directory is unavailable.
+
+    - name: Check the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_dir
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_dir.stat.exists
+          - cache_redis_log_dir.stat.isdir
+          - cache_redis_log_dir.stat.get('pw_name') == 'redis'
+          - cache_redis_log_dir.stat.get('gr_name') == 'redis'
+          - cache_redis_log_dir.stat.get('mode') == '0755'
+        fail_msg: Redis log directory does not have the expected ownership or mode.
+
+    - name: Check the Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config
+
+    - name: Check for removed Redis replication directives
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -nE
+          - '^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)'
+          - /etc/redis/6379.conf
+      register: cache_redis_directives
+      changed_when: false
+      failed_when: cache_redis_directives.rc not in [0, 1]
+      when: cache_redis_config.stat.exists
+
+    - name: Assert removed Redis replication directives are absent
+      ansible.builtin.assert:
+        that:
+          - cache_redis_directives.rc == 1
+        fail_msg: Removed Redis replication directives are present.
+      when: cache_redis_config.stat.exists

@@ -1,0 +1,6 @@
+---
+- name: Set SELinux to permissive
+  ansible.posix.selinux:
+    policy: targeted
+    state: permissive
+    update_kernel_param: true
