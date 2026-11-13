@@ -1,0 +1,122 @@
+---
+# Unsupported pre-flight checks: platform/package metadata; Redis service unit discovery,
+# status, enablement, activity, and runtime PID files; Redis authentication/INFO;
+# Redis port/bind and configuration value checks; Redis logging and journal diagnostics;
+# and Memcached ownership cannot be checked against a named account because none is specified.
+- name: Verify cache services
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather service facts for the Memcached service check
+      ansible.builtin.service_facts:
+
+    - name: Assert that Memcached is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['memcached.service']['status'] == 'enabled'"
+          - "ansible_facts['services']['memcached.service']['state'] == 'running'"
+        fail_msg: Memcached must be enabled and active.
+
+    - name: Verify the Memcached TCP listener
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 5
+
+    - name: Verify the Memcached UDP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -lunp
+      changed_when: false
+      register: cache_memcached_udp_listener
+
+    - name: Assert that a Memcached UDP listener exists on port 11211
+      ansible.builtin.assert:
+        that:
+          - "cache_memcached_udp_listener.stdout is search(':11211')"
+        fail_msg: Memcached must listen on UDP port 11211.
+
+    - name: Query the Memcached version
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - '2'
+          - 127.0.0.1
+          - '11211'
+        stdin: "version\r\n"
+      changed_when: false
+      register: cache_memcached_version
+
+    - name: Assert that Memcached returns a version
+      ansible.builtin.assert:
+        that:
+          - "cache_memcached_version.stdout is search('(^|\\n)VERSION[[:space:]]+')"
+        fail_msg: Memcached must return a VERSION response.
+
+    - name: Determine the Memcached process account
+      ansible.builtin.command:
+        argv:
+          - ps
+          - -C
+          - memcached
+          - -o
+          - user=
+      changed_when: false
+      register: cache_memcached_user
+
+    - name: Assert that Memcached does not run as root
+      ansible.builtin.assert:
+        that:
+          - "cache_memcached_user.stdout_lines | length > 0"
+          - "'root' not in cache_memcached_user.stdout_lines"
+        fail_msg: Memcached must run as a non-root service account.
+
+    - name: Inspect Memcached runtime directories
+      ansible.builtin.stat:
+        path: "{{ item_memcached_directory['path'] }}"
+      loop:
+        - path: /var/log/memcached
+        - path: /var/run/memcached
+      loop_control:
+        loop_var: item_memcached_directory
+      register: cache_memcached_directories
+
+    - name: Assert that Memcached directories exist with mode 0755
+      ansible.builtin.assert:
+        that:
+          - item_memcached_directory_result['stat']['exists']
+          - item_memcached_directory_result['stat']['mode'] == '0755'
+        fail_msg: Memcached runtime directories must exist with mode 0755.
+      loop: "{{ cache_memcached_directories['results'] }}"
+      loop_control:
+        loop_var: item_memcached_directory_result
+
+    - name: Inspect the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_directory
+
+    - name: Assert that the Redis log directory has the expected ownership and mode
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_directory['stat']['exists']
+          - cache_redis_log_directory['stat']['mode'] == '0755'
+          - cache_redis_log_directory['stat']['pw_name'] == 'redis'
+          - cache_redis_log_directory['stat']['gr_name'] == 'redis'
+        fail_msg: The Redis log directory must be owned by redis:redis with mode 0755.
+
+    - name: Read the Redis configuration for cleanup verification
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_configuration
+
+    - name: Assert that selected replication directives were removed
+      ansible.builtin.assert:
+        that:
+          - >-
+            (cache_redis_configuration['content'] | b64decode) is not
+            search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: Selected replication directives must be absent from the Redis configuration.

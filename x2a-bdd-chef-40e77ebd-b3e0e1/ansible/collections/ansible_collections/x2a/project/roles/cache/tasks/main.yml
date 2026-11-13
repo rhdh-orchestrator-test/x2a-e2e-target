@@ -1,0 +1,52 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Include Memcached configuration
+  ansible.builtin.include_tasks: memcached.yml
+
+- name: Install Redis package
+  ansible.builtin.package:
+    name:
+      - "{{ cache_redis_package }}"
+    state: present
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Configure Redis authentication  # noqa: L039 - redis_password is supplied by the attached AAP credential type and validated by the prior task
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: "^requirepass\\s+"
+    line: requirepass {{ redis_password }}
+    create: true
+    mode: "0600"
+  no_log: "{{ cache_secure_logging }}"
+  notify: Restart Redis
+
+- name: Remove obsolete Redis replication directives
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^{{ item_cache_directive }}.*$
+    state: absent
+  loop:
+    - replica-serve-stale-data
+    - replica-read-only
+    - repl-ping-replica-period
+    - client-output-buffer-limit
+    - replica-priority
+  loop_control:
+    loop_var: item_cache_directive
+  notify: Restart Redis
+
+- name: Ensure Redis service is enabled and started
+  ansible.builtin.service:
+    name: "{{ cache_redis_service }}"
+    state: started
+    enabled: true

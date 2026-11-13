@@ -1,0 +1,16 @@
+# Managed by Ansible
+-m {{ cache_memcached_memory }}
+-p {{ cache_memcached_port }}
+-U {{ cache_memcached_udp_port }}
+-l {{ cache_memcached_listen }}
+-c {{ cache_memcached_maxconn }}
+-u {{ cache_memcached_user }}
+-t {{ cache_memcached_threads }}
+-I {{ cache_memcached_max_object_size }}
+-R {{ cache_memcached_ulimit }}
+{% if cache_memcached_experimental_options %}
+{{ cache_memcached_experimental_options }}
+{% endif %}
+{% if cache_memcached_extra_cli_options %}
+{{ cache_memcached_extra_cli_options }}
+{% endif %}
