@@ -1,0 +1,112 @@
+---
+# Unsupported pre-flight checks: process listings, log file listings, Redis service
+# status/enablement (the unit is unspecified), Redis authentication, configuration
+# cleanup, Redis log inspection, and checks whose commands state no expected outcome.
+- name: Verify cache services
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather service facts for the Memcached service status check
+      ansible.builtin.service_facts:
+
+    - name: Assert that the Memcached service is active
+      ansible.builtin.assert:
+        that:
+          - >-
+            ('memcached.service' in ansible_facts['services'] and
+            ansible_facts['services']['memcached.service']['state'] == 'running') or
+            ('memcached' in ansible_facts['services'] and
+            ansible_facts['services']['memcached']['state'] == 'running')
+        fail_msg: Memcached is not active.
+
+    - name: Assert that the Memcached service is enabled
+      ansible.builtin.assert:
+        that:
+          - >-
+            ('memcached.service' in ansible_facts['services'] and
+            ansible_facts['services']['memcached.service']['status'] == 'enabled') or
+            ('memcached' in ansible_facts['services'] and
+            ansible_facts['services']['memcached']['status'] == 'enabled')
+        fail_msg: Memcached is not enabled at boot.
+
+    - name: Verify that Memcached TCP port 11211 is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 5
+
+    - name: Check that Memcached UDP port 11211 is listening
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ulnp
+      changed_when: false
+      register: item_memcached_udp_socket
+
+    - name: Assert that Memcached UDP port 11211 is listening
+      ansible.builtin.assert:
+        that:
+          - item_memcached_udp_socket['stdout'] is search('[:.]11211\\b')
+        fail_msg: Memcached UDP port 11211 is not listening.
+
+    - name: Query Memcached version
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - '2'
+          - 127.0.0.1
+          - '11211'
+        stdin: "version\r\nquit\r\n"
+      changed_when: false
+      register: item_memcached_version
+
+    - name: Assert that Memcached returns a VERSION response
+      ansible.builtin.assert:
+        that:
+          - item_memcached_version['stdout'] is match('^VERSION')
+        fail_msg: Memcached did not return a VERSION response.
+
+    - name: Verify that Redis TCP port 6379 is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Verify that the Redis PID directory exists
+      ansible.builtin.stat:
+        path: /run/redis
+      register: item_redis_pid_directory
+
+    - name: Assert that the Redis PID directory exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_pid_directory['stat']['exists']
+          - item_redis_pid_directory['stat']['isdir']
+        fail_msg: The Redis PID directory does not exist.
+
+    - name: Verify that the Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_directory
+
+    - name: Assert that the Redis log directory exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory['stat']['exists']
+          - item_redis_log_directory['stat']['isdir']
+        fail_msg: The Redis log directory does not exist.
+
+    - name: Verify that the Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_configuration
+
+    - name: Assert that the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_configuration['stat']['exists']
+          - item_redis_configuration['stat']['isreg']
+        fail_msg: The Redis configuration file does not exist.

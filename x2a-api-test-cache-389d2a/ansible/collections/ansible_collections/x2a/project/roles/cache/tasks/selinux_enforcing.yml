@@ -1,0 +1,11 @@
+---
+- name: Install SELinux management dependencies
+  ansible.builtin.package:
+    name: policycoreutils
+    state: present
+
+- name: Set SELinux to enforcing
+  ansible.posix.selinux:
+    policy: targeted
+    state: enforcing
+    update_kernel_param: true
