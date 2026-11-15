@@ -1,0 +1,41 @@
+---
+- name: Install Memcached
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Configure Memcached on RedHat
+  ansible.builtin.blockinfile:
+    path: /etc/sysconfig/memcached
+    marker: "# {mark} ANSIBLE MANAGED MEMCACHED OPTIONS"
+    block: "OPTIONS=\"-l {{ cache_memcached_listen }} -p {{ cache_memcached_port }} -U {{ cache_memcached_udp_port }} -m {{ cache_memcached_memory }} -c {{ cache_memcached_maxconn }} -I {{ cache_memcached_max_object_size }} -u {{ cache_memcached_user }} -t {{ cache_memcached_threads }}\""
+    create: false
+    mode: "0644"
+    backup: true
+  when: ansible_facts["os_family"] == "RedHat"
+  notify: Restart Memcached
+
+- name: Configure Memcached on Debian
+  ansible.builtin.blockinfile:
+    path: /etc/memcached.conf
+    marker: "# {mark} ANSIBLE MANAGED MEMCACHED OPTIONS"
+    block: |-
+      -l {{ cache_memcached_listen }}
+      -p {{ cache_memcached_port }}
+      -U {{ cache_memcached_udp_port }}
+      -m {{ cache_memcached_memory }}
+      -c {{ cache_memcached_maxconn }}
+      -I {{ cache_memcached_max_object_size }}
+      -u {{ cache_memcached_user }}
+      -t {{ cache_memcached_threads }}
+    create: false
+    mode: "0644"
+    backup: true
+  when: ansible_facts["os_family"] == "Debian"
+  notify: Restart Memcached
+
+- name: Ensure Memcached service is enabled and started
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true

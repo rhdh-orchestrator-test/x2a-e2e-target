@@ -1,0 +1,54 @@
+---
+- name: Ensure Redis log directory exists
+  ansible.builtin.file:
+    path: "{{ cache_redis_log_dir }}" # noqa: R114 - path is a role default controlled by the operator
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Remove Redis replica serve stale data directive
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 R115 - path is a role default controlled by the operator
+    regexp: ^replica-serve-stale-data.*$
+    state: absent
+    backup: true
+    create: false
+  notify: Restart Redis 6379
+
+- name: Remove Redis replica read only directive
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 R115 - path is a role default controlled by the operator
+    regexp: ^replica-read-only.*$
+    state: absent
+    backup: true
+    create: false
+  notify: Restart Redis 6379
+
+- name: Remove Redis replica ping period directive
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 R115 - path is a role default controlled by the operator
+    regexp: ^repl-ping-replica-period.*$
+    state: absent
+    backup: true
+    create: false
+  notify: Restart Redis 6379
+
+- name: Remove Redis client output buffer limit directive
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 R115 - path is a role default controlled by the operator
+    regexp: ^client-output-buffer-limit.*$
+    state: absent
+    backup: true
+    create: false
+  notify: Restart Redis 6379
+
+- name: Remove Redis replica priority directive
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 R115 - path is a role default controlled by the operator
+    regexp: ^replica-priority.*$
+    state: absent
+    backup: true
+    create: false
+  notify: Restart Redis 6379

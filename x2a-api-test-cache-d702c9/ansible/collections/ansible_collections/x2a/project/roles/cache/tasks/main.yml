@@ -1,0 +1,24 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Memcached instance
+  ansible.builtin.include_tasks: memcached_default.yml
+
+- name: Install and configure Redis 6379
+  ansible.builtin.include_role:
+    name: eloy.redis.redis  # noqa: L038 - role is provided by the declared external eloy.redis collection
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_port: "{{ cache_redis_port }}"
+    redis_requirepass: "{{ redis_password }}"
+    redis_install_method: package
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_replication_enabled: false
+    redis_aof_enabled: false
+    redis_rdb_enabled: true
+    redis_pid_dir: "{{ cache_redis_pid_dir }}"
+
+- name: Apply Redis configuration cleanup
+  ansible.builtin.include_tasks: redis_cleanup.yml
