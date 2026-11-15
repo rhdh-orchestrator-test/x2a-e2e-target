@@ -1,0 +1,20 @@
+{% if ansible_facts.os_family == 'RedHat' %}
+PORT="{{ memcached_port }}"
+UDPPORT="{{ memcached_udp_port }}"
+USER="{{ memcached_service_user }}"
+MAXCONN="{{ memcached_maxconn }}"
+CACHESIZE="{{ memcached_memory }}"
+OPTIONS="-l {{ memcached_listen }} -I {{ memcached_max_object_size }} -R {{ memcached_ulimit }}{% if memcached_threads is not none %} -t {{ memcached_threads }}{% endif %}{% for option in memcached_experimental_options %} {{ option }}{% endfor %}{% for option in memcached_extra_cli_options %} {{ option }}{% endfor %}"
+{% else %}
+-m {{ memcached_memory }}
+-p {{ memcached_port }}
+-U {{ memcached_udp_port }}
+-u {{ 'memcache' if ansible_facts.os_family == 'Debian' else memcached_service_user }}
+-l {{ memcached_listen }}
+-c {{ memcached_maxconn }}
+-I {{ memcached_max_object_size }}
+-R {{ memcached_ulimit }}{% if memcached_threads is not none %}
+-t {{ memcached_threads }}{% endif %}{% for option in memcached_experimental_options %}
+{{ option }}{% endfor %}{% for option in memcached_extra_cli_options %}
+{{ option }}{% endfor %}
+{% endif %}

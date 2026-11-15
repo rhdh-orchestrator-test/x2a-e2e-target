@@ -1,0 +1,47 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure standalone Redis cache # noqa: L038 - role is provided by the eloy.redis collection dependency
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_install_method: package
+    redis_requirepass: "{{ redis_password }}"
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_replication_enabled: false
+    redis_aof_enabled: false
+    redis_rdb_enabled: true
+
+- name: Configure Memcached cache
+  ansible.builtin.include_tasks: memcached.yml
+
+- name: Ensure Redis log directory exists
+  ansible.builtin.file:
+    path: "{{ redis_log_directory }}" # noqa: R114 - path is a role default
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Check for the Redis versioned configuration file
+  ansible.builtin.stat:
+    path: /etc/redis/6379.conf
+  register: redis_versioned_config
+
+- name: Remove obsolete Redis replication directives when configuration exists # noqa: L039 - variable is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: /etc/redis/6379.conf
+    regexp: ^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority).*$
+    replace: ""
+    create: false
+  when: redis_versioned_config.stat.exists
+
+- name: Enable and start Redis service
+  ansible.builtin.service:
+    name: "{{ redis_service_name }}" # noqa: R114 - service name is a role default
+    state: started
+    enabled: true

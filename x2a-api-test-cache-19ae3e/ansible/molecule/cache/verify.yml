@@ -1,0 +1,39 @@
+# Unsupported pre-flight checks: service status/enablement/activity, process listings, socket listings,
+# directory/account ownership details, Redis service/configuration/password checks, service logs,
+# filesystem capacity, and the version/INFO Redis probes have no stated expected outcome or require
+# unavailable service/credential details. The UDP Memcached probe also has no stated expected result.
+---
+- name: Verify cache services
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify Memcached responds with a version
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - "2"
+          - 127.0.0.1
+          - "11211"
+        stdin: "version\r\n"
+      register: memcached_version
+      changed_when: false
+
+    - name: Assert Memcached returned a VERSION response
+      ansible.builtin.assert:
+        that:
+          - memcached_version.stdout is regex('(?m)^VERSION\\s+\\S+')
+        fail_msg: Memcached did not return the expected VERSION response.
+
+    - name: Read Redis configuration for directive cleanup verification
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config
+
+    - name: Assert unwanted Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config.content | b64decode) is not regex(
+            '(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: Unwanted Redis replication directives remain in the Redis configuration.
