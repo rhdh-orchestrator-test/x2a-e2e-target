@@ -1,0 +1,112 @@
+---
+# Unsupported pre-flight diagnostics: source-assignment grep, Memcached protocol probe,
+# Redis authenticated set/get/delete, Redis port/pidfile/dir value grep, and service logs.
+- name: Verify cache services and runtime state
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather service facts for Memcached and Redis checks
+      ansible.builtin.service_facts:
+
+    - name: Assert that Memcached is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['memcached.service']['status'] == 'enabled'
+          - ansible_facts.services['memcached.service']['state'] == 'running'
+        fail_msg: Memcached must be enabled and active.
+
+    - name: Wait for Memcached TCP port 11211
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 10
+
+    - name: Check that Memcached listens on UDP port 11211
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ulnp
+      register: item_memcached_udp_socket
+      changed_when: false
+
+    - name: Assert that Memcached UDP port 11211 is listening
+      ansible.builtin.assert:
+        that:
+          - item_memcached_udp_socket['stdout'] is search(':11211\\b')
+        fail_msg: Memcached must listen on UDP port 11211.
+
+    - name: Assert that a Redis service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts.services | dict2items
+            | selectattr('key', 'search', '(^|/)(redis|redis-server)(@6379)?\\.service$')
+            | selectattr('value.status', 'equalto', 'enabled')
+            | selectattr('value.state', 'equalto', 'running')
+            | list | length) > 0
+        fail_msg: A Redis service for instance 6379 must be enabled and active.
+
+    - name: Wait for Redis TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Check Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Assert that Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_config['stat']['exists']
+          - item_redis_config['stat']['isreg']
+        fail_msg: Redis configuration file /etc/redis/6379.conf must exist.
+
+    - name: Read Redis configuration for directive verification
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: item_redis_config_content
+
+    - name: Assert that reported Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            item_redis_config_content['content'] | b64decode
+            is not search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: Reported Redis cleanup directives must be absent as active configuration lines.
+
+    - name: Check required cache directories
+      ansible.builtin.stat:
+        path: "{{ item_cache_directory['path'] }}"
+      loop:
+        - path: /var/log/redis
+        - path: /run/redis
+        - path: /var/log/memcached
+        - path: /var/run/memcached
+      loop_control:
+        loop_var: item_cache_directory
+      register: item_cache_directories
+
+    - name: Assert that required cache directories exist
+      ansible.builtin.assert:
+        that:
+          - item_cache_directories['results'] | map(attribute='stat.exists') | list is all
+          - item_cache_directories['results'] | map(attribute='stat.isdir') | list is all
+        fail_msg: Required cache runtime and log directories must exist.
+
+    - name: Check Redis log directory metadata
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_directory
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory['stat']['pw_name'] == 'redis'
+          - item_redis_log_directory['stat']['gr_name'] == 'redis'
+          - item_redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: Redis log directory must be owned by redis:redis with mode 0755.
