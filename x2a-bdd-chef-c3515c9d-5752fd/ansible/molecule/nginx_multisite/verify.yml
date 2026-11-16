@@ -1,0 +1,220 @@
+---
+# Unsupported: package-manager output, systemctl status text, raw sysctl output,
+# certificate dates/subject, and private-key owner/group/mode have no stated outcome.
+- name: Verify nginx multisite pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather service state
+      ansible.builtin.service_facts:
+
+    - name: Assert nginx, fail2ban, and SSH services are active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['nginx.service']['state'] == 'running'
+          - ansible_facts['services']['fail2ban.service']['state'] == 'running'
+          - >-
+            ('sshd.service' in ansible_facts['services'] and
+            ansible_facts['services']['sshd.service']['state'] == 'running') or
+            ('ssh.service' in ansible_facts['services'] and
+            ansible_facts['services']['ssh.service']['state'] == 'running')
+        fail_msg: nginx, fail2ban, and an SSH service must be active.
+
+    - name: Assert nginx and fail2ban are enabled
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['nginx.service']['status'] == 'enabled'
+          - ansible_facts['services']['fail2ban.service']['status'] == 'enabled'
+        fail_msg: nginx and fail2ban must be enabled.
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      changed_when: false
+      register: nginx_test
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - nginx_test['rc'] == 0
+        fail_msg: nginx -t must succeed.
+
+    - name: Inspect loaded nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -T
+      changed_when: false
+      register: nginx_dump
+
+    - name: Assert expected virtual hosts and listeners are loaded
+      ansible.builtin.assert:
+        that:
+          - nginx_dump['rc'] == 0
+          - nginx_dump['stdout'] is search('test\\.cluster\\.local')
+          - nginx_dump['stdout'] is search('ci\\.cluster\\.local')
+          - nginx_dump['stdout'] is search('status\\.cluster\\.local')
+          - nginx_dump['stdout'] is search('listen 80')
+          - nginx_dump['stdout'] is search('listen 443 ssl http2')
+        fail_msg: Expected nginx virtual hosts and listeners must be loaded.
+
+    - name: Read configuration files
+      ansible.builtin.slurp:
+        src: "{{ item_config['path'] }}"
+      loop:
+        - path: /etc/fail2ban/jail.local
+        - path: /etc/ssh/sshd_config
+        - path: /etc/nginx/nginx.conf
+        - path: /etc/nginx/conf.d/security.conf
+        - path: /etc/nginx/sites-available/test.cluster.local
+        - path: /etc/nginx/sites-available/ci.cluster.local
+        - path: /etc/nginx/sites-available/status.cluster.local
+      loop_control:
+        loop_var: item_config
+      register: config_files
+
+    - name: Assert required configuration text is present
+      ansible.builtin.assert:
+        that:
+          - item_config_result['content'] | b64decode is search(item_config_result['item']['pattern'])
+        fail_msg: A required pre-flight configuration pattern is missing.
+      loop:
+        - path: /etc/fail2ban/jail.local
+          pattern: '^\\[sshd\\]|^\\[nginx-http-auth\\]|^\\[nginx-limit-req\\]|^\\[nginx-botsearch\\]'
+        - path: /etc/ssh/sshd_config
+          pattern: 'PermitRootLogin no|PasswordAuthentication no'
+        - path: /etc/nginx/nginx.conf
+          pattern: 'user nginx|worker_processes auto|worker_connections 768|keepalive_timeout 65|gzip on'
+        - path: /etc/nginx/conf.d/security.conf
+          pattern: 'server_tokens off|limit_req_zone|client_max_body_size|ssl_protocols|ssl_session_cache'
+        - path: /etc/nginx/sites-available/test.cluster.local
+          pattern: 'server_name test\\.cluster\\.local|root /opt/server/test|listen 80|listen 443 ssl http2|ssl_certificate |ssl_certificate_key '
+        - path: /etc/nginx/sites-available/ci.cluster.local
+          pattern: 'server_name ci\\.cluster\\.local|root /opt/server/ci|listen 80|listen 443 ssl http2|ssl_certificate |ssl_certificate_key '
+        - path: /etc/nginx/sites-available/status.cluster.local
+          pattern: 'server_name status\\.cluster\\.local|root /opt/server/status|listen 80|listen 443 ssl http2|ssl_certificate |ssl_certificate_key '
+      loop_control:
+        loop_var: item_config_result
+      when: item_config_result['path'] in (config_files['results'] | map(attribute='item.path') | list)
+
+    - name: Check required files, directories, and links
+      ansible.builtin.stat:
+        path: "{{ item_path['path'] }}"
+        follow: false
+      loop:
+        - path: /etc/fail2ban/jail.local
+          kind: file
+        - path: /etc/sysctl.d/99-security.conf
+          kind: file
+        - path: /etc/ssh/sshd_config
+          kind: file
+        - path: /etc/nginx/nginx.conf
+          kind: file
+        - path: /etc/nginx/conf.d/security.conf
+          kind: file
+        - path: /etc/nginx/sites-available/test.cluster.local
+          kind: file
+        - path: /etc/nginx/sites-available/ci.cluster.local
+          kind: file
+        - path: /etc/nginx/sites-available/status.cluster.local
+          kind: file
+        - path: /etc/nginx/sites-enabled/test.cluster.local
+          kind: link
+        - path: /etc/nginx/sites-enabled/ci.cluster.local
+          kind: link
+        - path: /etc/nginx/sites-enabled/status.cluster.local
+          kind: link
+        - path: /opt/server/test
+          kind: directory
+        - path: /opt/server/test/index.html
+          kind: file
+        - path: /opt/server/ci
+          kind: directory
+        - path: /opt/server/ci/index.html
+          kind: file
+        - path: /opt/server/status
+          kind: directory
+        - path: /opt/server/status/index.html
+          kind: file
+        - path: /etc/ssl/certs/test.cluster.local.crt
+          kind: file
+        - path: /etc/ssl/private/test.cluster.local.key
+          kind: file
+        - path: /etc/ssl/certs/ci.cluster.local.crt
+          kind: file
+        - path: /etc/ssl/private/ci.cluster.local.key
+          kind: file
+        - path: /etc/ssl/certs/status.cluster.local.crt
+          kind: file
+        - path: /etc/ssl/private/status.cluster.local.key
+          kind: file
+      loop_control:
+        loop_var: item_path
+      register: required_paths
+
+    - name: Assert required paths have the expected type
+      ansible.builtin.assert:
+        that:
+          - item_required['stat']['exists']
+          - >-
+            (item_required['item']['kind'] == 'file' and item_required['stat']['isreg']) or
+            (item_required['item']['kind'] == 'directory' and item_required['stat']['isdir']) or
+            (item_required['item']['kind'] == 'link' and item_required['stat']['islnk'])
+        fail_msg: A required nginx multisite path is missing or has the wrong type.
+      loop: "{{ required_paths['results'] }}"
+      loop_control:
+        loop_var: item_required
+
+    - name: Check default site absence
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: default_site
+
+    - name: Assert default site is absent
+      ansible.builtin.assert:
+        that:
+          - not default_site['stat']['exists']
+        fail_msg: The default nginx site must be absent.
+
+    - name: Check UFW allowed ports
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+      changed_when: false
+      register: ufw_status
+
+    - name: Assert UFW allows SSH, HTTP, and HTTPS
+      ansible.builtin.assert:
+        that:
+          - ufw_status['rc'] == 0
+          - ufw_status['stdout'] is search('22/tcp')
+          - ufw_status['stdout'] is search('80/tcp')
+          - ufw_status['stdout'] is search('443/tcp')
+        fail_msg: UFW must allow SSH, HTTP, and HTTPS.
+
+    - name: Check site HTTP and HTTPS endpoints
+      ansible.builtin.command:
+        argv: "{{ item_endpoint['argv'] }}"
+      changed_when: false
+      loop:
+        - argv: [curl, -I, -H, 'Host: test.cluster.local', 'http://127.0.0.1/']
+        - argv: [curl, -k, -I, --resolve, 'test.cluster.local:443:127.0.0.1', 'https://test.cluster.local/']
+        - argv: [curl, -I, -H, 'Host: ci.cluster.local', 'http://127.0.0.1/']
+        - argv: [curl, -k, -I, --resolve, 'ci.cluster.local:443:127.0.0.1', 'https://ci.cluster.local/']
+        - argv: [curl, -I, -H, 'Host: status.cluster.local', 'http://127.0.0.1/']
+        - argv: [curl, -k, -I, --resolve, 'status.cluster.local:443:127.0.0.1', 'https://status.cluster.local/']
+      loop_control:
+        loop_var: item_endpoint
+      register: endpoint_checks
+
+    - name: Assert site endpoint diagnostics succeeded
+      ansible.builtin.assert:
+        that:
+          - item_endpoint_result['rc'] == 0
+        fail_msg: An nginx site endpoint diagnostic failed.
+      loop: "{{ endpoint_checks['results'] }}"
+      loop_control:
+        loop_var: item_endpoint_result

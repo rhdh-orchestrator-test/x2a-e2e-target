@@ -1,0 +1,60 @@
+---
+- name: Create nginx available-sites directory
+  ansible.builtin.file:
+    path: /etc/nginx/sites-available
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create nginx enabled-sites directory
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render nginx site configurations
+  ansible.builtin.template:
+    src: site.conf.j2
+    dest: /etc/nginx/sites-available/{{ item_site['key'] }} # noqa: R114 - site name comes from role-defined sites dictionary
+    mode: "0644"
+    backup: true
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_site
+  register: nginx_multisite_site_configs
+  vars:
+    server_name: "{{ item_site['key'] }}"
+    document_root: "{{ item_site['value']['document_root'] }}"
+    ssl_enabled: "{{ item_site['value']['ssl_enabled'] }}"
+    cert_file: "{{ nginx_multisite_ssl_certificate_path }}/{{ item_site['key'] }}.crt"
+    key_file: "{{ nginx_multisite_ssl_private_key_path }}/{{ item_site['key'] }}.key"
+
+- name: Link enabled nginx sites
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/{{ item_link['key'] }} # noqa: R114 - source is a role-defined site name
+    dest: /etc/nginx/sites-enabled/{{ item_link['key'] }} # noqa: R114 - destination is a role-defined site name
+    state: link
+    owner: root
+    group: root
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_link
+  register: nginx_multisite_site_links
+
+- name: Remove default nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  register: nginx_multisite_default_site
+
+- name: Reload nginx after site changes # noqa: L039 - variables are registered by the preceding site configuration tasks
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded
+  when: >-
+    nginx_multisite_site_configs is changed or
+    nginx_multisite_site_links is changed or
+    nginx_multisite_default_site is changed

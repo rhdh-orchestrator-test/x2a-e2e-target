@@ -1,0 +1,16 @@
+---
+- name: Load operating system variables
+  ansible.builtin.include_vars: "{{ ansible_facts['os_family'] }}.yml"
+  when: ansible_facts['os_family'] is defined
+
+- name: Include security configuration
+  ansible.builtin.include_tasks: security.yml
+
+- name: Include nginx configuration
+  ansible.builtin.include_tasks: nginx.yml
+
+- name: Include SSL configuration
+  ansible.builtin.include_tasks: ssl.yml
+
+- name: Include site configuration
+  ansible.builtin.include_tasks: sites.yml
