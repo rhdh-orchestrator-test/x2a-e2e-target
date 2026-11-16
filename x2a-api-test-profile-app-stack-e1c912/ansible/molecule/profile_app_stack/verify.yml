@@ -1,0 +1,157 @@
+# Unsupported pre-flight checks: exact Python package expansion; Git branch and commit expectations;
+# environment-file content/plaintext-secret review; daemon-reload, enable --now, and service-status
+# checks without a stated result; journal/log listing; migration command; crontab and backup
+# execution; exact logrotate output expectations; and the original health-check command/URI.
+---
+- name: Verify profile_app_stack pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Confirm the appuser account exists
+      ansible.builtin.getent:
+        database: passwd
+        key: appuser
+      changed_when: false
+
+    - name: Assert the appuser account was found
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['getent_passwd']['appuser'] is defined
+        fail_msg: appuser account was not found
+
+    - name: Confirm the appuser group exists
+      ansible.builtin.getent:
+        database: group
+        key: appuser
+      changed_when: false
+
+    - name: Assert the appuser group was found
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['getent_group']['appuser'] is defined
+        fail_msg: appuser group was not found
+
+    - name: Inspect the application directory
+      ansible.builtin.stat:
+        path: /opt/test-app
+      register: app_directory
+
+    - name: Assert application directory ownership and existence
+      ansible.builtin.assert:
+        that:
+          - app_directory.stat.exists
+          - app_directory.stat.isdir
+          - app_directory.stat.pw_name == 'appuser'
+          - app_directory.stat.gr_name == 'appuser'
+        fail_msg: application directory is missing or has unexpected ownership
+
+    - name: Confirm the virtual environment Gunicorn executable is executable
+      ansible.builtin.command:
+        argv:
+          - test
+          - -x
+          - /opt/test-app/venv/bin/gunicorn
+      register: gunicorn_executable
+      changed_when: false
+
+    - name: Assert the Gunicorn executable is present and executable
+      ansible.builtin.assert:
+        that:
+          - gunicorn_executable.rc == 0
+        fail_msg: /opt/test-app/venv/bin/gunicorn is not executable
+
+    - name: Validate the rendered systemd unit
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - /etc/systemd/system/test-app.service
+      register: systemd_unit_validation
+      changed_when: false
+
+    - name: Assert the rendered systemd unit is valid
+      ansible.builtin.assert:
+        that:
+          - systemd_unit_validation.rc == 0
+        fail_msg: rendered test-app systemd unit failed validation
+
+    - name: Wait for the test-app endpoint to listen on port 8000
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 8000
+        state: started
+        timeout: 10
+
+    - name: Check default and staging PostgreSQL connectivity
+      ansible.builtin.command:
+        argv:
+          - pg_isready
+          - -h
+          - localhost
+          - -p
+          - '5432'
+          - -d
+          - testdb
+          - -U
+          - testuser
+      register: local_postgresql
+      changed_when: false
+      when: "'production' not in group_names"
+
+    - name: Assert default and staging PostgreSQL accepts connections
+      ansible.builtin.assert:
+        that:
+          - local_postgresql.rc == 0
+        fail_msg: default or staging PostgreSQL connectivity check failed
+      when: "'production' not in group_names"
+
+    - name: Check production PostgreSQL connectivity
+      ansible.builtin.command:
+        argv:
+          - pg_isready
+          - -h
+          - db-primary.prod.internal
+          - -p
+          - '5432'
+          - -d
+          - testdb
+          - -U
+          - testuser
+      register: production_postgresql
+      changed_when: false
+      when: "'production' in group_names"
+
+    - name: Assert production PostgreSQL accepts connections
+      ansible.builtin.assert:
+        that:
+          - production_postgresql.rc == 0
+        fail_msg: production PostgreSQL connectivity check failed
+      when: "'production' in group_names"
+
+    - name: Inspect the database backup script
+      ansible.builtin.stat:
+        path: /usr/local/bin/db-backup.sh
+      register: database_backup_script
+
+    - name: Assert the database backup script is executable
+      ansible.builtin.assert:
+        that:
+          - database_backup_script.stat.exists
+          - database_backup_script.stat.isreg
+          - database_backup_script.stat.executable
+        fail_msg: database backup script is missing or not executable
+
+    - name: Validate rendered logrotate configuration
+      ansible.builtin.command:
+        argv:
+          - logrotate
+          - -d
+          - /etc/logrotate.d/test-app
+      register: logrotate_validation
+      changed_when: false
+
+    - name: Assert rendered logrotate configuration is valid
+      ansible.builtin.assert:
+        that:
+          - logrotate_validation.rc == 0
+        fail_msg: rendered test-app logrotate configuration failed validation

@@ -1,0 +1,135 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy and operate a Python Gunicorn application stack.
+    description:
+      - Installs the Python runtime, application dependencies, and PostgreSQL integration.
+      - Configures the application environment, systemd service, logging, backups, and health checks.
+    options:
+      app_name:
+        type: str
+        required: false
+        default: myapp-api
+        description: Application and systemd service name.
+      app_repo:
+        type: str
+        required: false
+        default: https://github.com/example-org/myapp-api.git
+        description: Git repository containing the application.
+      app_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      app_port:
+        type: int
+        required: false
+        default: 8000
+        description: Port on which Gunicorn listens.
+      app_dir:
+        type: str
+        required: false
+        default: /opt/myapp-api
+        description: Application installation directory.
+      app_user:
+        type: str
+        required: false
+        default: myapp
+        description: Runtime account.
+      app_group:
+        type: str
+        required: false
+        default: myapp
+        description: Runtime group.
+      python_version:
+        type: str
+        required: false
+        default: python3
+        description: Python executable used for the application.
+      pip_packages:
+        type: list
+        elements: str
+        required: false
+        default:
+          - uvicorn
+          - gunicorn
+          - psycopg2-binary
+        description: Additional Python packages installed in the virtual environment.
+      db_host:
+        type: str
+        required: false
+        default: localhost
+        description: PostgreSQL server hostname.
+      db_port:
+        type: int
+        required: false
+        default: 5432
+        description: PostgreSQL server port.
+      db_name:
+        type: str
+        required: false
+        default: myapp_db
+        description: Application database name.
+      db_user:
+        type: str
+        required: false
+        default: myapp_app
+        description: Application database role.
+      worker_count:
+        type: int
+        required: false
+        default: 2
+        description: Number of Gunicorn workers.
+      worker_class:
+        type: str
+        required: false
+        default: uvicorn.workers.UvicornWorker
+        description: Gunicorn worker class.
+      max_requests:
+        type: int
+        required: false
+        default: 1000
+        description: Maximum requests handled per worker.
+      graceful_timeout:
+        type: int
+        required: false
+        default: 30
+        description: Graceful worker shutdown timeout in seconds.
+      log_dir:
+        type: str
+        required: false
+        default: /var/log/myapp-api
+        description: Application log directory.
+      log_level:
+        type: str
+        required: false
+        default: info
+        description: Gunicorn and application log level.
+      log_max_size:
+        type: str
+        required: false
+        default: 100M
+        description: Maximum log file size before rotation.
+      log_rotate_count:
+        type: int
+        required: false
+        default: 7
+        description: Number of rotated log files to retain.
+      deployment_environment:
+        type: str
+        required: false
+        default: development
+        description: Deployment environment used for environment-specific behavior.
+      profile_app_stack_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide task output for operations that handle credentials.
+      db_password:
+        type: str
+        required: true
+        description: Database password injected by an AAP credential type.
+      secret_key:
+        type: str
+        required: true
+        description: Application secret key injected by an AAP credential type.
