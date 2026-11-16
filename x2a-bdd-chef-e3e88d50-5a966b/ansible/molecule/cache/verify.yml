@@ -1,0 +1,146 @@
+---
+# Unsupported pre-flight checks: Redis authentication cannot be tested without exposing the
+# secret, the Redis service name is not confirmed, Memcached ulimit is not safely observable
+# with a read-only Ansible module, Redis journal/log-path expectations are unspecified, and
+# second-run idempotence requires executing the playbook twice.
+- name: Verify cache services and configuration
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather service facts for the Memcached service check
+      ansible.builtin.service_facts:
+
+    - name: Verify Memcached is active and enabled
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts['services']"
+          - ansible_facts['services']['memcached.service']['state'] == 'running'
+          - ansible_facts['services']['memcached.service']['status'] == 'enabled'
+        fail_msg: Memcached must be active and enabled.
+
+    - name: Check the Memcached TCP endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 2
+
+    - name: Query the Memcached version endpoint
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - '2'
+          - 127.0.0.1
+          - '11211'
+        stdin: "version\r\n"
+      register: cache_memcached_version
+      changed_when: false
+
+    - name: Verify the Memcached version response
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_version['stdout'] is search('(?m)^VERSION\\s+')
+        fail_msg: Memcached must return a VERSION response.
+
+    - name: Inspect Memcached TCP and UDP listeners
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnup
+      register: cache_memcached_listeners
+      changed_when: false
+
+    - name: Verify Memcached TCP and UDP listeners
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_listeners['stdout'] is search('(?m)0\\.0\\.0\\.0:11211')
+          - cache_memcached_listeners['stdout'] is search('(?m)udp.*0\\.0\\.0\\.0:11211')
+        fail_msg: Memcached must listen on TCP and UDP port 11211 on 0.0.0.0.
+
+    - name: Inspect the Memcached process arguments and account
+      ansible.builtin.command:
+        argv:
+          - ps
+          - -eo
+          - user=,args=
+      register: cache_memcached_process
+      changed_when: false
+
+    - name: Verify the Memcached process settings
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_process['stdout'] is search('(?m)^service_user\\s+.*memcached')
+          - cache_memcached_process['stdout'] is search('(?:^|\\s)-m\\s*64(?:\\s|$)')
+          - cache_memcached_process['stdout'] is search('(?:^|\\s)-p\\s*11211(?:\\s|$)')
+          - cache_memcached_process['stdout'] is search('(?:^|\\s)-U\\s*11211(?:\\s|$)')
+          - cache_memcached_process['stdout'] is search('(?:^|\\s)-l\\s*0\\.0\\.0\\.0(?:\\s|$)')
+          - cache_memcached_process['stdout'] is search('(?:^|\\s)-c\\s*1024(?:\\s|$)')
+          - cache_memcached_process['stdout'] is search('(?:^|\\s)-I\\s*1m(?:\\s|$)')
+        fail_msg: Memcached must run with the configured account and arguments.
+
+    - name: Check Memcached runtime directories
+      ansible.builtin.stat:
+        path: "{{ item_cache_path['path'] }}"
+      loop:
+        - path: /var/log/memcached
+          owner: service_user
+        - path: /var/run/memcached
+          owner: service_user
+      loop_control:
+        loop_var: item_cache_path
+      register: cache_memcached_directories
+
+    - name: Verify Memcached runtime directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_cache_directory['stat']['exists']
+          - item_cache_directory['stat']['mode'] == '0755'
+          - item_cache_directory['stat']['pw_name'] == item_cache_directory['item']['owner']
+          - item_cache_directory['stat']['gr_name'] == 'service_group'
+        fail_msg: Memcached runtime directories must exist with mode 0755 and service ownership.
+      loop: "{{ cache_memcached_directories['results'] }}"
+      loop_control:
+        loop_var: item_cache_directory
+
+    - name: Read the Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_config
+
+    - name: Verify Redis port, authentication configuration, and cleaned directives
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config['content'] | b64decode is search('(?m)^port\\s+6379(?:\\s|$)')
+          - cache_redis_config['content'] | b64decode is search('(?m)^requirepass\\s+\\S+')
+          - cache_redis_config['content'] | b64decode is not search('(?m)^replica-serve-stale-data(?:\\s|=)')
+          - cache_redis_config['content'] | b64decode is not search('(?m)^replica-read-only(?:\\s|=)')
+          - cache_redis_config['content'] | b64decode is not search('(?m)^repl-ping-replica-period(?:\\s|=)')
+          - cache_redis_config['content'] | b64decode is not search('(?m)^client-output-buffer-limit(?:\\s|=)')
+          - cache_redis_config['content'] | b64decode is not search('(?m)^replica-priority(?:\\s|=)')
+          - cache_redis_config['content'] | b64decode is search('(?m)^pidfile\\s+/run/redis(?:/|\\s|$)')
+        fail_msg: Redis configuration must contain the expected port and authentication settings.
+
+    - name: Check Redis runtime directories
+      ansible.builtin.stat:
+        path: "{{ item_redis_path['path'] }}"
+      loop:
+        - path: /var/log/redis
+          owner: redis
+        - path: /run/redis
+          owner: redis
+      loop_control:
+        loop_var: item_redis_path
+      register: cache_redis_directories
+
+    - name: Verify Redis runtime directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_redis_directory['stat']['exists']
+          - item_redis_directory['stat']['pw_name'] == item_redis_directory['item']['owner']
+          - item_redis_directory['stat']['gr_name'] == 'redis'
+          - item_redis_directory['stat']['mode'] == '0755' or item_redis_directory['item']['path'] == '/run/redis'
+        fail_msg: Redis runtime directories must exist with the expected ownership.
+      loop: "{{ cache_redis_directories['results'] }}"
+      loop_control:
+        loop_var: item_redis_directory

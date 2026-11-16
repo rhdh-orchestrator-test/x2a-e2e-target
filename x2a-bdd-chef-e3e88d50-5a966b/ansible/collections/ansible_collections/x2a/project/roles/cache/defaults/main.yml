@@ -1,0 +1,28 @@
+---
+cache_secure_logging: true
+memcached_package_name: memcached
+memcached_service_name: memcached
+memcached_user: service_user
+memcached_group: service_group
+memcached_user_home: /nonexistent
+memcached_user_shell: /bin/false
+memcached_user_comment: Memcached
+memcached_memory: 64
+memcached_port: 11211
+memcached_udp_port: 11211
+memcached_listen: 0.0.0.0
+memcached_max_connections: 1024
+memcached_max_object_size: 1m
+memcached_ulimit: 1024
+memcached_threads: 4
+memcached_log_directory: /var/log/memcached
+memcached_run_directory: /var/run/memcached
+redis_port: 6379
+redis_requirepass: "{{ redis_password }}"
+redis_base_piddir: /run/redis
+redis_log_directory: /var/log/redis
+redis_rdb_enabled: true
+redis_aof_enabled: false
+redis_cluster_enabled: false
+redis_sentinel_enabled: false
+redis_replication_enabled: false

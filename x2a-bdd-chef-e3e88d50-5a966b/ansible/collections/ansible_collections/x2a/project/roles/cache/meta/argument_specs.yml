@@ -1,0 +1,143 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Memcached and standalone Redis cache services.
+    description:
+      - Installs and configures Memcached with the requested network and resource limits.
+      - Configures standalone Redis on port 6379 using an AAP-injected password.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks that handle cache secrets.
+      memcached_package_name:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached package name.
+      memcached_service_name:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached service name.
+      memcached_user:
+        type: str
+        required: false
+        default: service_user
+        description: User running Memcached.
+      memcached_group:
+        type: str
+        required: false
+        default: service_group
+        description: Group running Memcached.
+      memcached_user_home:
+        type: str
+        required: false
+        default: /nonexistent
+        description: Memcached service-account home directory.
+      memcached_user_shell:
+        type: str
+        required: false
+        default: /bin/false
+        description: Memcached service-account shell.
+      memcached_user_comment:
+        type: str
+        required: false
+        default: Memcached
+        description: Memcached service-account comment.
+      memcached_memory:
+        type: int
+        required: false
+        default: 64
+        description: Memcached memory allocation in megabytes.
+      memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: Memcached TCP port.
+      memcached_udp_port:
+        type: int
+        required: false
+        default: 11211
+        description: Memcached UDP port.
+      memcached_listen:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: Memcached listen address.
+      memcached_max_connections:
+        type: int
+        required: false
+        default: 1024
+        description: Maximum Memcached client connections.
+      memcached_max_object_size:
+        type: str
+        required: false
+        default: 1m
+        description: Maximum Memcached object size.
+      memcached_ulimit:
+        type: int
+        required: false
+        default: 1024
+        description: File descriptor limit for Memcached.
+      memcached_threads:
+        type: int
+        required: false
+        default: 4
+        description: Number of Memcached worker threads.
+      memcached_log_directory:
+        type: str
+        required: false
+        default: /var/log/memcached
+        description: Memcached log directory.
+      memcached_run_directory:
+        type: str
+        required: false
+        default: /var/run/memcached
+        description: Memcached runtime directory.
+      redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: Redis TCP port.
+      redis_requirepass:
+        type: str
+        required: false
+        default: "{{ redis_password }}"
+        description: Redis password sourced from the AAP credential variable.
+      redis_base_piddir:
+        type: str
+        required: false
+        default: /run/redis
+        description: Redis PID directory.
+      redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Redis log directory.
+      redis_rdb_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether Redis RDB persistence is enabled.
+      redis_aof_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis AOF persistence is enabled.
+      redis_cluster_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis clustering is enabled.
+      redis_sentinel_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis Sentinel is enabled.
+      redis_replication_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether Redis replication is enabled.

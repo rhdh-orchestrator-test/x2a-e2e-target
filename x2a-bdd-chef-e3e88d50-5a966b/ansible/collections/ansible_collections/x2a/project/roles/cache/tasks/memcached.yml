@@ -1,0 +1,19 @@
+---
+- name: Include Memcached package and account setup
+  ansible.builtin.include_tasks: memcached_package.yml
+
+- name: Configure Memcached service arguments
+  ansible.builtin.template:
+    src: memcached.conf.j2
+    dest: /etc/memcached.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Restart Memcached
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: "{{ memcached_service_name }}"
+    enabled: true
+    state: started
