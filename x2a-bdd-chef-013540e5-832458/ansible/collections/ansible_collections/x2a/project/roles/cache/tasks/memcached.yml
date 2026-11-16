@@ -1,0 +1,18 @@
+---
+- name: Install and configure Memcached
+  ansible.builtin.include_tasks: memcached_package.yml
+
+- name: Configure Memcached service options
+  ansible.builtin.template:
+    src: memcached.service.conf.j2
+    dest: /etc/sysconfig/memcached
+    mode: "0644"
+    backup: true
+  when: ansible_facts['os_family'] == 'RedHat'
+  notify: Restart memcached
+
+- name: Ensure Memcached service is enabled and started
+  ansible.builtin.service:
+    name: memcached
+    enabled: true
+    state: started

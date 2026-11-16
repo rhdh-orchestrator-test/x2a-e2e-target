@@ -1,0 +1,6 @@
+# Managed by Ansible
+PORT="{{ memcached_port }}"
+USER="{{ memcached_service_user }}"
+MAXCONN="{{ memcached_maxconn }}"
+CACHESIZE="{{ memcached_memory }}"
+OPTIONS="-l {{ memcached_listen }} -U {{ memcached_udp_port }} -I {{ memcached_max_object_size }}{% for option in memcached_experimental_options %} {{ option }}{% endfor %}{% for option in memcached_extra_cli_options %} {{ option }}{% endfor %}"

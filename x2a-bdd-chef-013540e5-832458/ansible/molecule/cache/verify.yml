@@ -1,0 +1,163 @@
+---
+# Unsupported pre-flight checks: concrete Memcached account names and directory metadata were not specified;
+# Redis service-unit discovery and service checks depend on an unresolved unit; /run/redis is conditional;
+# systemctl cat, journal output, and the combined diagnostic commands have no stated expected outcome.
+- name: Verify cache services
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather installed package facts for the Memcached package
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Verify that the Memcached package is installed
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.packages['memcached'] is defined
+        fail_msg: Memcached is not installed.
+
+    - name: Gather service facts for the Memcached service
+      ansible.builtin.service_facts:
+
+    - name: Verify that the Memcached service is enabled
+      ansible.builtin.assert:
+        that:
+          - >-
+            ('memcached.service' in ansible_facts.services or 'memcached' in ansible_facts.services)
+          - >-
+            ansible_facts.services.get('memcached.service', ansible_facts.services.get('memcached', {})).get('enabled', false)
+        fail_msg: The memcached service is not enabled.
+
+    - name: Verify that the Memcached service is active
+      ansible.builtin.assert:
+        that:
+          - >-
+            ansible_facts.services.get('memcached.service', ansible_facts.services.get('memcached', {})).get('state') == 'running'
+        fail_msg: The memcached service is not active.
+
+    - name: Verify the Memcached TCP endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 2
+
+    - name: Check the Memcached UDP endpoint
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ulnp
+      changed_when: false
+      register: memcached_udp_socket
+
+    - name: Verify that Memcached listens on UDP port 11211
+      ansible.builtin.assert:
+        that:
+          - memcached_udp_socket.rc == 0
+          - memcached_udp_socket.stdout is regex('[:.]11211\\b')
+        fail_msg: Memcached is not listening on UDP port 11211.
+
+    - name: Check the Memcached protocol response
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - '2'
+          - 127.0.0.1
+          - '11211'
+        stdin: "version\r\nquit\r\n"
+      changed_when: false
+      register: memcached_protocol
+
+    - name: Verify that Memcached returns a VERSION response
+      ansible.builtin.assert:
+        that:
+          - memcached_protocol.stdout is regex('(?m)^VERSION\\s')
+        fail_msg: Memcached did not return a VERSION response.
+
+    - name: Inspect the effective Memcached process settings
+      ansible.builtin.command:
+        argv:
+          - ps
+          - -ef
+      changed_when: false
+      register: memcached_processes
+
+    - name: Verify the effective Memcached settings
+      ansible.builtin.assert:
+        that:
+          - memcached_processes.stdout is regex('(?m)[m]emcached.*(?:^|\\s)-m\\s*64(?:\\s|$)')
+          - memcached_processes.stdout is regex('(?m)[m]emcached.*(?:^|\\s)-p\\s*11211(?:\\s|$)')
+          - memcached_processes.stdout is regex('(?m)[m]emcached.*(?:^|\\s)-U\\s*11211(?:\\s|$)')
+          - memcached_processes.stdout is regex('(?m)[m]emcached.*(?:^|\\s)-l\\s*0\\.0\\.0\\.0(?:\\s|$)')
+          - memcached_processes.stdout is regex('(?m)[m]emcached.*(?:^|\\s)-c\\s*1024(?:\\s|$)')
+          - memcached_processes.stdout is regex('(?m)[m]emcached.*(?:^|\\s)-I\\s*1m(?:\\s|$)')
+        fail_msg: The effective Memcached process settings do not match the requested values.
+
+    - name: Verify the Redis TCP endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 2
+
+    - name: Check Redis authentication with the injected password
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - -a
+          - "{{ redis_password }}"
+          - PING
+      changed_when: false
+      no_log: "{{ cache_secure_logging | default(true) }}"
+      register: redis_ping
+
+    - name: Verify that authenticated Redis PING returns PONG
+      ansible.builtin.assert:
+        that:
+          - redis_ping.stdout is regex('(?m)^PONG\\s*$')
+        fail_msg: Authenticated Redis PING did not return PONG.
+
+    - name: Inspect the Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Read the Redis configuration when present
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      when: redis_config_stat.stat.exists
+      register: redis_config
+
+    - name: Verify that the specified Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            not (redis_config['content'] | b64decode |
+            regex_search('^' ~ item_redis_directive ~ '.*$', multiline=true))
+        fail_msg: A removed Redis directive is still present in the configuration.
+      loop:
+        - replica-serve-stale-data
+        - replica-read-only
+        - repl-ping-replica-period
+        - client-output-buffer-limit
+        - replica-priority
+      loop_control:
+        loop_var: item_redis_directive
+      when: redis_config_stat.stat.exists
+
+    - name: Inspect the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Verify Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.pw_name == 'redis'
+          - redis_log_directory.stat.gr_name == 'redis'
+          - redis_log_directory.stat.mode == '0755'
+        fail_msg: The Redis log directory does not have the expected ownership or mode.
