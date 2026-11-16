@@ -1,0 +1,10 @@
+---
+- name: Restart cache services  # noqa: L039 - item_cache_service is defined by this task's loop_control.loop_var
+  ansible.builtin.service:
+    name: "{{ item_cache_service }}"
+    state: restarted
+  loop:
+    - memcached
+    - redis
+  loop_control:
+    loop_var: item_cache_service

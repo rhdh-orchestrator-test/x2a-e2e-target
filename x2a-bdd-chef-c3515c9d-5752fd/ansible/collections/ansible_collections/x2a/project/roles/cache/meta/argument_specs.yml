@@ -1,0 +1,109 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Memcached and Redis cache services
+    description:
+      - Installs and configures the Memcached and Redis cache services.
+      - Redis authentication is supplied through an AAP credential variable.
+    options:
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output for tasks handling the Redis password.
+      cache_memcached_memory:
+        type: int
+        required: false
+        default: 64
+        description: Memcached memory allocation in megabytes.
+      cache_memcached_tcp_port:
+        type: int
+        required: false
+        default: 11211
+        description: Memcached TCP listening port.
+      cache_memcached_udp_port:
+        type: int
+        required: false
+        default: 11211
+        description: Memcached UDP listening port.
+      cache_memcached_listen:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: Memcached listen address.
+      cache_memcached_max_connections:
+        type: int
+        required: false
+        default: 1024
+        description: Maximum number of Memcached connections.
+      cache_memcached_max_item_size:
+        type: str
+        required: false
+        default: 1m
+        description: Maximum Memcached object size.
+      cache_memcached_threads:
+        type: int
+        required: false
+        default: 4
+        description: Number of Memcached worker threads.
+      cache_memcached_ulimit:
+        type: int
+        required: false
+        default: 1024
+        description: Memcached open-file limit.
+      cache_memcached_user:
+        type: str
+        required: false
+        default: memcached
+        description: User running Memcached.
+      cache_memcached_log_directory:
+        type: str
+        required: false
+        default: /var/log/memcached
+        description: Memcached log directory.
+      cache_memcached_run_directory:
+        type: str
+        required: false
+        default: /var/run/memcached
+        description: Memcached runtime directory.
+      cache_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: Redis listening port.
+      cache_redis_pid_directory:
+        type: str
+        required: false
+        default: /run/redis
+        description: Redis PID directory.
+      cache_redis_log_directory:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Redis log directory.
+      cache_redis_log_owner:
+        type: str
+        required: false
+        default: redis
+        description: Redis log directory owner.
+      cache_redis_log_group:
+        type: str
+        required: false
+        default: redis
+        description: Redis log directory group.
+      cache_redis_log_mode:
+        type: str
+        required: false
+        default: "0755"
+        description: Redis log directory permissions.
+      cache_redis_removed_directives:
+        type: list
+        elements: str
+        required: false
+        default:
+          - replica-serve-stale-data
+          - replica-read-only
+          - repl-ping-replica-period
+          - client-output-buffer-limit
+          - replica-priority
+        description: Redis directives removed from the generated configuration.
