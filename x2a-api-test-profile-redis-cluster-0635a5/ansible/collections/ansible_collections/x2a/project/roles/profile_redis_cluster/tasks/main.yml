@@ -1,0 +1,23 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure standalone Redis with the Private Hub role
+  ansible.builtin.include_role:  # noqa: L038 - external eloy.redis role is declared in requirements.yml and provided at deployment time
+    name: eloy.redis.redis
+  no_log: "{{ redis_cluster_secure_logging }}"
+  vars:
+    redis_version: "7.2"
+    redis_install_method: package
+    redis_port: "{{ redis_cluster_redis_port }}"
+    redis_requirepass: "{{ redis_password }}"
+    redis_maxmemory: "{{ redis_cluster_maxmemory_mb }}mb"
+    redis_maxmemory_policy: "{{ redis_cluster_maxmemory_policy }}"
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_replication_enabled: false
+    redis_aof_enabled: true
+    redis_rdb_enabled: true
+    redis_bind: 0.0.0.0
+    redis_aof_fsync: everysec
+    redis_unixsocket: /var/run/redis/redis.sock

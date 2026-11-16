@@ -1,0 +1,196 @@
+---
+# Unsupported pre-flight checks: OS family/release reporting, directory ownership/modes,
+# optional Debian defaults-file reporting, secret-source provenance, Redis configuration
+# validation, authenticated redis-cli checks, CONFIG GET result checks, and the
+# maxmemory-policy choice have no single stated expected outcome or require protected
+# credentials/platform-specific behavior not available to this verification play.
+- name: Verify profile_redis_cluster pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Confirm the target platform is Linux
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['system'] == 'Linux'
+        fail_msg: Target platform is not Linux.
+
+    - name: Check the Debian Redis package repository metadata
+      ansible.builtin.command:
+        argv:
+          - apt-cache
+          - policy
+          - redis-server
+      register: item_debian_package_metadata
+      changed_when: false
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Confirm the Debian Redis package is available from the repository
+      ansible.builtin.assert:
+        that:
+          - item_debian_package_metadata['rc'] == 0
+          - item_debian_package_metadata['stdout'] is search('Candidate:')
+          - item_debian_package_metadata['stdout'] is not search('Candidate:\\s+\\(none\\)')
+        fail_msg: The Debian Redis package is not available from the configured repository.
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Check the RedHat Redis package repository metadata
+      ansible.builtin.command:
+        argv:
+          - dnf
+          - info
+          - redis
+      register: item_redhat_package_metadata
+      changed_when: false
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Confirm the RedHat Redis package is available from the repository
+      ansible.builtin.assert:
+        that:
+          - item_redhat_package_metadata['rc'] == 0
+        fail_msg: The RedHat Redis package is not available from the configured repository.
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Check the Debian default-instance Puppet configuration
+      ansible.builtin.stat:
+        path: /etc/redis/redis.conf.puppet
+      register: item_debian_puppet_config
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Confirm the Debian Puppet configuration exists
+      ansible.builtin.assert:
+        that:
+          - item_debian_puppet_config['stat']['exists']
+          - item_debian_puppet_config['stat']['isreg']
+        fail_msg: The Debian Puppet configuration file is missing.
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Check the Debian active Redis configuration
+      ansible.builtin.stat:
+        path: /etc/redis/redis.conf
+      register: item_debian_active_config
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Confirm the Debian active Redis configuration exists
+      ansible.builtin.assert:
+        that:
+          - item_debian_active_config['stat']['exists']
+          - item_debian_active_config['stat']['isreg']
+        fail_msg: The Debian active Redis configuration file is missing.
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Check the RedHat 9 or later Puppet configuration
+      ansible.builtin.stat:
+        path: /etc/redis/redis.conf.puppet
+      register: item_redhat_modern_puppet_config
+      when:
+        - ansible_facts['os_family'] == 'RedHat'
+        - ansible_facts['distribution_major_version'] | int >= 9
+
+    - name: Confirm the RedHat 9 or later Puppet configuration exists
+      ansible.builtin.assert:
+        that:
+          - item_redhat_modern_puppet_config['stat']['exists']
+          - item_redhat_modern_puppet_config['stat']['isreg']
+        fail_msg: The RedHat 9 or later Puppet configuration file is missing.
+      when:
+        - ansible_facts['os_family'] == 'RedHat'
+        - ansible_facts['distribution_major_version'] | int >= 9
+
+    - name: Check the RedHat 9 or later active Redis configuration
+      ansible.builtin.stat:
+        path: /etc/redis/redis.conf
+      register: item_redhat_modern_active_config
+      when:
+        - ansible_facts['os_family'] == 'RedHat'
+        - ansible_facts['distribution_major_version'] | int >= 9
+
+    - name: Confirm the RedHat 9 or later active Redis configuration exists
+      ansible.builtin.assert:
+        that:
+          - item_redhat_modern_active_config['stat']['exists']
+          - item_redhat_modern_active_config['stat']['isreg']
+        fail_msg: The RedHat 9 or later active Redis configuration file is missing.
+      when:
+        - ansible_facts['os_family'] == 'RedHat'
+        - ansible_facts['distribution_major_version'] | int >= 9
+
+    - name: Check the pre-9 RedHat Puppet configuration
+      ansible.builtin.stat:
+        path: /etc/redis.conf.puppet
+      register: item_redhat_legacy_puppet_config
+      when:
+        - ansible_facts['os_family'] == 'RedHat'
+        - ansible_facts['distribution_major_version'] | int < 9
+
+    - name: Confirm the pre-9 RedHat Puppet configuration exists
+      ansible.builtin.assert:
+        that:
+          - item_redhat_legacy_puppet_config['stat']['exists']
+          - item_redhat_legacy_puppet_config['stat']['isreg']
+        fail_msg: The pre-9 RedHat Puppet configuration file is missing.
+      when:
+        - ansible_facts['os_family'] == 'RedHat'
+        - ansible_facts['distribution_major_version'] | int < 9
+
+    - name: Check the pre-9 RedHat active Redis configuration
+      ansible.builtin.stat:
+        path: /etc/redis.conf
+      register: item_redhat_legacy_active_config
+      when:
+        - ansible_facts['os_family'] == 'RedHat'
+        - ansible_facts['distribution_major_version'] | int < 9
+
+    - name: Confirm the pre-9 RedHat active Redis configuration exists
+      ansible.builtin.assert:
+        that:
+          - item_redhat_legacy_active_config['stat']['exists']
+          - item_redhat_legacy_active_config['stat']['isreg']
+        fail_msg: The pre-9 RedHat active Redis configuration file is missing.
+      when:
+        - ansible_facts['os_family'] == 'RedHat'
+        - ansible_facts['distribution_major_version'] | int < 9
+
+    - name: Gather Redis service state
+      ansible.builtin.service_facts:
+
+    - name: Confirm the Debian Redis service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['redis-server.service']['status'] == 'enabled'
+          - ansible_facts['services']['redis-server.service']['state'] == 'running'
+        fail_msg: The Debian Redis service is not enabled and active.
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Confirm the RedHat and other supported Redis service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['redis.service']['status'] == 'enabled'
+          - ansible_facts['services']['redis.service']['state'] == 'running'
+        fail_msg: The Redis service is not enabled and active.
+      when: ansible_facts['os_family'] != 'Debian'
+
+    - name: Check the default Redis TCP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+      register: item_redis_tcp_listener
+      changed_when: false
+
+    - name: Confirm the default Redis TCP listener is present
+      ansible.builtin.assert:
+        that:
+          - item_redis_tcp_listener['stdout'] is search('0\\.0\\.0\\.0:6379')
+        fail_msg: The default Redis TCP listener is not present on 0.0.0.0:6379.
+
+    - name: Check the default Redis Unix socket
+      ansible.builtin.stat:
+        path: /var/run/redis/redis.sock
+      register: item_redis_unix_socket
+
+    - name: Confirm the default Redis Unix socket exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_unix_socket['stat']['exists']
+          - item_redis_unix_socket['stat']['issock']
+        fail_msg: The default Redis Unix socket is missing.

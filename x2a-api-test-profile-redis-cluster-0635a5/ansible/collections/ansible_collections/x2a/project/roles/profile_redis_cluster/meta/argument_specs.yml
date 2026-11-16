@@ -1,0 +1,32 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure a standalone Redis service.
+    description:
+      - Installs and configures Redis through the eloy.redis collection.
+      - The Redis authentication password is injected by an AAP credential variable.
+    options:
+      redis_cluster_redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: TCP port used by the standalone Redis instance.
+      redis_cluster_maxmemory_mb:
+        type: int
+        required: false
+        default: 256
+        description: Maximum Redis memory in megabytes.
+      redis_cluster_maxmemory_policy:
+        type: str
+        required: false
+        default: allkeys-lru
+        description: Redis maximum-memory eviction policy.
+      redis_cluster_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks that handle the Redis password.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.
