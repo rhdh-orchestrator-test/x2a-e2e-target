@@ -1,0 +1,24 @@
+---
+- name: Install Memcached
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Configure Memcached service options
+  ansible.builtin.copy:
+    dest: "{{ '/etc/sysconfig/memcached' if ansible_facts.os_family == 'RedHat' else '/etc/default/memcached' }}"  # noqa: R114 - destination is restricted to fixed OS-specific paths
+    content: |
+      PORT="{{ cache_memcached_port }}"
+      USER="{{ cache_memcached_user }}"
+      MAXCONN="{{ cache_memcached_maxconn }}"
+      CACHESIZE="{{ cache_memcached_memory }}"
+      OPTIONS="-l {{ cache_memcached_listen }} -U {{ cache_memcached_udp_port }} -I {{ cache_memcached_max_object_size }}"
+    mode: "0644"
+    backup: true
+  notify: Restart Memcached after configuration change
+
+- name: Ensure Memcached service is enabled and started
+  ansible.builtin.service:
+    name: memcached
+    enabled: true
+    state: started
