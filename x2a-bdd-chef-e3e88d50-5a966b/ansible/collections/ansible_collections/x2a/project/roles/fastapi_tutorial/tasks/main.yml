@@ -1,0 +1,119 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install application and database packages
+  ansible.builtin.package:
+    name: >-
+      {{ (fastapi_tutorial_packages | difference(['postgresql', 'python3-venv']) + ['postgresql-server'])
+        if ansible_facts['os_family'] == 'RedHat' else fastapi_tutorial_packages }}
+    state: present
+
+- name: Initialize PostgreSQL on RedHat-family systems
+  ansible.builtin.command:
+    cmd: postgresql-setup --initdb
+    creates: /var/lib/pgsql/data/PG_VERSION
+  when: ansible_facts['os_family'] == 'RedHat'
+
+- name: Create application directory
+  ansible.builtin.file:
+    path: /opt/fastapi-tutorial
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Check out FastAPI tutorial repository
+  ansible.builtin.git:
+    repo: https://github.com/dibanez/fastapi_tutorial.git
+    dest: /opt/fastapi-tutorial
+    version: main
+    update: true
+
+- name: Create Python virtual environment
+  ansible.builtin.command:
+    cmd: python3 -m venv /opt/fastapi-tutorial/venv
+    creates: /opt/fastapi-tutorial/venv/bin/python
+
+- name: Install application dependencies
+  ansible.builtin.pip:
+    requirements: /opt/fastapi-tutorial/requirements.txt
+    virtualenv: /opt/fastapi-tutorial/venv
+
+- name: Enable and start PostgreSQL
+  ansible.builtin.service:
+    name: "{{ fastapi_tutorial_postgresql_service }}"
+    enabled: true
+    state: started
+
+- name: Create PostgreSQL application role  # noqa: L039 - variables are required role parameters defined in argument_specs
+  community.postgresql.postgresql_user:
+    name: "{{ db_username }}"
+    password: "{{ db_password }}"
+    state: present
+    login_db: postgres
+  become: true  # noqa: R108 - PostgreSQL role management requires the postgres user
+  become_user: postgres
+  no_log: true
+
+- name: Create PostgreSQL application database  # noqa: L039 - variables are required role parameters defined in argument_specs
+  community.postgresql.postgresql_db:
+    name: "{{ db_name }}"
+    owner: "{{ db_username }}"
+    state: present
+    login_db: postgres
+  become: true  # noqa: R108 - PostgreSQL database management requires the postgres user
+  become_user: postgres
+
+- name: Grant PostgreSQL database privileges  # noqa: L039 - variables are required role parameters defined in argument_specs
+  community.postgresql.postgresql_privs:
+    database: "{{ db_name }}"
+    roles: "{{ db_username }}"
+    type: database
+    privs: ALL
+    state: present
+    login_db: postgres
+  become: true  # noqa: R108 - PostgreSQL privilege management requires the postgres user
+  become_user: postgres
+
+- name: Write application environment file  # noqa: L039 - variables are required role parameters defined in argument_specs
+  ansible.builtin.copy:
+    content: |
+      PROJECT_NAME="FastAPI Tutorial"
+      API_VERSION=1.0.0
+      DATABASE_URL=postgresql://{{ db_username }}:{{ db_password }}@{{ db_host }}/{{ db_name }}
+    dest: /opt/fastapi-tutorial/.env
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  no_log: "{{ fastapi_tutorial_secure_logging }}"
+
+- name: Write FastAPI systemd unit
+  ansible.builtin.copy:
+    content: |
+      [Unit]
+      Description=FastAPI Tutorial Service
+      After=network.target {{ fastapi_tutorial_postgresql_service }}.service
+      [Service]
+      Type=simple
+      User=root
+      WorkingDirectory=/opt/fastapi-tutorial
+      Environment="PATH=/opt/fastapi-tutorial/venv/bin"
+      ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+      Restart=always
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/fastapi-tutorial.service
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Reload systemd
+
+- name: Enable and start FastAPI tutorial
+  ansible.builtin.systemd:
+    name: fastapi-tutorial
+    enabled: true
+    state: started
+    daemon_reload: true

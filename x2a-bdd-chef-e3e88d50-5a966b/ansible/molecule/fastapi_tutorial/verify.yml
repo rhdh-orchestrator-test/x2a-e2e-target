@@ -1,0 +1,294 @@
+---
+# Unsupported pre-flight checks: the current branch name, authenticated PostgreSQL
+# password check, service/log reviews, and unrestricted command output are not
+# translated because their expected results cannot be checked safely here.
+- name: Verify fastapi-tutorial deployment
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify Python runtime
+      ansible.builtin.command:
+        argv:
+          - python3
+          - --version
+      register: item_python_version
+      changed_when: false
+
+    - name: Verify pip runtime
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -m
+          - pip
+          - --version
+      register: item_pip_version
+      changed_when: false
+
+    - name: Verify Git runtime
+      ansible.builtin.command:
+        argv:
+          - git
+          - --version
+      register: item_git_version
+      changed_when: false
+
+    - name: Verify application directory
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: item_app_directory
+
+    - name: Assert application directory exists with expected ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_app_directory.stat.exists
+          - item_app_directory.stat.isdir
+          - item_app_directory.stat.pw_name == 'root'
+          - item_app_directory.stat.gr_name == 'root'
+          - item_app_directory.stat.mode == '0755'
+
+    - name: Verify application checkout
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - /opt/fastapi-tutorial
+          - rev-parse
+          - --is-inside-work-tree
+      register: item_git_checkout
+      changed_when: false
+
+    - name: Assert application is a Git checkout
+      ansible.builtin.assert:
+        that:
+          - item_git_checkout.rc == 0
+          - item_git_checkout.stdout | trim == 'true'
+
+    - name: Verify application requirements file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: item_requirements_file
+
+    - name: Assert application requirements file exists
+      ansible.builtin.assert:
+        that:
+          - item_requirements_file.stat.exists
+          - item_requirements_file.stat.isreg
+
+    - name: Verify application virtual-environment Python
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/python
+      register: item_venv_python
+
+    - name: Verify application virtual-environment pip
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/pip
+      register: item_venv_pip
+
+    - name: Verify application virtual-environment Uvicorn
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/uvicorn
+      register: item_venv_uvicorn
+
+    - name: Assert virtual-environment executables exist
+      ansible.builtin.assert:
+        that:
+          - item_venv_python.stat.exists
+          - item_venv_python.stat.executable
+          - item_venv_pip.stat.exists
+          - item_venv_pip.stat.executable
+          - item_venv_uvicorn.stat.exists
+          - item_venv_uvicorn.stat.executable
+
+    - name: Verify environment file metadata
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/.env
+      register: item_environment_file
+
+    - name: Assert environment file has expected metadata
+      ansible.builtin.assert:
+        that:
+          - item_environment_file.stat.exists
+          - item_environment_file.stat.isreg
+          - item_environment_file.stat.pw_name == 'root'
+          - item_environment_file.stat.gr_name == 'root'
+          - item_environment_file.stat.mode == '0644'
+
+    - name: Verify environment file variables
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -Eq
+          - '^(PROJECT_NAME|API_VERSION|DATABASE_URL)='
+          - /opt/fastapi-tutorial/.env
+      register: item_environment_variables
+      changed_when: false
+
+    - name: Assert environment file contains required variables
+      ansible.builtin.assert:
+        that:
+          - item_environment_variables.rc == 0
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert PostgreSQL service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['postgresql.service']['state'] == 'running'
+          - ansible_facts.services['postgresql.service']['status'] == 'enabled'
+
+    - name: Verify PostgreSQL role
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT usename FROM pg_user WHERE usename = 'fastapi';
+      register: item_postgresql_role
+      changed_when: false
+
+    - name: Assert PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - item_postgresql_role.rc == 0
+          - item_postgresql_role.stdout | trim == 'fastapi'
+
+    - name: Verify PostgreSQL database
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT datname FROM pg_database WHERE datname = 'fastapi_db';
+      register: item_postgresql_database
+      changed_when: false
+
+    - name: Assert PostgreSQL database exists
+      ansible.builtin.assert:
+        that:
+          - item_postgresql_database.rc == 0
+          - item_postgresql_database.stdout | trim == 'fastapi_db'
+
+    - name: Verify PostgreSQL database access and current user
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -d
+          - fastapi_db
+          - -tAc
+          - SELECT current_database(), current_user;
+      register: item_postgresql_access
+      changed_when: false
+
+    - name: Assert PostgreSQL database and user are available
+      ansible.builtin.assert:
+        that:
+          - item_postgresql_access.rc == 0
+          - item_postgresql_access.stdout | trim == 'fastapi_db|postgres'
+
+    - name: Verify FastAPI systemd unit metadata
+      ansible.builtin.stat:
+        path: /etc/systemd/system/fastapi-tutorial.service
+      register: item_fastapi_unit
+
+    - name: Assert FastAPI systemd unit has expected metadata
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_unit.stat.exists
+          - item_fastapi_unit.stat.isreg
+          - item_fastapi_unit.stat.pw_name == 'root'
+          - item_fastapi_unit.stat.gr_name == 'root'
+          - item_fastapi_unit.stat.mode == '0644'
+
+    - name: Verify FastAPI service is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - fastapi-tutorial
+      register: item_fastapi_enabled
+      changed_when: false
+
+    - name: Verify FastAPI service is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - fastapi-tutorial
+      register: item_fastapi_active
+      changed_when: false
+
+    - name: Assert FastAPI service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_enabled.rc == 0
+          - item_fastapi_enabled.stdout | trim == 'enabled'
+          - item_fastapi_active.rc == 0
+          - item_fastapi_active.stdout | trim == 'active'
+
+    - name: Verify FastAPI systemd unit settings
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - fastapi-tutorial
+          - -p
+          - User
+          - -p
+          - WorkingDirectory
+          - -p
+          - ExecStart
+          - -p
+          - Restart
+      register: item_fastapi_settings
+      changed_when: false
+
+    - name: Assert FastAPI systemd unit settings
+      ansible.builtin.assert:
+        that:
+          - "'User=root' in item_fastapi_settings.stdout"
+          - "'WorkingDirectory=/opt/fastapi-tutorial' in item_fastapi_settings.stdout"
+          - "'/opt/fastapi-tutorial/venv/bin/uvicorn app.main:app' in item_fastapi_settings.stdout"
+          - "'--host 0.0.0.0' in item_fastapi_settings.stdout"
+          - "'--port 8000' in item_fastapi_settings.stdout"
+          - "'Restart=always' in item_fastapi_settings.stdout"
+
+    - name: Verify FastAPI HTTP endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8000/
+        return_content: false
+      register: item_fastapi_endpoint
+
+    - name: Assert FastAPI endpoint returned an HTTP response
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_endpoint.status >= 100
+          - item_fastapi_endpoint.status < 600
+
+    - name: Verify FastAPI TCP listener
+      ansible.builtin.wait_for:
+        host: 0.0.0.0
+        port: 8000
+        state: started
+        timeout: 5
+
+    - name: Verify Uvicorn process
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -af
+          - 'uvicorn app.main:app'
+      register: item_uvicorn_process
+      changed_when: false
+
+    - name: Assert Uvicorn process is running
+      ansible.builtin.assert:
+        that:
+          - item_uvicorn_process.rc == 0
