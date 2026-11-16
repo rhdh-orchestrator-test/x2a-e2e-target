@@ -1,0 +1,85 @@
+---
+- name: Validate firewall provider
+  ansible.builtin.assert:
+    that:
+      - profile_haproxy_firewall_provider in ['firewalld', 'ufw', 'none']
+    fail_msg: "Unsupported HAProxy firewall provider: {{ profile_haproxy_firewall_provider }}"
+
+- name: Open HAProxy HTTP and HTTPS ports in firewalld
+  ansible.posix.firewalld:
+    zone: "{{ profile_haproxy_firewall_zone }}"
+    port: "{{ item_firewall_port }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+  when: profile_haproxy_firewall_provider == 'firewalld'
+  loop:
+    - 80
+    - 443
+  loop_control:
+    loop_var: item_firewall_port
+
+- name: Open HAProxy statistics port in firewalld
+  ansible.posix.firewalld:
+    zone: "{{ profile_haproxy_firewall_zone }}"
+    port: "{{ profile_haproxy_stats_port }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+  when:
+    - profile_haproxy_firewall_provider == 'firewalld'
+    - profile_haproxy_stats_enabled
+
+- name: Install UFW
+  ansible.builtin.package:
+    name: ufw
+    state: present
+  when: profile_haproxy_firewall_provider == 'ufw'
+
+- name: Check UFW HTTP and HTTPS rules
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - status
+  register: profile_haproxy_ufw_status
+  changed_when: false
+  when: profile_haproxy_firewall_provider == 'ufw'
+
+- name: Allow HAProxy ports in UFW # noqa: R101 - ufw command uses trusted role port values
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - "{{ item_ufw_port }}/tcp"
+  when:
+    - profile_haproxy_firewall_provider == 'ufw'
+    - item_ufw_port ~ '/tcp' not in profile_haproxy_ufw_status.stdout # noqa: L039 - registered by the preceding UFW status task
+  changed_when: true
+  loop:
+    - 80
+    - 443
+  loop_control:
+    loop_var: item_ufw_port
+
+- name: Allow HAProxy statistics port in UFW # noqa: R101 - ufw command uses trusted role port values
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - allow
+      - "{{ profile_haproxy_stats_port }}/tcp"
+  when:
+    - profile_haproxy_firewall_provider == 'ufw'
+    - profile_haproxy_stats_port ~ '/tcp' not in profile_haproxy_ufw_status.stdout # noqa: L039 - registered by the preceding UFW status task
+    - profile_haproxy_stats_enabled
+  changed_when: true
+
+- name: Enable UFW # noqa: R101 - ufw command is a fixed trusted system command
+  ansible.builtin.command:
+    argv:
+      - ufw
+      - --force
+      - enable
+  when:
+    - profile_haproxy_firewall_provider == 'ufw'
+    - "'Status: active' not in profile_haproxy_ufw_status.stdout" # noqa: L039 - registered by the preceding UFW status task
+  changed_when: true

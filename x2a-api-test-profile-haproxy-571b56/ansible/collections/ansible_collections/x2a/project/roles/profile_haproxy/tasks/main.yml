@@ -1,0 +1,32 @@
+---
+- name: Load operating system variables
+  ansible.builtin.include_vars: "{{ ansible_facts['os_family'] }}.yml"
+  when: ansible_facts['os_family'] is defined
+
+- name: Validate credential variables
+  ansible.builtin.assert:
+    that:
+      - haproxy_stats_password is defined
+      - haproxy_stats_password is string
+      - haproxy_stats_password | length > 0
+    fail_msg: haproxy_stats_password must be provided when HAProxy statistics are enabled.
+  when: profile_haproxy_stats_enabled | bool
+
+- name: Install HAProxy
+  ansible.builtin.include_tasks: install.yml
+
+- name: Configure HAProxy
+  ansible.builtin.include_tasks: config.yml
+
+- name: Collect HAProxy facts
+  ansible.builtin.include_tasks: facts.yml
+
+- name: Configure firewall
+  ansible.builtin.include_tasks: firewall.yml
+
+- name: Configure discovery
+  ansible.builtin.include_tasks: discover.yml
+  when: profile_haproxy_discovery_enabled | bool
+
+- name: Manage HAProxy service
+  ansible.builtin.include_tasks: service.yml

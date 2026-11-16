@@ -1,0 +1,178 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure HAProxy as a load balancer
+    description:
+      - Installs HAProxy, renders its configuration and backend fragments, and manages the service lifecycle.
+      - Firewall and discovery integrations are optional and disabled or provider-controlled by default.
+    options:
+      profile_haproxy_package_name:
+        type: str
+        required: false
+        default: haproxy
+        description: HAProxy package name.
+      profile_haproxy_config_dir:
+        type: str
+        required: false
+        default: /etc/haproxy
+        description: HAProxy configuration directory.
+      profile_haproxy_config_file:
+        type: str
+        required: false
+        default: /etc/haproxy/haproxy.cfg
+        description: Main HAProxy configuration path.
+      profile_haproxy_service_name:
+        type: str
+        required: false
+        default: haproxy
+        description: HAProxy service name.
+      profile_haproxy_user:
+        type: str
+        required: false
+        default: haproxy
+        description: HAProxy runtime user.
+      profile_haproxy_group:
+        type: str
+        required: false
+        default: haproxy
+        description: HAProxy runtime group.
+      profile_haproxy_stats_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether to enable the HAProxy statistics listener.
+      profile_haproxy_stats_port:
+        type: int
+        required: false
+        default: 9000
+        description: HAProxy statistics listener port.
+      profile_haproxy_stats_uri:
+        type: str
+        required: false
+        default: /haproxy-stats
+        description: HAProxy statistics URI.
+      profile_haproxy_stats_user:
+        type: str
+        required: false
+        default: admin
+        description: HAProxy statistics username.
+      haproxy_stats_password:
+        type: str
+        required: true
+        description: Statistics password injected by an AAP credential or Vault.
+      profile_haproxy_global_maxconn:
+        type: int
+        required: false
+        default: 4096
+        description: Maximum global HAProxy connections.
+      profile_haproxy_client_timeout:
+        type: str
+        required: false
+        default: 30s
+        description: HAProxy client timeout.
+      profile_haproxy_server_timeout:
+        type: str
+        required: false
+        default: 30s
+        description: HAProxy server timeout.
+      profile_haproxy_connect_timeout:
+        type: str
+        required: false
+        default: 5s
+        description: HAProxy connect timeout.
+      profile_haproxy_retries:
+        type: int
+        required: false
+        default: 3
+        description: Number of HAProxy connection retries.
+      profile_haproxy_ssl_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether HAProxy SSL bindings are enabled.
+      profile_haproxy_ssl_cert_path:
+        type: str
+        required: false
+        default: /etc/ssl/certs
+        description: SSL certificate directory.
+      profile_haproxy_ssl_key_path:
+        type: str
+        required: false
+        default: /etc/ssl/private
+        description: SSL private key directory.
+      profile_haproxy_ssl_ciphers:
+        type: str
+        required: false
+        default: ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256
+        description: HAProxy SSL cipher list.
+      profile_haproxy_ssl_min_version:
+        type: str
+        required: false
+        default: TLSv1.2
+        description: Minimum SSL protocol version.
+      profile_haproxy_log_server:
+        type: str
+        required: false
+        default: 127.0.0.1
+        description: HAProxy syslog server.
+      profile_haproxy_log_facility:
+        type: str
+        required: false
+        default: local0
+        description: HAProxy syslog facility.
+      profile_haproxy_log_level:
+        type: str
+        required: false
+        default: info
+        description: HAProxy syslog level.
+      profile_haproxy_backends:
+        type: dict
+        required: false
+        default: {}
+        description: Backend definitions and server membership.
+      profile_haproxy_extra_packages:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: Additional operating system packages.
+      profile_haproxy_selinux_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether to enable the HAProxy SELinux network boolean.
+      profile_haproxy_firewall_provider:
+        type: str
+        required: false
+        default: none
+        description: Firewall provider, one of firewalld, ufw, or none.
+      profile_haproxy_firewall_zone:
+        type: str
+        required: false
+        default: public
+        description: Firewalld zone for HAProxy ports.
+      profile_haproxy_stick_table_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether to render the HAProxy stick table fragment.
+      profile_haproxy_stick_table_size:
+        type: str
+        required: false
+        default: 200k
+        description: HAProxy stick table size.
+      profile_haproxy_stick_table_expire:
+        type: str
+        required: false
+        default: 30m
+        description: HAProxy stick table expiration.
+      profile_haproxy_discovery_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Whether to run the inventory-backed discovery integration.
+      profile_haproxy_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide task output for configuration renders containing credentials.

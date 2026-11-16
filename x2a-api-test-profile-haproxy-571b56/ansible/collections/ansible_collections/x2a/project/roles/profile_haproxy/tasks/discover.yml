@@ -1,0 +1,13 @@
+---
+- name: Explain disabled HAProxy discovery
+  ansible.builtin.debug:
+    msg: >-
+      HAProxy discovery was enabled in the source through PuppetDB exports and collectors. Configure
+      profile_haproxy_discovered_servers or inventory groups to provide equivalent members.
+
+- name: Validate discovered HAProxy server data
+  ansible.builtin.assert:
+    that:
+      - profile_haproxy_discovered_servers is iterable
+    fail_msg: profile_haproxy_discovered_servers must be a list when discovery is enabled.
+  when: profile_haproxy_discovered_servers is defined # noqa: L039 - variable is an optional role input guarded by is defined

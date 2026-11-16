@@ -1,0 +1,14 @@
+# Backend: {{ backend_name }}
+# Managed by Ansible
+
+backend {{ backend_name }}
+    balance {{ backend_config['balance'] }}
+{% if backend_config['health_check'] is defined and backend_config['health_check'] %}
+    option  {{ backend_config['health_check'] }}
+{% endif %}
+{% if backend_config['health_interval'] is defined and backend_config['health_interval'] %}
+    default-server inter {{ backend_config['health_interval'] }}
+{% endif %}
+{% for item_server in backend_config['servers'] %}
+    server {{ item_server['name'] }} {{ item_server['address'] }}:{{ backend_config['port'] }} check weight {{ item_server['weight'] }}{% if profile_haproxy_ssl_enabled %} ssl verify none{% endif %}
+{% endfor %}

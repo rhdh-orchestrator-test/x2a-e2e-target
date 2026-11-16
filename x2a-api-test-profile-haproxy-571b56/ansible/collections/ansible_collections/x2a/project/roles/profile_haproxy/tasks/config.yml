@@ -1,0 +1,66 @@
+---
+- name: Create HAProxy errors directory
+  ansible.builtin.file:
+    path: "{{ profile_haproxy_config_dir }}/errors" # noqa: R114 - path is derived from trusted role default
+    state: directory
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0755"
+
+- name: Deploy HAProxy 503 error page
+  ansible.builtin.copy:
+    src: errors/503.http
+    dest: "{{ profile_haproxy_config_dir }}/errors/503.http" # noqa: R114 - path is derived from trusted role default
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0644"
+    backup: true
+
+- name: Deploy HAProxy 408 error page
+  ansible.builtin.copy:
+    src: errors/408.http
+    dest: "{{ profile_haproxy_config_dir }}/errors/408.http" # noqa: R114 - path is derived from trusted role default
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0644"
+    backup: true
+
+- name: Render HAProxy main configuration
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: "{{ profile_haproxy_config_file }}" # noqa: R114 - path is derived from trusted role default
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0640"
+    backup: true
+  notify: Validate and reload HAProxy
+  no_log: "{{ profile_haproxy_secure_logging }}"
+
+- name: Render HAProxy backend fragments
+  ansible.builtin.template:
+    src: backend.conf.j2
+    dest: "{{ profile_haproxy_config_dir }}/conf.d/{{ item_backend['key'] }}.cfg" # noqa: R114 - key is from trusted role-defined backends
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0640"
+    backup: true
+  loop: "{{ profile_haproxy_backends | dict2items }}"
+  loop_control:
+    loop_var: item_backend
+  notify: Validate and reload HAProxy
+  no_log: "{{ profile_haproxy_secure_logging }}"
+  vars:
+    backend_name: "{{ item_backend['key'] }}"
+    backend_config: "{{ item_backend['value'] }}"
+
+- name: Render HAProxy stick-table configuration
+  ansible.builtin.copy:
+    content: "# Managed by Ansible stick-table type ip size {{ profile_haproxy_stick_table_size }} expire {{ profile_haproxy_stick_table_expire }} "
+    dest: "{{ profile_haproxy_config_dir }}/conf.d/stick-tables.cfg" # noqa: R114 - path is derived from trusted role default
+    owner: root
+    group: "{{ profile_haproxy_group }}"
+    mode: "0640"
+    backup: true
+  when: profile_haproxy_stick_table_enabled | bool
+  notify: Validate and reload HAProxy
+  no_log: "{{ profile_haproxy_secure_logging }}"

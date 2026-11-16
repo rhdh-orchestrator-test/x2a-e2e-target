@@ -1,0 +1,44 @@
+---
+- name: Create HAProxy systemd override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/haproxy.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install HAProxy systemd override
+  ansible.builtin.template:
+    src: override.conf.j2
+    dest: /etc/systemd/system/haproxy.service.d/override.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Reload systemd
+
+- name: Install HAProxy logrotate configuration
+  ansible.builtin.template:
+    src: haproxy.logrotate.j2
+    dest: /etc/logrotate.d/haproxy
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+
+- name: Validate HAProxy configuration # noqa: R101 - command arguments use trusted role defaults
+  ansible.builtin.command:
+    argv:
+      - haproxy
+      - -c
+      - -f
+      - "{{ profile_haproxy_config_file }}"
+      - -f
+      - "{{ profile_haproxy_config_dir }}/conf.d/"
+  changed_when: false
+
+- name: Enable and start HAProxy
+  ansible.builtin.service:
+    name: "{{ profile_haproxy_service_name }}"
+    enabled: true
+    state: started

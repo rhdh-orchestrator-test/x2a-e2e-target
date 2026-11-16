@@ -1,0 +1,22 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Validate and reload HAProxy # noqa: R101 - command arguments use trusted role defaults
+  ansible.builtin.command:
+    argv:
+      - haproxy
+      - -c
+      - -f
+      - "{{ profile_haproxy_config_file }}"
+      - -f
+      - "{{ profile_haproxy_config_dir }}/conf.d/"
+  changed_when: false
+  notify: Reload HAProxy
+  listen: Validate and reload HAProxy
+
+- name: Reload HAProxy
+  ansible.builtin.service:
+    name: "{{ profile_haproxy_service_name }}"
+    state: reloaded

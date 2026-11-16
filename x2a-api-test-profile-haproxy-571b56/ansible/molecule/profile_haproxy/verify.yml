@@ -1,0 +1,132 @@
+# Unsupported pre-flight checks: systemctl daemon-reload; journalctl log inspection; Vault secret provenance/output;
+# firewall non-change verification; and notification ordering after configuration validation cannot be safely
+# verified by this read-only verification play.
+---
+- name: Verify profile_haproxy pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify HAProxy package is installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert HAProxy package is installed
+      ansible.builtin.assert:
+        that:
+          - "'haproxy' in ansible_facts['packages']"
+        fail_msg: HAProxy package is not installed.
+        success_msg: HAProxy package is installed.
+
+    - name: Verify HAProxy reports its version
+      ansible.builtin.command:
+        argv:
+          - haproxy
+          - -v
+      register: haproxy_version_check
+      changed_when: false
+
+    - name: Assert HAProxy version command succeeds
+      ansible.builtin.assert:
+        that:
+          - haproxy_version_check['rc'] == 0
+        fail_msg: HAProxy version command failed.
+        success_msg: HAProxy version command succeeded.
+
+    - name: Validate the main HAProxy configuration
+      ansible.builtin.command:
+        argv:
+          - haproxy
+          - -c
+          - -f
+          - /etc/haproxy/haproxy.cfg
+      register: haproxy_config_check
+      changed_when: false
+
+    - name: Assert the main HAProxy configuration is valid
+      ansible.builtin.assert:
+        that:
+          - haproxy_config_check['rc'] == 0
+        fail_msg: HAProxy configuration validation failed.
+        success_msg: HAProxy configuration validation succeeded.
+
+    - name: Check that required backend fragments exist
+      ansible.builtin.stat:
+        path: "{{ item_haproxy_fragment['path'] }}"
+      loop:
+        - path: /etc/haproxy/conf.d/webservers.cfg
+        - path: /etc/haproxy/conf.d/api.cfg
+        - path: /etc/haproxy/conf.d/internal_monitoring.cfg
+      loop_control:
+        loop_var: item_haproxy_fragment
+      register: haproxy_fragment_stats
+
+    - name: Assert that required backend fragments exist
+      ansible.builtin.assert:
+        that:
+          - item_haproxy_fragment_stat['stat']['exists']
+          - item_haproxy_fragment_stat['stat']['isreg']
+        fail_msg: A required HAProxy backend fragment is missing.
+        success_msg: The HAProxy backend fragment exists.
+      loop: "{{ haproxy_fragment_stats['results'] }}"
+      loop_control:
+        loop_var: item_haproxy_fragment_stat
+
+    - name: Check that required HAProxy error resources exist
+      ansible.builtin.stat:
+        path: "{{ item_haproxy_error['path'] }}"
+      loop:
+        - path: /etc/haproxy/errors/503.http
+        - path: /etc/haproxy/errors/408.http
+      loop_control:
+        loop_var: item_haproxy_error
+      register: haproxy_error_stats
+
+    - name: Assert that required HAProxy error resources exist
+      ansible.builtin.assert:
+        that:
+          - item_haproxy_error_stat['stat']['exists']
+          - item_haproxy_error_stat['stat']['isreg']
+        fail_msg: A required HAProxy error resource is missing.
+        success_msg: The HAProxy error resource exists.
+      loop: "{{ haproxy_error_stats['results'] }}"
+      loop_control:
+        loop_var: item_haproxy_error_stat
+
+    - name: Gather HAProxy service state
+      ansible.builtin.service_facts:
+
+    - name: Assert HAProxy is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'haproxy.service' in ansible_facts['services']"
+          - ansible_facts['services']['haproxy.service']['enabled'] | default('disabled') == 'enabled'
+          - ansible_facts['services']['haproxy.service']['state'] == 'running'
+        fail_msg: HAProxy is not enabled and active.
+        success_msg: HAProxy is enabled and active.
+
+    - name: Wait for the HAProxy statistics listener
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 9001
+        state: started
+        timeout: 10
+
+    - name: Verify the HAProxy statistics endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:9001/haproxy-stats
+        method: GET
+        return_content: false
+        status_code: "{{ range(200, 400) | list }}"
+
+    - name: Verify each HAProxy backend endpoint
+      ansible.builtin.uri:
+        url: "{{ item_haproxy_endpoint['url'] }}"
+        method: GET
+        return_content: false
+        status_code: "{{ range(200, 400) | list }}"
+      loop:
+        - url: http://127.0.0.1:8080/health
+        - url: http://127.0.0.1:3000/api/health
+        - url: http://127.0.0.1:9090/-/healthy
+      loop_control:
+        loop_var: item_haproxy_endpoint
