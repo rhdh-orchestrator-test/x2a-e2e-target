@@ -1,0 +1,195 @@
+---
+# Unsupported pre-flight checks: package/service status, nginx/sshd configuration diagnostics,
+# listener and firewall diagnostics, fail2ban status, log tails, and handler invocation have no
+# explicit expected outcome that can be asserted safely here. Certificate validity duration is
+# also omitted because the check does not provide a deterministic assertion for elapsed time.
+- name: Verify nginx multisite pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify expected document roots exist
+      ansible.builtin.stat:
+        path: "{{ item_docroot['path'] }}"
+      loop:
+        - path: /opt/server/test
+        - path: /opt/server/ci
+        - path: /opt/server/status
+      loop_control:
+        loop_var: item_docroot
+      register: document_root_stats
+
+    - name: Assert expected document roots are directories
+      ansible.builtin.assert:
+        that:
+          - item_docroot_stat['stat']['exists']
+          - item_docroot_stat['stat']['isdir']
+        fail_msg: "Expected document root is missing or is not a directory."
+      loop: "{{ document_root_stats['results'] }}"
+      loop_control:
+        loop_var: item_docroot_stat
+
+    - name: Verify expected site files exist
+      ansible.builtin.stat:
+        path: "{{ item_site_file['path'] }}"
+      loop:
+        - path: /opt/server/test/index.html
+        - path: /opt/server/ci/index.html
+        - path: /opt/server/status/index.html
+        - path: /etc/ssl/certs/test.cluster.local.crt
+        - path: /etc/ssl/certs/ci.cluster.local.crt
+        - path: /etc/ssl/certs/status.cluster.local.crt
+        - path: /etc/ssl/private/test.cluster.local.key
+        - path: /etc/ssl/private/ci.cluster.local.key
+        - path: /etc/ssl/private/status.cluster.local.key
+      loop_control:
+        loop_var: item_site_file
+      register: site_file_stats
+
+    - name: Assert expected site files are regular files
+      ansible.builtin.assert:
+        that:
+          - item_site_file_stat['stat']['exists']
+          - item_site_file_stat['stat']['isreg']
+        fail_msg: "An expected site or TLS file is missing or is not a regular file."
+      loop: "{{ site_file_stats['results'] }}"
+      loop_control:
+        loop_var: item_site_file_stat
+
+    - name: Verify private key ownership and permissions
+      ansible.builtin.stat:
+        path: "{{ item_key['path'] }}"
+      loop:
+        - path: /etc/ssl/private/test.cluster.local.key
+        - path: /etc/ssl/private/ci.cluster.local.key
+        - path: /etc/ssl/private/status.cluster.local.key
+      loop_control:
+        loop_var: item_key
+      register: private_key_stats
+
+    - name: Assert private keys have the expected ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_key_stat['stat']['pw_name'] == 'root'
+          - item_key_stat['stat']['gr_name'] == 'ssl-cert'
+          - item_key_stat['stat']['mode'] == '0640'
+        fail_msg: "A TLS private key does not have the expected ownership or mode."
+      loop: "{{ private_key_stats['results'] }}"
+      loop_control:
+        loop_var: item_key_stat
+
+    - name: Check HTTP redirects for each site
+      ansible.builtin.uri:
+        url: "http://127.0.0.1/"
+        headers:
+          Host: "{{ item_http['host'] }}"
+        follow_redirects: none
+        return_content: false
+        status_code: [301, 302, 307, 308]
+        use_proxy: false
+      loop:
+        - host: test.cluster.local
+        - host: ci.cluster.local
+        - host: status.cluster.local
+      loop_control:
+        loop_var: item_http
+      register: http_redirects
+
+    - name: Assert HTTP redirects target HTTPS for each site
+      ansible.builtin.assert:
+        that:
+          - item_http_redirect['status'] in [301, 302, 307, 308]
+          - item_http_redirect['location'] is match('^https://' ~ item_http_redirect['item']['host'] ~ '(/|$)')
+        fail_msg: "An HTTP site endpoint did not redirect to its HTTPS hostname."
+      loop: "{{ http_redirects['results'] }}"
+      loop_control:
+        loop_var: item_http_redirect
+
+    - name: Check HTTPS response for each site
+      ansible.builtin.uri:
+        url: "https://127.0.0.1/"
+        headers:
+          Host: "{{ item_https['host'] }}"
+        return_content: false
+        status_code: 200
+        use_proxy: false
+        validate_certs: false
+      loop:
+        - host: test.cluster.local
+        - host: ci.cluster.local
+        - host: status.cluster.local
+      loop_control:
+        loop_var: item_https
+      register: https_responses
+
+    - name: Assert HTTPS returns normally for each site
+      ansible.builtin.assert:
+        that:
+          - item_https_response['status'] == 200
+        fail_msg: "An HTTPS site endpoint did not return HTTP 200."
+      loop: "{{ https_responses['results'] }}"
+      loop_control:
+        loop_var: item_https_response
+
+    - name: Inspect certificate subjects
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - -in
+          - "{{ item_certificate['path'] }}"
+          - -noout
+          - -subject
+      changed_when: false
+      loop:
+        - name: test.cluster.local
+          path: /etc/ssl/certs/test.cluster.local.crt
+        - name: ci.cluster.local
+          path: /etc/ssl/certs/ci.cluster.local.crt
+        - name: status.cluster.local
+          path: /etc/ssl/certs/status.cluster.local.crt
+      loop_control:
+        loop_var: item_certificate
+      register: certificate_subjects
+
+    - name: Assert certificates contain the expected common name
+      ansible.builtin.assert:
+        that:
+          - item_certificate_subject['rc'] == 0
+          - item_certificate_subject['stdout'] is search('CN\\s*=\\s*' ~ item_certificate_subject['item']['name'])
+        fail_msg: "A site certificate does not contain its expected common name."
+      loop: "{{ certificate_subjects['results'] }}"
+      loop_control:
+        loop_var: item_certificate_subject
+
+    - name: Read expected kernel security values
+      ansible.builtin.command:
+        argv:
+          - sysctl
+          - "{{ item_sysctl['key'] }}"
+      changed_when: false
+      loop:
+        - key: net.ipv4.conf.default.rp_filter
+          value: '1'
+        - key: net.ipv4.conf.all.rp_filter
+          value: '1'
+        - key: net.ipv4.icmp_echo_ignore_all
+          value: '1'
+        - key: net.ipv6.conf.all.disable_ipv6
+          value: '1'
+        - key: net.ipv4.tcp_syncookies
+          value: '1'
+        - key: net.ipv4.tcp_max_syn_backlog
+          value: '2048'
+      loop_control:
+        loop_var: item_sysctl
+      register: sysctl_values
+
+    - name: Assert expected kernel security values
+      ansible.builtin.assert:
+        that:
+          - item_sysctl_value['rc'] == 0
+          - item_sysctl_value['stdout'] | trim == item_sysctl_value['item']['key'] ~ ' = ' ~ item_sysctl_value['item']['value']
+        fail_msg: "A required kernel security setting does not have its expected value."
+      loop: "{{ sysctl_values['results'] }}"
+      loop_control:
+        loop_var: item_sysctl_value

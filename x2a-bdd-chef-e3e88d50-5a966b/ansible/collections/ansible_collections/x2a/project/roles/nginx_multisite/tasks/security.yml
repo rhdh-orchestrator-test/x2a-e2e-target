@@ -1,0 +1,161 @@
+---
+- name: Install security packages
+  ansible.builtin.package:
+    name:
+      - fail2ban
+      - ufw
+    state: present
+
+- name: Check whether SSH service is available
+  ansible.builtin.service_facts:
+
+- name: Check whether SSH configuration exists
+  ansible.builtin.stat:
+    path: /etc/ssh/sshd_config
+  register: nginx_multisite_sshd_config
+
+- name: Deploy fail2ban configuration
+  ansible.builtin.template:
+    src: fail2ban.jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: "0644"
+    backup: true
+  when: nginx_multisite_fail2ban_enabled | bool
+  notify: Restart fail2ban
+
+- name: Enable and start fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: true
+    state: started
+  when: nginx_multisite_fail2ban_enabled | bool
+
+- name: Set UFW default deny policy
+  ansible.builtin.command:
+    argv: [ufw, --force, default, deny]
+  register: nginx_multisite_ufw_default
+  changed_when: "'Default incoming policy changed' in nginx_multisite_ufw_default.stdout"
+  when: nginx_multisite_ufw_enabled | bool
+
+- name: Allow SSH through UFW
+  ansible.builtin.command:
+    argv: [ufw, allow, ssh]
+  register: nginx_multisite_ufw_ssh
+  changed_when: "'Skipping' not in nginx_multisite_ufw_ssh.stdout"
+  when: nginx_multisite_ufw_enabled | bool
+
+- name: Allow HTTP through UFW
+  ansible.builtin.command:
+    argv: [ufw, allow, http]
+  register: nginx_multisite_ufw_http
+  changed_when: "'Skipping' not in nginx_multisite_ufw_http.stdout"
+  when: nginx_multisite_ufw_enabled | bool
+
+- name: Allow HTTPS through UFW
+  ansible.builtin.command:
+    argv: [ufw, allow, https]
+  register: nginx_multisite_ufw_https
+  changed_when: "'Skipping' not in nginx_multisite_ufw_https.stdout"
+  when: nginx_multisite_ufw_enabled | bool
+
+- name: Enable UFW
+  ansible.builtin.command:
+    argv: [ufw, --force, enable]
+  register: nginx_multisite_ufw_enable
+  changed_when: "'Firewall is active and enabled' in nginx_multisite_ufw_enable.stdout"
+  when: nginx_multisite_ufw_enabled | bool
+
+- name: Ensure sysctl configuration directory exists
+  ansible.builtin.file:
+    path: /etc/sysctl.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy sysctl security configuration
+  ansible.builtin.template:
+    src: sysctl-security.conf.j2
+    dest: /etc/sysctl.d/99-security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload security sysctl
+
+- name: Configure kernel security settings
+  ansible.posix.sysctl:
+    name: "{{ item_nginx_sysctl['key'] }}"
+    value: "{{ item_nginx_sysctl['value'] }}"
+    sysctl_file: /etc/sysctl.d/99-security.conf
+    state: present
+    reload: true
+  loop:
+    - key: net.ipv4.conf.default.rp_filter
+      value: "1"
+    - key: net.ipv4.conf.all.rp_filter
+      value: "1"
+    - key: net.ipv4.conf.all.accept_redirects
+      value: "0"
+    - key: net.ipv6.conf.all.accept_redirects
+      value: "0"
+    - key: net.ipv4.conf.default.accept_redirects
+      value: "0"
+    - key: net.ipv6.conf.default.accept_redirects
+      value: "0"
+    - key: net.ipv4.conf.all.accept_source_route
+      value: "0"
+    - key: net.ipv6.conf.all.accept_source_route
+      value: "0"
+    - key: net.ipv4.conf.default.accept_source_route
+      value: "0"
+    - key: net.ipv6.conf.default.accept_source_route
+      value: "0"
+    - key: net.ipv4.conf.all.log_martians
+      value: "1"
+    - key: net.ipv4.conf.default.log_martians
+      value: "1"
+    - key: net.ipv4.icmp_echo_ignore_all
+      value: "1"
+    - key: net.ipv4.icmp_echo_ignore_broadcasts
+      value: "1"
+    - key: net.ipv6.conf.all.disable_ipv6
+      value: "1"
+    - key: net.ipv6.conf.default.disable_ipv6
+      value: "1"
+    - key: net.ipv6.conf.lo.disable_ipv6
+      value: "1"
+    - key: net.ipv4.tcp_syncookies
+      value: "1"
+    - key: net.ipv4.tcp_max_syn_backlog
+      value: "2048"
+    - key: net.ipv4.tcp_synack_retries
+      value: "2"
+    - key: net.ipv4.tcp_syn_retries
+      value: "5"
+  loop_control:
+    loop_var: item_nginx_sysctl
+
+- name: Disable SSH root login  # noqa: L039 - registered by prior stat task
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PermitRootLogin
+    line: PermitRootLogin no
+    backup: true
+    create: false
+  when:
+    - nginx_multisite_ssh_disable_root | bool
+    - nginx_multisite_sshd_config.stat.exists
+    - "'sshd.service' in ansible_facts.services or 'ssh.service' in ansible_facts.services"
+  notify: Restart sshd
+
+- name: Disable SSH password authentication  # noqa: L039 - registered by prior stat task
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PasswordAuthentication
+    line: PasswordAuthentication no
+    backup: true
+    create: false
+  when:
+    - not nginx_multisite_ssh_password_auth
+    - nginx_multisite_sshd_config.stat.exists
+    - "'sshd.service' in ansible_facts.services or 'ssh.service' in ansible_facts.services"
+  notify: Restart sshd

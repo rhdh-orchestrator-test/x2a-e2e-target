@@ -1,0 +1,69 @@
+---
+- name: Install SSL packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create ssl-cert group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Create certificate directory  # noqa: R114 - path from role defaults
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_certificate_path }}" # noqa R114 - path from role default
+    owner: root
+    group: root
+    mode: "0755"
+    state: directory
+
+- name: Create private key directory  # noqa: R114 - path from role defaults
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_private_key_path }}" # noqa R114 - path from role default
+    owner: root
+    group: ssl-cert
+    mode: "0710"
+    state: directory
+
+- name: Check site certificate files
+  ansible.builtin.stat:
+    path: "{{ nginx_multisite_ssl_certificate_path }}/{{ item_nginx_ssl['key'] }}.crt"
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_ssl
+  register: nginx_multisite_certificate_files
+
+- name: Check site private key files
+  ansible.builtin.stat:
+    path: "{{ nginx_multisite_ssl_private_key_path }}/{{ item_nginx_ssl['key'] }}.key"
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_ssl
+  register: nginx_multisite_private_key_files
+
+- name: Generate self-signed site certificates  # noqa: L039 - registered by prior stat tasks
+  ansible.builtin.shell:  # noqa: R101 - command uses role-defined certificate paths
+    cmd: |
+      openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        -keyout "{{ nginx_multisite_ssl_private_key_path }}/{{ item_nginx_ssl['key'] }}.key" \
+        -out "{{ nginx_multisite_ssl_certificate_path }}/{{ item_nginx_ssl['key'] }}.crt" \
+        -subj "/C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN={{ item_nginx_ssl['key'] }}/emailAddress=admin@example.com"
+      chmod 0640 "{{ nginx_multisite_ssl_private_key_path }}/{{ item_nginx_ssl['key'] }}.key"
+      chown root:ssl-cert "{{ nginx_multisite_ssl_private_key_path }}/{{ item_nginx_ssl['key'] }}.key"
+    executable: /bin/bash
+  changed_when: true
+  when:
+    - item_nginx_ssl['value']['ssl_enabled']
+    - >-
+      not (nginx_multisite_certificate_files.results
+      | selectattr("item['key']", 'equalto', item_nginx_ssl['key'])
+      | map(attribute="stat['exists']") | first | default(false))
+      or not (nginx_multisite_private_key_files.results
+      | selectattr("item['key']", 'equalto', item_nginx_ssl['key'])
+      | map(attribute="stat['exists']") | first | default(false))
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_ssl
+  notify: Reload nginx
