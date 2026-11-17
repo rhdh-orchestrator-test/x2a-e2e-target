@@ -1,0 +1,60 @@
+---
+- name: Install nginx
+  ansible.builtin.package:
+    name: nginx
+    state: present
+
+- name: Render nginx configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    mode: "0644"
+    backup: true
+  vars:
+    nginx_multisite_worker_user: "{{ 'www-data' if ansible_facts.os_family == 'Debian' else 'nginx' }}"
+  notify: Reload nginx
+
+- name: Render nginx security configuration
+  ansible.builtin.template:
+    src: security.conf.j2
+    dest: /etc/nginx/conf.d/security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+
+- name: Create nginx secrets directory
+  ansible.builtin.file:
+    path: /etc/nginx/secrets
+    owner: root
+    group: root
+    mode: "0700"
+    state: directory
+
+- name: Deploy nginx site token
+  ansible.builtin.copy:
+    content: "{{ nginx_multisite_site_token }}" # noqa: L039 - optional role parameter guarded by the defined check
+    dest: /etc/nginx/secrets/site_token
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
+  when: nginx_multisite_site_token is defined
+  no_log: "{{ nginx_multisite_secure_logging }}"
+
+- name: Create site document roots
+  ansible.builtin.file:
+    path: "{{ item_nginx_multisite_site['value']['document_root'] }}" # noqa: R114 - path from role-defined nginx_multisite_sites data
+    owner: "{{ 'www-data' if ansible_facts.os_family == 'Debian' else 'nginx' }}"
+    group: "{{ 'www-data' if ansible_facts.os_family == 'Debian' else 'nginx' }}"
+    mode: "0755"
+    state: directory
+    recurse: true
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_multisite_site
+
+- name: Enable and start nginx
+  ansible.builtin.service:
+    name: nginx
+    enabled: true
+    state: started

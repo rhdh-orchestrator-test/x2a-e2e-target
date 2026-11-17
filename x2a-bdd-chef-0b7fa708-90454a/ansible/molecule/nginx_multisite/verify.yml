@@ -1,0 +1,142 @@
+---
+# Unsupported pre-flight checks: recipe execution order; dynamic site entries, roots,
+# configurations, certificates, keys, and links; template count for site.conf.erb;
+# and recipe-specific UFW/SSH hardening or secret-handling details.
+- name: Verify nginx_multisite pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather service facts for fail2ban and nginx state checks
+      ansible.builtin.service_facts:
+
+    - name: Assert fail2ban is active and enabled
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['fail2ban.service']['state'] == 'running'"
+          - "ansible_facts['services']['fail2ban.service']['status'] == 'enabled'"
+        fail_msg: "fail2ban is not active and enabled"
+
+    - name: Assert nginx is active and enabled
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['nginx.service']['state'] == 'running'"
+          - "ansible_facts['services']['nginx.service']['status'] == 'enabled'"
+        fail_msg: "nginx is not active and enabled"
+
+    - name: Check SSH service status
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - status
+          - sshd
+      changed_when: false
+      register: item_sshd_status
+
+    - name: Assert SSH service status succeeds
+      ansible.builtin.assert:
+        that:
+          - item_sshd_status['rc'] == 0
+        fail_msg: "sshd status did not succeed"
+
+    - name: Gather installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert all packages named by the recipes are installed
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts['packages']
+        fail_msg: "A recipe package is not installed"
+      loop:
+        - fail2ban
+        - ufw
+        - nginx
+        - openssl
+        - ca-certificates
+      loop_control:
+        loop_var: item_package
+
+    - name: Check UFW status and rules
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+      changed_when: false
+      register: item_ufw_status
+
+    - name: Assert UFW status and required TCP rules
+      ansible.builtin.assert:
+        that:
+          - item_ufw_status['rc'] == 0
+          - item_ufw_status['stdout'] is search('22/tcp')
+          - item_ufw_status['stdout'] is search('80/tcp')
+          - item_ufw_status['stdout'] is search('443/tcp')
+        fail_msg: "UFW status or required TCP rules are missing"
+
+    - name: Validate Nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      changed_when: false
+      register: item_nginx_test
+
+    - name: Assert Nginx configuration validation succeeds
+      ansible.builtin.assert:
+        that:
+          - item_nginx_test['rc'] == 0
+        fail_msg: "Nginx configuration validation failed"
+
+    - name: Check listening administration and web ports
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      changed_when: false
+      register: item_listening_ports
+
+    - name: Assert ports 22, 80, and 443 are listening
+      ansible.builtin.assert:
+        that:
+          - item_listening_ports['stdout'] is search('[:.]22\\b')
+          - item_listening_ports['stdout'] is search('[:.]80\\b')
+          - item_listening_ports['stdout'] is search('[:.]443\\b')
+        fail_msg: "One or more required TCP ports are not listening"
+
+    - name: Check required rendered files and directories
+      ansible.builtin.stat:
+        path: "{{ item_path['path'] }}"
+      loop:
+        - path: /etc/nginx/nginx.conf
+          kind: file
+        - path: /etc/nginx/conf.d/security.conf
+          kind: file
+        - path: /etc/fail2ban/jail.local
+          kind: file
+        - path: /etc/sysctl.d/99-security.conf
+          kind: file
+        - path: /etc/nginx/sites-available
+          kind: directory
+        - path: /etc/nginx/sites-enabled
+          kind: directory
+        - path: /etc/ssl/certs
+          kind: directory
+        - path: /etc/ssl/private
+          kind: directory
+      loop_control:
+        loop_var: item_path
+      register: item_required_paths
+
+    - name: Assert required files and directories exist
+      ansible.builtin.assert:
+        that:
+          - item_required_path['stat']['exists']
+          - >-
+            (item_required_path['item']['kind'] == 'file' and
+            item_required_path['stat']['isreg']) or
+            (item_required_path['item']['kind'] == 'directory' and
+            item_required_path['stat']['isdir'])
+        fail_msg: "A required pre-flight file or directory is missing"
+      loop: "{{ item_required_paths['results'] }}"
+      loop_control:
+        loop_var: item_required_path
