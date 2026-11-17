@@ -1,0 +1,51 @@
+---
+- name: Install Memcached
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Configure Memcached memory limit
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^\s*-m\s+
+    line: -m {{ cache_memcached_memory }}
+    backup: true
+  notify: Restart memcached
+
+- name: Configure Memcached TCP port
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^\s*-p\s+
+    line: -p {{ cache_memcached_port }}
+    backup: true
+  notify: Restart memcached
+
+- name: Configure Memcached UDP port
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^\s*-U\s+
+    line: -U {{ cache_memcached_udp_port }}
+    backup: true
+  notify: Restart memcached
+
+- name: Configure Memcached listen address
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^\s*-l\s+
+    line: -l {{ cache_memcached_listen }}
+    backup: true
+  notify: Restart memcached
+
+- name: Configure Memcached maximum connections
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^\s*-c\s+
+    line: -c {{ cache_memcached_maxconn }}
+    backup: true
+  notify: Restart memcached
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true

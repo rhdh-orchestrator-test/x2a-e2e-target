@@ -1,0 +1,209 @@
+# Unsupported pre-flight checks: service-unit discovery output, Memcached log contents, service command-line
+# inspection, Redis PID-directory metadata, journal output, and Redis log-file listing have no stated
+# expected outcome. Redis authentication is checked by configuration presence without exposing its value.
+---
+- name: Verify cache services and configuration
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Collect service facts for the Memcached and Redis unit checks
+      ansible.builtin.service_facts:
+
+    - name: Confirm a Memcached service is active
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['services'] | dict2items
+            | selectattr('key', 'match', '^memcached(?:\\.service)?$')
+            | selectattr('value.state', 'equalto', 'running') | list | length) > 0
+        fail_msg: Memcached is not active.
+
+    - name: Confirm a Memcached service is enabled
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['services'] | dict2items
+            | selectattr('key', 'match', '^memcached(?:\\.service)?$')
+            | selectattr('value.status', 'equalto', 'enabled') | list | length) > 0
+        fail_msg: Memcached is not enabled.
+
+    - name: Confirm a Redis service is active
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['services'] | dict2items
+            | selectattr('key', 'match', '^redis(?:-server)?(?:\\.service)?$')
+            | selectattr('value.state', 'equalto', 'running') | list | length) > 0
+        fail_msg: Redis is not active.
+
+    - name: Confirm a Redis service is enabled
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['services'] | dict2items
+            | selectattr('key', 'match', '^redis(?:-server)?(?:\\.service)?$')
+            | selectattr('value.status', 'equalto', 'enabled') | list | length) > 0
+        fail_msg: Redis is not enabled.
+
+    - name: Confirm the Memcached process exists
+      ansible.builtin.command:
+        argv: [pgrep, -af, '[m]emcached']
+      register: item_memcached_process
+      changed_when: false
+
+    - name: Assert the Memcached process check succeeded
+      ansible.builtin.assert:
+        that:
+          - item_memcached_process['rc'] == 0
+        fail_msg: The Memcached process was not found.
+
+    - name: Confirm the Redis process exists
+      ansible.builtin.command:
+        argv: [pgrep, -af, '[r]edis-server']
+      register: item_redis_process
+      changed_when: false
+
+    - name: Assert the Redis process check succeeded
+      ansible.builtin.assert:
+        that:
+          - item_redis_process['rc'] == 0
+        fail_msg: The Redis process was not found.
+
+    - name: Check the Memcached TCP listener
+      ansible.builtin.command:
+        argv: [ss, -ltnp]
+      register: item_memcached_tcp
+      changed_when: false
+
+    - name: Assert Memcached listens on TCP 11211 on all IPv4 addresses
+      ansible.builtin.assert:
+        that:
+          - item_memcached_tcp['stdout'] is search('0\\.0\\.0\\.0:11211')
+        fail_msg: Memcached TCP port 11211 is not listening on 0.0.0.0.
+
+    - name: Check the Memcached UDP listener
+      ansible.builtin.command:
+        argv: [ss, -lunp]
+      register: item_memcached_udp
+      changed_when: false
+
+    - name: Assert Memcached listens on UDP 11211 on all IPv4 addresses
+      ansible.builtin.assert:
+        that:
+          - item_memcached_udp['stdout'] is search('0\\.0\\.0\\.0:11211')
+        fail_msg: Memcached UDP port 11211 is not listening on 0.0.0.0.
+
+    - name: Check the Redis TCP listener
+      ansible.builtin.command:
+        argv: [ss, -ltnp]
+      register: item_redis_tcp
+      changed_when: false
+
+    - name: Assert Redis listens on TCP port 6379
+      ansible.builtin.assert:
+        that:
+          - item_redis_tcp['stdout'] is search(':6379')
+        fail_msg: Redis TCP port 6379 is not listening.
+
+    - name: Query the Memcached statistics endpoint
+      ansible.builtin.command:
+        argv: [nc, -w, '2', 127.0.0.1, '11211']
+        stdin: "stats\r\nquit\r\n"
+      register: item_memcached_stats
+      changed_when: false
+
+    - name: Assert the Memcached statistics endpoint responds
+      ansible.builtin.assert:
+        that:
+          - item_memcached_stats['stdout'] is search('STAT')
+        fail_msg: The Memcached statistics endpoint did not respond.
+
+    - name: Inspect the provider-created Memcached configuration
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - '(^|[[:space:]])(-m[[:space:]]+64|-p[[:space:]]+11211|-U[[:space:]]+11211|-l[[:space:]]+0\\.0\\.0\\.0|-c[[:space:]]+1024)'
+          - /etc/memcached.conf
+          - /etc/sysconfig/memcached
+      register: item_memcached_config
+      changed_when: false
+      failed_when: item_memcached_config['rc'] not in [0, 1, 2]
+
+    - name: Assert the Memcached configuration contains the requested settings
+      ansible.builtin.assert:
+        that:
+          - item_memcached_config['stdout'] is search('-m[[:space:]]+64')
+          - item_memcached_config['stdout'] is search('-p[[:space:]]+11211')
+          - item_memcached_config['stdout'] is search('-U[[:space:]]+11211')
+          - item_memcached_config['stdout'] is search('-l[[:space:]]+0\\.0\\.0\\.0')
+          - item_memcached_config['stdout'] is search('-c[[:space:]]+1024')
+        fail_msg: The provider-created Memcached configuration is missing a requested setting.
+
+    - name: Check the Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Assert the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_config['stat']['exists']
+          - item_redis_config['stat']['isreg']
+        fail_msg: /etc/redis/6379.conf does not exist.
+
+    - name: Confirm the Redis port is configured
+      ansible.builtin.command:
+        argv: [grep, -Eq, '^port[[:space:]]+6379([[:space:]]|$)', /etc/redis/6379.conf]
+      register: item_redis_port
+      changed_when: false
+
+    - name: Assert the Redis port configuration check succeeded
+      ansible.builtin.assert:
+        that:
+          - item_redis_port['rc'] == 0
+        fail_msg: Redis port 6379 is not configured.
+
+    - name: Confirm Redis password authentication is configured without printing it
+      ansible.builtin.command:
+        argv: [grep, -Eq, '^requirepass[[:space:]]+[^[:space:]#]+', /etc/redis/6379.conf]
+      register: item_redis_auth
+      changed_when: false
+
+    - name: Assert Redis password authentication is configured
+      ansible.builtin.assert:
+        that:
+          - item_redis_auth['rc'] == 0
+        fail_msg: Redis password authentication is not configured.
+
+    - name: Check that unsupported Redis directives are absent
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -Eq
+          - '^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)([[:space:]]|$)'
+          - /etc/redis/6379.conf
+      register: item_redis_unsupported_directives
+      changed_when: false
+      failed_when: item_redis_unsupported_directives['rc'] not in [0, 1]
+
+    - name: Assert unsupported Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - item_redis_unsupported_directives['rc'] == 1
+        fail_msg: An unsupported active Redis directive remains in the configuration.
+
+    - name: Check the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_directory
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory['stat']['exists']
+          - item_redis_log_directory['stat']['isdir']
+          - item_redis_log_directory['stat']['pw_name'] == 'redis'
+          - item_redis_log_directory['stat']['gr_name'] == 'redis'
+          - item_redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: Redis log directory metadata is incorrect.
