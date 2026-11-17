@@ -1,0 +1,192 @@
+---
+# Unsupported pre-flight checks: service-unit discovery and exact dependency-provided
+# Memcached settings have no stated expected outcome; conditional Memcached directory
+# checks, Redis logging/journal diagnostics, and authenticated Redis PING require
+# dependency or secret values that are not safely available here.
+- name: Verify cache services and endpoints
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather service facts for the Memcached and Redis service checks
+      ansible.builtin.service_facts:
+
+    - name: Confirm the Memcached service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts.services"
+          - ansible_facts.services['memcached.service']['status'] == 'enabled'
+          - ansible_facts.services['memcached.service']['state'] == 'running'
+        fail_msg: Memcached must be enabled and active.
+
+    - name: Verify the Memcached TCP endpoint responds to the version request
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - '2'
+          - 127.0.0.1
+          - '11211'
+        stdin: "version\r\n"
+      register: cache_memcached_version
+      changed_when: false
+
+    - name: Assert the Memcached TCP endpoint accepted the version request
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_version.rc == 0
+        fail_msg: The Memcached TCP endpoint must accept a version request.
+
+    - name: Verify the Memcached TCP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+      register: cache_memcached_tcp_listener
+      changed_when: false
+
+    - name: Assert the Memcached TCP port is listening
+      ansible.builtin.assert:
+        that:
+          - "':11211' in cache_memcached_tcp_listener.stdout"
+        fail_msg: Memcached must listen on TCP port 11211.
+
+    - name: Verify the Memcached UDP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -lunp
+      register: cache_memcached_udp_listener
+      changed_when: false
+
+    - name: Assert the Memcached UDP port is listening
+      ansible.builtin.assert:
+        that:
+          - "':11211' in cache_memcached_udp_listener.stdout"
+        fail_msg: Memcached must listen on UDP port 11211.
+
+    - name: Verify the Memcached process exists
+      ansible.builtin.command:
+        argv:
+          - ps
+          - aux
+      register: cache_memcached_processes
+      changed_when: false
+
+    - name: Assert a Memcached process is running
+      ansible.builtin.assert:
+        that:
+          - "'[m]emcached' in cache_memcached_processes.stdout"
+        fail_msg: A Memcached process must be running.
+
+    - name: Confirm a Redis service for port 6379 is enabled and active
+      ansible.builtin.assert:
+        that:
+          - >-
+            ansible_facts.services | dict2items |
+            selectattr('key', 'match', '^redis.*\\.service$') |
+            selectattr('value.status', 'equalto', 'enabled') |
+            selectattr('value.state', 'equalto', 'running') | list | length > 0
+        fail_msg: A Redis service must be enabled and active.
+
+    - name: Verify the Redis TCP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+      register: cache_redis_tcp_listener
+      changed_when: false
+
+    - name: Assert Redis is listening on TCP port 6379
+      ansible.builtin.assert:
+        that:
+          - "':6379' in cache_redis_tcp_listener.stdout"
+        fail_msg: Redis must listen on TCP port 6379.
+
+    - name: Verify the Redis process exists
+      ansible.builtin.command:
+        argv:
+          - ps
+          - aux
+      register: cache_redis_processes
+      changed_when: false
+
+    - name: Assert a Redis process is running
+      ansible.builtin.assert:
+        that:
+          - "'[r]edis' in cache_redis_processes.stdout"
+        fail_msg: A Redis process must be running.
+
+    - name: Verify unauthenticated Redis PING is rejected
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - '6379'
+          - PING
+      register: cache_redis_unauthenticated_ping
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unauthenticated Redis PING is rejected
+      ansible.builtin.assert:
+        that:
+          - cache_redis_unauthenticated_ping.rc != 0
+        fail_msg: Redis must reject an unauthenticated PING.
+
+    - name: Verify the Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config
+
+    - name: Assert the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config.stat.exists
+          - cache_redis_config.stat.isreg
+        fail_msg: The Redis configuration file must exist.
+
+    - name: Read the Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_config_content
+
+    - name: Assert Redis configuration has the expected port and password setting
+      ansible.builtin.assert:
+        that:
+          - "(cache_redis_config_content.content | b64decode) is search('(?m)^port\\s+6379\\s*$')"
+          - "(cache_redis_config_content.content | b64decode) is search('(?m)^requirepass\\s+\\S+')"
+        fail_msg: Redis configuration must define port 6379 and requirepass.
+
+    - name: Assert removed Redis directives are not active
+      ansible.builtin.assert:
+        that:
+          - "(cache_redis_config_content.content | b64decode) is not search('(?m)^replica-serve-stale-data\\b')"
+          - "(cache_redis_config_content.content | b64decode) is not search('(?m)^replica-read-only\\b')"
+          - "(cache_redis_config_content.content | b64decode) is not search('(?m)^repl-ping-replica-period\\b')"
+          - "(cache_redis_config_content.content | b64decode) is not search('(?m)^client-output-buffer-limit\\b')"
+          - "(cache_redis_config_content.content | b64decode) is not search('(?m)^replica-priority\\b')"
+        fail_msg: Removed Redis replication directives must not be active.
+
+    - name: Verify the Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_directory
+
+    - name: Assert the Redis log directory exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_directory.stat.exists
+          - cache_redis_log_directory.stat.isdir
+        fail_msg: The Redis log directory must exist.
+
+    - name: Verify the Redis runtime directory exists
+      ansible.builtin.stat:
+        path: /run/redis
+      register: cache_redis_runtime_directory
+
+    - name: Assert the Redis runtime directory exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_runtime_directory.stat.exists
+          - cache_redis_runtime_directory.stat.isdir
+        fail_msg: The Redis runtime directory must exist.

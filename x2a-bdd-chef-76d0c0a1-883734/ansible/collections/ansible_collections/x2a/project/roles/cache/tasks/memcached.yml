@@ -1,0 +1,27 @@
+---
+- name: Install Memcached package
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Ensure Memcached service account exists
+  ansible.builtin.user:
+    name: "{{ cache_memcached_user }}"
+    system: true
+    state: present
+
+- name: Configure Memcached service
+  ansible.builtin.template:
+    src: memcached.conf.j2
+    dest: "{{ cache_memcached_config }}" # noqa: R114 - path is a role-defined operating-system configuration path
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Restart Memcached
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service }}"
+    enabled: true
+    state: started
