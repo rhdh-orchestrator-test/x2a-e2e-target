@@ -1,0 +1,53 @@
+---
+- name: Install Memcached
+  ansible.builtin.package:
+    name: >-
+      {{ 'memcached=' ~ (cache_memcached_version | string)
+        if cache_memcached_version is not none and (cache_memcached_version | string | length > 0)
+        else 'memcached' }}
+    state: present
+
+- name: Configure Memcached on Debian-family systems
+  ansible.builtin.lineinfile:
+    path: /etc/memcached.conf
+    regexp: ^{{ item_memcached['regexp'] }}
+    line: "{{ item_memcached['line'] }}"
+    create: true
+    mode: "0644"
+  when: ansible_facts['os_family'] == 'Debian'
+  loop:
+    - regexp: -m
+      line: "-m {{ cache_memcached_memory }}"
+    - regexp: -p
+      line: "-p {{ cache_memcached_port }}"
+    - regexp: -U
+      line: "-U {{ cache_memcached_udp_port }}"
+    - regexp: -l
+      line: "-l {{ cache_memcached_listen }}"
+    - regexp: -c
+      line: "-c {{ cache_memcached_maxconn }}"
+    - regexp: -u
+      line: "-u {{ cache_memcached_service_user }}"
+  loop_control:
+    loop_var: item_memcached
+  notify: Restart memcached
+
+- name: Configure Memcached on RedHat-family systems
+  ansible.builtin.copy:
+    dest: /etc/sysconfig/memcached
+    content: |
+      PORT="{{ cache_memcached_port }}"
+      USER="{{ cache_memcached_service_user }}"
+      MAXCONN="{{ cache_memcached_maxconn }}"
+      CACHESIZE="{{ cache_memcached_memory }}"
+      OPTIONS="-l {{ cache_memcached_listen }} -U {{ cache_memcached_udp_port }} -I {{ cache_memcached_max_object_size }}"
+    mode: "0644"
+    backup: true
+  when: ansible_facts['os_family'] == 'RedHat'
+  notify: Restart memcached
+
+- name: Ensure Memcached service is enabled and started
+  ansible.builtin.service:
+    name: memcached
+    enabled: true
+    state: started
