@@ -1,0 +1,181 @@
+---
+# Unsupported pre-flight checks: package/tool versions; file ownership/modes and contents; Git remote,
+# branch, and status; virtualenv and pip contents; PostgreSQL port/logs; environment-file contents;
+# systemd unit contents and systemd-analyze output; optional documentation endpoints; service logs;
+# systemd handler/reload behavior; and restart behavior. These checks have no stated expected outcome
+# suitable for a read-only verification assertion, or require secrets/runtime diagnostics.
+
+- name: Verify explicit FastAPI tutorial pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify the fastapi PostgreSQL role exists
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT rolname FROM pg_roles WHERE rolname = 'fastapi';
+      register: fastapi_role_query
+      changed_when: false
+
+    - name: Assert the fastapi PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_role_query.rc == 0
+          - fastapi_role_query.stdout | trim == 'fastapi'
+        fail_msg: The fastapi PostgreSQL role was not found.
+
+    - name: Verify the fastapi_db database owner
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - >-
+            SELECT datname, pg_catalog.pg_get_userbyid(datdba) FROM pg_database
+            WHERE datname = 'fastapi_db';
+      register: fastapi_database_query
+      changed_when: false
+
+    - name: Assert fastapi_db is owned by fastapi
+      ansible.builtin.assert:
+        that:
+          - fastapi_database_query.rc == 0
+          - fastapi_database_query.stdout | trim is match('^fastapi_db[| ]+fastapi$')
+        fail_msg: The fastapi_db database is missing or has the wrong owner.
+
+    - name: Verify fastapi privileges on fastapi_db
+      become: true
+      become_user: postgres
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT has_database_privilege('fastapi', 'fastapi_db', 'CONNECT');
+      register: fastapi_privilege_query
+      changed_when: false
+
+    - name: Assert fastapi has CONNECT privilege on fastapi_db
+      ansible.builtin.assert:
+        that:
+          - fastapi_privilege_query.rc == 0
+          - fastapi_privilege_query.stdout | trim == 't'
+        fail_msg: The fastapi role does not have CONNECT privilege on fastapi_db.
+
+    - name: Verify PostgreSQL is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - postgresql
+      register: postgresql_active
+      changed_when: false
+
+    - name: Assert PostgreSQL is active
+      ansible.builtin.assert:
+        that:
+          - postgresql_active.rc == 0
+          - postgresql_active.stdout | trim == 'active'
+        fail_msg: PostgreSQL is not active.
+
+    - name: Verify PostgreSQL is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - postgresql
+      register: postgresql_enabled
+      changed_when: false
+
+    - name: Assert PostgreSQL is enabled
+      ansible.builtin.assert:
+        that:
+          - postgresql_enabled.rc == 0
+          - postgresql_enabled.stdout | trim == 'enabled'
+        fail_msg: PostgreSQL is not enabled.
+
+    - name: Verify the fastapi-tutorial service is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - fastapi-tutorial
+      register: fastapi_service_active
+      changed_when: false
+
+    - name: Assert the fastapi-tutorial service is active
+      ansible.builtin.assert:
+        that:
+          - fastapi_service_active.rc == 0
+          - fastapi_service_active.stdout | trim == 'active'
+        fail_msg: The fastapi-tutorial service is not active.
+
+    - name: Verify the fastapi-tutorial service is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - fastapi-tutorial
+      register: fastapi_service_enabled
+      changed_when: false
+
+    - name: Assert the fastapi-tutorial service is enabled
+      ansible.builtin.assert:
+        that:
+          - fastapi_service_enabled.rc == 0
+          - fastapi_service_enabled.stdout | trim == 'enabled'
+        fail_msg: The fastapi-tutorial service is not enabled.
+
+    - name: Verify the Uvicorn process uses the application virtualenv
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -af
+          - /opt/fastapi-tutorial/venv/bin/uvicorn app.main:app
+      register: fastapi_uvicorn_process
+      changed_when: false
+
+    - name: Assert the expected Uvicorn process is running
+      ansible.builtin.assert:
+        that:
+          - fastapi_uvicorn_process.rc == 0
+        fail_msg: The expected Uvicorn process is not running.
+
+    - name: Verify the FastAPI listener is available on port 8000
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+      register: fastapi_listener
+      changed_when: false
+
+    - name: Assert port 8000 is listening
+      ansible.builtin.assert:
+        that:
+          - fastapi_listener.rc == 0
+          - fastapi_listener.stdout is search(':8000')
+        fail_msg: Port 8000 is not listening.
+
+    - name: Verify the FastAPI root endpoint returns an HTTP response
+      ansible.builtin.command:
+        argv:
+          - curl
+          - --silent
+          - --show-error
+          - --output
+          - /dev/null
+          - --write-out
+          - '%{http_code}'
+          - http://127.0.0.1:8000/
+      register: fastapi_root_endpoint
+      changed_when: false
+
+    - name: Assert the FastAPI root endpoint is reachable
+      ansible.builtin.assert:
+        that:
+          - fastapi_root_endpoint.rc == 0
+          - fastapi_root_endpoint.stdout | trim is match('^[1-5][0-9][0-9]$')
+        fail_msg: The FastAPI root endpoint did not return an HTTP response.
