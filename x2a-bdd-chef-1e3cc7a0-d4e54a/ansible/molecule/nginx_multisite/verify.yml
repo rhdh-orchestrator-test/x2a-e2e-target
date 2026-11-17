@@ -1,0 +1,308 @@
+---
+# Unsupported: fail2ban-client and journal/log-tail diagnostics, nginx -T,
+# exact sysctl values, lsof/ss diagnostics, and checks without an expected result.
+- name: Verify nginx multisite pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify required packages are installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are installed
+      ansible.builtin.assert:
+        that:
+          - "item_package in ansible_facts.packages"
+        fail_msg: A required package is not installed.
+      loop:
+        - nginx
+        - fail2ban
+        - ufw
+        - openssl
+        - ca-certificates
+      loop_control:
+        loop_var: item_package
+
+    - name: Verify required services are running
+      ansible.builtin.service_facts:
+
+    - name: Assert nginx, fail2ban, and sshd are running
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts.services['nginx.service']['state'] == 'running'"
+          - "ansible_facts.services['fail2ban.service']['state'] == 'running'"
+          - "ansible_facts.services['sshd.service']['state'] == 'running' or ansible_facts.services['ssh.service']['state'] == 'running'"
+        fail_msg: A required service is not running.
+
+    - name: Verify nginx configuration syntax
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: item_nginx_config_test
+      changed_when: false
+
+    - name: Assert nginx configuration test succeeds
+      ansible.builtin.assert:
+        that:
+          - item_nginx_config_test['rc'] == 0
+          - "'syntax is ok' in (item_nginx_config_test['stderr'] | lower)"
+          - "'test is successful' in (item_nginx_config_test['stderr'] | lower)"
+        fail_msg: nginx -t did not report a successful configuration test.
+
+    - name: Verify nginx listens on HTTP
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 80
+        state: started
+        timeout: 10
+
+    - name: Verify the default HTTP endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1/
+        method: HEAD
+        follow_redirects: none
+        status_code: 200
+      register: item_default_http
+
+    - name: Assert the default HTTP endpoint returns 200
+      ansible.builtin.assert:
+        that:
+          - item_default_http['status'] == 200
+        fail_msg: The default HTTP endpoint did not return HTTP 200.
+
+    - name: Verify SSH hardening directives
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: item_sshd_config
+
+    - name: Assert SSH hardening directives are disabled
+      ansible.builtin.assert:
+        that:
+          - "'PermitRootLogin no' in (item_sshd_config['content'] | b64decode)"
+          - "'PasswordAuthentication no' in (item_sshd_config['content'] | b64decode)"
+        fail_msg: The expected SSH hardening directives are absent.
+
+    - name: Verify SSH listens on TCP 22
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 22
+        state: started
+        timeout: 10
+
+    - name: Verify UFW status and rules
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      register: item_ufw_status
+      changed_when: false
+
+    - name: Assert UFW policy and required allows
+      ansible.builtin.assert:
+        that:
+          - "'status: active' in (item_ufw_status['stdout'] | lower)"
+          - "'default: deny (incoming)' in (item_ufw_status['stdout'] | lower)"
+          - "'22/tcp' in (item_ufw_status['stdout'] | lower)"
+          - "'80/tcp' in (item_ufw_status['stdout'] | lower)"
+          - "'443/tcp' in (item_ufw_status['stdout'] | lower)"
+        fail_msg: UFW is not active with the expected policy and rules.
+
+    - name: Verify site document roots
+      ansible.builtin.stat:
+        path: "{{ item_site['value']['document_root'] }}"
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      register: item_site_roots
+
+    - name: Assert site document roots exist
+      ansible.builtin.assert:
+        that:
+          - item_site_root['stat']['exists']
+          - item_site_root['stat']['isdir']
+        fail_msg: A configured site document root is missing.
+      loop: "{{ item_site_roots['results'] }}"
+      loop_control:
+        loop_var: item_site_root
+
+    - name: Verify site index files
+      ansible.builtin.stat:
+        path: "{{ item_site['value']['document_root'] }}/index.html"
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      register: item_site_indexes
+
+    - name: Assert site index files exist
+      ansible.builtin.assert:
+        that:
+          - item_site_index['stat']['exists']
+          - item_site_index['stat']['isreg']
+        fail_msg: A configured site index file is missing.
+      loop: "{{ item_site_indexes['results'] }}"
+      loop_control:
+        loop_var: item_site_index
+
+    - name: Verify site virtual host files
+      ansible.builtin.stat:
+        path: "/etc/nginx/sites-available/{{ item_site['key'] }}"
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      register: item_site_available
+
+    - name: Assert site virtual host files exist
+      ansible.builtin.assert:
+        that:
+          - item_site_file['stat']['exists']
+          - item_site_file['stat']['isreg']
+        fail_msg: A configured site virtual host file is missing.
+      loop: "{{ item_site_available['results'] }}"
+      loop_control:
+        loop_var: item_site_file
+
+    - name: Verify enabled site links
+      ansible.builtin.stat:
+        path: "/etc/nginx/sites-enabled/{{ item_site['key'] }}"
+        follow: false
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      register: item_site_links
+
+    - name: Assert enabled site links exist
+      ansible.builtin.assert:
+        that:
+          - item_site_link['stat']['exists']
+          - item_site_link['stat']['islnk']
+        fail_msg: A configured enabled-site link is missing.
+      loop: "{{ item_site_links['results'] }}"
+      loop_control:
+        loop_var: item_site_link
+
+    - name: Verify site-specific HTTP responses
+      ansible.builtin.uri:
+        url: http://127.0.0.1/
+        headers:
+          Host: "{{ item_site['key'] }}"
+        method: HEAD
+        follow_redirects: none
+        status_code: [200, 301]
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      register: item_site_http
+
+    - name: Assert site-specific HTTP responses succeed
+      ansible.builtin.assert:
+        that:
+          - item_site_response['status'] in [200, 301]
+        fail_msg: A configured site did not return a successful HTTP response.
+      loop: "{{ item_site_http['results'] }}"
+      loop_control:
+        loop_var: item_site_response
+
+    - name: Verify the protected site token metadata
+      ansible.builtin.stat:
+        path: /etc/nginx/secrets/site_token
+      register: item_site_token
+
+    - name: Assert the protected site token has mode 600 and root ownership
+      ansible.builtin.assert:
+        that:
+          - item_site_token['stat']['exists']
+          - item_site_token['stat']['pw_name'] == 'root'
+          - item_site_token['stat']['gr_name'] == 'root'
+          - item_site_token['stat']['mode'] == '0600'
+        fail_msg: The protected site token file has incorrect metadata.
+
+    - name: Verify SSL-enabled site certificates
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - -in
+          - "/etc/ssl/certs/{{ item_site['key'] }}.crt"
+          - -noout
+          - -subject
+          - -dates
+          - -text
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      when: item_site['value']['ssl_enabled'] | bool
+      register: item_certificates
+      changed_when: false
+
+    - name: Assert SSL certificates identify the site and use a 2048-bit key
+      ansible.builtin.assert:
+        that:
+          - item_certificate['rc'] == 0
+          - "('CN = ' ~ item_certificate['item']['key']) in item_certificate['stdout']"
+          - "'Public-Key: (2048 bit)' in item_certificate['stdout']"
+          - "'Not Before:' in item_certificate['stdout']"
+          - "'Not After :' in item_certificate['stdout']"
+        fail_msg: An SSL certificate does not match the configured site expectations.
+      loop: "{{ item_certificates['results'] }}"
+      loop_control:
+        loop_var: item_certificate
+      when: not (item_certificate['skipped'] | default(false))
+
+    - name: Verify HTTPS for SSL-enabled sites
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 443
+        state: started
+        timeout: 10
+      when: "(nginx_sites | dict2items | selectattr('value.ssl_enabled', 'defined') | selectattr('value.ssl_enabled', 'equalto', true) | list | length) > 0"
+
+    - name: Verify SSL-enabled sites redirect HTTP
+      ansible.builtin.uri:
+        url: http://127.0.0.1/
+        headers:
+          Host: "{{ item_site['key'] }}"
+        method: HEAD
+        follow_redirects: none
+        status_code: 301
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      when: item_site['value']['ssl_enabled'] | bool
+      register: item_redirects
+
+    - name: Assert SSL-enabled sites redirect to HTTPS
+      ansible.builtin.assert:
+        that:
+          - item_redirect['status'] == 301
+          - item_redirect['location'] is defined
+          - "item_redirect['location'].startswith('https://')"
+        fail_msg: An SSL-enabled site did not redirect HTTP to HTTPS.
+      loop: "{{ item_redirects['results'] }}"
+      loop_control:
+        loop_var: item_redirect
+      when: not (item_redirect['skipped'] | default(false))
+
+    - name: Verify SSL-enabled sites serve HTTPS with HSTS
+      ansible.builtin.uri:
+        url: "https://{{ item_site['key'] }}/"
+        method: HEAD
+        validate_certs: false
+        status_code: 200
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      when: item_site['value']['ssl_enabled'] | bool
+      register: item_https_responses
+
+    - name: Assert SSL-enabled sites serve HTTPS with HSTS
+      ansible.builtin.assert:
+        that:
+          - item_https['status'] == 200
+          - item_https['headers']['strict-transport-security'] is defined
+        fail_msg: An SSL-enabled site did not serve HTTPS with HSTS.
+      loop: "{{ item_https_responses['results'] }}"
+      loop_control:
+        loop_var: item_https
+      when: not (item_https['skipped'] | default(false))
