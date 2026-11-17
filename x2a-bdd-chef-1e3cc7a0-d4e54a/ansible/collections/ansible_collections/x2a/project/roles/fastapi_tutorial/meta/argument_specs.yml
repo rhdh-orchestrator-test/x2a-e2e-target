@@ -1,0 +1,73 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure the FastAPI Tutorial application
+    description:
+      - Deploys the FastAPI Tutorial application and its PostgreSQL dependency.
+      - Creates the application environment and manages the systemd service.
+    options:
+      app_path:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Filesystem path where the application repository is deployed.
+      repository:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository containing the application.
+      repository_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      service_port:
+        type: int
+        required: false
+        default: 8000
+        description: TCP port used by the FastAPI service.
+      service_name:
+        type: str
+        required: false
+        default: fastapi-tutorial
+        description: Systemd service name.
+      db_user:
+        type: str
+        required: false
+        default: fastapi
+        description: Default PostgreSQL role used when no credential override is supplied.
+      db_password:
+        type: str
+        required: false
+        default: ""
+        description: PostgreSQL role password; prefer supplying it through AAP credentials.
+      db_name:
+        type: str
+        required: false
+        default: fastapi_db
+        description: Default PostgreSQL database name.
+      db_host:
+        type: str
+        required: false
+        default: localhost
+        description: Default PostgreSQL host.
+      fastapi_tutorial_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks handling the database password.
+      db_username:
+        type: str
+        required: false
+        default: "{{ db_user }}"
+        description: PostgreSQL username, normally injected by the AAP credential type.
+      database_name:
+        type: str
+        required: false
+        default: "{{ db_name }}"
+        description: PostgreSQL database name, normally injected by the AAP credential type.
+      database_host:
+        type: str
+        required: false
+        default: "{{ db_host }}"
+        description: PostgreSQL host, normally injected by the AAP credential type.
