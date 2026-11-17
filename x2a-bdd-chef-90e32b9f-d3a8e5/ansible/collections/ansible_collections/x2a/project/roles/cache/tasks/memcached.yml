@@ -1,0 +1,73 @@
+---
+- name: Install Memcached
+  ansible.builtin.package:
+    name:
+      - memcached
+    state: present
+
+- name: Ensure Memcached service group exists
+  ansible.builtin.group:
+    name: "{{ memcached_service_group }}"
+    state: present
+    system: true
+
+- name: Ensure Memcached service user exists
+  ansible.builtin.user:
+    name: "{{ memcached_service_user }}"
+    group: "{{ memcached_service_group }}"
+    state: present
+    system: true
+    create_home: false
+
+- name: Create Memcached log directory
+  ansible.builtin.file:
+    path: /var/log/memcached
+    state: directory
+    owner: "{{ memcached_service_user }}"
+    group: "{{ memcached_service_group }}"
+    mode: "0755"
+
+- name: Create Memcached runtime directory
+  ansible.builtin.file:
+    path: /var/run/memcached
+    state: directory
+    owner: "{{ memcached_service_user }}"
+    group: "{{ memcached_service_group }}"
+    mode: "0755"
+
+- name: Configure Memcached memory
+  ansible.builtin.lineinfile:
+    path: /etc/sysconfig/memcached
+    regexp: ^CACHESIZE=
+    line: CACHESIZE={{ memcached_memory }}
+    create: true
+    mode: "0644"
+  notify: Restart memcached
+
+- name: Configure Memcached options
+  ansible.builtin.lineinfile:
+    path: /etc/sysconfig/memcached
+    regexp: ^OPTIONS=
+    line: >-
+      OPTIONS="-l {{ memcached_listen }} -p {{ memcached_port }} -U {{ memcached_udp_port }}
+      -c {{ memcached_max_connections }} -t {{ memcached_threads }} -u {{ memcached_service_user }}
+      -I {{ memcached_max_object_size }} {{ memcached_experimental_options | join(' ') }}
+      {{ memcached_extra_cli_options | join(' ') }}"
+    create: true
+    mode: "0644"
+  notify: Restart memcached
+
+- name: Configure Memcached file descriptor limit
+  ansible.builtin.lineinfile:
+    path: /etc/sysconfig/memcached
+    regexp: "^ulimit -n "
+    line: ulimit -n {{ memcached_ulimit }}
+    create: true
+    mode: "0644"
+  notify: Restart memcached
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: memcached
+    enabled: true
+    state: started
