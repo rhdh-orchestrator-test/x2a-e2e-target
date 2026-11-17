@@ -1,0 +1,159 @@
+---
+# Unsupported without an explicit expected outcome: OS/package metadata, systemctl availability,
+# exact service-unit discovery output, configuration/log inspection, and filesystem-space checks.
+# The requested service status and journal diagnostics are also omitted because the service names
+# are not verified in the pre-flight checks.
+- name: Verify cache services and Redis filesystem state
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Discover Memcached service units
+      ansible.builtin.service_facts:
+
+    - name: Assert that a Memcached service unit exists
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['services'].keys() | select('search', 'memcached') | list | length) > 0
+        fail_msg: A Memcached service unit was not found.
+
+    - name: Discover Redis service units
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['services'].keys() | select('match', '^redis(-server)?') | list | length) > 0
+        fail_msg: A Redis service unit was not found.
+
+    - name: Confirm the Memcached process
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -a
+          - memcached
+      changed_when: false
+      register: memcached_process
+
+    - name: Assert that the Memcached process is running
+      ansible.builtin.assert:
+        that:
+          - memcached_process.rc == 0
+        fail_msg: The Memcached process was not found.
+
+    - name: Confirm the Redis process
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -a
+          - redis
+      changed_when: false
+      register: redis_process
+
+    - name: Assert that the Redis process is running
+      ansible.builtin.assert:
+        that:
+          - redis_process.rc == 0
+        fail_msg: The Redis process was not found.
+
+    - name: Inspect the planned Memcached TCP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      changed_when: false
+      register: memcached_tcp_listener
+
+    - name: Assert that Memcached listens on TCP port 11211
+      ansible.builtin.assert:
+        that:
+          - memcached_tcp_listener.stdout is search(':11211\\b')
+        fail_msg: The planned Memcached TCP listener was not found.
+
+    - name: Inspect the planned Memcached UDP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ulnp
+      changed_when: false
+      register: memcached_udp_listener
+
+    - name: Assert that Memcached listens on UDP port 11211
+      ansible.builtin.assert:
+        that:
+          - memcached_udp_listener.stdout is search(':11211\\b')
+        fail_msg: The planned Memcached UDP listener was not found.
+
+    - name: Verify the Memcached protocol over TCP
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - '2'
+          - 127.0.0.1
+          - '11211'
+        stdin: "version\r\n"
+      changed_when: false
+      register: memcached_protocol
+
+    - name: Assert that Memcached responds to the version request
+      ansible.builtin.assert:
+        that:
+          - memcached_protocol.rc == 0
+          - memcached_protocol.stdout is search('VERSION')
+        fail_msg: The Memcached version request did not return a protocol response.
+
+    - name: Check the Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config
+
+    - name: Assert that the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config.stat.exists
+          - redis_config.stat.isreg
+        fail_msg: The Redis configuration file does not exist.
+
+    - name: Read the Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config_content
+
+    - name: Assert that the Redis TCP listener exists
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 2
+
+    - name: Check the Redis runtime directory
+      ansible.builtin.stat:
+        path: /run/redis
+      register: redis_runtime_dir
+
+    - name: Assert that the Redis runtime directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_runtime_dir.stat.exists
+          - redis_runtime_dir.stat.isdir
+        fail_msg: The Redis runtime directory does not exist.
+
+    - name: Check the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_dir
+
+    - name: Assert that the Redis log directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_log_dir.stat.exists
+          - redis_log_dir.stat.isdir
+        fail_msg: The Redis log directory does not exist.
+
+    - name: Assert that cleaned Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_config_content.content | b64decode) is not search(
+              '(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)'
+            )
+        fail_msg: A Redis replication or client-buffer directive remains in the configuration.
