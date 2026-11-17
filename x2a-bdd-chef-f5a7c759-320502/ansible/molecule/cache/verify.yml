@@ -1,0 +1,155 @@
+---
+# Unsupported: platform identification has no stated expected outcome.
+# Unsupported: unresolved Memcached/Redis service names prevent service-state checks.
+# Unsupported: Redis CLI authentication requires an injected secret, which must not be included here.
+# Unsupported: log listing and service-log diagnostics have no stated expected outcome.
+# Unsupported: unresolved Memcached configuration/init paths and omitted inventory files have no safe expected check.
+
+- name: Verify cache services and configuration
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Confirm the Memcached process is running
+      ansible.builtin.command:
+        argv: [pgrep, -a, memcached]
+      register: item_memcached_process
+      changed_when: false
+
+    - name: Assert the Memcached process check succeeds
+      ansible.builtin.assert:
+        that: [item_memcached_process.rc == 0]
+
+    - name: Verify the Memcached TCP listener
+      ansible.builtin.command:
+        argv: [ss, -ltnp]
+      register: item_memcached_tcp
+      changed_when: false
+
+    - name: Assert Memcached listens on TCP port 11211
+      ansible.builtin.assert:
+        that: ["item_memcached_tcp.stdout is regex('(?m):11211\\\\b')"]
+
+    - name: Verify the Memcached UDP listener
+      ansible.builtin.command:
+        argv: [ss, -lunp]
+      register: item_memcached_udp
+      changed_when: false
+
+    - name: Assert Memcached listens on UDP port 11211
+      ansible.builtin.assert:
+        that: ["item_memcached_udp.stdout is regex('(?m):11211\\\\b')"]
+
+    - name: Run the Memcached protocol check
+      ansible.builtin.command:
+        argv: [nc, -w, "2", 127.0.0.1, "11211"]
+        stdin: "version\\r\\n"
+      register: item_memcached_version
+      changed_when: false
+
+    - name: Assert the Memcached protocol reports a version
+      ansible.builtin.assert:
+        that: ["item_memcached_version.stdout is regex('(?m)^VERSION\\\\s+\\\\S+')"]
+
+    - name: Run the Memcached settings check
+      ansible.builtin.command:
+        argv: [nc, -w, "2", 127.0.0.1, "11211"]
+        stdin: "stats settings\\r\\n"
+      register: item_memcached_settings
+      changed_when: false
+
+    - name: Assert the Memcached memory and connection settings
+      ansible.builtin.assert:
+        that:
+          - "item_memcached_settings.stdout is regex('(?m)^STAT limit_maxbytes\\\\s+67108864(?:\\\\s|$)')"
+          - "item_memcached_settings.stdout is regex('(?m)^STAT maxconns\\\\s+1024(?:\\\\s|$)')"
+
+    - name: Confirm the Redis process is running
+      ansible.builtin.command:
+        argv: [pgrep, -a, redis]
+      register: item_redis_process
+      changed_when: false
+
+    - name: Assert the Redis process check succeeds
+      ansible.builtin.assert:
+        that: [item_redis_process.rc == 0]
+
+    - name: Verify the Redis TCP listener
+      ansible.builtin.command:
+        argv: [ss, -ltnp]
+      register: item_redis_tcp
+      changed_when: false
+
+    - name: Assert Redis listens on TCP port 6379
+      ansible.builtin.assert:
+        that: ["item_redis_tcp.stdout is regex('(?m):6379\\\\b')"]
+
+    - name: Confirm the Redis configuration exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Assert the Redis configuration is a regular file
+      ansible.builtin.assert:
+        that:
+          - item_redis_config.stat.exists
+          - item_redis_config.stat.isreg
+
+    - name: Confirm the Redis PID directory exists
+      ansible.builtin.stat:
+        path: /run/redis
+      register: item_redis_pid_directory
+
+    - name: Assert the Redis PID directory exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_pid_directory.stat.exists
+          - item_redis_pid_directory.stat.isdir
+
+    - name: Inspect the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_directory
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory.stat.exists
+          - item_redis_log_directory.stat.isdir
+          - item_redis_log_directory.stat.pw_name == 'redis'
+          - item_redis_log_directory.stat.gr_name == 'redis'
+          - item_redis_log_directory.stat.mode == '0755'
+
+    - name: Check that Redis cleanup directives are absent
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -Eq
+          - '^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)'
+          - /etc/redis/6379.conf
+      register: item_redis_cleanup
+      changed_when: false
+      failed_when: item_redis_cleanup.rc not in [0, 1]
+
+    - name: Assert Redis cleanup directives are absent
+      ansible.builtin.assert:
+        that: [item_redis_cleanup.rc == 1]
+
+    - name: Check that Redis authentication is configured
+      ansible.builtin.command:
+        argv: [grep, -Eq, '^requirepass[[:space:]]+', /etc/redis/6379.conf]
+      register: item_redis_authentication
+      changed_when: false
+
+    - name: Assert Redis authentication is configured
+      ansible.builtin.assert:
+        that: [item_redis_authentication.rc == 0]
+
+    - name: Check that Redis is configured for port 6379
+      ansible.builtin.command:
+        argv: [grep, -Eq, '^port[[:space:]]+6379$', /etc/redis/6379.conf]
+      register: item_redis_port
+      changed_when: false
+
+    - name: Assert Redis is configured for port 6379
+      ansible.builtin.assert:
+        that: [item_redis_port.rc == 0]

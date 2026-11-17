@@ -1,0 +1,6 @@
+PORT="{{ memcached_port }}"
+UDP_PORT="{{ memcached_udp_port }}"
+USER="{{ memcached_user }}"
+MAXCONN="{{ memcached_maxconn }}"
+CACHESIZE="{{ memcached_memory }}"
+OPTIONS="-l {{ memcached_listen }} -I {{ memcached_max_object_size }} -t {{ memcached_threads }} -R {{ memcached_ulimit }}{% for option in memcached_experimental_options %} {{ option }}{% endfor %}{% for option in memcached_extra_cli_options %} {{ option }}{% endfor %}"
