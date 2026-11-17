@@ -1,0 +1,123 @@
+---
+- name: Install security packages
+  ansible.builtin.package:
+    name:
+      - fail2ban
+      - ufw
+    state: present
+  when: security_fail2ban_enabled | default(true) or security_ufw_enabled | default(true)
+
+- name: Render Fail2ban configuration
+  ansible.builtin.template:
+    src: fail2ban.jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: "0644"
+    backup: true
+  when: security_fail2ban_enabled | default(true)
+  notify: Restart fail2ban
+
+- name: Enable and start Fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: true
+    state: started
+  when: security_fail2ban_enabled | default(true)
+
+- name: Set UFW default incoming policy
+  ansible.builtin.command:
+    argv: [ufw, --force, default, deny]
+  when: security_ufw_enabled | default(true)
+  changed_when: "'Default incoming policy changed to' in nginx_multisite_ufw_default.stdout"
+  failed_when: false
+  register: nginx_multisite_ufw_default
+
+- name: Allow SSH through UFW
+  ansible.builtin.command:
+    argv: [ufw, allow, ssh]
+  when: security_ufw_enabled | default(true)
+  changed_when: "'Skipping adding existing rule' not in nginx_multisite_ufw_ssh.stdout"
+  failed_when: false
+  register: nginx_multisite_ufw_ssh
+
+- name: Allow HTTP through UFW
+  ansible.builtin.command:
+    argv: [ufw, allow, http]
+  when: security_ufw_enabled | default(true)
+  changed_when: "'Skipping adding existing rule' not in nginx_multisite_ufw_http.stdout"
+  failed_when: false
+  register: nginx_multisite_ufw_http
+
+- name: Allow HTTPS through UFW
+  ansible.builtin.command:
+    argv: [ufw, allow, https]
+  when: security_ufw_enabled | default(true)
+  changed_when: "'Skipping adding existing rule' not in nginx_multisite_ufw_https.stdout"
+  failed_when: false
+  register: nginx_multisite_ufw_https
+
+- name: Enable UFW
+  ansible.builtin.command:
+    argv: [ufw, --force, enable]
+  when: security_ufw_enabled | default(true)
+  changed_when: "'Firewall is active and enabled on system startup' in nginx_multisite_ufw_enable.stdout"
+  failed_when: false
+  register: nginx_multisite_ufw_enable
+
+- name: Apply kernel security settings
+  ansible.posix.sysctl:
+    name: "{{ item_sysctl['key'] }}"
+    value: "{{ item_sysctl['value'] }}"
+    sysctl_file: /etc/sysctl.d/99-security.conf
+    reload: true
+    state: present
+  loop:
+    - { key: net.ipv4.conf.default.rp_filter, value: "1" }
+    - { key: net.ipv4.conf.all.rp_filter, value: "1" }
+    - { key: net.ipv4.conf.all.accept_redirects, value: "0" }
+    - { key: net.ipv6.conf.all.accept_redirects, value: "0" }
+    - { key: net.ipv4.conf.default.accept_redirects, value: "0" }
+    - { key: net.ipv6.conf.default.accept_redirects, value: "0" }
+    - { key: net.ipv4.conf.all.send_redirects, value: "0" }
+    - { key: net.ipv4.conf.default.send_redirects, value: "0" }
+    - { key: net.ipv4.conf.all.accept_source_route, value: "0" }
+    - { key: net.ipv6.conf.all.accept_source_route, value: "0" }
+    - { key: net.ipv4.conf.default.accept_source_route, value: "0" }
+    - { key: net.ipv6.conf.default.accept_source_route, value: "0" }
+    - { key: net.ipv4.conf.all.log_martians, value: "1" }
+    - { key: net.ipv4.conf.default.log_martians, value: "1" }
+    - { key: net.ipv4.icmp_echo_ignore_all, value: "1" }
+    - { key: net.ipv4.icmp_echo_ignore_broadcasts, value: "1" }
+    - { key: net.ipv6.conf.all.disable_ipv6, value: "1" }
+    - { key: net.ipv6.conf.default.disable_ipv6, value: "1" }
+    - { key: net.ipv6.conf.lo.disable_ipv6, value: "1" }
+    - { key: net.ipv4.tcp_syncookies, value: "1" }
+    - { key: net.ipv4.tcp_max_syn_backlog, value: "2048" }
+    - { key: net.ipv4.tcp_synack_retries, value: "2" }
+    - { key: net.ipv4.tcp_syn_retries, value: "5" }
+  loop_control:
+    loop_var: item_sysctl
+
+- name: Check SSH daemon configuration
+  ansible.builtin.stat:
+    path: /etc/ssh/sshd_config
+  register: nginx_multisite_sshd_config
+
+- name: Configure SSH root login  # noqa: L039 - nginx_multisite_sshd_config is registered by the preceding stat task
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PermitRootLogin
+    line: PermitRootLogin no
+    state: present
+    create: false
+  when: (security_ssh_disable_root | default(true)) and nginx_multisite_sshd_config.stat.exists
+  notify: Restart sshd
+
+- name: Configure SSH password authentication  # noqa: L039 - nginx_multisite_sshd_config is registered by the preceding stat task
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PasswordAuthentication
+    line: PasswordAuthentication no
+    state: present
+    create: false
+  when: (not (security_ssh_password_auth | default(false))) and nginx_multisite_sshd_config.stat.exists
+  notify: Restart sshd

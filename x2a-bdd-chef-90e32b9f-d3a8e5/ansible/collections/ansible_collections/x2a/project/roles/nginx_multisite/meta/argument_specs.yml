@@ -1,0 +1,43 @@
+---
+# argument spec file for x2a.project.nginx_multisite
+argument_specs:
+  main:
+    short_description: Configure nginx multisite hosting and security hardening.
+    options:
+      nginx_multisite_my_variable:
+        type: str
+        description: A simple string argument for demonstration.
+        default: default_value
+      nginx_ssl_certificate_path:
+        type: str
+        description: Directory containing site certificates.
+        default: /etc/ssl/certs
+      nginx_ssl_private_key_path:
+        type: str
+        description: Directory containing site private keys.
+        default: /etc/ssl/private
+      security_fail2ban_enabled:
+        type: bool
+        description: Whether to install and configure Fail2ban.
+        default: true
+      security_ufw_enabled:
+        type: bool
+        description: Whether to configure and enable UFW.
+        default: true
+      security_ssh_disable_root:
+        type: bool
+        description: Whether to disable SSH root login.
+        default: true
+      security_ssh_password_auth:
+        type: bool
+        description: Whether SSH password authentication is allowed.
+        default: false
+      nginx_multisite_secure_logging:
+        type: bool
+        description: Whether to suppress the site token in task output.
+        default: true
+      nginx_sites:
+        type: list
+        elements: dict
+        description: Nginx sites to configure.
+        default: []

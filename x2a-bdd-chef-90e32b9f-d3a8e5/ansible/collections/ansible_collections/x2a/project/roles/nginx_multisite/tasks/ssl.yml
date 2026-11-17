@@ -1,0 +1,62 @@
+---
+- name: Install SSL packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create ssl-cert group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Create certificate directory
+  ansible.builtin.file:
+    path: "{{ nginx_ssl_certificate_path }}"  # noqa: R114 - path comes from role defaults and argument specifications
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create private key directory
+  ansible.builtin.file:
+    path: "{{ nginx_ssl_private_key_path }}"  # noqa: R114 - path comes from role defaults and argument specifications
+    state: directory
+    owner: root
+    group: ssl-cert
+    mode: "0710"
+
+- name: Check site certificate
+  ansible.builtin.stat:
+    path: "{{ nginx_ssl_certificate_path }}/{{ item_ssl['id'] }}.crt"
+  loop: "{{ nginx_sites | selectattr('ssl_enabled', 'defined') | selectattr('ssl_enabled') | list }}"
+  loop_control:
+    loop_var: item_ssl
+  register: nginx_multisite_certificate
+
+- name: Check site private key
+  ansible.builtin.stat:
+    path: "{{ nginx_ssl_private_key_path }}/{{ item_ssl['id'] }}.key"
+  loop: "{{ nginx_sites | selectattr('ssl_enabled', 'defined') | selectattr('ssl_enabled') | list }}"
+  loop_control:
+    loop_var: item_ssl
+  register: nginx_multisite_private_key
+
+- name: Generate self-signed certificates  # noqa: L039 - registered certificate and private key results are produced by preceding stat tasks
+  ansible.builtin.shell:  # noqa: R101 - command uses role-defined paths and site data
+    cmd: |
+      openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        -keyout '{{ nginx_ssl_private_key_path }}/{{ item_ssl['id'] }}.key' \
+        -out '{{ nginx_ssl_certificate_path }}/{{ item_ssl['id'] }}.crt' \
+        -subj '/C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN={{ item_ssl['id'] }}/emailAddress=admin@example.com'
+      chmod 640 '{{ nginx_ssl_private_key_path }}/{{ item_ssl['id'] }}.key'
+      chown root:ssl-cert '{{ nginx_ssl_private_key_path }}/{{ item_ssl['id'] }}.key'
+  when: >-
+    not (nginx_multisite_certificate['results'][ansible_loop.index0]['stat']['exists'] and
+    nginx_multisite_private_key['results'][ansible_loop.index0]['stat']['exists'])
+  changed_when: true
+  loop: "{{ nginx_sites | selectattr('ssl_enabled', 'defined') | selectattr('ssl_enabled') | list }}"
+  loop_control:
+    loop_var: item_ssl
+  notify: Reload nginx
