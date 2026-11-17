@@ -1,0 +1,64 @@
+---
+argument_specs:
+  main:
+    short_description: Deploys the FastAPI tutorial application with PostgreSQL.
+    description:
+      - Installs platform dependencies, deploys the FastAPI application, configures PostgreSQL, and manages its systemd service.
+    options:
+      fastapi_tutorial_app_path:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Filesystem path for the FastAPI application checkout.
+      fastapi_tutorial_repository:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository containing the FastAPI application.
+      fastapi_tutorial_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      fastapi_tutorial_service_port:
+        type: int
+        required: false
+        default: 8000
+        description: TCP port used by the FastAPI service.
+      fastapi_tutorial_service_name:
+        type: str
+        required: false
+        default: fastapi-tutorial
+        description: Systemd service name for the FastAPI application.
+      fastapi_tutorial_service_user:
+        type: str
+        required: false
+        default: root
+        description: Operating-system user running the FastAPI service.
+      fastapi_tutorial_database_host:
+        type: str
+        required: false
+        default: localhost
+        description: PostgreSQL host used in the application database URL.
+      fastapi_tutorial_database_port:
+        type: int
+        required: false
+        default: 5432
+        description: PostgreSQL port.
+      fastapi_tutorial_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide output from tasks that handle the database password.
+      database_username:
+        type: str
+        required: true
+        description: Database username injected by an AAP credential type.
+      database_password:
+        type: str
+        required: true
+        description: Database password injected by an AAP credential type.
+      database_name:
+        type: str
+        required: true
+        description: Database name injected by an AAP credential type.

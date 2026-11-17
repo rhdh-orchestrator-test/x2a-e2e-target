@@ -1,0 +1,147 @@
+---
+# Unsupported pre-flight checks: source-value grep, version-only diagnostics, unresolved
+# FastAPI service-name checks, checkout details without stated expected output, secret-based
+# connectivity, environment contents, endpoint probes, PostgreSQL socket/listener probes,
+# log inspection, and inventory data-bag paths.
+- name: Verify FastAPI tutorial deployment
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Collect service facts for PostgreSQL verification
+      ansible.builtin.service_facts:
+
+    - name: Verify PostgreSQL is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'postgresql.service' in ansible_facts['services']"
+          - "ansible_facts['services']['postgresql.service']['state'] == 'running'"
+          - "ansible_facts['services']['postgresql.service']['status'] == 'enabled'"
+        fail_msg: PostgreSQL must be running and enabled.
+
+    - name: Verify PostgreSQL is accepting connections
+      ansible.builtin.command:
+        argv:
+          - pg_isready
+      register: postgresql_ready
+      changed_when: false
+
+    - name: Assert PostgreSQL readiness
+      ansible.builtin.assert:
+        that:
+          - postgresql_ready['rc'] == 0
+        fail_msg: PostgreSQL is not accepting connections.
+
+    - name: Check application directory
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: application_directory
+
+    - name: Verify application directory exists
+      ansible.builtin.assert:
+        that:
+          - application_directory['stat']['exists']
+          - application_directory['stat']['isdir']
+        fail_msg: The FastAPI application directory is missing.
+
+    - name: Check requirements file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: requirements_file
+
+    - name: Verify requirements file exists
+      ansible.builtin.assert:
+        that:
+          - requirements_file['stat']['exists']
+          - requirements_file['stat']['isreg']
+        fail_msg: The FastAPI requirements file is missing.
+
+    - name: Check virtual environment Python executable
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/python
+      register: virtualenv_python
+
+    - name: Verify virtual environment Python is executable
+      ansible.builtin.assert:
+        that:
+          - virtualenv_python['stat']['exists']
+          - virtualenv_python['stat']['isreg']
+          - virtualenv_python['stat']['executable']
+        fail_msg: The virtual environment Python executable is missing or not executable.
+
+    - name: Check virtual environment pip executable
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/pip
+      register: virtualenv_pip
+
+    - name: Verify virtual environment pip is executable
+      ansible.builtin.assert:
+        that:
+          - virtualenv_pip['stat']['exists']
+          - virtualenv_pip['stat']['isreg']
+          - virtualenv_pip['stat']['executable']
+        fail_msg: The virtual environment pip executable is missing or not executable.
+
+    - name: Verify installed Python dependencies
+      ansible.builtin.command:
+        argv:
+          - /opt/fastapi-tutorial/venv/bin/pip
+          - check
+      register: pip_check
+      changed_when: false
+
+    - name: Assert Python dependency consistency
+      ansible.builtin.assert:
+        that:
+          - pip_check['rc'] == 0
+        fail_msg: Python dependency checks failed.
+
+    - name: Check application environment file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/.env
+      register: environment_file
+
+    - name: Verify application environment file exists
+      ansible.builtin.assert:
+        that:
+          - environment_file['stat']['exists']
+          - environment_file['stat']['isreg']
+        fail_msg: The FastAPI environment file is missing.
+
+    - name: Verify PostgreSQL role exists
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT 1 FROM pg_roles WHERE rolname = 'fastapi';
+      register: postgresql_role
+      changed_when: false
+
+    - name: Assert PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - postgresql_role['rc'] == 0
+          - postgresql_role['stdout'] | trim == '1'
+        fail_msg: The fastapi PostgreSQL role is missing.
+
+    - name: Verify PostgreSQL database and owner
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT datname, pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db';
+      register: postgresql_database
+      changed_when: false
+
+    - name: Assert PostgreSQL database has the expected owner
+      ansible.builtin.assert:
+        that:
+          - postgresql_database['rc'] == 0
+          - "'fastapi_db' in postgresql_database['stdout']"
+          - "'fastapi' in postgresql_database['stdout']"
+        fail_msg: The fastapi_db PostgreSQL database or owner is missing.
