@@ -1,0 +1,80 @@
+---
+- name: Install TLS packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create ssl-cert group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Create certificate directory
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_certificate_path }}" # noqa: R114 - path from role default
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create private key directory
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_private_key_path }}" # noqa: R114 - path from role default
+    state: directory
+    owner: root
+    group: ssl-cert
+    mode: "0710"
+
+- name: Generate private keys  # noqa: R101 - command arguments come from role defaults and role-defined sites, not user input
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - genrsa
+      - -out
+      - "{{ nginx_multisite_ssl_private_key_path }}/{{ item_ssl_site['key'] }}.key"
+      - "2048"
+  when: item_ssl_site['value']['ssl_enabled']
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_ssl_site
+  notify: Reload nginx
+  args:
+    creates: "{{ nginx_multisite_ssl_private_key_path }}/{{ item_ssl_site['key'] }}.key"
+
+- name: Set private key ownership and permissions
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_private_key_path }}/{{ item_ssl_permissions['key'] }}.key" # noqa: R114 - path from role-defined sites dictionary
+    state: file
+    owner: root
+    group: ssl-cert
+    mode: "0640"
+  when: item_ssl_permissions['value']['ssl_enabled']
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_ssl_permissions
+
+- name: Generate self-signed certificates  # noqa: R101 - command arguments come from role defaults and role-defined sites, not user input
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -new
+      - -nodes
+      - -days
+      - "365"
+      - -key
+      - "{{ nginx_multisite_ssl_private_key_path }}/{{ item_ssl_cert['key'] }}.key"
+      - -out
+      - "{{ nginx_multisite_ssl_certificate_path }}/{{ item_ssl_cert['key'] }}.crt"
+      - -subj
+      - /C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN={{ item_ssl_cert['key'] }}/emailAddress=admin@example.com
+  when: item_ssl_cert['value']['ssl_enabled']
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_ssl_cert
+  notify: Reload nginx
+  args:
+    creates: "{{ nginx_multisite_ssl_certificate_path }}/{{ item_ssl_cert['key'] }}.crt"
