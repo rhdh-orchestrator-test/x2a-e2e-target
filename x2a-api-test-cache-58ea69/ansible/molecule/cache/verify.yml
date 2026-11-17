@@ -1,0 +1,144 @@
+---
+# Unsupported pre-flight checks: authenticated redis-cli checks require REDIS_PASSWORD;
+# redis-cli INFO/CONFIG output and journalctl diagnostics require unavailable credentials or
+# service-unit details; Memcached nc version/statistics and configuration-value checks need
+# a protocol client or target-provider-specific configuration; /var/log/memcached has no
+# stated expected attributes; lsof duplicates the supported socket checks.
+- name: Verify cache services and filesystem state
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Collect service facts for Redis and Memcached checks
+      ansible.builtin.service_facts:
+
+    - name: Identify Redis service units
+      ansible.builtin.set_fact:
+        cache_redis_services: >-
+          {{ ansible_facts['services'] | dict2items
+             | selectattr('key', 'search', 'redis') | list }}
+
+    - name: Identify Memcached service units
+      ansible.builtin.set_fact:
+        cache_memcached_services: >-
+          {{ ansible_facts['services'] | dict2items
+             | selectattr('key', 'search', 'memcached') | list }}
+
+    - name: Verify the Redis instance is active and enabled
+      ansible.builtin.assert:
+        that:
+          - cache_redis_services | length > 0
+          - >-
+            (cache_redis_services | selectattr('value.state', 'equalto', 'running') | list
+            | length) > 0
+          - >-
+            (cache_redis_services | selectattr('value.status', 'equalto', 'enabled') | list
+            | length) > 0
+        fail_msg: Redis service facts do not show an active and enabled service.
+
+    - name: Verify the Memcached instance is active and enabled
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_services | length > 0
+          - >-
+            (cache_memcached_services | selectattr('value.state', 'equalto', 'running') | list
+            | length) > 0
+          - >-
+            (cache_memcached_services | selectattr('value.status', 'equalto', 'enabled') | list
+            | length) > 0
+        fail_msg: Memcached service facts do not show an active and enabled service.
+
+    - name: Check the Redis PID directory
+      ansible.builtin.stat:
+        path: /run/redis
+      register: cache_redis_pid_dir
+
+    - name: Verify the Redis PID directory exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_pid_dir.stat.exists
+          - cache_redis_pid_dir.stat.isdir
+        fail_msg: /run/redis is not an existing directory.
+
+    - name: Check the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_dir
+
+    - name: Verify Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_dir.stat.exists
+          - cache_redis_log_dir.stat.isdir
+          - cache_redis_log_dir.stat.pw_name == 'redis'
+          - cache_redis_log_dir.stat.gr_name == 'redis'
+          - cache_redis_log_dir.stat.mode == '0755'
+        fail_msg: /var/log/redis does not have the expected directory metadata.
+
+    - name: Check the Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config_file
+
+    - name: Verify the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config_file.stat.exists
+          - cache_redis_config_file.stat.isreg
+        fail_msg: /etc/redis/6379.conf is not an existing regular file.
+
+    - name: Read the Redis configuration file
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_config
+      when: cache_redis_config_file.stat.exists
+
+    - name: Verify removed Redis directives are not active
+      ansible.builtin.assert:
+        that:
+          - >-
+            (cache_redis_config.content | b64decode) is not
+            search('(?m)^[\\t ]*(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)([\\t ]|$)')
+        fail_msg: An active removed Redis directive remains in /etc/redis/6379.conf.
+      when: cache_redis_config_file.stat.exists
+
+    - name: Verify Redis is listening on TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Verify Memcached is listening on TCP port 11211
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 10
+
+    - name: Check that Redis is listening on port 6379
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: cache_redis_socket
+      changed_when: false
+
+    - name: Verify Redis TCP listener is present
+      ansible.builtin.assert:
+        that:
+          - cache_redis_socket.stdout is search(':6379\\b')
+        fail_msg: No TCP listener was reported for port 6379.
+
+    - name: Check that Memcached is listening on UDP port 11211
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ulnp
+      register: cache_memcached_udp_socket
+      changed_when: false
+
+    - name: Verify Memcached UDP listener is present
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_udp_socket.stdout is search(':11211\\b')
+        fail_msg: No UDP listener was reported for port 11211.
