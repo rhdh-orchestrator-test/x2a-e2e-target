@@ -1,0 +1,31 @@
+---
+- name: Install Memcached package
+  ansible.builtin.package:
+    name:
+      - memcached
+    state: present
+
+- name: Ensure Memcached service user exists
+  ansible.builtin.user:
+    name: "{{ memcached_user }}"
+    system: true
+    create_home: false
+    state: present
+
+- name: Configure Memcached service options
+  ansible.builtin.lineinfile:
+    path: /etc/sysconfig/memcached
+    regexp: ^OPTIONS=
+    line: >-
+      OPTIONS="-m {{ memcached_memory }} -p {{ memcached_port }} -U {{ memcached_udp_port }}
+      -l {{ memcached_listen }} -c {{ memcached_maxconn }} -u {{ memcached_user }}"
+    create: true
+    mode: "0644"
+    backup: true
+  notify: Restart memcached
+
+- name: Ensure Memcached service is started and enabled
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true
