@@ -1,0 +1,63 @@
+---
+- name: Install SSL packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create SSL certificate group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Create certificate directory  # noqa: R114 - path comes from role defaults
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_certificate_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create private key directory  # noqa: R114 - path comes from role defaults
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_private_key_path }}"
+    state: directory
+    owner: root
+    group: ssl-cert
+    mode: "0710"
+
+- name: Install TLS private keys for SSL sites  # noqa: L039 - TLS key is a role input supplied by the invoking play
+  ansible.builtin.copy:
+    content: "{{ tls_private_key }}"
+    dest: "{{ nginx_multisite_private_key_path }}/{{ item_ssl_site['key'] }}.key"  # noqa: R114 - destination path comes from role defaults and role-defined site data
+    owner: root
+    group: ssl-cert
+    mode: "0640"
+    backup: true
+  loop: "{{ nginx_sites | dict2items | selectattr('value.ssl_enabled', 'defined') | selectattr('value.ssl_enabled') | list }}"
+  loop_control:
+    loop_var: item_ssl_site
+  no_log: "{{ nginx_multisite_secure_logging }}"
+
+- name: Generate self-signed certificates for SSL sites  # noqa: R101 - command uses role-default paths and role-defined site data
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -nodes
+      - -days
+      - "365"
+      - -new
+      - -key
+      - "{{ nginx_multisite_private_key_path }}/{{ item_ssl_site['key'] }}.key"
+      - -out
+      - "{{ nginx_multisite_certificate_path }}/{{ item_ssl_site['key'] }}.crt"
+      - -subj
+      - "/C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN={{ item_ssl_site['key'] }}"
+    creates: "{{ nginx_multisite_certificate_path }}/{{ item_ssl_site['key'] }}.crt"
+  loop: "{{ nginx_sites | dict2items | selectattr('value.ssl_enabled', 'defined') | selectattr('value.ssl_enabled') | list }}"
+  loop_control:
+    loop_var: item_ssl_site
+  notify: Reload nginx

@@ -1,0 +1,20 @@
+---
+# Unsupported pre-flight checks: package/service status, command diagnostics, endpoint and
+# firewall results, fail2ban/kernel/SSH values, secret metadata, logs, and per-site checks
+# require an explicit expected result or named nginx_sites entries not supplied in the plan.
+
+- name: Verify nginx default site removal
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check that the nginx default enabled site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: nginx_default_site
+
+    - name: Assert that the nginx default enabled site is absent
+      ansible.builtin.assert:
+        that:
+          - not nginx_default_site.stat.exists
+        fail_msg: "The nginx default enabled site must be absent."
+        success_msg: "The nginx default enabled site is absent."
