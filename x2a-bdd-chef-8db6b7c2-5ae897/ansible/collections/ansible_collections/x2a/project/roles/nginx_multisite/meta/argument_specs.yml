@@ -1,0 +1,66 @@
+---
+argument_specs:
+  main:
+    short_description: Configure nginx as a secure multi-site web server
+    description:
+      - Installs and configures nginx, fail2ban, UFW, TLS certificates, and security hardening.
+      - Deploys the explicitly defined sites supplied in the nginx_multisite_sites variable.
+    options:
+      nginx_multisite_ssl_certificate_path:
+        type: str
+        required: false
+        default: /etc/ssl/certs
+        description: Directory where site certificates are stored.
+      nginx_multisite_ssl_private_key_path:
+        type: str
+        required: false
+        default: /etc/ssl/private
+        description: Directory where site private keys are stored.
+      nginx_multisite_fail2ban_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether fail2ban is enabled and configured.
+      nginx_multisite_ufw_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether UFW is enabled and configured.
+      nginx_multisite_ssh_disable_root:
+        type: bool
+        required: false
+        default: true
+        description: Whether SSH root login is disabled.
+      nginx_multisite_ssh_password_auth:
+        type: bool
+        required: false
+        default: false
+        description: Whether SSH password authentication is allowed.
+      nginx_multisite_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide output from tasks that handle the site token.
+      nginx_multisite_sites:
+        type: list
+        elements: dict
+        required: false
+        default: []
+        description: Explicit site definitions with id, document_root, and ssl_enabled fields.
+        options:
+          id:
+            type: str
+            required: true
+            description: Site server name.
+          document_root:
+            type: str
+            required: true
+            description: Absolute document-root path.
+          ssl_enabled:
+            type: bool
+            required: true
+            description: Whether HTTPS and a self-signed certificate are enabled.
+      site_token:
+        type: str
+        required: true
+        description: Site token injected by an AAP credential type.

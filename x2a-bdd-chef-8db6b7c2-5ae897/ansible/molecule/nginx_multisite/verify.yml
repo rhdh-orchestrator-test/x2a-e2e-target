@@ -1,0 +1,126 @@
+# Unsupported pre-flight checks: package-manager output, nginx -T, sshd status, sysctl -p,
+# listener/PID checks, site-specific checks, log inspection, HTTP/HTTPS curls, SSL metadata,
+# and migration-log secret exposure have no safely stated assertion or lack supplied site data.
+---
+- name: Verify nginx multisite pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Collect service status for nginx and fail2ban
+      ansible.builtin.service_facts:
+
+    - name: Assert nginx and fail2ban are active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['nginx.service']['state'] == 'running'
+          - ansible_facts['services']['fail2ban.service']['state'] == 'running'
+        fail_msg: nginx and fail2ban must both be active
+        success_msg: nginx and fail2ban are active
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: item_nginx_config_test
+      changed_when: false
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - item_nginx_config_test['rc'] == 0
+        fail_msg: nginx configuration validation failed
+        success_msg: nginx configuration is valid
+
+    - name: Check required nginx configuration paths
+      ansible.builtin.stat:
+        path: "{{ item_nginx_path['path'] }}"
+      loop:
+        - path: /etc/nginx/nginx.conf
+          type: file
+        - path: /etc/nginx/conf.d/security.conf
+          type: file
+        - path: /etc/nginx/sites-available
+          type: directory
+        - path: /etc/nginx/sites-enabled
+          type: directory
+      loop_control:
+        loop_var: item_nginx_path
+      register: item_nginx_paths
+
+    - name: Assert required nginx configuration paths exist
+      ansible.builtin.assert:
+        that:
+          - item_nginx_path_result['stat']['exists']
+          - >-
+            (item_nginx_path_result['item']['type'] == 'directory' and
+            item_nginx_path_result['stat']['isdir']) or
+            (item_nginx_path_result['item']['type'] == 'file' and
+            item_nginx_path_result['stat']['isreg'])
+        fail_msg: A required nginx configuration path is missing or has the wrong type
+        success_msg: Required nginx configuration paths exist
+      loop: "{{ item_nginx_paths['results'] }}"
+      loop_control:
+        loop_var: item_nginx_path_result
+
+    - name: Check UFW status and rules
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      register: item_ufw_status
+      changed_when: false
+
+    - name: Assert UFW is active with the required policy and allowances
+      ansible.builtin.assert:
+        that:
+          - "'Status: active' in item_ufw_status['stdout']"
+          - "'deny (incoming)' in item_ufw_status['stdout']"
+          - item_ufw_status['stdout'] is search('22/tcp\\s+ALLOW')
+          - item_ufw_status['stdout'] is search('80/tcp\\s+ALLOW')
+          - item_ufw_status['stdout'] is search('443/tcp\\s+ALLOW')
+        fail_msg: UFW does not have the required active policy and rules
+        success_msg: UFW is active with the required policy and rules
+
+    - name: Read SSH configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: item_sshd_config
+
+    - name: Assert SSH root login and password authentication are disabled
+      ansible.builtin.assert:
+        that:
+          - (item_sshd_config['content'] | b64decode) is search('(?m)^PermitRootLogin\\s+no\\s*$')
+          - (item_sshd_config['content'] | b64decode) is search('(?m)^PasswordAuthentication\\s+no\\s*$')
+        fail_msg: SSH configuration does not disable root login and password authentication
+        success_msg: SSH root login and password authentication are disabled
+
+    - name: Check nginx secrets directory
+      ansible.builtin.stat:
+        path: /etc/nginx/secrets
+      register: item_nginx_secrets_directory
+
+    - name: Assert nginx secrets directory exists
+      ansible.builtin.assert:
+        that:
+          - item_nginx_secrets_directory['stat']['exists']
+          - item_nginx_secrets_directory['stat']['isdir']
+        fail_msg: The nginx secrets directory is missing
+        success_msg: The nginx secrets directory exists
+
+    - name: Check nginx site token
+      ansible.builtin.stat:
+        path: /etc/nginx/secrets/site_token
+      register: item_nginx_site_token
+
+    - name: Assert nginx site token ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - item_nginx_site_token['stat']['exists']
+          - item_nginx_site_token['stat']['isreg']
+          - item_nginx_site_token['stat']['pw_name'] == 'root'
+          - item_nginx_site_token['stat']['gr_name'] == 'root'
+          - item_nginx_site_token['stat']['mode'] == '0600'
+        fail_msg: The nginx site token is missing or has incorrect ownership or permissions
+        success_msg: The nginx site token has the required ownership and permissions
