@@ -1,0 +1,209 @@
+# Unsupported pre-flight checks: PostgreSQL password connectivity, exact .env values,
+# log-content review, restart-trend evaluation, and response-body/header checks are
+# omitted because the pre-flight commands do not provide a safe, explicit assertion.
+---
+- name: Verify fastapi-tutorial deployment
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify PostgreSQL service is enabled and active
+      ansible.builtin.service_facts:
+
+    - name: Assert PostgreSQL service state
+      ansible.builtin.assert:
+        that:
+          - "'postgresql.service' in ansible_facts.services"
+          - ansible_facts.services['postgresql.service']['state'] == 'running'
+          - ansible_facts.services['postgresql.service']['status'] == 'enabled'
+        fail_msg: PostgreSQL must be enabled and active.
+
+    - name: Assert FastAPI service state
+      ansible.builtin.assert:
+        that:
+          - "'fastapi-tutorial.service' in ansible_facts.services"
+          - ansible_facts.services['fastapi-tutorial.service']['state'] == 'running'
+          - ansible_facts.services['fastapi-tutorial.service']['status'] == 'enabled'
+        fail_msg: fastapi-tutorial must be enabled and active.
+
+    - name: Check PostgreSQL role exists
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT 1 FROM pg_roles WHERE rolname='fastapi';
+        chdir: /
+      become: true
+      become_user: postgres
+      register: fastapi_role_check
+      changed_when: false
+
+    - name: Assert PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_role_check.rc == 0
+          - fastapi_role_check.stdout | trim == '1'
+        fail_msg: PostgreSQL role fastapi must exist.
+
+    - name: Check PostgreSQL database exists
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT datname FROM pg_database WHERE datname='fastapi_db';
+        chdir: /
+      become: true
+      become_user: postgres
+      register: fastapi_database_check
+      changed_when: false
+
+    - name: Assert PostgreSQL database exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_database_check.rc == 0
+          - fastapi_database_check.stdout | trim == 'fastapi_db'
+        fail_msg: PostgreSQL database fastapi_db must exist.
+
+    - name: Check PostgreSQL database owner
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname='fastapi_db';
+        chdir: /
+      become: true
+      become_user: postgres
+      register: fastapi_owner_check
+      changed_when: false
+
+    - name: Assert PostgreSQL database owner
+      ansible.builtin.assert:
+        that:
+          - fastapi_owner_check.rc == 0
+          - fastapi_owner_check.stdout | trim == 'fastapi'
+        fail_msg: PostgreSQL database fastapi_db must be owned by fastapi.
+
+    - name: Verify application directory and required files
+      ansible.builtin.stat:
+        path: "{{ item_fastapi_path['path'] }}"
+      loop:
+        - path: /opt/fastapi-tutorial
+          kind: directory
+        - path: /opt/fastapi-tutorial/requirements.txt
+          kind: file
+        - path: /opt/fastapi-tutorial/.env
+          kind: file
+      loop_control:
+        loop_var: item_fastapi_path
+      register: fastapi_path_checks
+
+    - name: Assert application directory and files exist
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_result['stat']['exists']
+          - (item_fastapi_result['stat']['isdir'] if item_fastapi_result['item']['kind'] == 'directory' else item_fastapi_result['stat']['isreg'])
+        fail_msg: The expected FastAPI application path is missing or has the wrong type.
+      loop: "{{ fastapi_path_checks['results'] }}"
+      loop_control:
+        loop_var: item_fastapi_result
+
+    - name: Verify virtual environment executables
+      ansible.builtin.stat:
+        path: "{{ item_fastapi_executable['path'] }}"
+      loop:
+        - path: /opt/fastapi-tutorial/venv/bin/python
+        - path: /opt/fastapi-tutorial/venv/bin/pip
+        - path: /opt/fastapi-tutorial/venv/bin/uvicorn
+      loop_control:
+        loop_var: item_fastapi_executable
+      register: fastapi_executable_checks
+
+    - name: Assert virtual environment executables are executable
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_executable_result['stat']['exists']
+          - item_fastapi_executable_result['stat']['isreg']
+          - item_fastapi_executable_result['stat']['executable']
+        fail_msg: A required virtual environment executable is missing or not executable.
+      loop: "{{ fastapi_executable_checks['results'] }}"
+      loop_control:
+        loop_var: item_fastapi_executable_result
+
+    - name: Run pip dependency check
+      ansible.builtin.command:
+        argv:
+          - /opt/fastapi-tutorial/venv/bin/pip
+          - check
+      register: fastapi_pip_check
+      changed_when: false
+
+    - name: Assert Python dependencies are consistent
+      ansible.builtin.assert:
+        that:
+          - fastapi_pip_check.rc == 0
+        fail_msg: The FastAPI virtual environment has inconsistent dependencies.
+
+    - name: Verify systemd unit syntax
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_unit_verify
+      changed_when: false
+
+    - name: Assert systemd unit passes validation
+      ansible.builtin.assert:
+        that:
+          - fastapi_unit_verify.rc == 0
+        fail_msg: The fastapi-tutorial systemd unit must pass systemd-analyze verify.
+
+    - name: Read systemd unit
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_unit_content
+
+    - name: Assert required systemd unit settings
+      ansible.builtin.assert:
+        that:
+          - fastapi_unit_content['content'] | b64decode is search('(?m)^User=root$')
+          - fastapi_unit_content['content'] | b64decode is search('(?m)^WorkingDirectory=/opt/fastapi-tutorial$')
+          - fastapi_unit_content['content'] | b64decode is search('(?m)^ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn app\.main:app --host 0\.0\.0\.0 --port 8000$')
+          - fastapi_unit_content['content'] | b64decode is search('(?m)^Restart=always$')
+        fail_msg: The fastapi-tutorial unit is missing an expected setting.
+
+    - name: Wait for FastAPI listening port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 8000
+        state: started
+        timeout: 30
+
+    - name: Check FastAPI listener address
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: fastapi_listener_check
+      changed_when: false
+
+    - name: Assert FastAPI listens on port 8000
+      ansible.builtin.assert:
+        that:
+          - fastapi_listener_check.rc == 0
+          - fastapi_listener_check.stdout is search('0\.0\.0\.0:8000')
+        fail_msg: FastAPI must listen on 0.0.0.0:8000.
+
+    - name: Check Uvicorn process
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -af
+          - uvicorn app.main:app
+      register: fastapi_process_check
+      changed_when: false
+
+    - name: Assert Uvicorn process is running
+      ansible.builtin.assert:
+        that:
+          - fastapi_process_check.rc == 0
+        fail_msg: The Uvicorn FastAPI process must be running.

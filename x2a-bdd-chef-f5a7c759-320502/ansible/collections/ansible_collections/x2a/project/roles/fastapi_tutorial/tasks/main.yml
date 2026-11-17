@@ -1,0 +1,152 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Install FastAPI tutorial dependencies
+  ansible.builtin.package: # noqa: R113 - package names are fixed by the role's OS-family mapping
+    name: "{{ (ansible_facts['os_family'] == 'RedHat') | ternary(['python3', 'python3-pip', 'git', 'postgresql-server', 'postgresql-contrib', 'libpq-devel'], ['python3',
+      'python3-pip', 'python3-venv', 'git', 'postgresql', 'postgresql-contrib', 'libpq-dev']) }}"
+    state: present
+
+- name: Initialize PostgreSQL on RedHat platforms
+  ansible.builtin.command:
+    cmd: postgresql-setup --initdb
+    creates: /var/lib/pgsql/data/PG_VERSION
+  when: ansible_facts['os_family'] == 'RedHat'
+
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ fastapi_app_path }}" # noqa: R114 - path is from role defaults
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+    recurse: true
+
+- name: Synchronize application repository # noqa: R106 - repository source is a trusted role setting
+  ansible.builtin.git: # noqa: R104 - repository URL comes from role defaults and uses HTTPS
+    repo: "{{ fastapi_repository }}"
+    dest: "{{ fastapi_app_path }}" # noqa: R114 - destination is from role defaults
+    version: "{{ fastapi_revision }}"
+    update: true
+
+- name: Create Python virtual environment
+  ansible.builtin.command: # noqa: R101 - command arguments come from trusted role defaults
+    argv:
+      - python3
+      - -m
+      - venv
+      - "{{ fastapi_app_path }}/venv"
+    creates: "{{ fastapi_app_path }}/venv" # noqa: R114 - path is from role defaults
+
+- name: Install Python dependencies # noqa: R113 - requirements and virtualenv paths are fixed by role defaults
+  ansible.builtin.pip:
+    requirements: "{{ fastapi_app_path }}/requirements.txt" # noqa: R114 - path is from role defaults
+    virtualenv: "{{ fastapi_app_path }}/venv" # noqa: R114 - path is from role defaults
+    virtualenv_command: python3 -m venv
+
+- name: Enable and start PostgreSQL
+  ansible.builtin.service:
+    name: postgresql
+    enabled: true
+    state: started
+
+- name: Check whether the FastAPI PostgreSQL role exists
+  ansible.builtin.command: # noqa: R101 - database query uses trusted role variables
+    argv:
+      - psql
+      - -tAc
+      - SELECT 1 FROM pg_roles WHERE rolname='{{ fastapi_database_user }}';
+  changed_when: false
+  register: fastapi_role_exists
+  become: true # noqa: R108 - querying PostgreSQL as its postgres administrator requires elevated privileges
+  become_user: postgres
+
+- name: Create the FastAPI PostgreSQL role # noqa: L039 - fastapi_role_exists is registered by the preceding task
+  ansible.builtin.command: # noqa: R101 - database command uses trusted role variables
+    argv:
+      - psql
+      - -c
+      - CREATE ROLE {{ fastapi_database_user }} LOGIN PASSWORD '{{ fastapi_database_password }}';
+  when: fastapi_role_exists.stdout | trim != '1'
+  become: true # noqa: R108 - creating a PostgreSQL role requires the postgres administrator
+  become_user: postgres
+  no_log: "{{ fastapi_secure_logging }}"
+  changed_when: true
+
+- name: Check whether the FastAPI database exists
+  ansible.builtin.command: # noqa: R101 - database query uses trusted role variables
+    argv:
+      - psql
+      - -tAc
+      - SELECT 1 FROM pg_database WHERE datname='{{ fastapi_database_name }}';
+  changed_when: false
+  register: fastapi_database_exists
+  become: true # noqa: R108 - querying PostgreSQL as its postgres administrator requires elevated privileges
+  become_user: postgres
+
+- name: Create the FastAPI database # noqa: L039 - fastapi_database_exists is registered by the preceding task
+  ansible.builtin.command: # noqa: R101 - database command uses trusted role variables
+    argv:
+      - createdb
+      - -O
+      - "{{ fastapi_database_user }}"
+      - "{{ fastapi_database_name }}"
+  when: fastapi_database_exists.stdout | trim != '1'
+  become: true # noqa: R108 - creating a PostgreSQL database requires the postgres administrator
+  become_user: postgres
+  changed_when: true
+
+- name: Grant FastAPI database privileges
+  ansible.builtin.command: # noqa: R101 - database command uses trusted role variables
+    argv:
+      - psql
+      - -c
+      - GRANT ALL PRIVILEGES ON DATABASE {{ fastapi_database_name }} TO {{ fastapi_database_user }};
+  changed_when: false
+  become: true # noqa: R108 - granting database privileges requires the postgres administrator
+  become_user: postgres
+
+- name: Deploy application environment
+  ansible.builtin.copy:
+    dest: "{{ fastapi_app_path }}/.env" # noqa: R114 - path is from role defaults
+    content: |
+      PROJECT_NAME="{{ fastapi_project_name }}"
+      API_VERSION={{ fastapi_api_version }}
+      DATABASE_URL=postgresql://{{ fastapi_database_user }}:{{ fastapi_database_password }}@{{ fastapi_database_host }}:{{ fastapi_database_port }}/{{ fastapi_database_name }}
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
+  no_log: "{{ fastapi_secure_logging }}"
+
+- name: Deploy FastAPI systemd unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/{{ fastapi_service_name }}.service # noqa: R114 - service name is from role defaults
+    content: |
+      [Unit]
+      Description=FastAPI Tutorial Service
+      After=network.target postgresql.service
+      [Service]
+      Type=simple
+      User=root
+      WorkingDirectory={{ fastapi_app_path }}
+      Environment="PATH={{ fastapi_app_path }}/venv/bin"
+      ExecStart={{ fastapi_app_path }}/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port {{ fastapi_service_port }}
+      Restart=always
+      [Install]
+      WantedBy=multi-user.target
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Reload systemd
+
+- name: Flush handlers before starting FastAPI
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start FastAPI service
+  ansible.builtin.service:
+    name: "{{ fastapi_service_name }}"
+    enabled: true
+    state: started
