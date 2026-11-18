@@ -1,0 +1,67 @@
+---
+- name: Install SSL packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create ssl-cert group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Create certificate directory
+  ansible.builtin.file:
+    path: "{{ nginx_ssl_certificate_path }}"  # noqa: R114 - path from role defaults, not user input
+    owner: root
+    group: root
+    mode: "0755"
+    state: directory
+
+- name: Create private key directory
+  ansible.builtin.file:
+    path: "{{ nginx_ssl_private_key_path }}"  # noqa: R114 - path from role defaults, not user input
+    owner: root
+    group: ssl-cert
+    mode: "0710"
+    state: directory
+
+- name: Install TLS private keys for SSL sites
+  ansible.builtin.copy:
+    content: "{{ tls_private_key }}"
+    dest: "{{ nginx_ssl_private_key_path }}/{{ item_ssl_site['value']['id'] }}.key"  # noqa: R114 - path from role defaults and role-defined sites dict
+    owner: root
+    group: ssl-cert
+    mode: "0640"
+    backup: true
+    force: false
+  when: item_ssl_site['value']['ssl_enabled'] | bool
+  loop: "{{ nginx_sites | dict2items }}"
+  loop_control:
+    loop_var: item_ssl_site
+  no_log: "{{ nginx_multisite_secure_logging }}"
+
+- name: Generate self-signed certificates  # noqa: R101 - command uses paths from role defaults and role-defined sites dict
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -nodes
+      - -days
+      - "365"
+      - -new
+      - -key
+      - "{{ nginx_ssl_private_key_path }}/{{ item_cert_site['value']['id'] }}.key"
+      - -out
+      - "{{ nginx_ssl_certificate_path }}/{{ item_cert_site['value']['id'] }}.crt"
+      - -subj
+      - /C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN={{ item_cert_site['value']['id'] }}/emailAddress=admin@example.com
+    creates: "{{ nginx_ssl_certificate_path }}/{{ item_cert_site['value']['id'] }}.crt"
+  when: item_cert_site['value']['ssl_enabled'] | bool
+  loop: "{{ nginx_sites | dict2items }}"
+  loop_control:
+    loop_var: item_cert_site
+  notify: Reload nginx
+  no_log: "{{ nginx_multisite_secure_logging }}"

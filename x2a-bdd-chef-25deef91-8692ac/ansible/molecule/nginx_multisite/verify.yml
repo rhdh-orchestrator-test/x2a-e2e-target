@@ -1,0 +1,159 @@
+# Unsupported: service/package status commands, nginx/fail2ban configuration-content checks,
+# kernel-value checks, log-tail checks, and site/SSL/HTTP checks require outcomes or exact
+# nginx_sites names and attributes that are not supplied in the pre-flight checks.
+---
+- name: Verify explicitly expected instance and security checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check nginx configuration file exists
+      ansible.builtin.stat:
+        path: /etc/nginx/nginx.conf
+      register: nginx_conf
+
+    - name: Assert nginx configuration file exists
+      ansible.builtin.assert:
+        that:
+          - nginx_conf['stat']['exists']
+          - nginx_conf['stat']['isreg']
+
+    - name: Check nginx security configuration file exists
+      ansible.builtin.stat:
+        path: /etc/nginx/conf.d/security.conf
+      register: nginx_security_conf
+
+    - name: Assert nginx security configuration file exists
+      ansible.builtin.assert:
+        that:
+          - nginx_security_conf['stat']['exists']
+          - nginx_security_conf['stat']['isreg']
+
+    - name: Check nginx sites directories exist
+      ansible.builtin.stat:
+        path: "{{ item_nginx_directory['path'] }}"
+      loop:
+        - path: /etc/nginx/sites-available
+        - path: /etc/nginx/sites-enabled
+      loop_control:
+        loop_var: item_nginx_directory
+      register: nginx_site_directories
+
+    - name: Assert nginx sites directories exist
+      ansible.builtin.assert:
+        that:
+          - item_nginx_directory_result['stat']['exists']
+          - item_nginx_directory_result['stat']['isdir']
+      loop: "{{ nginx_site_directories['results'] }}"
+      loop_control:
+        loop_var: item_nginx_directory_result
+
+    - name: Check default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: nginx_default_site
+
+    - name: Assert default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not nginx_default_site['stat']['exists']
+
+    - name: Check nginx PID file exists
+      ansible.builtin.stat:
+        path: /run/nginx.pid
+      register: nginx_pid
+
+    - name: Assert nginx PID file exists
+      ansible.builtin.assert:
+        that:
+          - nginx_pid['stat']['exists']
+          - nginx_pid['stat']['isreg']
+
+    - name: Check fail2ban jail configuration exists
+      ansible.builtin.stat:
+        path: /etc/fail2ban/jail.local
+      register: fail2ban_jail
+
+    - name: Assert fail2ban jail configuration exists
+      ansible.builtin.assert:
+        that:
+          - fail2ban_jail['stat']['exists']
+          - fail2ban_jail['stat']['isreg']
+
+    - name: Check UFW status
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      register: ufw_status
+      changed_when: false
+
+    - name: Assert UFW status and default incoming policy
+      ansible.builtin.assert:
+        that:
+          - ufw_status['stdout'] is search('Status:\s+active')
+          - ufw_status['stdout'] is search('Default:\s+deny\s+\(incoming\)')
+
+    - name: Check UFW numbered rules
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - numbered
+      register: ufw_rules
+      changed_when: false
+
+    - name: Assert UFW allows required TCP ports
+      ansible.builtin.assert:
+        that:
+          - ufw_rules['stdout'] is search('22/tcp')
+          - ufw_rules['stdout'] is search('80/tcp')
+          - ufw_rules['stdout'] is search('443/tcp')
+
+    - name: Read sshd configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: sshd_config
+
+    - name: Assert required sshd settings
+      ansible.builtin.assert:
+        that:
+          - (sshd_config['content'] | b64decode) is search('(?m)^PermitRootLogin\s+no\s*$')
+          - (sshd_config['content'] | b64decode) is search('(?m)^PasswordAuthentication\s+no\s*$')
+
+    - name: Validate sshd configuration syntax
+      ansible.builtin.command:
+        argv:
+          - sshd
+          - -t
+      changed_when: false
+
+    - name: Check site token file
+      ansible.builtin.stat:
+        path: /etc/nginx/secrets/site_token
+      register: site_token
+
+    - name: Assert site token file ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - site_token['stat']['exists']
+          - site_token['stat']['isreg']
+          - site_token['stat']['pw_name'] == 'root'
+          - site_token['stat']['gr_name'] == 'root'
+          - site_token['stat']['mode'] == '0600'
+
+    - name: Check required network listeners
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: listening_sockets
+      changed_when: false
+
+    - name: Assert sshd and nginx listen on required ports
+      ansible.builtin.assert:
+        that:
+          - listening_sockets['stdout'] is search(':(22)\s')
+          - listening_sockets['stdout'] is search(':(80)\s')
+          - listening_sockets['stdout'] is search('sshd')
+          - listening_sockets['stdout'] is search('nginx')
