@@ -1,0 +1,49 @@
+---
+- name: Create nginx sites directories
+  ansible.builtin.file:
+    path: "{{ item_nginx_sites_dir }}"  # noqa: R114 - path comes from the role-defined fixed directory loop
+    owner: root
+    group: root
+    mode: "0755"
+    state: directory
+  loop:
+    - /etc/nginx/sites-available
+    - /etc/nginx/sites-enabled
+  loop_control:
+    loop_var: item_nginx_sites_dir
+
+- name: Render nginx site configurations
+  ansible.builtin.template:
+    src: site.conf.j2
+    dest: /etc/nginx/sites-available/{{ item_nginx_site['key'] }} # noqa: R114 - path from role-defined nginx_multisite_sites dictionary
+    mode: "0644"
+    backup: true
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_site
+  notify: Reload nginx
+  vars:
+    server_name: "{{ item_nginx_site['key'] }}"
+    document_root: "{{ item_nginx_site['value']['document_root'] }}"
+    ssl_enabled: "{{ item_nginx_site['value']['ssl_enabled'] | default(false) }}"
+    cert_file: "{{ nginx_multisite_ssl_certificate_path }}/{{ item_nginx_site['key'] }}.crt"
+    key_file: "{{ nginx_multisite_ssl_private_key_path }}/{{ item_nginx_site['key'] }}.key"
+
+- name: Enable nginx sites
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/{{ item_nginx_site['key'] }}
+    dest: /etc/nginx/sites-enabled/{{ item_nginx_site['key'] }} # noqa: R114 - path from role-defined site names
+    state: link
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_site
+  notify: Reload nginx
+
+- name: Remove default nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload nginx
