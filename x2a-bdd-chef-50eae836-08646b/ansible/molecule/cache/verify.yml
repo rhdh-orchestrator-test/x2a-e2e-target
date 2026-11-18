@@ -1,0 +1,177 @@
+---
+# Unsupported pre-flight checks: provider-generated Memcached paths and logging destination;
+# Redis service identity, service status/enabled state, Redis permissions, service logs, and
+# Redis authenticated operations require details or secrets not supplied by the plan.
+- name: Verify cache services and listeners
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather service facts for Memcached
+      ansible.builtin.service_facts:
+
+    - name: Confirm Memcached exists and is running
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts['services']"
+          - ansible_facts['services']['memcached.service']['state'] == 'running'
+        fail_msg: Memcached must exist and be running.
+
+    - name: Confirm Memcached is enabled
+      ansible.builtin.command:
+        argv: [systemctl, is-enabled, memcached]
+      register: memcached_enabled
+      changed_when: false
+
+    - name: Assert Memcached is enabled
+      ansible.builtin.assert:
+        that: memcached_enabled['rc'] == 0
+        fail_msg: Memcached must be enabled.
+
+    - name: Confirm the Memcached process exists
+      ansible.builtin.command:
+        argv: [pgrep, -a, memcached]
+      register: memcached_process
+      changed_when: false
+
+    - name: Assert the Memcached process is present
+      ansible.builtin.assert:
+        that: memcached_process['rc'] == 0
+        fail_msg: The Memcached process must be present.
+
+    - name: Inspect TCP listeners for Memcached
+      ansible.builtin.command:
+        argv: [ss, -ltnp]
+      register: memcached_tcp
+      changed_when: false
+
+    - name: Assert Memcached listens on TCP 0.0.0.0:11211
+      ansible.builtin.assert:
+        that: memcached_tcp['stdout'] is search('0\\.0\\.0\\.0:11211')
+        fail_msg: Memcached must listen on TCP 0.0.0.0:11211.
+
+    - name: Inspect UDP listeners for Memcached
+      ansible.builtin.command:
+        argv: [ss, -lunp]
+      register: memcached_udp
+      changed_when: false
+
+    - name: Assert Memcached listens on UDP 0.0.0.0:11211
+      ansible.builtin.assert:
+        that: memcached_udp['stdout'] is search('0\\.0\\.0\\.0:11211')
+        fail_msg: Memcached must listen on UDP 0.0.0.0:11211.
+
+    - name: Check the Memcached protocol version
+      ansible.builtin.command:
+        argv: [nc, -w, '2', 127.0.0.1, '11211']
+        stdin: "version\r\n"
+      register: memcached_version
+      changed_when: false
+
+    - name: Assert Memcached returns a version
+      ansible.builtin.assert:
+        that: memcached_version['stdout'] is search('(?m)^VERSION .+')
+        fail_msg: Memcached must return a VERSION response.
+
+    - name: Check Memcached runtime statistics
+      ansible.builtin.command:
+        argv: [nc, -w, '2', 127.0.0.1, '11211']
+        stdin: "stats\r\n"
+      register: memcached_stats
+      changed_when: false
+
+    - name: Assert required Memcached statistics are available
+      ansible.builtin.assert:
+        that:
+          - memcached_stats['stdout'] is search('(?m)^STAT bytes ')
+          - memcached_stats['stdout'] is search('(?m)^STAT curr_connections ')
+          - memcached_stats['stdout'] is search('(?m)^STAT limit_maxbytes ')
+          - memcached_stats['stdout'] is search('(?m)^STAT threads ')
+        fail_msg: Memcached must provide the required runtime statistics.
+
+    - name: Verify the Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config
+
+    - name: Assert the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config['stat']['exists']
+          - redis_config['stat']['isreg']
+        fail_msg: The Redis configuration file must exist.
+
+    - name: Verify the Redis PID directory exists
+      ansible.builtin.stat:
+        path: /run/redis
+      register: redis_pid_directory
+
+    - name: Assert the Redis PID directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_pid_directory['stat']['exists']
+          - redis_pid_directory['stat']['isdir']
+        fail_msg: The Redis PID directory must exist.
+
+    - name: Verify the Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert the Redis log directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['isdir']
+        fail_msg: The Redis log directory must exist.
+
+    - name: Inspect the Redis TCP listener
+      ansible.builtin.command:
+        argv: [ss, -ltnp]
+      register: redis_tcp
+      changed_when: false
+
+    - name: Assert Redis listens on port 6379
+      ansible.builtin.assert:
+        that: redis_tcp['stdout'] is search(':6379')
+        fail_msg: Redis must listen on TCP port 6379.
+
+    - name: Check unwanted Redis directives are absent
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -nE
+          - ^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)
+          - /etc/redis/6379.conf
+      register: redis_unwanted
+      changed_when: false
+      failed_when: false
+
+    - name: Assert unwanted Redis directives were removed
+      ansible.builtin.assert:
+        that: redis_unwanted['rc'] == 1
+        fail_msg: Unwanted Redis replication directives must be absent.
+
+    - name: Confirm the Redis process exists
+      ansible.builtin.command:
+        argv: [pgrep, -a, redis]
+      register: redis_process
+      changed_when: false
+
+    - name: Assert the Redis process is present
+      ansible.builtin.assert:
+        that: redis_process['rc'] == 0
+        fail_msg: The Redis process must be present.
+
+    - name: Verify TCP connectivity to Memcached
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 2
+
+    - name: Verify TCP connectivity to Redis
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 2
