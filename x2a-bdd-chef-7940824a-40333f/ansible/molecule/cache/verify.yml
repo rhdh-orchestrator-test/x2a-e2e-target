@@ -1,0 +1,185 @@
+---
+# Unsupported checks: process listings, UDP socket inspection, protocol authentication tests,
+# unauthenticated Redis rejection, log inspection, and second-run idempotence require tools,
+# credentials, or multiple executions. The Memcached service account/group is also unsupported
+# because the pre-flight section does not state their expected names.
+- name: Verify cache services and configuration
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather installed package facts for Memcached
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Verify the memcached package is installed
+      ansible.builtin.assert:
+        that:
+          - "'memcached' in ansible_facts['packages']"
+        fail_msg: The memcached package is not installed.
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Verify Memcached is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts['services']"
+          - "ansible_facts['services']['memcached.service']['state'] == 'running'"
+          - "ansible_facts['services']['memcached.service']['status'] == 'enabled'"
+        fail_msg: The memcached service is not enabled and active.
+
+    - name: Discover Redis service units
+      ansible.builtin.set_fact:
+        redis_units: "{{ redis_units | default([]) + [item_redis['key']] }}"
+      loop: "{{ ansible_facts['services'] | dict2items }}"
+      loop_control:
+        loop_var: item_redis
+      when: item_redis['key'] is match('(^|[-.])redis(-server)?([.@-].*)?\\.service$')
+
+    - name: Verify a Redis service unit was discovered
+      ansible.builtin.assert:
+        that:
+          - "redis_units | default([]) | length > 0"
+        fail_msg: No Redis service unit was discovered.
+
+    - name: Verify Redis service units are enabled and active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services'][item_redis_unit]['state'] == 'running'"
+          - "ansible_facts['services'][item_redis_unit]['status'] == 'enabled'"
+      loop: "{{ redis_units }}"
+      loop_control:
+        loop_var: item_redis_unit
+
+    - name: Check platform-specific Memcached configuration paths
+      ansible.builtin.stat:
+        path: "{{ item_memcached_path }}"
+      loop:
+        - /etc/memcached.conf
+        - /etc/sysconfig/memcached
+        - /etc/default/memcached
+      loop_control:
+        loop_var: item_memcached_path
+      register: memcached_config_stats
+
+    - name: Verify a Memcached configuration file exists
+      ansible.builtin.assert:
+        that:
+          - >-
+            memcached_config_stats['results']
+            | selectattr('stat.exists', 'equalto', true)
+            | list
+            | length > 0
+        fail_msg: No supported Memcached configuration file was found.
+
+    - name: Read existing Memcached configuration files
+      ansible.builtin.slurp:
+        src: "{{ item_memcached_file['item'] }}"
+      loop: "{{ memcached_config_stats['results'] }}"
+      loop_control:
+        loop_var: item_memcached_file
+      when: item_memcached_file['stat']['exists']
+      register: memcached_configs
+
+    - name: Verify Memcached settings
+      ansible.builtin.assert:
+        that:
+          - >-
+            (memcached_configs['results'] | selectattr('content', 'defined') | map(attribute='content')
+            | map('b64decode') | join('\n')) is search('(^|\\s|=)(64|64m)(\\s|$)', multiline=true)
+          - >-
+            (memcached_configs['results'] | selectattr('content', 'defined') | map(attribute='content')
+            | map('b64decode') | join('\n')) is search('11211')
+          - >-
+            (memcached_configs['results'] | selectattr('content', 'defined') | map(attribute='content')
+            | map('b64decode') | join('\n')) is search('0\\.0\\.0\\.0')
+          - >-
+            (memcached_configs['results'] | selectattr('content', 'defined') | map(attribute='content')
+            | map('b64decode') | join('\n')) is search('1024')
+          - >-
+            (memcached_configs['results'] | selectattr('content', 'defined') | map(attribute='content')
+            | map('b64decode') | join('\n')) is search('1m', ignorecase=true)
+        fail_msg: The requested Memcached settings were not found.
+
+    - name: Verify the Memcached TCP endpoint accepts connections
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 2
+
+    - name: Check Memcached runtime directories
+      ansible.builtin.stat:
+        path: "{{ item_memcached_directory }}"
+      loop:
+        - /var/log/memcached
+        - /var/run/memcached
+      loop_control:
+        loop_var: item_memcached_directory
+      register: memcached_directories
+
+    - name: Verify Memcached runtime directories exist with mode 0755
+      ansible.builtin.assert:
+        that:
+          - item_memcached_directory['stat']['exists']
+          - item_memcached_directory['stat']['isdir']
+          - item_memcached_directory['stat']['mode'] == '0755'
+      loop: "{{ memcached_directories['results'] }}"
+      loop_control:
+        loop_var: item_memcached_directory
+
+    - name: Check the Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Read the Redis configuration file
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      when: redis_config_stat['stat']['exists']
+      register: redis_config
+
+    - name: Verify Redis configuration and cleanup directives
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat['stat']['exists']
+          - "(redis_config['content'] | b64decode) is search('^port\\s+6379$', multiline=true)"
+          - "(redis_config['content'] | b64decode) is search('^requirepass\\s+\\S+', multiline=true)"
+          - "(redis_config['content'] | b64decode) is search('^pidfile\\s+/?run/redis', multiline=true)"
+          - "(redis_config['content'] | b64decode) is not search('^replica-serve-stale-data', multiline=true)"
+          - "(redis_config['content'] | b64decode) is not search('^replica-read-only', multiline=true)"
+          - "(redis_config['content'] | b64decode) is not search('^repl-ping-replica-period', multiline=true)"
+          - "(redis_config['content'] | b64decode) is not search('^client-output-buffer-limit', multiline=true)"
+          - "(redis_config['content'] | b64decode) is not search('^replica-priority', multiline=true)"
+        fail_msg: Redis configuration does not match the requested checks.
+
+    - name: Verify the Redis TCP endpoint accepts connections
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 2
+
+    - name: Check Redis runtime directories
+      ansible.builtin.stat:
+        path: "{{ item_redis_directory }}"
+      loop:
+        - /run/redis
+        - /var/log/redis
+      loop_control:
+        loop_var: item_redis_directory
+      register: redis_directories
+
+    - name: Verify Redis runtime directories
+      ansible.builtin.assert:
+        that:
+          - item_redis_directory['stat']['exists']
+          - item_redis_directory['stat']['isdir']
+          - >-
+            item_redis_directory['item'] == '/run/redis'
+            or (item_redis_directory['stat']['mode'] == '0755'
+            and item_redis_directory['stat']['pw_name'] == 'redis'
+            and item_redis_directory['stat']['gr_name'] == 'redis')
+      loop: "{{ redis_directories['results'] }}"
+      loop_control:
+        loop_var: item_redis_directory

@@ -1,0 +1,60 @@
+---
+- name: Install Memcached package
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Create Memcached service group
+  ansible.builtin.group:
+    name: "{{ cache_memcached_group }}"
+    system: true
+    state: present
+
+- name: Create locked Memcached service user
+  ansible.builtin.user:
+    name: "{{ cache_memcached_user }}"
+    group: "{{ cache_memcached_group }}"
+    home: /nonexistent
+    shell: /bin/false
+    comment: Memcached
+    system: true
+    create_home: false
+    password_lock: true
+    state: present
+
+- name: Create Memcached directories
+  ansible.builtin.file:
+    path: "{{ item_memcached_directory['path'] }}" # noqa: R114 - paths come from role-defined defaults
+    state: directory
+    owner: "{{ cache_memcached_user }}"
+    group: "{{ cache_memcached_group }}"
+    mode: "0755"
+  loop:
+    - path: /var/log/memcached
+    - path: /var/run/memcached
+  loop_control:
+    loop_var: item_memcached_directory
+
+- name: Configure Memcached service arguments
+  ansible.builtin.copy:
+    dest: "{{ cache_memcached_config_file }}" # noqa: R114 - path is a role-defined platform configuration path
+    content: |
+      -m {{ cache_memcached_memory }}
+      -p {{ cache_memcached_port }}
+      -U {{ cache_memcached_udp_port }}
+      -l {{ cache_memcached_listen }}
+      -c {{ cache_memcached_maxconn }}
+      -I {{ cache_memcached_max_object_size }}
+      -u {{ cache_memcached_user }}
+      -R {{ cache_memcached_ulimit }}
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: Restart Memcached
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service_name }}"
+    state: started
+    enabled: true
