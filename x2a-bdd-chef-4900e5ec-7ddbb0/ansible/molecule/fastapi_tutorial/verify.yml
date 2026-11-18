@@ -1,0 +1,285 @@
+---
+# Unsupported pre-flight checks: /etc/os-release and version-only diagnostics have no
+# stated expected values; systemctl cat/systemd-analyze, journal, and pgrep checks have
+# no stated assertion; password-authentication cannot be checked without exposing a
+# credential; the optional PostgreSQL TCP-listener check permits a Unix-socket-only
+# deployment; daemon-reload/restart is intentionally not performed by verification.
+- name: Verify FastAPI tutorial deployment
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Collect installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Define expected platform packages
+      ansible.builtin.set_fact:
+        item_fastapi_expected_packages: >-
+          {{ ['python3', 'python3-pip', 'git', 'postgresql-server', 'postgresql-contrib',
+              'libpq-devel'] if ansible_facts['os_family'] == 'RedHat' else
+             ['python3', 'python3-pip', 'python3-venv', 'git', 'postgresql',
+              'postgresql-contrib', 'libpq-dev'] }}
+
+    - name: Verify expected platform packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_package in ansible_facts['packages']
+        fail_msg: "An expected platform package is not installed."
+      loop: "{{ item_fastapi_expected_packages }}"
+      loop_control:
+        loop_var: item_fastapi_package
+
+    - name: Collect service facts
+      ansible.builtin.service_facts:
+
+    - name: Verify PostgreSQL is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['postgresql.service']['status'] == 'enabled'
+          - ansible_facts['services']['postgresql.service']['state'] == 'running'
+        fail_msg: "The PostgreSQL service is not enabled and active."
+
+    - name: Check RHEL PostgreSQL initialization
+      ansible.builtin.stat:
+        path: /var/lib/pgsql/data/PG_VERSION
+      register: item_fastapi_pg_version
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Verify RHEL PostgreSQL initialization
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_pg_version['stat']['isreg']
+        fail_msg: "The RHEL PostgreSQL data directory is not initialized."
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Query PostgreSQL application objects
+      community.postgresql.postgresql_query:
+        db: postgres
+        query: "SELECT rolname FROM pg_roles WHERE rolname = 'fastapi'"
+      become: true
+      become_user: postgres
+      register: item_fastapi_role_query
+
+    - name: Verify the fastapi PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_role_query['query_result'] | length == 1
+          - item_fastapi_role_query['query_result'][0]['rolname'] == 'fastapi'
+        fail_msg: "The fastapi PostgreSQL role was not found."
+
+    - name: Query the application database owner and privileges
+      community.postgresql.postgresql_query:
+        db: postgres
+        query: >-
+          SELECT datname,
+          pg_catalog.pg_get_userbyid(datdba) AS owner,
+          has_database_privilege('fastapi', 'fastapi_db', 'ALL') AS has_all_privileges
+          FROM pg_database WHERE datname = 'fastapi_db'
+      become: true
+      become_user: postgres
+      register: item_fastapi_database_query
+
+    - name: Verify the database owner and privileges
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_database_query['query_result'] | length == 1
+          - item_fastapi_database_query['query_result'][0]['datname'] == 'fastapi_db'
+          - item_fastapi_database_query['query_result'][0]['owner'] == 'fastapi'
+          - item_fastapi_database_query['query_result'][0]['has_all_privileges'] | bool
+        fail_msg: "The fastapi_db database owner or privileges are incorrect."
+
+    - name: Check application directory
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: item_fastapi_app_directory
+
+    - name: Verify application directory exists
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_app_directory['stat']['isdir']
+        fail_msg: "The FastAPI application directory does not exist."
+
+    - name: Check application requirements file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: item_fastapi_requirements
+
+    - name: Verify application requirements file exists
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_requirements['stat']['isreg']
+        fail_msg: "The application requirements file does not exist."
+
+    - name: Check virtual-environment executables
+      ansible.builtin.stat:
+        path: "{{ item_fastapi_executable }}"
+      loop:
+        - /opt/fastapi-tutorial/venv/bin/python
+        - /opt/fastapi-tutorial/venv/bin/pip
+        - /opt/fastapi-tutorial/venv/bin/uvicorn
+      loop_control:
+        loop_var: item_fastapi_executable
+      register: item_fastapi_executable_checks
+
+    - name: Verify virtual-environment executables exist
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_executable_check['stat']['isreg']
+          - item_fastapi_executable_check['stat']['executable']
+        fail_msg: "A required virtual-environment executable is missing."
+      loop: "{{ item_fastapi_executable_checks['results'] }}"
+      loop_control:
+        loop_var: item_fastapi_executable_check
+
+    - name: Run pip dependency check
+      ansible.builtin.command:
+        argv:
+          - /opt/fastapi-tutorial/venv/bin/pip
+          - check
+        chdir: /opt/fastapi-tutorial
+      changed_when: false
+      register: item_fastapi_pip_check
+
+    - name: Verify application dependencies are consistent
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_pip_check['rc'] == 0
+        fail_msg: "The application virtual environment has broken requirements."
+
+    - name: Check environment file public settings
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - '^(PROJECT_NAME|API_VERSION)='
+          - /opt/fastapi-tutorial/.env
+      changed_when: false
+      register: item_fastapi_env_public
+
+    - name: Verify environment file public settings
+      ansible.builtin.assert:
+        that:
+          - "'PROJECT_NAME=\"FastAPI Tutorial\"' in item_fastapi_env_public['stdout_lines']"
+          - "'API_VERSION=1.0.0' in item_fastapi_env_public['stdout_lines']"
+        fail_msg: "The public environment settings are incorrect."
+
+    - name: Check masked database URL
+      ansible.builtin.command:
+        argv:
+          - awk
+          - '{ sub(/:[^:@]+@/, ":***@"); print }'
+          - /opt/fastapi-tutorial/.env
+      changed_when: false
+      register: item_fastapi_env_database
+
+    - name: Verify masked database URL
+      ansible.builtin.assert:
+        that:
+          - "'DATABASE_URL=postgresql://fastapi:***@localhost/fastapi_db' in item_fastapi_env_database['stdout_lines']"
+        fail_msg: "The database URL configuration is incorrect."
+
+    - name: Check FastAPI systemd unit file
+      ansible.builtin.stat:
+        path: /etc/systemd/system/fastapi-tutorial.service
+      register: item_fastapi_unit_file
+
+    - name: Verify FastAPI systemd unit file exists
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_unit_file['stat']['isreg']
+        fail_msg: "The FastAPI systemd unit file does not exist."
+
+    - name: Show FastAPI systemd unit properties
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - fastapi-tutorial
+          - --property=User
+          - --property=WorkingDirectory
+          - --property=ExecStart
+          - --property=Restart
+      changed_when: false
+      register: item_fastapi_unit_properties
+
+    - name: Verify FastAPI systemd unit properties
+      ansible.builtin.assert:
+        that:
+          - "'User=root' in item_fastapi_unit_properties['stdout_lines']"
+          - "'WorkingDirectory=/opt/fastapi-tutorial' in item_fastapi_unit_properties['stdout_lines']"
+          - "'Restart=always' in item_fastapi_unit_properties['stdout_lines']"
+          - "'/opt/fastapi-tutorial/venv/bin/uvicorn' in item_fastapi_unit_properties['stdout']"
+          - "'app.main:app' in item_fastapi_unit_properties['stdout']"
+          - "'--host 0.0.0.0' in item_fastapi_unit_properties['stdout']"
+          - "'--port 8000' in item_fastapi_unit_properties['stdout']"
+        fail_msg: "The FastAPI systemd unit properties are incorrect."
+
+    - name: Verify FastAPI service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['fastapi-tutorial.service']['status'] == 'enabled'
+          - ansible_facts['services']['fastapi-tutorial.service']['state'] == 'running'
+        fail_msg: "The FastAPI service is not enabled and active."
+
+    - name: Check FastAPI HTTP endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8000/
+        method: GET
+        status_code: "100-599"
+      register: item_fastapi_http_check
+
+    - name: Verify FastAPI HTTP endpoint returned a response
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_http_check['status'] is defined
+        fail_msg: "The FastAPI endpoint did not return an HTTP response."
+
+    - name: Check FastAPI listener binding
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+        chdir: /
+      changed_when: false
+      register: item_fastapi_listener
+
+    - name: Verify FastAPI listens on the IPv4 wildcard port
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_listener['stdout'] is search('0\\.0\\.0\\.0:8000')
+        fail_msg: "FastAPI is not listening on the expected IPv4 wildcard port."
+
+    - name: Check application checkout revision
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - /opt/fastapi-tutorial
+          - rev-parse
+          - --abbrev-ref
+          - HEAD
+      changed_when: false
+      register: item_fastapi_checkout_revision
+
+    - name: Verify application checkout is on main
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_checkout_revision['stdout'] | trim == 'main'
+        fail_msg: "The application checkout is not on the expected main revision."
+
+    - name: Check application checkout remote
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - /opt/fastapi-tutorial
+          - remote
+          - -v
+      changed_when: false
+      register: item_fastapi_checkout_remote
+
+    - name: Verify application checkout repository
+      ansible.builtin.assert:
+        that:
+          - "'https://github.com/dibanez/fastapi_tutorial.git' in item_fastapi_checkout_remote['stdout']"
+        fail_msg: "The application checkout does not use the expected repository."
