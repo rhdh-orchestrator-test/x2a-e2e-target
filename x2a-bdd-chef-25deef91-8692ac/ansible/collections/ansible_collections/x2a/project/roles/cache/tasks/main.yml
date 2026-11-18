@@ -1,0 +1,54 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Memcached
+  ansible.builtin.include_tasks: memcached.yml
+
+- name: Configure standalone Redis  # noqa: L038 - role is provided by the declared eloy.redis collection
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_install_method: package
+    redis_port: 6379
+    redis_requirepass: "{{ redis_password }}"
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_replication_enabled: false
+    redis_aof_enabled: false
+    redis_rdb_enabled: true
+    redis_base_piddir: /run/redis
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Check whether the Redis 6379 configuration exists
+  ansible.builtin.stat:
+    path: /etc/redis/6379.conf
+  register: cache_redis_config
+
+- name: Remove legacy Redis directives  # noqa: L039 - cache_redis_config is registered by the prior stat task
+  ansible.builtin.lineinfile:
+    path: /etc/redis/6379.conf
+    regexp: ^{{ item_cache_directive }}.*$
+    state: absent
+    create: false
+  when:
+    - ansible_facts['os_family'] is defined
+    - cache_redis_config.stat.exists
+  loop:
+    - replica-serve-stale-data
+    - replica-read-only
+    - repl-ping-replica-period
+    - client-output-buffer-limit
+    - replica-priority
+  loop_control:
+    loop_var: item_cache_directive
+  notify: Restart Redis
