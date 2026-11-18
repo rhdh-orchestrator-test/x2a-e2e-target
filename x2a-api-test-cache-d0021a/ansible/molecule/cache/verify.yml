@@ -1,0 +1,175 @@
+---
+# Unsupported pre-flight checks: raw Memcached protocol/stat output and process inspection;
+# Redis service-name discovery, authenticated PING, journal review, and secret-dependent checks.
+- name: Verify cache services and endpoints
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather service facts for the Memcached service check
+      ansible.builtin.service_facts:
+
+    - name: Assert Memcached is active and enabled
+      ansible.builtin.assert:
+        that:
+          - >-
+            ansible_facts.services.get('memcached.service',
+            ansible_facts.services.get('memcached', {})).state == 'running'
+          - >-
+            ansible_facts.services.get('memcached.service',
+            ansible_facts.services.get('memcached', {})).status == 'enabled'
+        fail_msg: Memcached must be active and enabled.
+
+    - name: Wait for the Memcached TCP endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 5
+
+    - name: Check that Memcached responds to a version request
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - "2"
+          - 127.0.0.1
+          - "11211"
+        stdin: "version\r\nquit\r\n"
+      register: memcached_version_check
+      changed_when: false
+
+    - name: Assert Memcached returned a version response
+      ansible.builtin.assert:
+        that:
+          - memcached_version_check.rc == 0
+          - "'VERSION' in memcached_version_check.stdout"
+        fail_msg: Memcached must respond to a version request.
+
+    - name: Check the Memcached UDP endpoint
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -u
+          - -z
+          - -w
+          - "2"
+          - 127.0.0.1
+          - "11211"
+      register: memcached_udp_check
+      changed_when: false
+
+    - name: Assert Memcached exposes UDP port 11211
+      ansible.builtin.assert:
+        that:
+          - memcached_udp_check.rc == 0
+        fail_msg: Memcached must expose UDP port 11211.
+
+    - name: Inspect the Memcached log directory
+      ansible.builtin.stat:
+        path: /var/log/memcached
+      register: memcached_log_directory
+
+    - name: Inspect the Memcached runtime directory
+      ansible.builtin.stat:
+        path: /var/run/memcached
+      register: memcached_runtime_directory
+
+    - name: Assert Memcached directories have the expected mode and ownership
+      ansible.builtin.assert:
+        that:
+          - memcached_log_directory.stat.exists
+          - memcached_log_directory.stat.isdir
+          - memcached_log_directory.stat.mode == '0755'
+          - memcached_log_directory.stat.pw_name == 'service_user'
+          - memcached_log_directory.stat.gr_name == 'service_group'
+          - memcached_runtime_directory.stat.exists
+          - memcached_runtime_directory.stat.isdir
+          - memcached_runtime_directory.stat.mode == '0755'
+          - memcached_runtime_directory.stat.pw_name == 'service_user'
+          - memcached_runtime_directory.stat.gr_name == 'service_group'
+        fail_msg: Memcached directories must exist with mode 0755 and service ownership.
+
+    - name: Find the Memcached process for effective-limit verification
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -xo
+          - memcached
+      register: memcached_pid
+      changed_when: false
+
+    - name: Read the Memcached process limits
+      ansible.builtin.command:
+        argv:
+          - cat
+          - "/proc/{{ memcached_pid.stdout | trim }}/limits"
+      register: memcached_limits
+      changed_when: false
+      when: memcached_pid.rc == 0
+
+    - name: Assert the Memcached open-file limit is compatible with ulimit 1024
+      ansible.builtin.assert:
+        that:
+          - memcached_pid.rc == 0
+          - >-
+            (memcached_limits.stdout | regex_search('Max open files\\s+(\\d+)\\s+(\\d+)', '\\1')
+            | first | int) >= 1024
+          - >-
+            (memcached_limits.stdout | regex_search('Max open files\\s+(\\d+)\\s+(\\d+)', '\\2')
+            | first | int) >= 1024
+        fail_msg: Memcached effective open-file limits must support 1024.
+
+    - name: Wait for the intended Redis TCP endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Inspect the Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_configuration
+
+    - name: Assert the Redis configuration has the intended port and PID directory
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_configuration.content | b64decode) is search('(?m)^port\\s+6379\\s*$')
+          - >-
+            (redis_configuration.content | b64decode) is search('(?m)^pidfile\\s+.*?/run/redis(?:/|\\s|$)')
+        fail_msg: Redis configuration must specify port 6379 and the /run/redis PID directory.
+
+    - name: Assert the selected Redis directive families are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (redis_configuration.content | b64decode) is not search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)\\b')
+        fail_msg: Selected replica and client buffer directives must be absent from Redis configuration.
+
+    - name: Inspect the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert the Redis log directory has the expected mode and ownership
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+          - redis_log_directory.stat.mode == '0755'
+          - redis_log_directory.stat.pw_name == 'redis'
+          - redis_log_directory.stat.gr_name == 'redis'
+        fail_msg: Redis log directory must have mode 0755 and redis ownership.
+
+    - name: Inspect the Redis PID directory
+      ansible.builtin.stat:
+        path: /run/redis
+      register: redis_pid_directory
+
+    - name: Assert the Redis PID directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_pid_directory.stat.exists
+          - redis_pid_directory.stat.isdir
+        fail_msg: Redis PID directory /run/redis must exist.
