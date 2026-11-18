@@ -1,0 +1,234 @@
+---
+# Unsupported pre-flight checks: sysctl runtime values; HTTP/HTTPS response headers and
+# status codes; service and nginx journal contents; generic nginx log contents; site-specific
+# checks whose site names/document roots/SSL flags were not supplied.
+- name: Verify nginx-multisite pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify required packages are installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts.packages
+        loop_control:
+          loop_var: item_package
+      loop:
+        - nginx
+        - fail2ban
+        - ufw
+        - openssl
+        - ca-certificates
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert nginx is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'nginx.service' in ansible_facts.services"
+          - ansible_facts.services['nginx.service']['status'] == 'enabled'
+          - ansible_facts.services['nginx.service']['state'] == 'running'
+
+    - name: Assert fail2ban is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'fail2ban.service' in ansible_facts.services"
+          - ansible_facts.services['fail2ban.service']['status'] == 'enabled'
+          - ansible_facts.services['fail2ban.service']['state'] == 'running'
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: item_nginx_config_test
+      changed_when: false
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - item_nginx_config_test.rc == 0
+
+    - name: Check fail2ban availability
+      ansible.builtin.command:
+        argv:
+          - fail2ban-client
+          - ping
+      register: item_fail2ban_ping
+      changed_when: false
+
+    - name: Assert fail2ban responds to ping
+      ansible.builtin.assert:
+        that:
+          - item_fail2ban_ping.rc == 0
+
+    - name: Check fail2ban jail status
+      ansible.builtin.command:
+        argv:
+          - fail2ban-client
+          - status
+          - "{{ item_fail2ban_jail }}"
+      register: item_fail2ban_status
+      changed_when: false
+      loop:
+        - sshd
+        - nginx-http-auth
+        - nginx-limit-req
+        - nginx-botsearch
+      loop_control:
+        loop_var: item_fail2ban_jail
+
+    - name: Assert fail2ban jails respond successfully
+      ansible.builtin.assert:
+        that:
+          - item_fail2ban_status_result['rc'] == 0
+      loop: "{{ item_fail2ban_status.results }}"
+      loop_control:
+        loop_var: item_fail2ban_status_result
+
+    - name: Check UFW status
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      register: item_ufw_verbose
+      changed_when: false
+
+    - name: Check UFW numbered rules
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - numbered
+      register: item_ufw_numbered
+      changed_when: false
+
+    - name: Assert UFW is enabled with the expected policy and rules
+      ansible.builtin.assert:
+        that:
+          - item_ufw_verbose.rc == 0
+          - "'Status: active' in item_ufw_verbose.stdout"
+          - "'Default: deny (incoming)' in item_ufw_verbose.stdout"
+          - item_ufw_numbered.rc == 0
+          - "'22/tcp' in item_ufw_numbered.stdout"
+          - "'80/tcp' in item_ufw_numbered.stdout"
+          - "'443/tcp' in item_ufw_numbered.stdout"
+
+    - name: Verify SSH hardening configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: item_sshd_config
+
+    - name: Assert SSH hardening settings are present
+      ansible.builtin.assert:
+        that:
+          - "'PermitRootLogin no' in (item_sshd_config.content | b64decode)"
+          - "'PasswordAuthentication no' in (item_sshd_config.content | b64decode)"
+
+    - name: Verify required configuration files and directories
+      ansible.builtin.stat:
+        path: "{{ item_required_path }}"
+      register: item_required_path_stat
+      loop:
+        - /etc/fail2ban/jail.local
+        - /etc/sysctl.d/99-security.conf
+        - /etc/ssh/sshd_config
+        - /etc/nginx/nginx.conf
+        - /etc/nginx/conf.d/security.conf
+        - /etc/nginx/secrets
+        - /etc/nginx/secrets/site_token
+        - /etc/nginx/sites-available
+        - /etc/nginx/sites-enabled
+        - /etc/ssl/certs
+        - /etc/ssl/private
+        - /run/nginx.pid
+      loop_control:
+        loop_var: item_required_path
+
+    - name: Assert required configuration files and directories exist
+      ansible.builtin.assert:
+        that:
+          - item_required_path_stat_result['stat']['exists']
+      loop: "{{ item_required_path_stat.results }}"
+      loop_control:
+        loop_var: item_required_path_stat_result
+
+    - name: Verify nginx secret metadata
+      ansible.builtin.stat:
+        path: "{{ item_secret_path['path'] }}"
+      register: item_secret_stat
+      loop:
+        - path: /etc/nginx/secrets
+          owner: root
+          group: root
+          mode: "0700"
+        - path: /etc/nginx/secrets/site_token
+          owner: root
+          group: root
+          mode: "0600"
+      loop_control:
+        loop_var: item_secret_path
+
+    - name: Assert nginx secret metadata is correct
+      ansible.builtin.assert:
+        that:
+          - item_secret_result['stat']['pw_name'] == item_secret_result['item']['owner']
+          - item_secret_result['stat']['gr_name'] == item_secret_result['item']['group']
+          - item_secret_result['stat']['mode'] == item_secret_result['item']['mode']
+      loop: "{{ item_secret_stat.results }}"
+      loop_control:
+        loop_var: item_secret_result
+
+    - name: Verify SSL directory metadata
+      ansible.builtin.stat:
+        path: "{{ item_ssl_directory['path'] }}"
+      register: item_ssl_directory_stat
+      loop:
+        - path: /etc/ssl/certs
+          owner: root
+          group: root
+          mode: "0755"
+        - path: /etc/ssl/private
+          owner: root
+          group: ssl-cert
+          mode: "0710"
+      loop_control:
+        loop_var: item_ssl_directory
+
+    - name: Assert SSL directory metadata is correct
+      ansible.builtin.assert:
+        that:
+          - item_ssl_directory_result['stat']['pw_name'] == item_ssl_directory_result['item']['owner']
+          - item_ssl_directory_result['stat']['gr_name'] == item_ssl_directory_result['item']['group']
+          - item_ssl_directory_result['stat']['mode'] == item_ssl_directory_result['item']['mode']
+      loop: "{{ item_ssl_directory_stat.results }}"
+      loop_control:
+        loop_var: item_ssl_directory_result
+
+    - name: Assert the default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: item_default_site
+
+    - name: Verify the default nginx site was removed
+      ansible.builtin.assert:
+        that:
+          - not item_default_site.stat.exists
+
+    - name: Verify required listening endpoints
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ item_listening_port }}"
+        state: started
+        timeout: 5
+      loop:
+        - 22
+        - 80
+        - 443
+      loop_control:
+        loop_var: item_listening_port
