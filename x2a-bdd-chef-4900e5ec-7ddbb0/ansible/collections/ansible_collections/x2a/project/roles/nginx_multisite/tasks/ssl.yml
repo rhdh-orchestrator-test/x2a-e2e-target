@@ -1,0 +1,66 @@
+---
+- name: Install SSL packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create ssl-cert group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Create certificate directory
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_certificate_path }}" # noqa: R114 - path is a role default
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create private key directory
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_private_key_path }}" # noqa: R114 - path is a role default
+    state: directory
+    owner: root
+    group: ssl-cert
+    mode: "0710"
+
+- name: Install supplied private keys
+  ansible.builtin.copy:
+    content: "{{ nginx_multisite_private_key }}"
+    dest: "{{ nginx_multisite_ssl_private_key_path }}/{{ item_ssl['id'] }}.key" # noqa: R114 - filename from role-defined sites
+    owner: root
+    group: ssl-cert
+    mode: "0640"
+    backup: true
+  when: item_ssl['ssl_enabled'] | bool
+  loop: "{{ nginx_multisite_sites }}"
+  loop_control:
+    loop_var: item_ssl
+  no_log: "{{ nginx_multisite_secure_logging }}"
+
+- name: Generate self-signed certificates # noqa: R101 - command paths and site IDs come from role-defined values
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -nodes
+      - -days
+      - "365"
+      - -new
+      - -key
+      - "{{ nginx_multisite_ssl_private_key_path }}/{{ item_cert['id'] }}.key"
+      - -out
+      - "{{ nginx_multisite_ssl_certificate_path }}/{{ item_cert['id'] }}.crt"
+      - -subj
+      - "/C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN={{ item_cert['id'] }}/emailAddress=admin@example.com"
+    creates: "{{ nginx_multisite_ssl_certificate_path }}/{{ item_cert['id'] }}.crt"
+  when: item_cert['ssl_enabled'] | bool
+  loop: "{{ nginx_multisite_sites }}"
+  loop_control:
+    loop_var: item_cert
+  notify: Reload nginx
+  no_log: "{{ nginx_multisite_secure_logging }}"
