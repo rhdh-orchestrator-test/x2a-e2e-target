@@ -1,0 +1,218 @@
+---
+# Unsupported pre-flight checks: site-specific checks require the unavailable nginx_sites
+# data, sysctl checks have no stated expected values, and log-tail/stat diagnostics have
+# no stated expected outcome. Secret-file ownership/mode is also not specified.
+- name: Verify nginx multisite pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify required packages are installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts['packages']
+        fail_msg: "A required package is not installed."
+      loop:
+        - nginx
+        - fail2ban
+        - ufw
+        - openssl
+        - ca-certificates
+      loop_control:
+        loop_var: item_package
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert nginx is running
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['nginx.service']['state'] == 'running'
+
+    - name: Assert fail2ban is running
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['fail2ban.service']['state'] == 'running'
+
+    - name: Assert an SSH service is running
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['services']['sshd.service'] is defined and
+            ansible_facts['services']['sshd.service']['state'] == 'running') or
+            (ansible_facts['services']['ssh.service'] is defined and
+            ansible_facts['services']['ssh.service']['state'] == 'running')
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: item_nginx_test
+      changed_when: false
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - item_nginx_test['rc'] == 0
+
+    - name: Read nginx main configuration
+      ansible.builtin.slurp:
+        src: /etc/nginx/nginx.conf
+      register: item_nginx_config
+
+    - name: Assert required nginx main configuration directives exist
+      ansible.builtin.assert:
+        that:
+          - (item_nginx_config['content'] | b64decode) is search('(?m)^user\\s+nginx')
+          - (item_nginx_config['content'] | b64decode) is search('worker_processes')
+          - (item_nginx_config['content'] | b64decode) is search('worker_connections\\s+768')
+          - (item_nginx_config['content'] | b64decode) is search('access_log')
+          - (item_nginx_config['content'] | b64decode) is search('error_log')
+          - (item_nginx_config['content'] | b64decode) is search('gzip\\s+on')
+          - (item_nginx_config['content'] | b64decode) is search('sites-enabled')
+
+    - name: Read nginx security configuration
+      ansible.builtin.slurp:
+        src: /etc/nginx/conf.d/security.conf
+      register: item_nginx_security_config
+
+    - name: Assert required nginx security directives exist
+      ansible.builtin.assert:
+        that:
+          - (item_nginx_security_config['content'] | b64decode) is search('server_tokens')
+          - (item_nginx_security_config['content'] | b64decode) is search('limit_req_zone')
+          - (item_nginx_security_config['content'] | b64decode) is search('client_max_body_size')
+          - (item_nginx_security_config['content'] | b64decode) is search('client_body_timeout')
+          - (item_nginx_security_config['content'] | b64decode) is search('ssl_protocols')
+          - (item_nginx_security_config['content'] | b64decode) is search('ssl_ciphers')
+
+    - name: Check UFW status
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      register: item_ufw_status
+      changed_when: false
+
+    - name: Assert UFW is active with a deny default
+      ansible.builtin.assert:
+        that:
+          - item_ufw_status['rc'] == 0
+          - item_ufw_status['stdout'] is search('Status: active')
+          - item_ufw_status['stdout'] is search('Default: deny')
+
+    - name: Check UFW allowed ports
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+      register: item_ufw_ports
+      changed_when: false
+
+    - name: Assert UFW allows SSH HTTP and HTTPS
+      ansible.builtin.assert:
+        that:
+          - item_ufw_ports['rc'] == 0
+          - item_ufw_ports['stdout'] is search('22/tcp')
+          - item_ufw_ports['stdout'] is search('80/tcp')
+          - item_ufw_ports['stdout'] is search('443/tcp')
+
+    - name: Check fail2ban overall status
+      ansible.builtin.command:
+        argv:
+          - fail2ban-client
+          - status
+      register: item_fail2ban_status
+      changed_when: false
+
+    - name: Assert fail2ban overall status succeeds
+      ansible.builtin.assert:
+        that:
+          - item_fail2ban_status['rc'] == 0
+
+    - name: Check required fail2ban jails
+      ansible.builtin.command:
+        argv:
+          - fail2ban-client
+          - status
+          - "{{ item_fail2ban_jail['name'] }}"
+      loop:
+        - name: sshd
+        - name: nginx-http-auth
+        - name: nginx-limit-req
+        - name: nginx-botsearch
+      loop_control:
+        loop_var: item_fail2ban_jail
+      register: item_fail2ban_jails
+      changed_when: false
+
+    - name: Assert required fail2ban jail checks succeed
+      ansible.builtin.assert:
+        that:
+          - item_fail2ban_result['rc'] == 0
+      loop: "{{ item_fail2ban_jails['results'] }}"
+      loop_control:
+        loop_var: item_fail2ban_result
+
+    - name: Read SSH configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: item_sshd_config
+
+    - name: Assert SSH hardening directives are present
+      ansible.builtin.assert:
+        that:
+          - (item_sshd_config['content'] | b64decode) is search('(?m)^PermitRootLogin no$')
+          - (item_sshd_config['content'] | b64decode) is search('(?m)^PasswordAuthentication no$')
+
+    - name: Validate SSH configuration
+      ansible.builtin.command:
+        argv:
+          - sshd
+          - -t
+      register: item_sshd_test
+      changed_when: false
+
+    - name: Assert SSH configuration is valid
+      ansible.builtin.assert:
+        that:
+          - item_sshd_test['rc'] == 0
+
+    - name: Verify required listening ports
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ item_listening_port }}"
+        state: started
+        timeout: 5
+      loop:
+        - 22
+        - 80
+        - 443
+      loop_control:
+        loop_var: item_listening_port
+
+    - name: Verify the nginx secret file exists
+      ansible.builtin.stat:
+        path: /etc/nginx/secrets/site_token
+      register: item_site_token
+
+    - name: Assert the nginx secret file exists
+      ansible.builtin.assert:
+        that:
+          - item_site_token['stat']['exists']
+          - item_site_token['stat']['isreg']
+
+    - name: Verify the default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: item_default_site
+
+    - name: Assert the default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not item_default_site['stat']['exists']
