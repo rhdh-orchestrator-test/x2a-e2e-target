@@ -1,0 +1,32 @@
+---
+- name: Install Memcached packages
+  ansible.builtin.package:
+    name:
+      - memcached
+    state: present
+
+- name: Ensure Memcached service account exists
+  ansible.builtin.user:
+    name: "{{ cache_memcached_user }}"
+    system: true
+    state: present
+
+- name: Ensure Memcached configuration directory exists
+  ansible.builtin.file:
+    path: "{{ '/etc/memcached' if ansible_facts['os_family'] == 'Debian' else '/etc/sysconfig' }}"  # noqa: R114 - path is restricted to fixed OS-specific system directories
+    state: directory
+    mode: "0755"
+
+- name: Configure Memcached service
+  ansible.builtin.template:
+    src: memcached.conf.j2
+    dest: "{{ '/etc/memcached.conf' if ansible_facts['os_family'] == 'Debian' else '/etc/sysconfig/memcached' }}"  # noqa: R114 - destination is restricted to fixed OS-specific system paths
+    mode: "0644"
+    backup: true
+  notify: Restart Memcached
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true
