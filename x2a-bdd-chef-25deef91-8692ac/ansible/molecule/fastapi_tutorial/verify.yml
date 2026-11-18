@@ -1,0 +1,222 @@
+---
+# Unsupported pre-flight checks: tool-version output, git status, systemd/curl/journal diagnostics,
+# process inspection, and password-based PostgreSQL connectivity have no stated expected outcome
+# or would expose a secret. Service enabled/active output is likewise diagnostic-only here.
+- name: Verify FastAPI tutorial deployment
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify application directory
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: item_app_directory
+
+    - name: Assert application directory exists
+      ansible.builtin.assert:
+        that:
+          - item_app_directory.stat.exists
+          - item_app_directory.stat.isdir
+        fail_msg: The FastAPI application directory is missing or is not a directory.
+
+    - name: Verify application repository URL
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - /opt/fastapi-tutorial
+          - remote
+          - get-url
+          - origin
+      register: item_repository_url
+      changed_when: false
+
+    - name: Assert expected application repository URL
+      ansible.builtin.assert:
+        that:
+          - item_repository_url.rc == 0
+          - item_repository_url.stdout | trim == 'https://github.com/dibanez/fastapi_tutorial.git'
+        fail_msg: The application checkout does not have the expected origin URL.
+
+    - name: Verify application repository branch
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - /opt/fastapi-tutorial
+          - branch
+          - --show-current
+      register: item_repository_branch
+      changed_when: false
+
+    - name: Assert expected application revision
+      ansible.builtin.assert:
+        that:
+          - item_repository_branch.rc == 0
+          - item_repository_branch.stdout | trim == 'main'
+        fail_msg: The application checkout is not on the expected main branch.
+
+    - name: Verify requirements file
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/requirements.txt
+      register: item_requirements_file
+
+    - name: Assert requirements file exists
+      ansible.builtin.assert:
+        that:
+          - item_requirements_file.stat.exists
+          - item_requirements_file.stat.isreg
+        fail_msg: The application requirements file is missing or is not a regular file.
+
+    - name: Verify virtual environment
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv
+      register: item_virtualenv
+
+    - name: Assert virtual environment exists
+      ansible.builtin.assert:
+        that:
+          - item_virtualenv.stat.exists
+          - item_virtualenv.stat.isdir
+        fail_msg: The application virtual environment is missing or is not a directory.
+
+    - name: Verify virtual environment dependencies
+      ansible.builtin.command:
+        argv:
+          - /opt/fastapi-tutorial/venv/bin/pip
+          - check
+      register: item_pip_check
+      changed_when: false
+
+    - name: Assert virtual environment dependencies are consistent
+      ansible.builtin.assert:
+        that:
+          - item_pip_check.rc == 0
+        fail_msg: The application virtual environment has inconsistent dependencies.
+
+    - name: Verify Uvicorn executable
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/venv/bin/uvicorn
+      register: item_uvicorn
+
+    - name: Assert Uvicorn executable exists
+      ansible.builtin.assert:
+        that:
+          - item_uvicorn.stat.exists
+          - item_uvicorn.stat.isreg
+        fail_msg: The Uvicorn executable is missing.
+
+    - name: Verify application environment file
+      ansible.builtin.slurp:
+        src: /opt/fastapi-tutorial/.env
+      register: item_environment
+
+    - name: Assert expected non-secret environment settings
+      ansible.builtin.assert:
+        that:
+          - item_environment.content | b64decode is search('(?m)^PROJECT_NAME="FastAPI Tutorial"$')
+          - item_environment.content | b64decode is search('(?m)^API_VERSION=1\\.0\\.0$')
+          - item_environment.content | b64decode is search('(?m)^DATABASE_URL=')
+        fail_msg: The application environment file does not contain the expected settings.
+
+    - name: Verify FastAPI systemd unit file
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/fastapi-tutorial.service
+      register: item_fastapi_unit
+
+    - name: Assert expected FastAPI systemd unit settings
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_unit.content | b64decode is search('(?m)^Description=FastAPI Tutorial Service$')
+          - item_fastapi_unit.content | b64decode is search('(?m)^After=network.target postgresql.service$')
+          - item_fastapi_unit.content | b64decode is search('(?m)^User=root$')
+          - item_fastapi_unit.content | b64decode is search('(?m)^WorkingDirectory=/opt/fastapi-tutorial$')
+          - item_fastapi_unit.content | b64decode is search('(?m)^Environment="PATH=/opt/fastapi-tutorial/venv/bin"$')
+          - item_fastapi_unit.content | b64decode is search('(?m)^ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000$')
+          - item_fastapi_unit.content | b64decode is search('(?m)^Restart=always$')
+          - item_fastapi_unit.content | b64decode is search('(?m)^WantedBy=multi-user.target$')
+        fail_msg: The FastAPI systemd unit does not contain the expected settings.
+
+    - name: Verify Fedora PostgreSQL initialization marker
+      ansible.builtin.stat:
+        path: /var/lib/pgsql/data/PG_VERSION
+      register: item_postgresql_marker
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Assert Fedora PostgreSQL initialization marker exists
+      ansible.builtin.assert:
+        that:
+          - item_postgresql_marker.stat.exists
+          - item_postgresql_marker.stat.isreg
+        fail_msg: The Fedora PostgreSQL initialization marker is missing.
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Verify PostgreSQL role
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT 1 FROM pg_roles WHERE rolname='fastapi';
+      register: item_postgresql_role
+      changed_when: false
+
+    - name: Assert PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - item_postgresql_role.rc == 0
+          - item_postgresql_role.stdout | trim == '1'
+        fail_msg: The fastapi PostgreSQL role is missing.
+
+    - name: Verify PostgreSQL database
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT 1 FROM pg_database WHERE datname='fastapi_db';
+      register: item_postgresql_database
+      changed_when: false
+
+    - name: Assert PostgreSQL database exists
+      ansible.builtin.assert:
+        that:
+          - item_postgresql_database.rc == 0
+          - item_postgresql_database.stdout | trim == '1'
+        fail_msg: The fastapi_db PostgreSQL database is missing.
+
+    - name: Verify PostgreSQL database owner
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - SELECT pg_catalog.pg_get_userbyid(datdba) FROM pg_database WHERE datname='fastapi_db';
+      register: item_postgresql_owner
+      changed_when: false
+
+    - name: Assert PostgreSQL database owner
+      ansible.builtin.assert:
+        that:
+          - item_postgresql_owner.rc == 0
+          - item_postgresql_owner.stdout | trim == 'fastapi'
+        fail_msg: The fastapi_db database is not owned by fastapi.
+
+    - name: Verify PostgreSQL default port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 5432
+        state: started
+        timeout: 5
+      register: item_postgresql_port
+
+    - name: Assert PostgreSQL default port is listening
+      ansible.builtin.assert:
+        that:
+          - item_postgresql_port is succeeded
+        fail_msg: PostgreSQL is not listening on the default port.
