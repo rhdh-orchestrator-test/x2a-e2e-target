@@ -1,0 +1,43 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Memcached instance
+  ansible.builtin.include_tasks: memcached.yml
+
+- name: Configure Redis cache  # noqa: L038 - role is provided by the eloy.redis collection declared in requirements.yml
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_port: 6379
+    redis_requirepass: "{{ redis_password }}"
+    redis_replication_enabled: false
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_install_method: package
+    redis_pidfile: /run/redis/redis.pid
+    redis_log_dir: /var/log/redis
+
+- name: Ensure Redis log directory exists
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Check whether the Redis configuration exists
+  ansible.builtin.stat:
+    path: /etc/redis/6379.conf
+  register: redis_configuration
+
+- name: Remove unsupported replication directives from Redis configuration  # noqa: L039 - redis_configuration is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: /etc/redis/6379.conf
+    regexp: (?m)^\s*(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority).*?
+    replace: ""
+    create: false
+  when: redis_configuration.stat.exists
+  no_log: "{{ cache_secure_logging }}"

@@ -1,0 +1,177 @@
+---
+# Unsupported pre-flight checks: OS/package availability, exact Redis service-unit checks,
+# process listings, Memcached configuration location/value inspection, Redis authenticated
+# access (the Vault password is intentionally not included), service journal contents,
+# Redis log-file listing, and filesystem capacity checks have no safe expected translation here.
+- name: Verify cache services and runtime paths
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Collect service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert that Memcached is active and enabled
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts.services"
+          - ansible_facts.services['memcached.service']['state'] == 'running'
+          - ansible_facts.services['memcached.service']['status'] == 'enabled'
+        fail_msg: Memcached must be running and enabled.
+
+    - name: Check Memcached TCP port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 5
+
+    - name: Check Redis TCP port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Check Memcached TCP listener diagnostic
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+      register: cache_memcached_tcp_listener
+      changed_when: false
+
+    - name: Assert Memcached TCP listener is present
+      ansible.builtin.assert:
+        that:
+          - "':11211' in cache_memcached_tcp_listener.stdout"
+        fail_msg: Memcached must listen on TCP port 11211.
+
+    - name: Check Memcached UDP listener diagnostic
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -lunp
+      register: cache_memcached_udp_listener
+      changed_when: false
+
+    - name: Assert Memcached UDP listener is present
+      ansible.builtin.assert:
+        that:
+          - "':11211' in cache_memcached_udp_listener.stdout"
+        fail_msg: Memcached must listen on UDP port 11211.
+
+    - name: Request Memcached version
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - '2'
+          - 127.0.0.1
+          - '11211'
+        stdin: "version\r\n"
+      register: cache_memcached_version
+      changed_when: false
+      failed_when: false
+
+    - name: Assert Memcached responds to version
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_version.rc == 0
+          - "'VERSION' in cache_memcached_version.stdout"
+        fail_msg: Memcached must respond to the version request.
+
+    - name: Request Memcached statistics
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - '2'
+          - 127.0.0.1
+          - '11211'
+        stdin: "stats\r\n"
+      register: cache_memcached_stats
+      changed_when: false
+      failed_when: false
+
+    - name: Assert Memcached responds to stats
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_stats.rc == 0
+          - "'STAT' in cache_memcached_stats.stdout"
+        fail_msg: Memcached must respond to the stats request.
+
+    - name: Check Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config.stat.exists
+          - cache_redis_config.stat.isreg
+        fail_msg: The Redis configuration file must exist.
+
+    - name: Read Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_config_content
+
+    - name: Assert unwanted Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - "cache_redis_config_content.content | b64decode is not search('(?m)^\\s*replica-serve-stale-data\\b')"
+          - "cache_redis_config_content.content | b64decode is not search('(?m)^\\s*replica-read-only\\b')"
+          - "cache_redis_config_content.content | b64decode is not search('(?m)^\\s*repl-ping-replica-period\\b')"
+          - "cache_redis_config_content.content | b64decode is not search('(?m)^\\s*client-output-buffer-limit\\b')"
+          - "cache_redis_config_content.content | b64decode is not search('(?m)^\\s*replica-priority\\b')"
+        fail_msg: Unwanted Redis replication directives must be absent.
+
+    - name: Check Redis runtime and log directories
+      ansible.builtin.stat:
+        path: "{{ item_cache_directory['path'] }}"
+      loop:
+        - path: /run/redis
+          expected_owner: redis
+          expected_group: redis
+          expected_mode: '0755'
+        - path: /var/log/redis
+          expected_owner: redis
+          expected_group: redis
+          expected_mode: '0755'
+      loop_control:
+        loop_var: item_cache_directory
+      register: cache_redis_directory_checks
+
+    - name: Assert Redis directories exist with expected ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_cache_directory_result.stat.exists
+          - item_cache_directory_result.stat.isdir
+          - item_cache_directory_result.stat.pw_name == item_cache_directory_result['item']['expected_owner']
+          - item_cache_directory_result.stat.gr_name == item_cache_directory_result['item']['expected_group']
+          - item_cache_directory_result.stat.mode == item_cache_directory_result['item']['expected_mode']
+        fail_msg: Redis runtime and log directories must have the expected ownership and mode.
+      loop: "{{ cache_redis_directory_checks.results }}"
+      loop_control:
+        loop_var: item_cache_directory_result
+
+    - name: Check Memcached directories
+      ansible.builtin.stat:
+        path: "{{ item_cache_memcached_directory }}"
+      loop:
+        - /var/log/memcached
+        - /var/run/memcached
+      loop_control:
+        loop_var: item_cache_memcached_directory
+      register: cache_memcached_directories
+
+    - name: Assert Memcached directories exist
+      ansible.builtin.assert:
+        that:
+          - item_cache_memcached_directory_result.stat.exists
+          - item_cache_memcached_directory_result.stat.isdir
+        fail_msg: Memcached runtime directories must exist.
+      loop: "{{ cache_memcached_directories.results }}"
+      loop_control:
+        loop_var: item_cache_memcached_directory_result
