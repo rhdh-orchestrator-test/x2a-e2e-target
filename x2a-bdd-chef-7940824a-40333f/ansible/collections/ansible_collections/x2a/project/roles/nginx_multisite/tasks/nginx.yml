@@ -1,0 +1,63 @@
+---
+- name: Install nginx
+  ansible.builtin.package:
+    name: nginx
+    state: present
+
+- name: Render nginx configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+
+- name: Render nginx security configuration
+  ansible.builtin.template:
+    src: security.conf.j2
+    dest: /etc/nginx/conf.d/security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+
+- name: Create nginx secrets directory
+  ansible.builtin.file:
+    path: /etc/nginx/secrets
+    owner: root
+    group: root
+    mode: "0700"
+    state: directory
+
+- name: Write nginx site token  # noqa: L039 - site_token is a required role parameter defined in argument_specs
+  ansible.builtin.copy:
+    content: "{{ site_token }}"
+    dest: /etc/nginx/secrets/site_token
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
+  no_log: "{{ nginx_multisite_secure_logging }}"
+
+- name: Create site document roots
+  ansible.builtin.file:
+    path: "{{ item_nginx_multisite_site['value']['document_root'] }}" # noqa: R114 - path from role-defined nginx_sites dictionary
+    owner: nginx
+    group: nginx
+    mode: "0755"
+    state: directory
+    recurse: true
+  loop: "{{ nginx_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_multisite_site
+
+- name: Deploy site index files
+  ansible.builtin.copy:
+    src: "{{ item_nginx_multisite_site['key'].split('.')[0] }}/index.html"
+    dest: "{{ item_nginx_multisite_site['value']['document_root'] }}/index.html" # noqa: R114 - destination from role-defined nginx_sites dictionary
+    owner: nginx
+    group: nginx
+    mode: "0644"
+    backup: true
+  loop: "{{ nginx_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_multisite_site

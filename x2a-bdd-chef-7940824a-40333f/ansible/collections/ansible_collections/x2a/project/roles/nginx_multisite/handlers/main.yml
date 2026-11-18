@@ -1,0 +1,10 @@
+---
+- name: Restart sshd  # noqa: L039 - variable comes from role defaults or operator-provided role configuration
+  ansible.builtin.service:
+    name: "{{ nginx_multisite_sshd_service_name | default('sshd') }}"
+    state: restarted
+
+- name: Reload nginx
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded

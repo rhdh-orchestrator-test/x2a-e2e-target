@@ -1,0 +1,100 @@
+# Unsupported pre-flight checks omitted because the plan states no expected outcome:
+# package/service status, nginx -t/-T, fail2ban-client status, UFW output, sysctl values,
+# listening ports, service/journal logs, nginx log tails, and site-specific checks (no site names supplied).
+---
+- name: Verify nginx multisite pre-flight checks
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Check fail2ban jail configuration exists
+      ansible.builtin.stat:
+        path: /etc/fail2ban/jail.local
+      register: fail2ban_jail
+
+    - name: Assert fail2ban jail configuration exists
+      ansible.builtin.assert:
+        that:
+          - fail2ban_jail.stat.exists
+          - fail2ban_jail.stat.isreg
+        fail_msg: "/etc/fail2ban/jail.local must be a regular file"
+
+    - name: Check security sysctl configuration exists
+      ansible.builtin.stat:
+        path: /etc/sysctl.d/99-security.conf
+      register: security_sysctl
+
+    - name: Assert security sysctl configuration exists
+      ansible.builtin.assert:
+        that:
+          - security_sysctl.stat.exists
+          - security_sysctl.stat.isreg
+        fail_msg: "/etc/sysctl.d/99-security.conf must be a regular file"
+
+    - name: Read SSH daemon configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: sshd_config
+
+    - name: Assert SSH hardening directives are present
+      ansible.builtin.assert:
+        that:
+          - sshd_config.content | b64decode is search('(?m)^\\s*PermitRootLogin\\s+no\\s*$')
+          - sshd_config.content | b64decode is search('(?m)^\\s*PasswordAuthentication\\s+no\\s*$')
+        fail_msg: "sshd_config must disable root login and password authentication"
+
+    - name: Read core nginx configuration
+      ansible.builtin.slurp:
+        src: /etc/nginx/nginx.conf
+      register: nginx_config
+
+    - name: Assert core nginx configuration directives are present
+      ansible.builtin.assert:
+        that:
+          - nginx_config.content | b64decode is search('(?m)^\\s*user\\s+nginx\\s*;')
+          - nginx_config.content | b64decode is search('(?m)^\\s*worker_processes\\b')
+          - nginx_config.content | b64decode is search('(?m)^\\s*worker_connections\\b')
+          - nginx_config.content | b64decode is search('(?m)^\\s*access_log\\b')
+          - nginx_config.content | b64decode is search('(?m)^\\s*error_log\\b')
+          - nginx_config.content | b64decode is search('sites-enabled')
+        fail_msg: "nginx.conf is missing one or more required pre-flight directives"
+
+    - name: Read nginx security configuration
+      ansible.builtin.slurp:
+        src: /etc/nginx/conf.d/security.conf
+      register: nginx_security_config
+
+    - name: Assert nginx security directives are present
+      ansible.builtin.assert:
+        that:
+          - nginx_security_config.content | b64decode is search('(?m)server_tokens')
+          - nginx_security_config.content | b64decode is search('(?m)limit_req_zone')
+          - nginx_security_config.content | b64decode is search('(?m)client_max_body_size')
+          - nginx_security_config.content | b64decode is search('(?m)ssl_protocols')
+          - nginx_security_config.content | b64decode is search('(?m)ssl_ciphers')
+        fail_msg: "nginx security configuration is missing one or more checked directives"
+
+    - name: Check site token permissions
+      ansible.builtin.stat:
+        path: /etc/nginx/secrets/site_token
+      register: site_token
+
+    - name: Assert site token has expected ownership and mode
+      ansible.builtin.assert:
+        that:
+          - site_token.stat.exists
+          - site_token.stat.pw_name == 'root'
+          - site_token.stat.gr_name == 'root'
+          - site_token.stat.mode == '0600'
+        fail_msg: "site_token must be root:root with mode 600"
+
+    - name: Check default nginx site removal
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: default_nginx_site
+
+    - name: Assert default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not default_nginx_site.stat.exists
+        fail_msg: "/etc/nginx/sites-enabled/default must not exist"
