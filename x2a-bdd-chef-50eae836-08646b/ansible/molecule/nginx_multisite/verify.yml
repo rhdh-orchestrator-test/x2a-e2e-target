@@ -1,0 +1,190 @@
+---
+# Unsupported: site-specific checks (the inventory is not supplied), request routing and
+# TLS behavior, sysctl values, log contents, and diagnostic commands with no stated result.
+- name: Verify nginx multisite pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather service facts for nginx and Fail2ban
+      ansible.builtin.service_facts:
+
+    - name: Assert nginx is active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['nginx.service']['state'] == 'running'"
+
+    - name: Assert Fail2ban is active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['fail2ban.service']['state'] == 'running'"
+
+    - name: Check nginx is enabled
+      ansible.builtin.command:
+        argv: [systemctl, is-enabled, nginx]
+      register: nginx_enabled
+      changed_when: false
+
+    - name: Assert nginx is enabled
+      ansible.builtin.assert:
+        that:
+          - nginx_enabled['rc'] == 0
+
+    - name: Check Fail2ban is enabled
+      ansible.builtin.command:
+        argv: [systemctl, is-enabled, fail2ban]
+      register: fail2ban_enabled
+      changed_when: false
+
+    - name: Assert Fail2ban is enabled
+      ansible.builtin.assert:
+        that:
+          - fail2ban_enabled['rc'] == 0
+
+    - name: Check SSH service status
+      ansible.builtin.command:
+        argv: [systemctl, status, sshd]
+      changed_when: false
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv: [nginx, -t]
+      changed_when: false
+
+    - name: Validate SSH configuration
+      ansible.builtin.command:
+        argv: [sshd, -t]
+      changed_when: false
+
+    - name: Check UFW status
+      ansible.builtin.command:
+        argv: [ufw, status, verbose]
+      register: ufw_status
+      changed_when: false
+
+    - name: Assert UFW is active with deny incoming policy and required ports
+      ansible.builtin.assert:
+        that:
+          - ufw_status['rc'] == 0
+          - "'Status: active' in ufw_status['stdout']"
+          - "'Default: deny (incoming)' in ufw_status['stdout']"
+          - "'22/tcp' in ufw_status['stdout']"
+          - "'80/tcp' in ufw_status['stdout']"
+          - "'443/tcp' in ufw_status['stdout']"
+
+    - name: Check required TCP listeners
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host | default(inventory_hostname) }}"
+        port: "{{ item_listener['port'] }}"
+        state: started
+        timeout: 5
+      loop:
+        - port: 22
+        - port: 80
+        - port: 443
+      loop_control:
+        loop_var: item_listener
+
+    - name: Check Fail2ban daemon responds
+      ansible.builtin.command:
+        argv: [fail2ban-client, ping]
+      changed_when: false
+
+    - name: Check Fail2ban status
+      ansible.builtin.command:
+        argv: [fail2ban-client, status]
+      changed_when: false
+
+    - name: Check Fail2ban SSH jail
+      ansible.builtin.command:
+        argv: [fail2ban-client, status, sshd]
+      changed_when: false
+
+    - name: Check Fail2ban nginx HTTP auth jail
+      ansible.builtin.command:
+        argv: [fail2ban-client, status, nginx-http-auth]
+      changed_when: false
+
+    - name: Check Fail2ban nginx rate-limit jail
+      ansible.builtin.command:
+        argv: [fail2ban-client, status, nginx-limit-req]
+      changed_when: false
+
+    - name: Check Fail2ban nginx botsearch jail
+      ansible.builtin.command:
+        argv: [fail2ban-client, status, nginx-botsearch]
+      changed_when: false
+
+    - name: Read SSH configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: sshd_config
+
+    - name: Assert SSH hardening settings
+      ansible.builtin.assert:
+        that:
+          - "(sshd_config['content'] | b64decode) is search('(?m)^PermitRootLogin\\s+no\\s*$')"
+          - "(sshd_config['content'] | b64decode) is search('(?m)^PasswordAuthentication\\s+no\\s*$')"
+
+    - name: Check global nginx configuration files
+      ansible.builtin.stat:
+        path: "{{ item_nginx_file['path'] }}"
+      loop:
+        - path: /etc/nginx/nginx.conf
+        - path: /etc/nginx/conf.d/security.conf
+      loop_control:
+        loop_var: item_nginx_file
+      register: nginx_global_files
+
+    - name: Assert global nginx configuration files exist
+      ansible.builtin.assert:
+        that:
+          - item_nginx_file['stat']['exists']
+          - item_nginx_file['stat']['isreg']
+      loop: "{{ nginx_global_files['results'] }}"
+      loop_control:
+        loop_var: item_nginx_file
+
+    - name: Check default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: nginx_default_site
+
+    - name: Assert default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not nginx_default_site['stat']['exists']
+
+    - name: Check nginx site directories
+      ansible.builtin.stat:
+        path: "{{ item_site_directory['path'] }}"
+      loop:
+        - path: /etc/nginx/sites-available
+        - path: /etc/nginx/sites-enabled
+      loop_control:
+        loop_var: item_site_directory
+      register: nginx_site_directories
+
+    - name: Assert nginx site directories exist
+      ansible.builtin.assert:
+        that:
+          - item_site_directory['stat']['exists']
+          - item_site_directory['stat']['isdir']
+      loop: "{{ nginx_site_directories['results'] }}"
+      loop_control:
+        loop_var: item_site_directory
+
+    - name: Check nginx secret file metadata
+      ansible.builtin.stat:
+        path: /etc/nginx/secrets/site_token
+        get_checksum: false
+      register: nginx_site_token
+
+    - name: Assert nginx site token is protected and non-empty
+      ansible.builtin.assert:
+        that:
+          - nginx_site_token['stat']['exists']
+          - nginx_site_token['stat']['isreg']
+          - nginx_site_token['stat']['pw_name'] == 'root'
+          - nginx_site_token['stat']['gr_name'] == 'root'
+          - nginx_site_token['stat']['mode'] == '0600'
+          - nginx_site_token['stat']['size'] > 0
