@@ -1,0 +1,108 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Memcached and authenticated Redis cache services
+    description:
+      - Installs and configures Memcached and a standalone authenticated Redis instance.
+    options:
+      memcached_version:
+        type: str
+        required: false
+        default:
+        description: Optional Memcached package version.
+      memcached_memory:
+        type: int
+        required: false
+        default: 64
+        description: Memcached memory allocation in megabytes.
+      memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: Memcached TCP port.
+      memcached_udp_port:
+        type: int
+        required: false
+        default: 11211
+        description: Memcached UDP port.
+      memcached_listen:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: Memcached listen address.
+      memcached_maxconn:
+        type: int
+        required: false
+        default: 1024
+        description: Maximum Memcached connections.
+      memcached_max_object_size:
+        type: str
+        required: false
+        default: 1m
+        description: Maximum Memcached object size.
+      memcached_experimental_options:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: Experimental Memcached command-line options.
+      memcached_extra_cli_options:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: Additional Memcached command-line options.
+      memcached_ulimit:
+        type: int
+        required: false
+        default: 1024
+        description: Memcached file descriptor limit.
+      memcached_logfilepath:
+        type: str
+        required: false
+        default: /var/log/memcached
+        description: Memcached log file path.
+      memcached_threads:
+        type: int
+        required: false
+        default:
+        description: Optional Memcached worker thread count.
+      memcached_service_user:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached service account.
+      memcached_service_group:
+        type: str
+        required: false
+        default: memcached
+        description: Memcached service group.
+      redis_port:
+        type: int
+        required: false
+        default: 6379
+        description: Redis TCP port.
+      redis_pid_dir:
+        type: str
+        required: false
+        default: /run/redis
+        description: Redis PID directory.
+      redis_log_dir:
+        type: str
+        required: false
+        default: /var/log/redis
+        description: Redis log directory.
+      redis_config_path:
+        type: str
+        required: false
+        default: /etc/redis/6379.conf
+        description: Redis configuration file to clean.
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide Redis credential handling task output.
+      redis_password:
+        type: str
+        required: true
+        description: Redis password injected by an AAP credential type.

@@ -1,0 +1,141 @@
+# Unsupported pre-flight checks: resolved Memcached service_user/service_group ownership names are unavailable;
+# Redis authenticated PING requires a secret that is not present in this verification playbook; Redis log
+# journal contents and exact log filenames have no stated expected outcome; idempotence requires repeated execution.
+---
+- name: Verify cache services
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather service facts for the Memcached and Redis checks
+      ansible.builtin.service_facts:
+
+    - name: Verify the Memcached service is active and enabled
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts['services']"
+          - ansible_facts['services']['memcached.service']['state'] == 'running'
+          - ansible_facts['services']['memcached.service']['status'] == 'enabled'
+        fail_msg: Memcached must be active and enabled.
+
+    - name: Check the Memcached TCP and UDP listeners
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnup
+      changed_when: false
+      register: item_memcached_listeners
+
+    - name: Verify the Memcached TCP and UDP listeners
+      ansible.builtin.assert:
+        that:
+          - item_memcached_listeners['stdout'] is search('(?m).*tcp.*:11211')
+          - item_memcached_listeners['stdout'] is search('(?m).*udp.*:11211')
+        fail_msg: Memcached must listen on TCP and UDP port 11211.
+
+    - name: Check the Memcached version response
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - '2'
+          - 127.0.0.1
+          - '11211'
+        stdin: "version\r\n"
+      changed_when: false
+      register: item_memcached_version
+
+    - name: Verify the Memcached version response
+      ansible.builtin.assert:
+        that:
+          - item_memcached_version['stdout'] is search('(?i)VERSION')
+        fail_msg: Memcached must return a VERSION response.
+
+    - name: Identify Redis service units supplied by the dependency
+      ansible.builtin.set_fact:
+        item_redis_units: >-
+          {{ ansible_facts['services'] | dict2items
+             | selectattr('key', 'search', '(?i)redis') | list }}
+
+    - name: Verify that a Redis service unit was discovered
+      ansible.builtin.assert:
+        that:
+          - item_redis_units | length > 0
+        fail_msg: A Redis service unit must be supplied by the Redis dependency.
+
+    - name: Verify discovered Redis services are active and enabled
+      ansible.builtin.assert:
+        that:
+          - item_redis['value']['state'] == 'running'
+          - item_redis['value']['status'] == 'enabled'
+        fail_msg: Every discovered Redis service must be active and enabled.
+      loop: "{{ item_redis_units }}"
+      loop_control:
+        loop_var: item_redis
+
+    - name: Check the Redis TCP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+      changed_when: false
+      register: item_redis_listener
+
+    - name: Verify the Redis TCP listener
+      ansible.builtin.assert:
+        that:
+          - item_redis_listener['stdout'] is search('(?m).*:6379')
+        fail_msg: Redis must listen on TCP port 6379.
+
+    - name: Check unauthenticated Redis access
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -h
+          - 127.0.0.1
+          - -p
+          - '6379'
+          - PING
+      changed_when: false
+      failed_when: false
+      register: item_redis_unauthenticated
+
+    - name: Verify unauthenticated Redis access is rejected
+      ansible.builtin.assert:
+        that:
+          - item_redis_unauthenticated['rc'] != 0
+          - >-
+            (item_redis_unauthenticated['stdout'] ~ item_redis_unauthenticated['stderr'])
+            is search('(?i)NOAUTH|authentication required')
+          - item_redis_unauthenticated['stdout'] is not search('(?i)^PONG\s*$')
+        fail_msg: Unauthenticated Redis access must require authentication and not return PONG.
+
+    - name: Read the Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Verify Redis authentication configuration and cleanup
+      ansible.builtin.assert:
+        that:
+          - item_redis_config['content'] | b64decode is search('(?m)^requirepass\s+\S+')
+          - item_redis_config['content'] | b64decode is not search('(?m)^replica-serve-stale-data(?:\s|$)')
+          - item_redis_config['content'] | b64decode is not search('(?m)^replica-read-only(?:\s|$)')
+          - item_redis_config['content'] | b64decode is not search('(?m)^repl-ping-replica-period(?:\s|$)')
+          - item_redis_config['content'] | b64decode is not search('(?m)^client-output-buffer-limit(?:\s|$)')
+          - item_redis_config['content'] | b64decode is not search('(?m)^replica-priority(?:\s|$)')
+        fail_msg: Redis authentication configuration and directive cleanup do not match the pre-flight expectations.
+
+    - name: Inspect the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_directory
+
+    - name: Verify the Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory['stat']['exists']
+          - item_redis_log_directory['stat']['isdir']
+          - item_redis_log_directory['stat']['mode'] == '0755'
+          - item_redis_log_directory['stat']['pw_name'] == 'redis'
+          - item_redis_log_directory['stat']['gr_name'] == 'redis'
+        fail_msg: /var/log/redis must be a 0755 directory owned by redis:redis.
