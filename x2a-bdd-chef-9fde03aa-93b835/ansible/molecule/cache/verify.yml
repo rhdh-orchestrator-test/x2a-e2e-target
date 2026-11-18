@@ -1,0 +1,133 @@
+# Unsupported pre-flight checks: service state and provider-specific unit discovery have no stated
+# expected outcome; exact Memcached command-line settings depend on the missing provider;
+# authenticated Redis commands have no supplied verification secret; conditional /run/redis
+# existence has no unconditional expected outcome; Redis log-location and journal inspection
+# have no stated expected outcome.
+---
+- name: Verify cache listeners and configuration
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Check the Memcached TCP protocol response
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - "2"
+          - 127.0.0.1
+          - "11211"
+        stdin: "version\r\n"
+        stdin_add_newline: false
+      register: item_memcached_tcp_response
+      changed_when: false
+      failed_when: false
+
+    - name: Verify the Memcached TCP response begins with VERSION
+      ansible.builtin.assert:
+        that:
+          - item_memcached_tcp_response['stdout'] is regex('(?m)^VERSION')
+        fail_msg: Memcached TCP must return a VERSION response.
+
+    - name: Inspect the Memcached TCP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+      register: item_memcached_tcp_listener
+      changed_when: false
+
+    - name: Verify the Memcached TCP listener uses port 11211
+      ansible.builtin.assert:
+        that:
+          - item_memcached_tcp_listener['stdout'] is regex('(?m)^LISTEN.*:11211\\b')
+        fail_msg: A Memcached TCP listener on port 11211 is required.
+
+    - name: Inspect the Memcached UDP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -lunp
+      register: item_memcached_udp_listener
+      changed_when: false
+
+    - name: Verify the Memcached UDP listener uses port 11211
+      ansible.builtin.assert:
+        that:
+          - item_memcached_udp_listener['stdout'] is regex('(?m)^UNCONN.*:11211\\b')
+        fail_msg: A Memcached UDP listener on port 11211 is required.
+
+    - name: Inspect the Redis TCP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+      register: item_redis_tcp_listener
+      changed_when: false
+
+    - name: Verify the Redis TCP listener uses port 6379
+      ansible.builtin.assert:
+        that:
+          - item_redis_tcp_listener['stdout'] is regex('(?m)^LISTEN.*:6379\\b')
+        fail_msg: A Redis TCP listener on port 6379 is required.
+
+    - name: Check unauthenticated Redis access
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - PING
+      register: item_redis_unauthenticated_ping
+      changed_when: false
+      failed_when: false
+
+    - name: Verify unauthenticated Redis access is rejected
+      ansible.builtin.assert:
+        that:
+          - >-
+            (item_redis_unauthenticated_ping['stdout'] ~ item_redis_unauthenticated_ping['stderr'])
+            is search('NOAUTH|AUTH required|authentication')
+        fail_msg: Unauthenticated Redis access must require authentication.
+
+    - name: Check the Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config
+
+    - name: Verify the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_config['stat']['exists']
+          - item_redis_config['stat']['isreg']
+        fail_msg: The Redis configuration file must exist.
+
+    - name: Read the Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: item_redis_config_content
+
+    - name: Verify Redis password configuration and replication cleanup
+      ansible.builtin.assert:
+        that:
+          - item_redis_config_content['content'] | b64decode is regex('(?m)^requirepass\\s+\\S+')
+          - item_redis_config_content['content'] | b64decode is not regex('(?m)^replica-serve-stale-data\\b')
+          - item_redis_config_content['content'] | b64decode is not regex('(?m)^replica-read-only\\b')
+          - item_redis_config_content['content'] | b64decode is not regex('(?m)^repl-ping-replica-period\\b')
+          - item_redis_config_content['content'] | b64decode is not regex('(?m)^client-output-buffer-limit\\b')
+          - item_redis_config_content['content'] | b64decode is not regex('(?m)^replica-priority\\b')
+        fail_msg: Redis password configuration and replication directive cleanup are required.
+
+    - name: Inspect the Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: item_redis_log_directory
+
+    - name: Verify the Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory['stat']['exists']
+          - item_redis_log_directory['stat']['isdir']
+          - item_redis_log_directory['stat']['pw_name'] == 'redis'
+          - item_redis_log_directory['stat']['gr_name'] == 'redis'
+          - item_redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: The Redis log directory must be redis:redis with mode 0755.

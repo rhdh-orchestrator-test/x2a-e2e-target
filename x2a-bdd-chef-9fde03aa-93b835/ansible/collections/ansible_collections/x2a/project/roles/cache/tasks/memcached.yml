@@ -1,0 +1,33 @@
+---
+- name: Install Memcached package
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Create Memcached systemd override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/memcached.service.d
+    state: directory
+    mode: "0755"
+
+- name: Configure Memcached service command # noqa: L039 - option is a loop variable defined in this task's template expression
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/memcached.service.d/override.conf
+    content: |
+      [Service]
+      ExecStart=
+      ExecStart=/usr/bin/memcached -u memcached -m {{ cache_memcached_memory }} -p {{ cache_memcached_port }} -U {{ cache_memcached_udp_port }} -l {{ cache_memcached_listen }} -c {{ cache_memcached_maxconn }} -I {{ cache_memcached_max_object_size }} -R {{ cache_memcached_ulimit }}{% if cache_memcached_threads is not none %} -t {{ cache_memcached_threads }}{% endif %}{% for option in cache_memcached_experimental_options %} {{ option }}{% endfor %}{% for option in cache_memcached_extra_cli_options %} {{ option }}{% endfor %}
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Memcached
+
+- name: Reload systemd after Memcached configuration
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Configure Memcached service
+  ansible.builtin.service:
+    name: memcached
+    enabled: true
+    state: started
