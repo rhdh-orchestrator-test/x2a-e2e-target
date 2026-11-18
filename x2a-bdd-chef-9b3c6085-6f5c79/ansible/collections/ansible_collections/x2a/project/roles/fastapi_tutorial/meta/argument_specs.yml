@@ -1,0 +1,51 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy the FastAPI tutorial application with PostgreSQL.
+    description:
+      - Installs the application dependencies, configures PostgreSQL, and manages the FastAPI systemd service.
+    options:
+      fastapi_tutorial_app_path:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Application installation directory.
+      fastapi_tutorial_repository:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository containing the application.
+      fastapi_tutorial_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      fastapi_tutorial_service_port:
+        type: int
+        required: false
+        default: 8000
+        description: TCP port used by the FastAPI service.
+      fastapi_tutorial_db_name:
+        type: str
+        required: false
+        default: fastapi_db
+        description: PostgreSQL database name.
+      fastapi_tutorial_db_user:
+        type: str
+        required: false
+        default: fastapi
+        description: PostgreSQL application role name.
+      fastapi_tutorial_db_host:
+        type: str
+        required: false
+        default: localhost
+        description: PostgreSQL server hostname.
+      fastapi_tutorial_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide tasks that process the database password from logs.
+      db_password:
+        type: str
+        required: true
+        description: Database password injected by an AAP credential type.
