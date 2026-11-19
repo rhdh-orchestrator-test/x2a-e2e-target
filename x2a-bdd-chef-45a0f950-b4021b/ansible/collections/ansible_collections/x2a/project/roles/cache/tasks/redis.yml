@@ -1,0 +1,55 @@
+---
+- name: Configure Redis using the Private Hub role
+  ansible.builtin.include_role:
+    name: eloy.redis.redis # noqa: L038 - role is declared in this role's requirements.yml
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_version: "7.2"
+    redis_install_method: package
+    redis_port: "{{ cache_redis_port }}"
+    redis_requirepass: "{{ redis_password }}"
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_replication_enabled: false
+    redis_aof_enabled: false
+    redis_rdb_enabled: true
+
+- name: Remove incompatible replica serve-stale-data directive # noqa: R115 - configuration path is fixed by role defaults
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path comes from role defaults
+    regexp: ^replica-serve-stale-data.*$
+    state: absent
+    backup: true
+  notify: Restart Redis
+
+- name: Remove incompatible replica read-only directive # noqa: R115 - configuration path is fixed by role defaults
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path comes from role defaults
+    regexp: ^replica-read-only.*$
+    state: absent
+    backup: true
+  notify: Restart Redis
+
+- name: Remove incompatible replica ping period directive # noqa: R115 - configuration path is fixed by role defaults
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path comes from role defaults
+    regexp: ^repl-ping-replica-period.*$
+    state: absent
+    backup: true
+  notify: Restart Redis
+
+- name: Remove incompatible client output buffer directive # noqa: R115 - configuration path is fixed by role defaults
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path comes from role defaults
+    regexp: ^client-output-buffer-limit.*$
+    state: absent
+    backup: true
+  notify: Restart Redis
+
+- name: Remove incompatible replica priority directive # noqa: R115 - configuration path is fixed by role defaults
+  ansible.builtin.lineinfile:
+    path: "{{ cache_redis_config_path }}" # noqa: R114 - path comes from role defaults
+    regexp: ^replica-priority.*$
+    state: absent
+    backup: true
+  notify: Restart Redis

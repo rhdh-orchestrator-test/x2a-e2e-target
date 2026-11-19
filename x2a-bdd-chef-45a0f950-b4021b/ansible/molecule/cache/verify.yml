@@ -1,0 +1,197 @@
+---
+# Unsupported pre-flight checks: UDP probing, exact filesystem ownership/modes,
+# Redis authentication with the vaulted password (no variable name was supplied),
+# journal and filesystem-capacity reviews, and the diagnostic process listings.
+- name: Verify cache services and filesystem state
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Collect service facts for Memcached and the discovered Redis service
+      ansible.builtin.service_facts:
+
+    - name: Verify that Memcached is active and enabled
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts.services | dict2items |
+            selectattr('key', 'match', '^memcached(\\.service)?$') |
+            selectattr('value', 'equalto', {'name': 'memcached.service', 'source': 'sysvinit', 'state': 'running', 'status': 'enabled'}) |
+            list | length) > 0 or
+            (ansible_facts.services | dict2items |
+            selectattr('key', 'match', '^memcached(\\.service)?$') |
+            selectattr('value.state', 'equalto', 'running') |
+            selectattr('value.status', 'equalto', 'enabled') |
+            list | length) > 0
+        fail_msg: Memcached must be active and enabled.
+
+    - name: Verify that Memcached accepts TCP connections on port 11211
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 5
+
+    - name: Verify the Memcached version command returns a response
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - "2"
+          - 127.0.0.1
+          - "11211"
+        stdin: "version\r\n"
+      register: cache_memcached_version
+      changed_when: false
+
+    - name: Assert the Memcached version response
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_version.rc == 0
+          - cache_memcached_version.stdout is search('VERSION')
+        fail_msg: The Memcached version command must return a VERSION response.
+
+    - name: Verify the Memcached statistics command returns a response
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - "2"
+          - 127.0.0.1
+          - "11211"
+        stdin: "stats\r\n"
+      register: cache_memcached_stats
+      changed_when: false
+
+    - name: Assert the Memcached statistics response
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_stats.rc == 0
+          - cache_memcached_stats.stdout is search('STAT')
+        fail_msg: The Memcached statistics command must return a STAT response.
+
+    - name: Verify that Redis has a discovered active and enabled service
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts.services | dict2items |
+            selectattr('key', 'match', '^redis') |
+            selectattr('value.state', 'equalto', 'running') |
+            selectattr('value.status', 'equalto', 'enabled') |
+            list | length) > 0
+        fail_msg: A discovered Redis service must be active and enabled.
+
+    - name: Verify that Redis accepts TCP connections on port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Verify the Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config
+
+    - name: Assert that the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config.stat.exists
+          - cache_redis_config.stat.isreg
+        fail_msg: The Redis configuration file must exist.
+
+    - name: Verify the Redis configuration port without exposing its contents
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -Eq
+          - '^port[[:space:]]+6379([[:space:]]|$)'
+          - /etc/redis/6379.conf
+      register: cache_redis_port
+      changed_when: false
+
+    - name: Assert that Redis is configured for port 6379
+      ansible.builtin.assert:
+        that:
+          - cache_redis_port.rc == 0
+        fail_msg: Redis must be configured for port 6379.
+
+    - name: Verify Redis authentication configuration without exposing its value
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -Eq
+          - '^requirepass[[:space:]]+[^[:space:]#]+([[:space:]]|$)'
+          - /etc/redis/6379.conf
+      register: cache_redis_auth
+      changed_when: false
+
+    - name: Assert that Redis has authentication configured
+      ansible.builtin.assert:
+        that:
+          - cache_redis_auth.rc == 0
+        fail_msg: Redis must contain a non-empty requirepass configuration.
+
+    - name: Verify the Redis runtime directory exists
+      ansible.builtin.stat:
+        path: /run/redis
+      register: cache_redis_runtime
+
+    - name: Assert that the Redis runtime directory exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_runtime.stat.exists
+          - cache_redis_runtime.stat.isdir
+        fail_msg: The Redis runtime directory must exist.
+
+    - name: Verify the Redis log directory exists
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log
+
+    - name: Assert that the Redis log directory exists
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log.stat.exists
+          - cache_redis_log.stat.isdir
+        fail_msg: The Redis log directory must exist.
+
+    - name: Verify the Memcached log directory exists
+      ansible.builtin.stat:
+        path: /var/log/memcached
+      register: cache_memcached_log
+
+    - name: Assert that the Memcached log directory exists
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_log.stat.exists
+          - cache_memcached_log.stat.isdir
+        fail_msg: The Memcached log directory must exist.
+
+    - name: Verify the Memcached runtime directory exists
+      ansible.builtin.stat:
+        path: /var/run/memcached
+      register: cache_memcached_runtime
+
+    - name: Assert that the Memcached runtime directory exists
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_runtime.stat.exists
+          - cache_memcached_runtime.stat.isdir
+        fail_msg: The Memcached runtime directory must exist.
+
+    - name: Verify incompatible Redis directives are absent
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -Eq
+          - '^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)([[:space:]]|$)'
+          - /etc/redis/6379.conf
+      register: cache_redis_incompatible_directives
+      changed_when: false
+      failed_when: false
+
+    - name: Assert that incompatible Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - cache_redis_incompatible_directives.rc == 1
+        fail_msg: Incompatible Redis directives must be absent from the configuration.
