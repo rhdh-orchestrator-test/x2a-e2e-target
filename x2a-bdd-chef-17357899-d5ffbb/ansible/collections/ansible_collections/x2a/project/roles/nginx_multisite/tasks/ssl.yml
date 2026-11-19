@@ -1,0 +1,74 @@
+---
+- name: Install SSL packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create SSL certificate group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Grant Nginx access to SSL private keys
+  ansible.builtin.user:
+    name: nginx
+    groups:
+      - ssl-cert
+    append: true
+    state: present
+
+- name: Create SSL certificate directory
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_certificate_path }}" # noqa: R114 - path is a role default
+    owner: root
+    group: root
+    mode: "0755"
+    state: directory
+
+- name: Create SSL private key directory
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_private_key_path }}" # noqa: R114 - path is a role default
+    owner: root
+    group: ssl-cert
+    mode: "0710"
+    state: directory
+
+- name: Generate self-signed SSL certificates # noqa: R101 - command uses role defaults and role-defined site data, not untrusted input
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -nodes
+      - -days
+      - "365"
+      - -newkey
+      - rsa:2048
+      - -keyout
+      - "{{ nginx_multisite_ssl_private_key_path }}/{{ item_ssl_site['value']['id'] }}.key"
+      - -out
+      - "{{ nginx_multisite_ssl_certificate_path }}/{{ item_ssl_site['value']['id'] }}.crt"
+      - -subj
+      - "/C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN={{ item_ssl_site['value']['id'] }}/emailAddress=admin@example.com"
+    creates: "{{ nginx_multisite_ssl_certificate_path }}/{{ item_ssl_site['value']['id'] }}.crt"
+  when: item_ssl_site['value']['ssl_enabled'] | bool
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_ssl_site
+  notify: Reload nginx
+  no_log: "{{ nginx_multisite_secure_logging }}"
+
+- name: Set SSL private key ownership and permissions
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_private_key_path }}/{{ item_ssl_site['value']['id'] }}.key" # noqa: R114 - path from role-defined sites dictionary
+    owner: root
+    group: ssl-cert
+    mode: "0640"
+    state: file
+  when: item_ssl_site['value']['ssl_enabled'] | bool
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_ssl_site
+  no_log: "{{ nginx_multisite_secure_logging }}"
