@@ -1,0 +1,58 @@
+---
+- name: Create Nginx site directories
+  ansible.builtin.file:  # noqa: R114 - paths are fixed role-internal site directories
+    path: "{{ item_nginx_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /etc/nginx/sites-available
+    - /etc/nginx/sites-enabled
+  loop_control:
+    loop_var: item_nginx_dir
+
+- name: Validate Nginx site configuration paths
+  ansible.builtin.assert:
+    that:
+      - item_nginx_site['value']['id'] is match('^[A-Za-z0-9._-]+$')
+      - "'..' not in item_nginx_site['value']['id']"
+    fail_msg: "Invalid Nginx site identifier: {{ item_nginx_site['value']['id'] }}"
+  loop: "{{ nginx_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_site
+
+- name: Render Nginx site configurations
+  ansible.builtin.template:  # noqa: R114 - path is validated against a safe site identifier immediately above
+    src: site.conf.j2
+    dest: /etc/nginx/sites-available/{{ item_nginx_site['value']['id'] }}
+    mode: "0644"
+    backup: true
+  loop: "{{ nginx_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_site
+  notify: Reload nginx
+  vars:
+    server_name: "{{ item_nginx_site['value']['id'] }}"
+    document_root: "{{ item_nginx_site['value']['document_root'] }}"
+    ssl_enabled: "{{ item_nginx_site['value']['ssl_enabled'] }}"
+    cert_file: "{{ nginx_multisite_certificate_path }}/{{ item_nginx_site['value']['id'] }}.crt"
+    key_file: "{{ nginx_multisite_private_key_path }}/{{ item_nginx_site['value']['id'] }}.key"
+
+- name: Enable Nginx sites
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/{{ item_nginx_link['value']['id'] }} # noqa: R114 - link source uses role-defined nginx_sites data
+    dest: /etc/nginx/sites-enabled/{{ item_nginx_link['value']['id'] }} # noqa: R114 - link destination uses role-defined nginx_sites data
+    state: link
+    owner: root
+    group: root
+  loop: "{{ nginx_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_link
+  notify: Reload nginx
+
+- name: Remove default Nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload nginx

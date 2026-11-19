@@ -1,0 +1,225 @@
+---
+# Unsupported pre-flight checks: detailed configuration grep output, log-tail review,
+# UFW numbered output, and individual sysctl values have no explicit expected values.
+- name: Verify nginx multisite deployment
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Collect installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts.packages
+        fail_msg: "A required package is not installed."
+      loop:
+        - nginx
+        - fail2ban
+        - ufw
+        - openssl
+        - ca-certificates
+      loop_control:
+        loop_var: item_package
+
+    - name: Collect service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert nginx and fail2ban are active
+      ansible.builtin.assert:
+        that:
+          - "'nginx.service' in ansible_facts.services"
+          - ansible_facts.services['nginx.service']['state'] == 'running'
+          - "'fail2ban.service' in ansible_facts.services"
+          - ansible_facts.services['fail2ban.service']['state'] == 'running'
+        fail_msg: "Nginx or fail2ban is not active."
+
+    - name: Check enabled services
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - "{{ item_service }}"
+      register: item_enabled_service
+      changed_when: false
+      loop:
+        - nginx
+        - fail2ban
+      loop_control:
+        loop_var: item_service
+
+    - name: Assert required services are enabled
+      ansible.builtin.assert:
+        that:
+          - item_enabled_service_result.rc == 0
+          - item_enabled_service_result.stdout | trim == 'enabled'
+        fail_msg: "A required service is not enabled."
+      loop: "{{ item_enabled_service['results'] }}"
+      loop_control:
+        loop_var: item_enabled_service_result
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: item_nginx_config_test
+      changed_when: false
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - item_nginx_config_test.rc == 0
+        fail_msg: "The nginx configuration test failed."
+
+    - name: Check required listening ports
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ item_endpoint['port'] }}"
+        state: started
+        timeout: 10
+      loop:
+        - port: 22
+        - port: 80
+        - port: 443
+      loop_control:
+        loop_var: item_endpoint
+
+    - name: Check HTTP endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1/
+        method: HEAD
+        status_code: [200, 301, 302, 403, 404]
+      register: item_http_endpoint
+
+    - name: Assert HTTP endpoint responds
+      ansible.builtin.assert:
+        that:
+          - item_http_endpoint.status in [200, 301, 302, 403, 404]
+        fail_msg: "The HTTP endpoint did not respond."
+
+    - name: Check HTTPS endpoint
+      ansible.builtin.uri:
+        url: https://127.0.0.1/
+        method: HEAD
+        validate_certs: false
+        status_code: [200, 301, 302, 403, 404]
+      register: item_https_endpoint
+
+    - name: Assert HTTPS endpoint responds
+      ansible.builtin.assert:
+        that:
+          - item_https_endpoint.status in [200, 301, 302, 403, 404]
+        fail_msg: "The HTTPS endpoint did not respond."
+
+    - name: Check default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: item_default_site
+
+    - name: Assert default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not item_default_site.stat.exists
+        fail_msg: "The default nginx site is present."
+
+    - name: Read SSH daemon configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: item_sshd_config
+
+    - name: Assert SSH hardening settings
+      ansible.builtin.assert:
+        that:
+          - (item_sshd_config.content | b64decode) is search('(?m)^\\s*PermitRootLogin\\s+no\\s*$')
+          - (item_sshd_config.content | b64decode) is search('(?m)^\\s*PasswordAuthentication\\s+no\\s*$')
+        fail_msg: "The required SSH hardening settings are not present."
+
+    - name: Validate SSH daemon configuration
+      ansible.builtin.command:
+        argv:
+          - sshd
+          - -t
+      register: item_sshd_config_test
+      changed_when: false
+
+    - name: Assert SSH daemon configuration is valid
+      ansible.builtin.assert:
+        that:
+          - item_sshd_config_test.rc == 0
+        fail_msg: "The SSH daemon configuration test failed."
+
+    - name: Check runtime site index files
+      ansible.builtin.stat:
+        path: "{{ item_site['value']['document_root'] }}/index.html"  # noqa: R114 - role-defined nginx_sites path
+      register: item_site_index
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site
+
+    - name: Assert each runtime site has an index file
+      ansible.builtin.assert:
+        that:
+          - item_site_result['stat']['exists']
+          - item_site_result['stat']['isreg']
+        fail_msg: "A runtime site index file is missing."
+      loop: "{{ item_site_index['results'] }}"
+      loop_control:
+        loop_var: item_site_result
+
+    - name: Check runtime site configurations links and logs
+      ansible.builtin.stat:
+        path: "{{ item_site }}"
+      register: item_site_path
+      loop: >-
+        {{ (nginx_sites | dict2items | map(attribute='key') | map('regex_replace', '^', '/etc/nginx/sites-available/') | list)
+        + (nginx_sites | dict2items | map(attribute='key') | map('regex_replace', '^', '/etc/nginx/sites-enabled/') | list)
+        + (nginx_sites | dict2items | map(attribute='key') | map('regex_replace', '$', '_access.log') | map('regex_replace', '^', '/var/log/nginx/') | list)
+        + (nginx_sites | dict2items | map(attribute='key') | map('regex_replace', '$', '_error.log') | map('regex_replace', '^', '/var/log/nginx/') | list) }}
+      loop_control:
+        loop_var: item_site
+
+    - name: Assert runtime site configurations links and logs exist
+      ansible.builtin.assert:
+        that:
+          - item_site_result['stat']['exists']
+        fail_msg: "A runtime site configuration, link, or log is missing."
+      loop: "{{ item_site_path['results'] }}"
+      loop_control:
+        loop_var: item_site_result
+
+    - name: Check SSL files for SSL-enabled sites
+      ansible.builtin.stat:
+        path: "{{ item_ssl_file_path }}"
+      register: item_ssl_file
+      loop: >-
+        {{ nginx_sites | dict2items | selectattr('value.ssl_enabled', 'equalto', true)
+        | map(attribute='key') | map('regex_replace', '^', '/etc/ssl/certs/') | map('regex_replace', '$', '.crt') | list
+        + nginx_sites | dict2items | selectattr('value.ssl_enabled', 'equalto', true)
+        | map(attribute='key') | map('regex_replace', '^', '/etc/ssl/private/') | map('regex_replace', '$', '.key') | list }}
+      loop_control:
+        loop_var: item_ssl_file_path
+
+    - name: Assert SSL files exist
+      ansible.builtin.assert:
+        that:
+          - item_ssl_file_result['stat']['exists']
+        fail_msg: "An SSL certificate or private key is missing."
+      loop: "{{ item_ssl_file['results'] }}"
+      loop_control:
+        loop_var: item_ssl_file_result
+
+    - name: Check site token metadata
+      ansible.builtin.stat:
+        path: /etc/nginx/secrets/site_token
+      register: item_site_token
+
+    - name: Assert site token has required metadata
+      ansible.builtin.assert:
+        that:
+          - item_site_token.stat.exists
+          - item_site_token.stat.pw_name == 'root'
+          - item_site_token.stat.gr_name == 'root'
+          - item_site_token.stat.mode == '0600'
+        fail_msg: "The site token file is missing or has incorrect metadata."

@@ -1,0 +1,85 @@
+---
+- name: Install SSL packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create ssl-cert group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Create certificate directory  # noqa: R114 - path comes from role vars defining the trusted system certificate directory
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_certificate_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create private key directory  # noqa: R114 - path comes from role vars defining the trusted system private key directory
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_private_key_path }}"
+    state: directory
+    owner: root
+    group: ssl-cert
+    mode: "0710"
+
+- name: Check existing site certificate
+  ansible.builtin.stat:
+    path: "{{ nginx_multisite_certificate_path }}/{{ item_nginx_ssl['value']['id'] }}.crt" # noqa: R114 - path uses role-defined certificate directory and site mapping
+  loop: "{{ nginx_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_ssl
+  register: nginx_multisite_certificate_stat
+
+- name: Check existing site private key
+  ansible.builtin.stat:
+    path: "{{ nginx_multisite_private_key_path }}/{{ item_nginx_key['value']['id'] }}.key" # noqa: R114 - path uses role-defined key directory and site mapping
+  loop: "{{ nginx_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_key
+  register: nginx_multisite_key_stat
+
+- name: Generate self-signed certificates for SSL sites  # noqa: R101 - command uses role-defined certificate paths and site mapping, L039 - stats are registered by preceding stat tasks
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -nodes
+      - -days
+      - "365"
+      - -newkey
+      - rsa:2048
+      - -keyout
+      - "{{ nginx_multisite_private_key_path }}/{{ item_nginx_cert['value']['id'] }}.key"
+      - -out
+      - "{{ nginx_multisite_certificate_path }}/{{ item_nginx_cert['value']['id'] }}.crt"
+      - -subj
+      - /C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN={{ item_nginx_cert['value']['id'] }}/emailAddress=admin@example.com
+  when:
+    - item_nginx_cert['value']['ssl_enabled'] | bool
+    - not (nginx_multisite_certificate_stat.results[ansible_loop.index0]['stat']['exists'] and
+      nginx_multisite_key_stat.results[ansible_loop.index0]['stat']['exists'])  # noqa: L039 - stats are registered by preceding tasks
+  loop: "{{ nginx_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_cert
+    index_var: nginx_multisite_site_index
+  register: nginx_multisite_certificate_generation
+  changed_when: nginx_multisite_certificate_generation.rc == 0
+  notify: Reload nginx
+
+- name: Set private key ownership and permissions
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_private_key_path }}/{{ item_nginx_mode['value']['id'] }}.key" # noqa: R114 - path uses role-defined key directory and site mapping
+    state: file
+    owner: root
+    group: ssl-cert
+    mode: "0640"
+  when: item_nginx_mode['value']['ssl_enabled'] | bool
+  loop: "{{ nginx_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_mode

@@ -1,0 +1,27 @@
+---
+argument_specs:
+  main:
+    short_description: Install and configure a secure Nginx multi-site server
+    description:
+      - Installs Nginx, Fail2ban, UFW, and SSL dependencies.
+      - Configures secure virtual hosts and self-signed certificates for runtime sites.
+    options:
+      nginx_sites:
+        type: dict
+        required: false
+        default: {}
+        description: Mapping of site names to document roots and SSL settings.
+      nginx_multisite_site_index_content:
+        type: str
+        required: false
+        default: <html><body><h1>Welcome</h1></body></html>
+        description: Content deployed as the default index file for each site.
+      nginx_multisite_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Whether to suppress output from tasks handling the site token credential.
+      site_token:
+        type: str
+        required: true
+        description: Site token injected by an AAP credential type.
