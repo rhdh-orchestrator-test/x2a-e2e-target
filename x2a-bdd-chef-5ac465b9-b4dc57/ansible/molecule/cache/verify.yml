@@ -1,0 +1,123 @@
+---
+# Unsupported pre-flight checks: Redis authentication PING requires the approved secret,
+# the exact Memcached thread value is unspecified, Redis PID-directory usage cannot be
+# confirmed without implementation-specific details, and service-log review has no
+# machine-readable expected outcome. The nc version diagnostic is also omitted because
+# no suitable secret-free native module can send the required protocol input.
+
+- name: Verify cache services and configuration
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather service facts for the Memcached and Redis checks
+      ansible.builtin.service_facts:
+
+    - name: Verify that the Memcached service is active and enabled
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['services'] | dict2items |
+            selectattr('key', 'match', '^memcached(\\.service)?$') | list | length) > 0
+          - >-
+            (ansible_facts['services'] | dict2items |
+            selectattr('key', 'match', '^memcached(\\.service)?$') |
+            selectattr('value', 'equalto', {'state': 'running', 'status': 'enabled'}) |
+            list | length) > 0
+        fail_msg: Memcached must have a running and enabled service unit.
+
+    - name: Verify that the Redis service is active and enabled
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['services'] | dict2items |
+            selectattr('key', 'match', '^(redis|redis-server)(@6379)?(\\.service)?$') |
+            list | length) > 0
+          - >-
+            (ansible_facts['services'] | dict2items |
+            selectattr('key', 'match', '^(redis|redis-server)(@6379)?(\\.service)?$') |
+            selectattr('value', 'equalto', {'state': 'running', 'status': 'enabled'}) |
+            list | length) > 0
+        fail_msg: Redis must have a running and enabled service unit.
+
+    - name: Read the Memcached configuration
+      ansible.builtin.slurp:
+        src: /etc/memcached.conf
+      register: memcached_config
+
+    - name: Verify the explicit Memcached effective settings
+      ansible.builtin.assert:
+        that:
+          - "memcached_config['content'] | b64decode is search('(?m)(^|\\s)-m\\s+64(?:\\s|$)')"
+          - "memcached_config['content'] | b64decode is search('(?m)(^|\\s)-p\\s+11211(?:\\s|$)')"
+          - "memcached_config['content'] | b64decode is search('(?m)(^|\\s)-U\\s+11211(?:\\s|$)')"
+          - "memcached_config['content'] | b64decode is search('(?m)(^|\\s)-l\\s+0\\.0\\.0\\.0(?:\\s|$)')"
+          - "memcached_config['content'] | b64decode is search('(?m)(^|\\s)-c\\s+1024(?:\\s|$)')"
+          - "memcached_config['content'] | b64decode is search('(?m)(^|\\s)-I\\s+1m(?:\\s|$)')"
+          - "memcached_config['content'] | b64decode is search('(?m)(^|\\s)-u\\s+1024(?:\\s|$)')"
+        fail_msg: The Memcached configuration must contain the explicitly required settings.
+
+    - name: Read the Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config
+
+    - name: Verify the Redis port and removal of replication directives
+      ansible.builtin.assert:
+        that:
+          - "redis_config['content'] | b64decode is search('(?m)^port\\s+6379(?:\\s|$)')"
+          - "redis_config['content'] | b64decode is not search('(?m)^replica-serve-stale-data(?:\\s|$)')"
+          - "redis_config['content'] | b64decode is not search('(?m)^replica-read-only(?:\\s|$)')"
+          - "redis_config['content'] | b64decode is not search('(?m)^repl-ping-replica-period(?:\\s|$)')"
+          - "redis_config['content'] | b64decode is not search('(?m)^client-output-buffer-limit(?:\\s|$)')"
+          - "redis_config['content'] | b64decode is not search('(?m)^replica-priority(?:\\s|$)')"
+        fail_msg: Redis must listen on port 6379 and omit the five specified directives.
+
+    - name: Verify the Redis log directory metadata
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert the Redis log directory owner group and mode
+      ansible.builtin.assert:
+        that:
+          - redis_log_directory['stat']['exists']
+          - redis_log_directory['stat']['pw_name'] == 'redis'
+          - redis_log_directory['stat']['gr_name'] == 'redis'
+          - redis_log_directory['stat']['mode'] == '0755'
+        fail_msg: /var/log/redis must be owned by redis:redis with mode 0755.
+
+    - name: Verify that the Redis PID directory exists
+      ansible.builtin.stat:
+        path: /run/redis
+      register: redis_pid_directory
+
+    - name: Assert that the Redis PID directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_pid_directory['stat']['exists']
+          - redis_pid_directory['stat']['isdir']
+        fail_msg: /run/redis must exist as a directory.
+
+    - name: Inspect TCP listeners for the explicit cache endpoints
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: tcp_listeners
+      changed_when: false
+
+    - name: Inspect the Memcached UDP listener
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ulnp
+      register: udp_listeners
+      changed_when: false
+
+    - name: Verify the explicit TCP and UDP cache listeners
+      ansible.builtin.assert:
+        that:
+          - tcp_listeners['stdout'] is search(':11211')
+          - tcp_listeners['stdout'] is search(':6379')
+          - udp_listeners['stdout'] is search(':11211')
+        fail_msg: Memcached TCP/UDP 11211 and Redis TCP 6379 listeners must be present.
