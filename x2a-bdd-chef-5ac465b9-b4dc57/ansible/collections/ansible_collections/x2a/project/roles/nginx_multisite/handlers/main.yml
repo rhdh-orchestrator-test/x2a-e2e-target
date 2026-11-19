@@ -1,0 +1,26 @@
+---
+- name: Restart fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: restarted
+
+- name: Reload nginx
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded
+
+- name: Reload nginx multisite sysctl
+  ansible.builtin.command:
+    argv:
+      - sysctl
+      - -p
+      - /etc/sysctl.d/99-security.conf
+    changed_when: false
+
+- name: Restart sshd
+  ansible.builtin.service:
+    name: "{{ 'ssh' if ansible_facts.os_family == 'Debian' else 'sshd' }}"
+    state: restarted
+  when:
+    - nginx_multisite_sshd_config is defined
+    - nginx_multisite_sshd_config.stat.exists | default(false)

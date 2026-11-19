@@ -1,0 +1,217 @@
+---
+# Unsupported pre-flight checks: UFW output/rules, sysctl values/application, HTTP(S) response
+# status, nginx -T output, secret ownership/metadata beyond mode, and service/log diagnostics
+# have no stated expected outcome; per-site checks cannot be enumerated without site data.
+- name: Verify nginx multisite pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify fail2ban is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - fail2ban
+      register: verify_fail2ban_enabled
+      changed_when: false
+
+    - name: Assert fail2ban is enabled
+      ansible.builtin.assert:
+        that:
+          - verify_fail2ban_enabled.rc == 0
+        fail_msg: fail2ban is not enabled
+
+    - name: Verify fail2ban is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - fail2ban
+      register: verify_fail2ban_active
+      changed_when: false
+
+    - name: Assert fail2ban is active
+      ansible.builtin.assert:
+        that:
+          - verify_fail2ban_active.rc == 0
+        fail_msg: fail2ban is not active
+
+    - name: Verify fail2ban reports status
+      ansible.builtin.command:
+        argv:
+          - fail2ban-client
+          - status
+      register: verify_fail2ban_status
+      changed_when: false
+
+    - name: Assert fail2ban status succeeds
+      ansible.builtin.assert:
+        that:
+          - verify_fail2ban_status.rc == 0
+        fail_msg: fail2ban status check failed
+
+    - name: Verify root login SSH setting
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - ^[[:space:]]*PermitRootLogin[[:space:]]+no
+          - /etc/ssh/sshd_config
+      register: verify_root_login
+      changed_when: false
+
+    - name: Assert root login is disabled
+      ansible.builtin.assert:
+        that:
+          - verify_root_login.rc == 0
+        fail_msg: PermitRootLogin no was not found
+
+    - name: Verify SSH password authentication setting
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - ^[[:space:]]*PasswordAuthentication[[:space:]]+no
+          - /etc/ssh/sshd_config
+      register: verify_password_authentication
+      changed_when: false
+
+    - name: Assert SSH password authentication is disabled
+      ansible.builtin.assert:
+        that:
+          - verify_password_authentication.rc == 0
+        fail_msg: PasswordAuthentication no was not found
+
+    - name: Validate SSH daemon configuration
+      ansible.builtin.command:
+        argv:
+          - sshd
+          - -t
+      register: verify_sshd_config
+      changed_when: false
+
+    - name: Assert SSH daemon configuration is valid
+      ansible.builtin.assert:
+        that:
+          - verify_sshd_config.rc == 0
+        fail_msg: sshd configuration validation failed
+
+    - name: Check sysctl security configuration file
+      ansible.builtin.stat:
+        path: /etc/sysctl.d/99-security.conf
+      register: verify_sysctl_file
+
+    - name: Assert sysctl security configuration file exists
+      ansible.builtin.assert:
+        that:
+          - verify_sysctl_file.stat.exists
+          - verify_sysctl_file.stat.isreg
+        fail_msg: sysctl security configuration file is missing
+
+    - name: Verify nginx is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - nginx
+      register: verify_nginx_enabled
+      changed_when: false
+
+    - name: Assert nginx is enabled
+      ansible.builtin.assert:
+        that:
+          - verify_nginx_enabled.rc == 0
+        fail_msg: nginx is not enabled
+
+    - name: Verify nginx is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - nginx
+      register: verify_nginx_active
+      changed_when: false
+
+    - name: Assert nginx is active
+      ansible.builtin.assert:
+        that:
+          - verify_nginx_active.rc == 0
+        fail_msg: nginx is not active
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: verify_nginx_config
+      changed_when: false
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - verify_nginx_config.rc == 0
+        fail_msg: nginx configuration validation failed
+
+    - name: Check sites-available directory
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-available
+      register: verify_sites_available
+
+    - name: Assert sites-available directory exists
+      ansible.builtin.assert:
+        that:
+          - verify_sites_available.stat.exists
+          - verify_sites_available.stat.isdir
+        fail_msg: nginx sites-available directory is missing
+
+    - name: Check sites-enabled directory
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled
+      register: verify_sites_enabled
+
+    - name: Assert sites-enabled directory exists
+      ansible.builtin.assert:
+        that:
+          - verify_sites_enabled.stat.exists
+          - verify_sites_enabled.stat.isdir
+        fail_msg: nginx sites-enabled directory is missing
+
+    - name: Check default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: verify_default_site
+
+    - name: Assert default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not verify_default_site.stat.exists
+        fail_msg: default nginx site is present
+
+    - name: Check SSH, HTTP, and HTTPS listeners
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: verify_listeners
+      changed_when: false
+
+    - name: Assert required listeners are present
+      ansible.builtin.assert:
+        that:
+          - "verify_listeners.stdout is search(':22\\s')"
+          - "verify_listeners.stdout is search(':80\\s')"
+          - "verify_listeners.stdout is search(':443\\s')"
+        fail_msg: one or more required TCP listeners are missing
+
+    - name: Check nginx site token metadata
+      ansible.builtin.stat:
+        path: /etc/nginx/secrets/site_token
+      register: verify_site_token
+
+    - name: Assert nginx site token exists with mode 0600
+      ansible.builtin.assert:
+        that:
+          - verify_site_token.stat.exists
+          - verify_site_token.stat.isreg
+          - verify_site_token.stat.mode == '0600'
+        fail_msg: nginx site token is missing or has an unexpected mode
