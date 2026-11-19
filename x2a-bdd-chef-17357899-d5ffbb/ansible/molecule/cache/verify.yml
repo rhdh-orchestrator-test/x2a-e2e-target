@@ -1,0 +1,70 @@
+---
+# Unsupported pre-flight checks: package availability, service/unit discovery and state,
+# platform-specific Memcached configuration, endpoint/listener diagnostics without a
+# stated result, authenticated Redis PING (the Vault password is not available here),
+# Redis configuration field inspection without stated values, PID-directory listing,
+# and service-log inspection without stated expected output.
+- name: Verify cache pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Verify unauthenticated Redis access is rejected for instance 6379
+      ansible.builtin.command:
+        argv:
+          - redis-cli
+          - -p
+          - "6379"
+          - PING
+      register: cache_redis_unauthenticated_ping
+      changed_when: false
+
+    - name: Assert Redis requires authentication for instance 6379
+      ansible.builtin.assert:
+        that:
+          - cache_redis_unauthenticated_ping.rc != 0
+          - >-
+            ('NOAUTH' in (cache_redis_unauthenticated_ping.stdout | upper)) or
+            ('AUTHENTICATION' in (cache_redis_unauthenticated_ping.stdout | upper)) or
+            ('NOAUTH' in (cache_redis_unauthenticated_ping.stderr | upper)) or
+            ('AUTHENTICATION' in (cache_redis_unauthenticated_ping.stderr | upper))
+        fail_msg: Redis did not report that authentication is required.
+
+    - name: Read the Redis configuration for instance 6379
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_configuration
+
+    - name: Assert Chef cleanup directives are absent from Redis configuration
+      ansible.builtin.assert:
+        that:
+          - >-
+            (cache_redis_configuration.content | b64decode) is not
+            search('(?m)^replica-serve-stale-data\\s')
+          - >-
+            (cache_redis_configuration.content | b64decode) is not
+            search('(?m)^replica-read-only\\s')
+          - >-
+            (cache_redis_configuration.content | b64decode) is not
+            search('(?m)^repl-ping-replica-period\\s')
+          - >-
+            (cache_redis_configuration.content | b64decode) is not
+            search('(?m)^client-output-buffer-limit\\s')
+          - >-
+            (cache_redis_configuration.content | b64decode) is not
+            search('(?m)^replica-priority\\s')
+        fail_msg: One or more replication cleanup directives remain in Redis configuration.
+
+    - name: Inspect the Redis log directory for instance 6379
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_directory
+
+    - name: Assert Redis log directory owner, group, and mode
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_directory.stat.exists
+          - cache_redis_log_directory.stat.isdir
+          - cache_redis_log_directory.stat.pw_name == 'redis'
+          - cache_redis_log_directory.stat.gr_name == 'redis'
+          - cache_redis_log_directory.stat.mode == '0755'
+        fail_msg: Redis log directory does not match the pre-flight expectation.
