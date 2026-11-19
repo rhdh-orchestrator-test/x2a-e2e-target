@@ -1,0 +1,191 @@
+---
+# Unsupported pre-flight checks: fail2ban-client status output, UFW status/rules,
+# secret metadata values, unresolved per-site checks, and service/log inspection have
+# no safely stated expected result or require site data that is not provided.
+- name: Verify nginx multisite pre-flight checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check fail2ban is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - fail2ban
+      register: item_fail2ban_enabled
+      changed_when: false
+
+    - name: Assert fail2ban is enabled
+      ansible.builtin.assert:
+        that:
+          - item_fail2ban_enabled['rc'] == 0
+          - item_fail2ban_enabled['stdout'] | trim == 'enabled'
+        fail_msg: fail2ban is not enabled
+
+    - name: Check fail2ban is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - fail2ban
+      register: item_fail2ban_active
+      changed_when: false
+
+    - name: Assert fail2ban is active
+      ansible.builtin.assert:
+        that:
+          - item_fail2ban_active['rc'] == 0
+          - item_fail2ban_active['stdout'] | trim == 'active'
+        fail_msg: fail2ban is not active
+
+    - name: Check nginx is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - nginx
+      register: item_nginx_enabled
+      changed_when: false
+
+    - name: Assert nginx is enabled
+      ansible.builtin.assert:
+        that:
+          - item_nginx_enabled['rc'] == 0
+          - item_nginx_enabled['stdout'] | trim == 'enabled'
+        fail_msg: nginx is not enabled
+
+    - name: Check nginx is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - nginx
+      register: item_nginx_active
+      changed_when: false
+
+    - name: Assert nginx is active
+      ansible.builtin.assert:
+        that:
+          - item_nginx_active['rc'] == 0
+          - item_nginx_active['stdout'] | trim == 'active'
+        fail_msg: nginx is not active
+
+    - name: Check sshd is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - sshd
+      register: item_sshd_active
+      changed_when: false
+
+    - name: Assert sshd is active
+      ansible.builtin.assert:
+        that:
+          - item_sshd_active['rc'] == 0
+          - item_sshd_active['stdout'] | trim == 'active'
+        fail_msg: sshd is not active
+
+    - name: Validate sshd configuration
+      ansible.builtin.command:
+        argv:
+          - sshd
+          - -t
+      register: item_sshd_config
+      changed_when: false
+
+    - name: Assert sshd configuration is valid
+      ansible.builtin.assert:
+        that:
+          - item_sshd_config['rc'] == 0
+        fail_msg: sshd configuration validation failed
+
+    - name: Reload and validate kernel security configuration
+      ansible.builtin.command:
+        argv:
+          - sysctl
+          - -p
+          - /etc/sysctl.d/99-security.conf
+      register: item_sysctl_validation
+      changed_when: false
+
+    - name: Assert kernel security configuration reload succeeded
+      ansible.builtin.assert:
+        that:
+          - item_sysctl_validation['rc'] == 0
+        fail_msg: kernel security configuration validation failed
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: item_nginx_config
+      changed_when: false
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - item_nginx_config['rc'] == 0
+        fail_msg: nginx configuration validation failed
+
+    - name: Dump and validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -T
+      register: item_nginx_dump
+      changed_when: false
+
+    - name: Assert nginx configuration dump succeeded
+      ansible.builtin.assert:
+        that:
+          - item_nginx_dump['rc'] == 0
+        fail_msg: nginx configuration dump failed
+
+    - name: Check listening TCP ports
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: item_listening_ports
+      changed_when: false
+
+    - name: Assert SSH and HTTP ports are listening
+      ansible.builtin.assert:
+        that:
+          - item_listening_ports['rc'] == 0
+          - item_listening_ports['stdout'] is search(':22\\b')
+          - item_listening_ports['stdout'] is search(':80\\b')
+        fail_msg: required SSH or HTTP listening port is missing
+
+    - name: Check global nginx configuration files
+      ansible.builtin.stat:
+        path: "{{ item_nginx_file['path'] }}"
+      register: item_nginx_files
+      loop:
+        - path: /etc/nginx/nginx.conf
+        - path: /etc/nginx/conf.d/security.conf
+        - path: /run/nginx.pid
+      loop_control:
+        loop_var: item_nginx_file
+
+    - name: Assert global nginx files exist
+      ansible.builtin.assert:
+        that:
+          - item_nginx_stat['stat']['exists']
+        fail_msg: a required global nginx file is missing
+      loop: "{{ item_nginx_files['results'] }}"
+      loop_control:
+        loop_var: item_nginx_stat
+
+    - name: Check the default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: item_default_site
+
+    - name: Assert the default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not item_default_site['stat']['exists']
+        fail_msg: the default nginx site is present

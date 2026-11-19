@@ -1,0 +1,23 @@
+---
+- name: Validate nginx site definitions
+  ansible.builtin.assert:
+    that:
+      - nginx_sites is mapping
+      - item_validate_site['value'] is mapping
+      - item_validate_site['value']['document_root'] is string
+      - item_validate_site['value']['document_root'].startswith('/')
+      - "'..' not in item_validate_site['value']['document_root']"
+      - item_validate_site['value']['ssl_enabled'] is boolean
+    fail_msg: Each nginx site must define an absolute document_root without '..' and a boolean ssl_enabled.
+  loop: "{{ nginx_sites | dict2items }}"
+  loop_control:
+    loop_var: item_validate_site
+
+- name: Validate SSL path settings
+  ansible.builtin.assert:
+    that:
+      - nginx_multisite_certificate_path.startswith('/')
+      - nginx_multisite_private_key_path.startswith('/')
+      - "'..' not in nginx_multisite_certificate_path"
+      - "'..' not in nginx_multisite_private_key_path"
+    fail_msg: SSL certificate and private key paths must be absolute trusted paths.
