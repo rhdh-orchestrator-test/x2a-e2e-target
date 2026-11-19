@@ -1,0 +1,84 @@
+---
+- name: Validate credential variables
+  ansible.builtin.include_tasks: validate_credentials.yml
+
+- name: Configure Redis with the Private Hub role # noqa: L038 - external Redis role is provided by the Private Hub and is unavailable in this collection
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_install_method: package
+    redis_version: "7.2"
+    redis_port: 6379
+    redis_requirepass: "{{ redis_password }}"
+    redis_replication_enabled: false
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_rdb_enabled: true
+
+- name: Include Memcached configuration
+  ansible.builtin.include_tasks: memcached.yml
+
+- name: Create Redis log directory
+  ansible.builtin.file:
+    path: "{{ redis_log_directory }}" # noqa: R114 - path is a role default
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+    recurse: true
+
+- name: Check whether the Redis configuration exists
+  ansible.builtin.stat:
+    path: "{{ redis_config_file }}"
+  register: redis_config_file_stat
+
+- name: Remove replica serve stale data directive # noqa: L039 - variable is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: "{{ redis_config_file }}" # noqa: R114 - path is a role default
+    regexp: ^replica-serve-stale-data.*$
+    replace: ""
+    backup: true
+  when: redis_config_file_stat.stat.exists
+  no_log: "{{ cache_secure_logging }}"
+  notify: Restart Redis
+
+- name: Remove replica read only directive # noqa: L039 - variable is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: "{{ redis_config_file }}" # noqa: R114 - path is a role default
+    regexp: ^replica-read-only.*$
+    replace: ""
+    backup: true
+  when: redis_config_file_stat.stat.exists
+  no_log: "{{ cache_secure_logging }}"
+  notify: Restart Redis
+
+- name: Remove replica ping period directive # noqa: L039 - variable is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: "{{ redis_config_file }}" # noqa: R114 - path is a role default
+    regexp: ^repl-ping-replica-period.*$
+    replace: ""
+    backup: true
+  when: redis_config_file_stat.stat.exists
+  no_log: "{{ cache_secure_logging }}"
+  notify: Restart Redis
+
+- name: Remove client output buffer limit directive # noqa: L039 - variable is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: "{{ redis_config_file }}" # noqa: R114 - path is a role default
+    regexp: ^client-output-buffer-limit.*$
+    replace: ""
+    backup: true
+  when: redis_config_file_stat.stat.exists
+  no_log: "{{ cache_secure_logging }}"
+  notify: Restart Redis
+
+- name: Remove replica priority directive # noqa: L039 - variable is registered by the preceding stat task
+  ansible.builtin.replace:
+    path: "{{ redis_config_file }}" # noqa: R114 - path is a role default
+    regexp: ^replica-priority.*$
+    replace: ""
+    backup: true
+  when: redis_config_file_stat.stat.exists
+  no_log: "{{ cache_secure_logging }}"
+  notify: Restart Redis
