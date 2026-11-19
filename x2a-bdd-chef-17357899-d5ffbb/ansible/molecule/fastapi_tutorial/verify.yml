@@ -1,0 +1,100 @@
+---
+# Unsupported pre-flight checks: OS/version output, package listings, Git status/revision,
+# virtualenv package listings, endpoint response bodies, logs, restart behavior, and
+# PostgreSQL connectivity/privilege details have no stated expected outcome here.
+- name: Verify fastapi-tutorial pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check application directory ownership and mode
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: application_directory
+
+    - name: Assert application directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - application_directory.stat.exists
+          - application_directory.stat.pw_name == 'root'
+          - application_directory.stat.gr_name == 'root'
+          - application_directory.stat.mode == '0755'
+        fail_msg: The application directory does not have the expected ownership or mode.
+
+    - name: Check environment file ownership and mode
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/.env
+      register: environment_file
+
+    - name: Assert environment file ownership and restrictive mode
+      ansible.builtin.assert:
+        that:
+          - environment_file.stat.exists
+          - environment_file.stat.pw_name == 'root'
+          - environment_file.stat.gr_name == 'root'
+          - environment_file.stat.mode == '0600'
+        fail_msg: The environment file does not have the expected ownership or restrictive mode.
+
+    - name: Check systemd unit ownership and mode
+      ansible.builtin.stat:
+        path: /etc/systemd/system/fastapi-tutorial.service
+      register: systemd_unit_file
+
+    - name: Assert systemd unit ownership and mode
+      ansible.builtin.assert:
+        that:
+          - systemd_unit_file.stat.exists
+          - systemd_unit_file.stat.pw_name == 'root'
+          - systemd_unit_file.stat.gr_name == 'root'
+          - systemd_unit_file.stat.mode == '0644'
+        fail_msg: The FastAPI systemd unit does not have the expected ownership or mode.
+
+    - name: Read FastAPI systemd unit
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/fastapi-tutorial.service
+      register: systemd_unit_content
+
+    - name: Assert expected FastAPI systemd unit values
+      ansible.builtin.assert:
+        that:
+          - "'User=root' in (systemd_unit_content.content | b64decode)"
+          - "'WorkingDirectory=/opt/fastapi-tutorial' in (systemd_unit_content.content | b64decode)"
+          - "'Environment=\"PATH=/opt/fastapi-tutorial/venv/bin\"' in (systemd_unit_content.content | b64decode)"
+          - "'ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000' in (systemd_unit_content.content | b64decode)"
+          - "'Restart=always' in (systemd_unit_content.content | b64decode)"
+        fail_msg: The FastAPI systemd unit does not contain the expected values.
+
+    - name: Verify PostgreSQL role exists
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT usename FROM pg_catalog.pg_user WHERE usename = 'fastapi';
+        chdir: /
+      become: true
+      become_user: postgres
+      changed_when: false
+      register: postgresql_role
+
+    - name: Assert PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - postgresql_role.stdout | trim == 'fastapi'
+        fail_msg: The expected PostgreSQL role does not exist.
+
+    - name: Verify PostgreSQL database and owner
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -tAc
+          - SELECT datname, pg_catalog.pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db';
+        chdir: /
+      become: true
+      become_user: postgres
+      changed_when: false
+      register: postgresql_database
+
+    - name: Assert PostgreSQL database owner
+      ansible.builtin.assert:
+        that:
+          - postgresql_database.stdout | trim == 'fastapi_db|fastapi'
+        fail_msg: The expected PostgreSQL database or owner is missing.
