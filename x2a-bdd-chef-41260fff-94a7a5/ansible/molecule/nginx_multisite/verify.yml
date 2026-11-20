@@ -1,0 +1,175 @@
+---
+# Unsupported or intentionally omitted pre-flight checks:
+# - The site inventory is unresolved, so per-site paths, links, content, HTTP/TLS requests, and certificates are not checked.
+# - sysctl file contents, nginx -T output, service logs, and diagnostic listings have no stated expected outcome.
+# - HTTPS port 443 is conditional on an SSL-enabled site, which is unresolved without the site inventory.
+
+- name: Verify nginx-multisite pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify required packages are installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts['packages']
+        fail_msg: "Required package is not installed: {{ item_package }}"
+      loop:
+        - fail2ban
+        - ufw
+        - nginx
+        - openssl
+        - ca-certificates
+      loop_control:
+        loop_var: item_package
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert fail2ban is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'fail2ban.service' in ansible_facts['services']"
+          - ansible_facts['services']['fail2ban.service']['status'] == 'enabled'
+          - ansible_facts['services']['fail2ban.service']['state'] == 'running'
+
+    - name: Assert nginx is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'nginx.service' in ansible_facts['services']"
+          - ansible_facts['services']['nginx.service']['status'] == 'enabled'
+          - ansible_facts['services']['nginx.service']['state'] == 'running'
+
+    - name: Assert sshd is active
+      ansible.builtin.assert:
+        that:
+          - "'sshd.service' in ansible_facts['services']"
+          - ansible_facts['services']['sshd.service']['state'] == 'running'
+
+    - name: Check UFW status, policy, and required rules
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      register: item_ufw_status
+      changed_when: false
+
+    - name: Assert UFW is active with deny policy and required rules
+      ansible.builtin.assert:
+        that:
+          - item_ufw_status.rc == 0
+          - "'Status: active' in item_ufw_status.stdout"
+          - "'Default: deny (incoming)' in item_ufw_status.stdout"
+          - "'22/tcp' in item_ufw_status.stdout"
+          - "'80/tcp' in item_ufw_status.stdout"
+          - "'443/tcp' in item_ufw_status.stdout"
+
+    - name: Read SSH daemon configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: item_sshd_config
+
+    - name: Assert SSH hardening settings
+      ansible.builtin.assert:
+        that:
+          - "(item_sshd_config['content'] | b64decode) is search('(?m)^PermitRootLogin\\s+no\\s*$')"
+          - "(item_sshd_config['content'] | b64decode) is search('(?m)^PasswordAuthentication\\s+no\\s*$')"
+
+    - name: Validate SSH daemon configuration
+      ansible.builtin.command:
+        argv:
+          - sshd
+          - -t
+      changed_when: false
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      changed_when: false
+
+    - name: Verify fixed nginx paths exist
+      ansible.builtin.stat:
+        path: "{{ item_nginx_path['path'] }}"
+      register: item_nginx_path_stats
+      loop:
+        - path: /etc/nginx/nginx.conf
+          kind: file
+        - path: /etc/nginx/conf.d/security.conf
+          kind: file
+        - path: /etc/nginx/secrets
+          kind: directory
+        - path: /etc/nginx/secrets/site_token
+          kind: file
+        - path: /etc/nginx/sites-available
+          kind: directory
+        - path: /etc/nginx/sites-enabled
+          kind: directory
+      loop_control:
+        loop_var: item_nginx_path
+
+    - name: Assert fixed nginx paths have the expected types
+      ansible.builtin.assert:
+        that:
+          - item_nginx_path_result['stat']['exists']
+          - >-
+            (item_nginx_path_result['item']['kind'] == 'file' and item_nginx_path_result['stat']['isreg']) or
+            (item_nginx_path_result['item']['kind'] == 'directory' and item_nginx_path_result['stat']['isdir'])
+      loop: "{{ item_nginx_path_stats['results'] }}"
+      loop_control:
+        loop_var: item_nginx_path_result
+
+    - name: Verify secret directory and token permissions
+      ansible.builtin.stat:
+        path: "{{ item_secret_path['path'] }}"
+      register: item_secret_stats
+      loop:
+        - path: /etc/nginx/secrets
+          owner: root
+          group: root
+          mode: "0700"
+        - path: /etc/nginx/secrets/site_token
+          owner: root
+          group: root
+          mode: "0600"
+      loop_control:
+        loop_var: item_secret_path
+
+    - name: Assert secret ownership and permissions
+      ansible.builtin.assert:
+        that:
+          - item_secret_result['stat']['pw_name'] == item_secret_result['item']['owner']
+          - item_secret_result['stat']['gr_name'] == item_secret_result['item']['group']
+          - item_secret_result['stat']['mode'] == item_secret_result['item']['mode']
+      loop: "{{ item_secret_stats['results'] }}"
+      loop_control:
+        loop_var: item_secret_result
+
+    - name: Verify SSH and HTTP listeners
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ item_listener['port'] }}"
+        state: started
+        timeout: 5
+      loop:
+        - name: ssh
+          port: 22
+        - name: http
+          port: 80
+      loop_control:
+        loop_var: item_listener
+
+    - name: Verify the default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: item_default_site
+
+    - name: Assert the default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not item_default_site['stat']['exists']

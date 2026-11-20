@@ -1,0 +1,69 @@
+---
+- name: Install nginx
+  ansible.builtin.package:
+    name: nginx
+    state: present
+
+- name: Render nginx main configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+
+- name: Render nginx security configuration
+  ansible.builtin.template:
+    src: security.conf.j2
+    dest: /etc/nginx/conf.d/security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+
+- name: Enable and start nginx
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true
+
+- name: Create nginx secret directory
+  ansible.builtin.file:
+    path: /etc/nginx/secrets
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Write nginx site token
+  ansible.builtin.copy:
+    content: "{{ token }}"
+    dest: /etc/nginx/secrets/site_token
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
+  no_log: "{{ nginx_multisite_secure_logging }}"
+
+- name: Create site document roots
+  ansible.builtin.file:
+    path: "{{ item_nginx_site['value']['document_root'] }}" # noqa: R114 - path from role-defined nginx_sites inventory
+    state: directory
+    owner: nginx
+    group: nginx
+    mode: "0755"
+    recurse: true
+  loop: "{{ nginx_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_site
+
+- name: Deploy site index files
+  ansible.builtin.copy:
+    src: "{{ item_nginx_site['key'].split('.')[0] }}/index.html"
+    dest: "{{ item_nginx_site['value']['document_root'] }}/index.html" # noqa: R114 - path from role-defined nginx_sites inventory
+    owner: nginx
+    group: nginx
+    mode: "0644"
+    backup: true
+  loop: "{{ nginx_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_site
