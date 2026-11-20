@@ -1,0 +1,279 @@
+---
+# Unsupported: exact HTTP headers/body, journal inspection, password authentication,
+# privilege details, and observing the daemon-reload/restart sequence.
+- name: Verify fastapi-tutorial pre-flight checks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Check application paths
+      ansible.builtin.stat:
+        path: "{{ item_app_path }}"
+      loop:
+        - /opt/fastapi-tutorial
+        - /opt/fastapi-tutorial/requirements.txt
+        - /opt/fastapi-tutorial/venv/bin/python
+        - /opt/fastapi-tutorial/venv/bin/pip
+        - /opt/fastapi-tutorial/venv/bin/uvicorn
+      loop_control:
+        loop_var: item_app_path
+      register: app_paths
+
+    - name: Assert application paths exist and executables are executable
+      ansible.builtin.assert:
+        that:
+          - item_app_result.stat.exists
+          - item_app_result.stat.isdir or item_app_result.stat.isreg
+          - >-
+            (item_app_result.stat.isreg and item_app_result.stat.executable)
+            or item_app_result.item == '/opt/fastapi-tutorial'
+            or item_app_result.item == '/opt/fastapi-tutorial/requirements.txt'
+        fail_msg: An expected application path is missing or not executable.
+      loop: "{{ app_paths.results }}"
+      loop_control:
+        loop_var: item_app_result
+
+    - name: Check Git working tree
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - /opt/fastapi-tutorial
+          - rev-parse
+          - --is-inside-work-tree
+      register: git_tree
+      changed_when: false
+
+    - name: Assert Git working tree is valid
+      ansible.builtin.assert:
+        that: git_tree.stdout | trim == 'true'
+        fail_msg: The application directory is not a Git working tree.
+
+    - name: Check Git revision
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - /opt/fastapi-tutorial
+          - rev-parse
+          - --abbrev-ref
+          - HEAD
+      register: git_revision
+      changed_when: false
+
+    - name: Assert Git checkout is on main
+      ansible.builtin.assert:
+        that: git_revision.stdout | trim == 'main'
+        fail_msg: The checkout is not on main.
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert fastapi-tutorial service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'fastapi-tutorial.service' in ansible_facts.services"
+          - ansible_facts.services['fastapi-tutorial.service']['status'] == 'enabled'
+          - ansible_facts.services['fastapi-tutorial.service']['state'] == 'running'
+        fail_msg: The fastapi-tutorial service is not enabled and active.
+
+    - name: Check fastapi-tutorial systemd properties
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - fastapi-tutorial
+          - --property=User,WorkingDirectory,ExecStart,Restart
+      register: service_properties
+      changed_when: false
+
+    - name: Assert fastapi-tutorial systemd properties
+      ansible.builtin.assert:
+        that:
+          - "'User=root' in service_properties.stdout_lines"
+          - "'WorkingDirectory=/opt/fastapi-tutorial' in service_properties.stdout_lines"
+          - "'Restart=always' in service_properties.stdout_lines"
+          - "'/opt/fastapi-tutorial/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000' in service_properties.stdout"
+        fail_msg: The fastapi-tutorial systemd properties are incorrect.
+
+    - name: Validate fastapi-tutorial systemd unit
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - /etc/systemd/system/fastapi-tutorial.service
+      changed_when: false
+
+    - name: Wait for FastAPI port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 8000
+        state: started
+        timeout: 30
+
+    - name: Check FastAPI endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8000/
+        method: GET
+        return_content: false
+        status_code:
+          - 200
+          - 404
+          - 405
+
+    - name: Check running processes
+      ansible.builtin.command:
+        argv:
+          - ps
+          - aux
+      register: processes
+      changed_when: false
+
+    - name: Assert Uvicorn application process is running
+      ansible.builtin.assert:
+        that:
+          - "'uvicorn app.main:app' in processes.stdout"
+          - "'/opt/fastapi-tutorial/venv/bin/uvicorn' in processes.stdout"
+        fail_msg: The expected Uvicorn process is not running.
+
+    - name: Assert PostgreSQL service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'postgresql.service' in ansible_facts.services or 'postgresql' in ansible_facts.services"
+          - >-
+            (ansible_facts.services['postgresql.service']['status'] == 'enabled'
+            if 'postgresql.service' in ansible_facts.services else
+            ansible_facts.services['postgresql']['status'] == 'enabled')
+          - >-
+            (ansible_facts.services['postgresql.service']['state'] == 'running'
+            if 'postgresql.service' in ansible_facts.services else
+            ansible_facts.services['postgresql']['state'] == 'running')
+        fail_msg: The PostgreSQL service is not enabled and active.
+
+    - name: Gather package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert Fedora or RHEL packages are installed
+      ansible.builtin.assert:
+        that: item_package in ansible_facts.packages
+        loop:
+          - python3
+          - python3-pip
+          - git
+          - postgresql-server
+          - postgresql-contrib
+          - libpq-devel
+        loop_control:
+          loop_var: item_package
+        when: ansible_facts.os_family == 'RedHat'
+        fail_msg: A required Fedora or RHEL package is missing.
+
+    - name: Assert Debian or Ubuntu packages are installed
+      ansible.builtin.assert:
+        that: item_package in ansible_facts.packages
+        loop:
+          - python3
+          - python3-pip
+          - python3-venv
+          - git
+          - postgresql
+          - postgresql-contrib
+          - libpq-dev
+        loop_control:
+          loop_var: item_package
+        when: ansible_facts.os_family == 'Debian'
+        fail_msg: A required Debian or Ubuntu package is missing.
+
+    - name: Check Fedora or RHEL PostgreSQL initialization
+      ansible.builtin.stat:
+        path: /var/lib/pgsql/data/PG_VERSION
+      register: pg_version
+      when: ansible_facts.os_family == 'RedHat'
+
+    - name: Assert Fedora or RHEL PostgreSQL is initialized
+      ansible.builtin.assert:
+        that:
+          - pg_version.stat.exists
+          - pg_version.stat.isreg
+        fail_msg: PostgreSQL is not initialized.
+      when: ansible_facts.os_family == 'RedHat'
+
+    - name: Check PostgreSQL role
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - "SELECT 1 FROM pg_roles WHERE rolname='fastapi';"
+      register: pg_role
+      changed_when: false
+
+    - name: Assert PostgreSQL role exists
+      ansible.builtin.assert:
+        that: pg_role.stdout | trim == '1'
+        fail_msg: The fastapi PostgreSQL role is missing.
+
+    - name: Check PostgreSQL database and owner
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -tAc
+          - "SELECT datname, pg_get_userbyid(datdba) FROM pg_database WHERE datname='fastapi_db';"
+      register: pg_database
+      changed_when: false
+
+    - name: Assert PostgreSQL database and owner
+      ansible.builtin.assert:
+        that: pg_database.stdout | trim == 'fastapi_db|fastapi'
+        fail_msg: The fastapi_db database or owner is incorrect.
+
+    - name: Check PostgreSQL database connection
+      ansible.builtin.command:
+        argv:
+          - sudo
+          - -u
+          - postgres
+          - psql
+          - -d
+          - fastapi_db
+          - -tAc
+          - "SELECT current_database(), current_user;"
+      register: pg_connection
+      changed_when: false
+
+    - name: Assert PostgreSQL database connection succeeds
+      ansible.builtin.assert:
+        that:
+          - pg_connection.rc == 0
+          - "'fastapi_db' in pg_connection.stdout"
+        fail_msg: The PostgreSQL database connection failed.
+
+    - name: Read environment file
+      ansible.builtin.slurp:
+        src: /opt/fastapi-tutorial/.env
+      register: environment_file
+
+    - name: Assert non-secret environment values
+      ansible.builtin.assert:
+        that:
+          - "'PROJECT_NAME=\"FastAPI Tutorial\"' in (environment_file.content | b64decode)"
+          - "'API_VERSION=1.0.0' in (environment_file.content | b64decode)"
+        fail_msg: The application environment values are incorrect.
+
+    - name: Check environment file metadata
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial/.env
+      register: environment_stat
+
+    - name: Assert environment file metadata
+      ansible.builtin.assert:
+        that:
+          - environment_stat.stat.pw_name == 'root'
+          - environment_stat.stat.gr_name == 'root'
+          - environment_stat.stat.mode == '0644'
+        fail_msg: The environment file ownership or mode is incorrect.
