@@ -1,0 +1,10 @@
+---
+- name: Restart Memcached
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service_name }}" # noqa: R114 - service name is a role default
+    state: restarted
+
+- name: Restart Redis cache
+  ansible.builtin.service:
+    name: redis
+    state: restarted

@@ -1,0 +1,25 @@
+---
+- name: Install Memcached package
+  ansible.builtin.package:
+    name: "{{ cache_memcached_package_name }}"
+    state: present
+
+- name: Ensure Memcached configuration directory exists
+  ansible.builtin.file:
+    path: "{{ cache_memcached_config_path | dirname }}" # noqa: R114 - directory is derived from a role default controlled by the operator
+    state: directory
+    mode: "0755"
+
+- name: Configure Memcached service
+  ansible.builtin.template:
+    src: memcached.conf.j2
+    dest: "{{ cache_memcached_config_path }}" # noqa: R114 - path is a role default controlled by the operator
+    mode: "0644"
+    backup: true
+  notify: Restart Memcached
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service_name }}" # noqa: R114 - service name is a role default, not a filesystem path
+    state: started
+    enabled: true
