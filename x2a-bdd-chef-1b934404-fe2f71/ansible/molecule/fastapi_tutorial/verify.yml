@@ -1,0 +1,144 @@
+---
+# Unsupported pre-flight diagnostics omitted because they do not state a verifiable
+# expected result or would require exposing the database credential: OS details,
+# command versions/locations, PostgreSQL query output, .env contents, unit contents,
+# process listings, journal output, systemd failure output, and permission listings.
+
+- name: Verify FastAPI tutorial deployment
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Collect service facts for the PostgreSQL and FastAPI checks
+      ansible.builtin.service_facts:
+
+    - name: Assert PostgreSQL is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'postgresql.service' in ansible_facts['services']"
+          - "ansible_facts['services']['postgresql.service']['status'] == 'enabled'"
+          - "ansible_facts['services']['postgresql.service']['state'] == 'running'"
+        fail_msg: PostgreSQL must be enabled and active.
+
+    - name: Assert FastAPI tutorial is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'fastapi-tutorial.service' in ansible_facts['services']"
+          - "ansible_facts['services']['fastapi-tutorial.service']['status'] == 'enabled'"
+          - "ansible_facts['services']['fastapi-tutorial.service']['state'] == 'running'"
+        fail_msg: The fastapi-tutorial service must be enabled and active.
+
+    - name: Check that PostgreSQL accepts TCP connections
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 5432
+        state: started
+        timeout: 10
+      register: postgresql_port_check
+
+    - name: Assert PostgreSQL is listening on TCP port 5432
+      ansible.builtin.assert:
+        that:
+          - postgresql_port_check['state'] == 'started'
+        fail_msg: PostgreSQL must listen on TCP port 5432.
+
+    - name: Check that FastAPI accepts TCP connections
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 8000
+        state: started
+        timeout: 10
+      register: fastapi_port_check
+
+    - name: Assert FastAPI is listening on TCP port 8000
+      ansible.builtin.assert:
+        that:
+          - fastapi_port_check['state'] == 'started'
+        fail_msg: FastAPI must listen on TCP port 8000.
+
+    - name: Check FastAPI HTTP endpoints
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8000{{ item_fastapi_endpoint['path'] }}"
+        method: GET
+        status_code: 200
+        return_content: false
+      loop:
+        - path: /
+        - path: /openapi.json
+        - path: /docs
+      loop_control:
+        loop_var: item_fastapi_endpoint
+      register: fastapi_http_checks
+
+    - name: Assert FastAPI HTTP endpoints return successful responses
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_http['status'] == 200
+        fail_msg: A FastAPI HTTP endpoint did not return a successful response.
+      loop: "{{ fastapi_http_checks['results'] }}"
+      loop_control:
+        loop_var: item_fastapi_http
+
+    - name: Check the application directory exists
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: application_directory
+
+    - name: Assert the application directory exists
+      ansible.builtin.assert:
+        that:
+          - application_directory['stat']['exists']
+          - application_directory['stat']['isdir']
+        fail_msg: The FastAPI application directory must exist.
+
+    - name: Check required application files exist
+      ansible.builtin.stat:
+        path: "{{ item_application_file['path'] }}"
+      loop:
+        - path: /opt/fastapi-tutorial/requirements.txt
+        - path: /opt/fastapi-tutorial/app/main.py
+      loop_control:
+        loop_var: item_application_file
+      register: application_files
+
+    - name: Assert required application files exist
+      ansible.builtin.assert:
+        that:
+          - item_application_file_check['stat']['exists']
+          - item_application_file_check['stat']['isreg']
+        fail_msg: A required FastAPI application file is missing.
+      loop: "{{ application_files['results'] }}"
+      loop_control:
+        loop_var: item_application_file_check
+
+    - name: Check the virtual environment Python and pip executables
+      ansible.builtin.stat:
+        path: "{{ item_venv_executable['path'] }}"
+      loop:
+        - path: /opt/fastapi-tutorial/venv/bin/python
+        - path: /opt/fastapi-tutorial/venv/bin/pip
+      loop_control:
+        loop_var: item_venv_executable
+      register: virtual_environment_executables
+
+    - name: Assert virtual environment executables are present and executable
+      ansible.builtin.assert:
+        that:
+          - item_venv_executable_check['stat']['exists']
+          - item_venv_executable_check['stat']['isreg']
+          - item_venv_executable_check['stat']['executable']
+        fail_msg: A required virtual environment executable is missing or not executable.
+      loop: "{{ virtual_environment_executables['results'] }}"
+      loop_control:
+        loop_var: item_venv_executable_check
+
+    - name: Check the FastAPI systemd unit exists
+      ansible.builtin.stat:
+        path: /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_unit_file
+
+    - name: Assert the FastAPI systemd unit exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_unit_file['stat']['exists']
+          - fastapi_unit_file['stat']['isreg']
+        fail_msg: The FastAPI systemd unit must exist.
