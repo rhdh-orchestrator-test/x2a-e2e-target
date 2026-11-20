@@ -1,0 +1,52 @@
+---
+- name: Ensure the Memcached service user exists
+  ansible.builtin.user:
+    name: "{{ cache_memcached_user }}"
+    system: true
+    create_home: false
+    state: present
+
+- name: Install Memcached
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Configure Memcached service options on RedHat systems
+  ansible.builtin.copy:
+    dest: /etc/sysconfig/memcached
+    content: |
+      PORT="{{ cache_memcached_port }}"
+      USER="{{ cache_memcached_user }}"
+      MAXCONN="{{ cache_memcached_maxconn }}"
+      CACHESIZE="{{ cache_memcached_memory }}"
+      OPTIONS="-l {{ cache_memcached_listen }} -U {{ cache_memcached_udp_port }} -I {{ cache_memcached_max_object_size }} -u {{ cache_memcached_user }} -c {{ cache_memcached_maxconn }} -R {{ cache_memcached_ulimit }}{% if cache_memcached_threads is not none %} -t {{ cache_memcached_threads }}{% endif %}{% if cache_memcached_experimental_options %} {{ cache_memcached_experimental_options | join(' ') }}{% endif %}{{ cache_memcached_extra_cli_options }}"
+    mode: "0644"
+    backup: true
+  when: ansible_facts.os_family == 'RedHat'
+  notify: Restart Memcached
+
+- name: Configure Memcached service options on Debian systems  # noqa: L039 - option is defined by the preceding loop over cache_memcached_experimental_options
+  ansible.builtin.copy:
+    dest: /etc/memcached.conf
+    content: |
+      -m {{ cache_memcached_memory }}
+      -p {{ cache_memcached_port }}
+      -U {{ cache_memcached_udp_port }}
+      -l {{ cache_memcached_listen }}
+      -c {{ cache_memcached_maxconn }}
+      -I {{ cache_memcached_max_object_size }}
+      -u {{ cache_memcached_user }}
+      -R {{ cache_memcached_ulimit }}{% if cache_memcached_threads is not none %}
+      -t {{ cache_memcached_threads }}{% endif %}{% for option in cache_memcached_experimental_options %}
+      {{ option }}{% endfor %}{% if cache_memcached_extra_cli_options %}
+      {{ cache_memcached_extra_cli_options }}{% endif %}
+    mode: "0644"
+    backup: true
+  when: ansible_facts.os_family == 'Debian'
+  notify: Restart Memcached
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true

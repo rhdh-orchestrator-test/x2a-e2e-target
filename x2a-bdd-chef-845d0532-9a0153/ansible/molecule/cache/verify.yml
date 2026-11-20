@@ -1,0 +1,101 @@
+---
+# Unsupported pre-flight checks: provider-specific Memcached effective configuration;
+# Redis configuration values requiring a secret; Redis process and journal inspection;
+# and the configuration-change restart/CONFIG check, which would mutate state or needs
+# an unavailable credential. The Redis status commands have no single verified unit
+# name, so verification accepts either redis.service or redis-server.service.
+
+- name: Verify cache services and listeners
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Collect service facts for the Memcached and Redis checks
+      ansible.builtin.service_facts:
+
+    - name: Verify the Memcached service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts.services"
+          - ansible_facts.services['memcached.service']['state'] == 'running'
+          - ansible_facts.services['memcached.service']['status'] == 'enabled'
+        fail_msg: Memcached must be enabled and running.
+
+    - name: Verify the Redis service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts.services.get('redis.service', {}).get('state') == 'running' and
+            ansible_facts.services.get('redis.service', {}).get('status') == 'enabled') or
+            (ansible_facts.services.get('redis-server.service', {}).get('state') == 'running' and
+            ansible_facts.services.get('redis-server.service', {}).get('status') == 'enabled')
+        fail_msg: Either redis.service or redis-server.service must be enabled and running.
+
+    - name: Verify that Memcached TCP port 11211 is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 5
+
+    - name: Verify that Redis TCP port 6379 is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Capture the explicit Memcached UDP listener diagnostic
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ulnp
+      register: cache_memcached_udp_socket
+      changed_when: false
+
+    - name: Verify that Memcached UDP port 11211 is listening
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_udp_socket.stdout is search(':11211\\b')
+        fail_msg: Memcached UDP port 11211 must be listening.
+
+    - name: Read the Redis configuration for cleanup verification
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_configuration
+
+    - name: Verify removed Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - "cache_redis_configuration.content | b64decode is not search('(?m)^replica-serve-stale-data\\\\b')"
+          - "cache_redis_configuration.content | b64decode is not search('(?m)^replica-read-only\\\\b')"
+          - "cache_redis_configuration.content | b64decode is not search('(?m)^repl-ping-replica-period\\\\b')"
+          - "cache_redis_configuration.content | b64decode is not search('(?m)^client-output-buffer-limit\\\\b')"
+          - "cache_redis_configuration.content | b64decode is not search('(?m)^replica-priority\\\\b')"
+        fail_msg: Removed Redis replication directives must not be present.
+
+    - name: Verify the Redis PID directory exists
+      ansible.builtin.stat:
+        path: /run/redis
+      register: cache_redis_pid_directory
+
+    - name: Assert the Redis PID directory is present
+      ansible.builtin.assert:
+        that:
+          - cache_redis_pid_directory.stat.exists
+          - cache_redis_pid_directory.stat.isdir
+        fail_msg: The Redis PID directory /run/redis must exist.
+
+    - name: Verify the Redis log directory metadata
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: cache_redis_log_directory
+
+    - name: Assert the Redis log directory has the expected metadata
+      ansible.builtin.assert:
+        that:
+          - cache_redis_log_directory.stat.exists
+          - cache_redis_log_directory.stat.isdir
+          - cache_redis_log_directory.stat.pw_name == 'redis'
+          - cache_redis_log_directory.stat.gr_name == 'redis'
+          - cache_redis_log_directory.stat.mode == '0755'
+        fail_msg: The Redis log directory must be redis:redis with mode 0755.
