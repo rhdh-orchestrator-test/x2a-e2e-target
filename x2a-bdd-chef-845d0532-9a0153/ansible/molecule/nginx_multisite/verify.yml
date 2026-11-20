@@ -1,0 +1,96 @@
+---
+# Unsupported pre-flight checks: diagnostic-only output with no stated expected result,
+# including configuration dumps, log tails, secret metadata, and site checks without supplied sites.
+- name: Verify nginx-multisite pre-flight checks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather service facts for nginx, fail2ban, and sshd
+      ansible.builtin.service_facts:
+
+    - name: Assert nginx and fail2ban are active and enabled
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services'][item_service]['state'] == 'running'
+          - ansible_facts['services'][item_service]['status'] == 'enabled'
+        fail_msg: "Required enabled and active service is unavailable: {{ item_service }}"
+      loop:
+        - nginx.service
+        - fail2ban.service
+      loop_control:
+        loop_var: item_service
+
+    - name: Assert sshd is active
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ansible_facts['services']['sshd.service'] is defined and
+            ansible_facts['services']['sshd.service']['state'] == 'running') or
+            (ansible_facts['services']['ssh.service'] is defined and
+            ansible_facts['services']['ssh.service']['state'] == 'running')
+        fail_msg: "The sshd service is not active"
+
+    - name: Gather installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts['packages']
+        fail_msg: "Required package is not installed: {{ item_package }}"
+      loop:
+        - nginx
+        - fail2ban
+        - ufw
+        - openssl
+        - ca-certificates
+      loop_control:
+        loop_var: item_package
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      changed_when: false
+
+    - name: Verify UFW allows SSH, HTTP, and HTTPS
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+      register: ufw_status
+      changed_when: false
+
+    - name: Assert UFW allows the required ports
+      ansible.builtin.assert:
+        that:
+          - ufw_status.stdout is search('22/tcp')
+          - ufw_status.stdout is search('80/tcp')
+          - ufw_status.stdout is search('443/tcp')
+
+    - name: Verify fail2ban jails are available
+      ansible.builtin.command:
+        argv:
+          - fail2ban-client
+          - status
+          - "{{ item_jail }}"
+      changed_when: false
+      loop:
+        - sshd
+        - nginx-http-auth
+        - nginx-limit-req
+        - nginx-botsearch
+      loop_control:
+        loop_var: item_jail
+
+    - name: Verify the default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: default_site
+
+    - name: Assert the default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not default_site.stat.exists
