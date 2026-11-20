@@ -1,0 +1,47 @@
+---
+argument_specs:
+  main:
+    short_description: Configure nginx with multiple SSL-enabled sites
+    description:
+      - Installs and configures nginx, security controls, self-signed certificates, and runtime-defined virtual hosts.
+    options:
+      nginx_ssl_certificate_path:
+        type: str
+        required: false
+        default: /etc/ssl/certs
+        description: Directory for nginx SSL certificates.
+      nginx_ssl_private_key_path:
+        type: str
+        required: false
+        default: /etc/ssl/private
+        description: Directory for nginx SSL private keys.
+      security_fail2ban_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether fail2ban security controls are enabled.
+      security_ufw_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether UFW firewall configuration is enabled.
+      security_ssh_disable_root:
+        type: bool
+        required: false
+        default: true
+        description: Whether SSH root login is disabled.
+      security_ssh_password_auth:
+        type: bool
+        required: false
+        default: false
+        description: Whether SSH password authentication is allowed.
+      nginx_multisite_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide output from tasks that handle the site token.
+      nginx_sites:
+        type: dict
+        required: false
+        default: {}
+        description: Mapping of site identifiers to document roots and SSL settings.

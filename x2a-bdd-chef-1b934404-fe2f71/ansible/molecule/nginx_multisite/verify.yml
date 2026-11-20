@@ -1,0 +1,193 @@
+---
+# Unsupported pre-flight checks: site-specific checks require the unavailable nginx_sites export;
+# HTTP/HTTPS curl checks, certificate checks, site logs, listener 443, and sysctl values are omitted.
+# Diagnostic-only tail/journal commands and nginx -T output have no stated expected outcome.
+- name: Verify nginx multisite pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify required packages are installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are present
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts.packages
+        fail_msg: "A required package is not installed."
+      loop:
+        - nginx
+        - fail2ban
+        - ufw
+        - openssl
+        - ca-certificates
+      loop_control:
+        loop_var: item_package
+
+    - name: Gather service status
+      ansible.builtin.service_facts:
+
+    - name: Assert nginx is active
+      ansible.builtin.assert:
+        that:
+          - "'nginx.service' in ansible_facts.services"
+          - ansible_facts.services['nginx.service']['state'] == 'running'
+        fail_msg: "The nginx service is not active."
+
+    - name: Assert fail2ban is active
+      ansible.builtin.assert:
+        that:
+          - "'fail2ban.service' in ansible_facts.services"
+          - ansible_facts.services['fail2ban.service']['state'] == 'running'
+        fail_msg: "The fail2ban service is not active."
+
+    - name: Assert sshd is active
+      ansible.builtin.assert:
+        that:
+          - "'sshd.service' in ansible_facts.services or 'ssh.service' in ansible_facts.services"
+          - >-
+            (ansible_facts.services['sshd.service']['state'] == 'running' if
+            'sshd.service' in ansible_facts.services else
+            ansible_facts.services['ssh.service']['state'] == 'running')
+        fail_msg: "The SSH service is not active."
+
+    - name: Test nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      changed_when: false
+      failed_when: false
+      register: item_nginx_config_test
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - item_nginx_config_test.rc == 0
+        fail_msg: "The nginx configuration test failed."
+
+    - name: Read nginx main configuration
+      ansible.builtin.slurp:
+        src: /etc/nginx/nginx.conf
+      register: item_nginx_main_config
+
+    - name: Assert required nginx main configuration settings
+      ansible.builtin.assert:
+        that:
+          - "'user nginx' in (item_nginx_main_config.content | b64decode)"
+          - "'worker_processes auto' in (item_nginx_main_config.content | b64decode)"
+          - "'worker_connections 768' in (item_nginx_main_config.content | b64decode)"
+          - "'keepalive_timeout 65' in (item_nginx_main_config.content | b64decode)"
+        fail_msg: "A required nginx main configuration setting is missing."
+
+    - name: Read nginx security configuration
+      ansible.builtin.slurp:
+        src: /etc/nginx/conf.d/security.conf
+      register: item_nginx_security_config
+
+    - name: Assert required nginx security configuration settings
+      ansible.builtin.assert:
+        that:
+          - "'server_tokens off' in (item_nginx_security_config.content | b64decode)"
+          - "'limit_req_zone' in (item_nginx_security_config.content | b64decode)"
+          - "'ssl_protocols' in (item_nginx_security_config.content | b64decode)"
+          - "'ssl_ciphers' in (item_nginx_security_config.content | b64decode)"
+        fail_msg: "A required nginx security configuration setting is missing."
+
+    - name: Check fail2ban jails
+      ansible.builtin.command:
+        argv:
+          - fail2ban-client
+          - status
+          - "{{ item_fail2ban_jail }}"
+      changed_when: false
+      failed_when: false
+      loop:
+        - sshd
+        - nginx-http-auth
+        - nginx-limit-req
+        - nginx-botsearch
+      loop_control:
+        loop_var: item_fail2ban_jail
+      register: item_fail2ban_status
+
+    - name: Assert required fail2ban jails are available
+      ansible.builtin.assert:
+        that:
+          - item_fail2ban_result.rc == 0
+        fail_msg: "A required fail2ban jail status check failed."
+      loop: "{{ item_fail2ban_status.results }}"
+      loop_control:
+        loop_var: item_fail2ban_result
+
+    - name: Check UFW status
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      changed_when: false
+      failed_when: false
+      register: item_ufw_status
+
+    - name: Assert UFW is enabled with required rules
+      ansible.builtin.assert:
+        that:
+          - item_ufw_status.rc == 0
+          - "'Status: active' in item_ufw_status.stdout"
+          - "'22/tcp' in item_ufw_status.stdout"
+          - "'80/tcp' in item_ufw_status.stdout"
+          - "'443/tcp' in item_ufw_status.stdout"
+        fail_msg: "UFW is not active or a required rule is missing."
+
+    - name: Read SSH daemon configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: item_sshd_config
+
+    - name: Assert SSH hardening settings
+      ansible.builtin.assert:
+        that:
+          - "'PermitRootLogin no' in (item_sshd_config.content | b64decode)"
+          - "'PasswordAuthentication no' in (item_sshd_config.content | b64decode)"
+        fail_msg: "A required SSH hardening setting is missing."
+
+    - name: Test SSH daemon configuration
+      ansible.builtin.command:
+        argv:
+          - sshd
+          - -t
+      changed_when: false
+      failed_when: false
+      register: item_sshd_config_test
+
+    - name: Assert SSH daemon configuration is valid
+      ansible.builtin.assert:
+        that:
+          - item_sshd_config_test.rc == 0
+        fail_msg: "The SSH daemon configuration test failed."
+
+    - name: Check nginx site default is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: item_nginx_default_site
+
+    - name: Assert nginx default site is absent
+      ansible.builtin.assert:
+        that:
+          - not item_nginx_default_site.stat.exists
+        fail_msg: "The nginx default site is present."
+
+    - name: Check site token metadata without reading its contents
+      ansible.builtin.stat:
+        path: /etc/nginx/secrets/site_token
+      register: item_site_token
+
+    - name: Assert site token metadata
+      ansible.builtin.assert:
+        that:
+          - item_site_token.stat.exists
+          - item_site_token.stat.pw_name == 'root'
+          - item_site_token.stat.gr_name == 'root'
+          - item_site_token.stat.mode == '0600'
+        fail_msg: "The site token file metadata is incorrect."

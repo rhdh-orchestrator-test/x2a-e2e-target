@@ -1,0 +1,88 @@
+---
+- name: Install security packages
+  ansible.builtin.package:
+    name: "{{ (['fail2ban'] if security_fail2ban_enabled else []) + (['ufw'] if security_ufw_enabled else []) }}"
+    state: present
+  when: security_fail2ban_enabled | bool or security_ufw_enabled | bool
+
+- name: Enable and start fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: true
+    state: started
+  when: security_fail2ban_enabled | bool
+
+- name: Deploy fail2ban configuration
+  ansible.builtin.template:
+    src: fail2ban.jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: "0644"
+    backup: true
+  when: security_fail2ban_enabled | bool
+  notify: Restart fail2ban
+
+- name: Set UFW default incoming policy
+  ansible.posix.ufw:
+    policy: deny
+    direction: incoming
+  when: security_ufw_enabled | bool
+
+- name: Allow SSH through UFW
+  ansible.posix.ufw:
+    rule: allow
+    name: OpenSSH
+  when: security_ufw_enabled | bool
+
+- name: Allow HTTP through UFW
+  ansible.posix.ufw:
+    rule: allow
+    name: WWW
+  when: security_ufw_enabled | bool
+
+- name: Allow HTTPS through UFW
+  ansible.posix.ufw:
+    rule: allow
+    name: WWW Secure
+  when: security_ufw_enabled | bool
+
+- name: Enable UFW
+  ansible.posix.ufw:
+    state: enabled
+  when: security_ufw_enabled | bool
+
+- name: Deploy sysctl security configuration
+  ansible.builtin.template:
+    src: sysctl-security.conf.j2
+    dest: /etc/sysctl.d/99-security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload security sysctl
+
+- name: Check whether the SSH daemon configuration exists
+  ansible.builtin.stat:
+    path: /etc/ssh/sshd_config
+  register: nginx_multisite_sshd_config
+
+- name: Disable SSH root login
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PermitRootLogin
+    line: PermitRootLogin no
+    backup: true
+    create: false
+  when:
+    - security_ssh_disable_root | bool
+    - nginx_multisite_sshd_config.stat.exists # noqa: L039 - registered by the preceding stat task
+  notify: Restart SSH
+
+- name: Disable SSH password authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: ^#?PasswordAuthentication
+    line: PasswordAuthentication no
+    backup: true
+    create: false
+  when:
+    - not security_ssh_password_auth | bool
+    - nginx_multisite_sshd_config.stat.exists # noqa: L039 - registered by the preceding stat task
+  notify: Restart SSH
