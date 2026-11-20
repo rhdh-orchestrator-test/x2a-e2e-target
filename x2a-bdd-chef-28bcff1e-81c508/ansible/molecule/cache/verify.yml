@@ -1,0 +1,176 @@
+---
+# Unsupported: Memcached version/stats, service configuration and journals, authenticated Redis
+# CLI checks, Redis log-file discovery, and exact password/ownership checks needing platform data.
+- name: Verify cache services
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify the memcached package is installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert the memcached package is installed
+      ansible.builtin.assert:
+        that:
+          - "'memcached' in ansible_facts['packages']"
+        fail_msg: The memcached package is not installed.
+
+    - name: Collect service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert the memcached service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts['services']"
+          - "ansible_facts['services']['memcached.service']['state'] == 'running'"
+          - "ansible_facts['services']['memcached.service']['status'] == 'enabled'"
+        fail_msg: The memcached service is not enabled and active.
+
+    - name: Assert a platform Redis service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - >-
+            item_redis_service in ansible_facts['services'] and
+            ansible_facts['services'][item_redis_service]['state'] == 'running' and
+            ansible_facts['services'][item_redis_service]['status'] == 'enabled'
+        fail_msg: A supported Redis service unit is not enabled and active.
+      loop: "{{ ['redis.service', 'redis-server.service'] | select('in', ansible_facts['services'].keys()) | list }}"
+      loop_control:
+        loop_var: item_redis_service
+
+    - name: Verify a platform Redis service unit was found
+      ansible.builtin.assert:
+        that:
+          - >-
+            (['redis.service', 'redis-server.service'] |
+            select('in', ansible_facts['services'].keys()) | list | length) > 0
+        fail_msg: No supported Redis service unit was found.
+
+    - name: Verify the memcached process is present
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -a
+          - memcached
+      changed_when: false
+      register: memcached_process
+
+    - name: Assert the memcached process is present
+      ansible.builtin.assert:
+        that:
+          - memcached_process.rc == 0
+        fail_msg: The memcached process is not running.
+
+    - name: Verify the Redis process is present
+      ansible.builtin.command:
+        argv:
+          - pgrep
+          - -a
+          - redis
+      changed_when: false
+      register: redis_process
+
+    - name: Assert the Redis process is present
+      ansible.builtin.assert:
+        that:
+          - redis_process.rc == 0
+        fail_msg: The Redis process is not running.
+
+    - name: Verify Memcached TCP port 11211 is bound on all IPv4 addresses
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+      changed_when: false
+      register: memcached_tcp_listeners
+
+    - name: Assert Memcached TCP port 11211 is listening on 0.0.0.0
+      ansible.builtin.assert:
+        that:
+          - memcached_tcp_listeners.stdout is search('0\\.0\\.0\\.0:11211')
+        fail_msg: Memcached TCP port 11211 is not listening on 0.0.0.0.
+
+    - name: Verify Memcached UDP port 11211 is bound on all IPv4 addresses
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -lunp
+      changed_when: false
+      register: memcached_udp_listeners
+
+    - name: Assert Memcached UDP port 11211 is listening on 0.0.0.0
+      ansible.builtin.assert:
+        that:
+          - memcached_udp_listeners.stdout is search('0\\.0\\.0\\.0:11211')
+        fail_msg: Memcached UDP port 11211 is not listening on 0.0.0.0.
+
+    - name: Verify Redis TCP port 6379 is listening
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Verify Memcached TCP connectivity
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 5
+
+    - name: Inspect Memcached runtime directory
+      ansible.builtin.stat:
+        path: /var/run/memcached
+      register: memcached_runtime_directory
+
+    - name: Inspect Memcached log directory
+      ansible.builtin.stat:
+        path: /var/log/memcached
+      register: memcached_log_directory
+
+    - name: Assert Memcached directories exist with mode 0755
+      ansible.builtin.assert:
+        that:
+          - memcached_runtime_directory.stat.exists
+          - memcached_runtime_directory.stat.isdir
+          - memcached_runtime_directory.stat.mode == '0755'
+          - memcached_log_directory.stat.exists
+          - memcached_log_directory.stat.isdir
+          - memcached_log_directory.stat.mode == '0755'
+        fail_msg: A Memcached runtime or log directory is missing or has an unexpected mode.
+
+    - name: Inspect Redis configuration file
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_configuration
+
+    - name: Assert Redis configuration and removed directives
+      ansible.builtin.assert:
+        that:
+          - redis_configuration.content | b64decode is search('(?m)^requirepass\\s+\\S+')
+          - >-
+            redis_configuration.content | b64decode is not search(
+            '(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: The Redis configuration is missing or contains an unexpected directive.
+
+    - name: Inspect Redis runtime directory
+      ansible.builtin.stat:
+        path: /run/redis
+      register: redis_runtime_directory
+
+    - name: Inspect Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_directory
+
+    - name: Assert Redis directories have the expected state
+      ansible.builtin.assert:
+        that:
+          - redis_runtime_directory.stat.exists
+          - redis_runtime_directory.stat.isdir
+          - redis_log_directory.stat.exists
+          - redis_log_directory.stat.isdir
+          - redis_log_directory.stat.pw_name == 'redis'
+          - redis_log_directory.stat.gr_name == 'redis'
+          - redis_log_directory.stat.mode == '0755'
+        fail_msg: A Redis runtime or log directory is missing or has unexpected ownership or mode.
