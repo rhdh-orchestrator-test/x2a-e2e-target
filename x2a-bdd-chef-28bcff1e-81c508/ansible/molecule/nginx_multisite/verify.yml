@@ -1,0 +1,187 @@
+# Unsupported pre-flight checks: service-status/is-enabled output, nginx -t/nginx -T diagnostics,
+# configuration-content grep checks, HTTP/HTTPS and socket diagnostics, ufw status numbered,
+# fail2ban-client output, sshd -t/sshd -T diagnostics, sysctl diagnostics, journal output,
+# certificate subject/date inspection, and private-key ownership/mode checks have no unconditional
+# expected result in the plan (or require source details not supplied).
+---
+- name: Verify explicit nginx-multisite pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check the Nginx secret directory
+      ansible.builtin.stat:
+        path: /etc/nginx/secrets
+      register: item_secret_directory
+
+    - name: Assert the Nginx secret directory exists
+      ansible.builtin.assert:
+        that:
+          - item_secret_directory['stat']['exists']
+          - item_secret_directory['stat']['isdir']
+        fail_msg: The Nginx secret directory is missing.
+
+    - name: Check the Nginx site token file without reading its contents
+      ansible.builtin.stat:
+        path: /etc/nginx/secrets/site_token
+      register: item_site_token
+
+    - name: Assert the Nginx site token file exists
+      ansible.builtin.assert:
+        that:
+          - item_site_token['stat']['exists']
+          - item_site_token['stat']['isreg']
+        fail_msg: The Nginx site token file is missing.
+
+    - name: Check the firewall status
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      register: item_ufw_status
+      changed_when: false
+
+    - name: Assert the expected firewall behavior
+      ansible.builtin.assert:
+        that:
+          - item_ufw_status['rc'] == 0
+          - "'Status: active' in item_ufw_status['stdout']"
+          - "'Default: deny (incoming)' in item_ufw_status['stdout']"
+          - "'22' in item_ufw_status['stdout'] or 'ssh' in item_ufw_status['stdout']"
+          - "'80/tcp' in item_ufw_status['stdout'] or '80' in item_ufw_status['stdout']"
+          - "'443/tcp' in item_ufw_status['stdout'] or '443' in item_ufw_status['stdout']"
+        fail_msg: The firewall does not have the expected active, deny-incoming, SSH, HTTP, and HTTPS state.
+
+    - name: Read the SSH configuration for the explicit hardening checks
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: item_sshd_config
+
+    - name: Assert the expected SSH hardening settings
+      ansible.builtin.assert:
+        that:
+          - "item_sshd_config['content'] | b64decode is search('(?m)^\\s*PermitRootLogin\\s+no\\s*$')"
+          - "item_sshd_config['content'] | b64decode is search('(?m)^\\s*PasswordAuthentication\\s+no\\s*$')"
+        fail_msg: The expected SSH hardening settings are missing.
+
+    - name: Check each migrated site's document root
+      ansible.builtin.stat:
+        path: "{{ item_site['value']['document_root'] }}"
+      loop: "{{ nginx_sites | default({}) | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      register: item_site_document_root
+
+    - name: Assert each migrated site's document root exists
+      ansible.builtin.assert:
+        that:
+          - item_site['stat']['exists']
+          - item_site['stat']['isdir']
+        fail_msg: A migrated site document root is missing.
+      loop: "{{ item_site_document_root['results'] }}"
+      loop_control:
+        loop_var: item_site
+
+    - name: Check each migrated site's index file
+      ansible.builtin.stat:
+        path: "{{ item_site['item']['value']['document_root'] }}/index.html"
+      loop: "{{ nginx_sites | default({}) | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      register: item_site_index
+
+    - name: Assert each migrated site's index file exists
+      ansible.builtin.assert:
+        that:
+          - item_site['stat']['exists']
+          - item_site['stat']['isreg']
+        fail_msg: A migrated site index file is missing.
+      loop: "{{ item_site_index['results'] }}"
+      loop_control:
+        loop_var: item_site
+
+    - name: Check each migrated site's available configuration
+      ansible.builtin.stat:
+        path: "/etc/nginx/sites-available/{{ item_site['value']['site_name'] | default(item_site['key']) }}"
+      loop: "{{ nginx_sites | default({}) | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      register: item_site_available
+
+    - name: Assert each migrated site's available configuration exists
+      ansible.builtin.assert:
+        that:
+          - item_site['stat']['exists']
+          - item_site['stat']['isreg']
+        fail_msg: A migrated site's available Nginx configuration is missing.
+      loop: "{{ item_site_available['results'] }}"
+      loop_control:
+        loop_var: item_site
+
+    - name: Check each migrated site's enabled link
+      ansible.builtin.stat:
+        path: "/etc/nginx/sites-enabled/{{ item_site['value']['site_name'] | default(item_site['key']) }}"
+        follow: false
+      loop: "{{ nginx_sites | default({}) | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      register: item_site_enabled
+
+    - name: Assert each migrated site's enabled link exists
+      ansible.builtin.assert:
+        that:
+          - item_site['stat']['exists']
+          - item_site['stat']['islnk']
+        fail_msg: A migrated site's enabled Nginx link is missing.
+      loop: "{{ item_site_enabled['results'] }}"
+      loop_control:
+        loop_var: item_site
+
+    - name: Check that the default enabled site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: item_default_site
+
+    - name: Assert that the default enabled site is absent
+      ansible.builtin.assert:
+        that:
+          - not item_default_site['stat']['exists']
+        fail_msg: The default enabled Nginx site is present.
+
+    - name: Check each SSL-enabled site's certificate
+      ansible.builtin.stat:
+        path: "/etc/ssl/certs/{{ item_site['value']['site_name'] | default(item_site['key']) }}.crt"
+      loop: "{{ nginx_sites | default({}) | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      when: item_site['value']['ssl_enabled'] | default(false) | bool
+      register: item_ssl_certificate
+
+    - name: Assert each SSL-enabled site's certificate exists
+      ansible.builtin.assert:
+        that:
+          - item_site['stat']['exists']
+          - item_site['stat']['isreg']
+        fail_msg: An SSL-enabled site's certificate is missing.
+      loop: "{{ item_ssl_certificate['results'] | default([]) }}"
+      loop_control:
+        loop_var: item_site
+
+    - name: Check each SSL-enabled site's private key
+      ansible.builtin.stat:
+        path: "/etc/ssl/private/{{ item_site['value']['site_name'] | default(item_site['key']) }}.key"
+      loop: "{{ nginx_sites | default({}) | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      when: item_site['value']['ssl_enabled'] | default(false) | bool
+      register: item_ssl_private_key
+
+    - name: Assert each SSL-enabled site's private key exists
+      ansible.builtin.assert:
+        that:
+          - item_site['stat']['exists']
+          - item_site['stat']['isreg']
+        fail_msg: An SSL-enabled site's private key is missing.
+      loop: "{{ item_ssl_private_key['results'] | default([]) }}"
+      loop_control:
+        loop_var: item_site
