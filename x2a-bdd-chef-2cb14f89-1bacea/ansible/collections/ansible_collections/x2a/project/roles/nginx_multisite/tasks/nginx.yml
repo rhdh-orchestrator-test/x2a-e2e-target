@@ -1,0 +1,83 @@
+---
+- name: Install Nginx
+  ansible.builtin.package:
+    name: nginx
+    state: present
+
+- name: Ensure Nginx group exists
+  ansible.builtin.group:
+    name: nginx
+    state: present
+
+- name: Ensure Nginx user exists
+  ansible.builtin.user:
+    name: nginx
+    group: nginx
+    system: true
+    create_home: false
+    state: present
+
+- name: Render Nginx configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+
+- name: Render Nginx security configuration
+  ansible.builtin.template:
+    src: security.conf.j2
+    dest: /etc/nginx/conf.d/security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+
+- name: Enable and start Nginx
+  ansible.builtin.service:
+    name: nginx
+    enabled: true
+    state: started
+
+- name: Create Nginx secrets directory
+  ansible.builtin.file:
+    path: /etc/nginx/secrets
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Deploy Nginx site token  # noqa: L039 - token is supplied by the attached AAP credential and validated by the prior task
+  ansible.builtin.copy:
+    content: "{{ token }}"
+    dest: /etc/nginx/secrets/site_token
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
+  no_log: "{{ nginx_multisite_secure_logging }}"
+
+- name: Create site document roots
+  ansible.builtin.file:
+    path: "{{ item_site['value']['document_root'] }}" # noqa: R114 - path from role-defined sites dictionary
+    state: directory
+    owner: nginx
+    group: nginx
+    mode: "0755"
+    recurse: true
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_site
+
+- name: Deploy site index files
+  ansible.builtin.copy:
+    src: "{{ item_index['key'].split('.')[0] }}/index.html"
+    dest: "{{ item_index['value']['document_root'] }}/index.html" # noqa: R114 - path from role-defined sites dictionary
+    owner: nginx
+    group: nginx
+    mode: "0644"
+    backup: true
+  when: item_index['value']['index_file'] is defined
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_index

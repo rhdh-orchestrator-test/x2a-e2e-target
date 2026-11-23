@@ -1,0 +1,90 @@
+---
+# Unsupported pre-flight checks: package/service/firewall status, Fail2ban status,
+# sysctl values, secret and SSL directory metadata, listening-port/log output,
+# nginx -T output, and site-specific checks require expected values or missing
+# nginx_sites data. Certificate, key, and HTTP/HTTPS site checks are therefore omitted.
+- name: Verify fixed nginx multisite pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: result_nginx_config
+      changed_when: false
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - result_nginx_config['rc'] == 0
+        fail_msg: nginx -t did not validate the configuration
+
+    - name: Read nginx main configuration
+      ansible.builtin.slurp:
+        src: /etc/nginx/nginx.conf
+      register: result_nginx_config_file
+
+    - name: Assert required nginx main configuration directives are present
+      ansible.builtin.assert:
+        that:
+          - "(result_nginx_config_file['content'] | b64decode) is search('(?m)^\\s*user\\s+nginx\\s*;')"
+          - "(result_nginx_config_file['content'] | b64decode) is search('(?m)^\\s*worker_processes\\s+auto\\s*;')"
+          - "(result_nginx_config_file['content'] | b64decode) is search('(?m)^\\s*worker_connections\\s+768\\s*;')"
+          - "(result_nginx_config_file['content'] | b64decode) is search('(?m)^\\s*access_log\\b')"
+          - "(result_nginx_config_file['content'] | b64decode) is search('(?m)^\\s*error_log\\b')"
+          - "(result_nginx_config_file['content'] | b64decode) is search('(?m)^\\s*gzip\\s+on\\s*;')"
+        fail_msg: nginx.conf is missing one or more required pre-flight directives
+
+    - name: Read nginx security configuration
+      ansible.builtin.slurp:
+        src: /etc/nginx/conf.d/security.conf
+      register: result_nginx_security_file
+
+    - name: Assert required nginx security directives are present
+      ansible.builtin.assert:
+        that:
+          - "(result_nginx_security_file['content'] | b64decode) is search('(?m)^\\s*server_tokens\\s+off\\s*;')"
+          - "(result_nginx_security_file['content'] | b64decode) is search('(?m)^\\s*limit_req_zone\\b')"
+          - "(result_nginx_security_file['content'] | b64decode) is search('(?m)^\\s*client_max_body_size\\b')"
+          - "(result_nginx_security_file['content'] | b64decode) is search('(?m)^\\s*ssl_protocols\\b')"
+          - "(result_nginx_security_file['content'] | b64decode) is search('(?m)^\\s*ssl_ciphers\\b')"
+        fail_msg: security.conf is missing one or more required pre-flight directives
+
+    - name: Validate SSH daemon configuration
+      ansible.builtin.command:
+        argv:
+          - sshd
+          - -t
+      register: result_sshd_config
+      changed_when: false
+
+    - name: Assert SSH daemon configuration is valid
+      ansible.builtin.assert:
+        that:
+          - result_sshd_config['rc'] == 0
+        fail_msg: sshd -t did not validate the SSH configuration
+
+    - name: Read SSH daemon configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: result_sshd_config_file
+
+    - name: Assert SSH hardening directives are present
+      ansible.builtin.assert:
+        that:
+          - "(result_sshd_config_file['content'] | b64decode) is search('(?m)^\\s*PermitRootLogin\\s+no\\s*$')"
+          - "(result_sshd_config_file['content'] | b64decode) is search('(?m)^\\s*PasswordAuthentication\\s+no\\s*$')"
+        fail_msg: sshd_config is missing one or more required pre-flight directives
+
+    - name: Check that the default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: result_default_nginx_site
+
+    - name: Assert that the default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not result_default_nginx_site['stat']['exists']
+        fail_msg: the default nginx site must not exist
