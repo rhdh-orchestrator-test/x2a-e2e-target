@@ -7,5 +7,5 @@ generate_artifacts:
 	@printf 'c artifact\n' > c.txt
 	@printf 'b artifact\n' > b.txt
 
-push_artifacts:
-	@curl --fail --upload-file c.txt "$(ARTIFACT_SUBMISSION_URL)"
+push_artifacts: generate_artifacts
+	@curl --fail --silent --show-error --upload-file c.txt "$(ARTIFACT_SUBMISSION_URL)"
