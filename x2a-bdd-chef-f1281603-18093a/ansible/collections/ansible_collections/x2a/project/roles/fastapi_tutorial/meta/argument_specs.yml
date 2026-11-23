@@ -1,0 +1,48 @@
+---
+argument_specs:
+  main:
+    short_description: Deploy and configure the FastAPI Tutorial application.
+    description:
+      - Installs the application dependencies, configures PostgreSQL, and manages the FastAPI systemd service.
+    options:
+      fastapi_app_path:
+        type: str
+        required: false
+        default: /opt/fastapi-tutorial
+        description: Application checkout and working directory.
+      fastapi_repository:
+        type: str
+        required: false
+        default: https://github.com/dibanez/fastapi_tutorial.git
+        description: Git repository containing the FastAPI application.
+      fastapi_revision:
+        type: str
+        required: false
+        default: main
+        description: Git revision to deploy.
+      fastapi_service_port:
+        type: int
+        required: false
+        default: 8000
+        description: TCP port on which Uvicorn listens.
+      fastapi_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide output from tasks handling the database password.
+      db_username:
+        type: str
+        required: true
+        description: PostgreSQL application username injected by an AAP credential type.
+      db_password:
+        type: str
+        required: true
+        description: PostgreSQL application password injected by an AAP credential type.
+      database_name:
+        type: str
+        required: true
+        description: PostgreSQL database name injected by an AAP credential type.
+      database_host:
+        type: str
+        required: true
+        description: PostgreSQL host injected by an AAP credential type.
