@@ -1,0 +1,10 @@
+---
+# Unsupported pre-flight checks: package, service, syntax/include, firewall, fail2ban,
+# kernel, SSH, SSL-directory, listener, log, and site-specific commands have no
+# stated expected outcome in the plan, or require literal nginx_sites data-bag values.
+# SSL/non-SSL response checks likewise require site names and attributes that were
+# not provided.
+- name: Verify nginx_multisite
+  hosts: all
+  gather_facts: false
+  tasks: []
