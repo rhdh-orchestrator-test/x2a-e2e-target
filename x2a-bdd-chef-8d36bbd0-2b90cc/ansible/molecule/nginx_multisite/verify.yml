@@ -1,0 +1,308 @@
+---
+# Unsupported pre-flight checks: fail2ban-client jail counters/status details, sysctl values and
+# configuration contents, nginx configuration dumps, lsof/ss diagnostics, log contents, and
+# response-header/body details have no concrete expected outcome in the migration plan.
+- name: Verify nginx multisite pre-flight expectations
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check fail2ban is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - fail2ban
+      register: item_fail2ban_enabled
+      changed_when: false
+
+    - name: Assert fail2ban is enabled
+      ansible.builtin.assert:
+        that:
+          - item_fail2ban_enabled.rc == 0
+          - item_fail2ban_enabled.stdout | trim == 'enabled'
+
+    - name: Check fail2ban is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - fail2ban
+      register: item_fail2ban_active
+      changed_when: false
+
+    - name: Assert fail2ban is active
+      ansible.builtin.assert:
+        that:
+          - item_fail2ban_active.rc == 0
+          - item_fail2ban_active.stdout | trim == 'active'
+
+    - name: Check firewall status
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      register: item_ufw_status
+      changed_when: false
+
+    - name: Assert firewall policy and allowed ports
+      ansible.builtin.assert:
+        that:
+          - item_ufw_status.rc == 0
+          - item_ufw_status.stdout is search('Status: active')
+          - item_ufw_status.stdout is search('Default: deny \(incoming\)')
+          - item_ufw_status.stdout is search('22/tcp')
+          - item_ufw_status.stdout is search('80/tcp')
+          - item_ufw_status.stdout is search('443/tcp')
+
+    - name: Read SSH hardening configuration
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: item_sshd_config
+
+    - name: Assert SSH hardening settings
+      ansible.builtin.assert:
+        that:
+          - (item_sshd_config.content | b64decode) is search('(?m)^\s*PermitRootLogin\s+no\s*$')
+          - (item_sshd_config.content | b64decode) is search('(?m)^\s*PasswordAuthentication\s+no\s*$')
+
+    - name: Check SSH configuration syntax
+      ansible.builtin.command:
+        argv:
+          - sshd
+          - -t
+      register: item_sshd_syntax
+      changed_when: false
+
+    - name: Assert SSH configuration syntax is valid
+      ansible.builtin.assert:
+        that:
+          - item_sshd_syntax.rc == 0
+
+    - name: Check SSH service is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - sshd
+      register: item_sshd_active
+      changed_when: false
+
+    - name: Assert SSH service is active
+      ansible.builtin.assert:
+        that:
+          - item_sshd_active.rc == 0
+          - item_sshd_active.stdout | trim == 'active'
+
+    - name: Check nginx is enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - nginx
+      register: item_nginx_enabled
+      changed_when: false
+
+    - name: Assert nginx is enabled
+      ansible.builtin.assert:
+        that:
+          - item_nginx_enabled.rc == 0
+          - item_nginx_enabled.stdout | trim == 'enabled'
+
+    - name: Check nginx is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - nginx
+      register: item_nginx_active
+      changed_when: false
+
+    - name: Assert nginx is active
+      ansible.builtin.assert:
+        that:
+          - item_nginx_active.rc == 0
+          - item_nginx_active.stdout | trim == 'active'
+
+    - name: Check nginx configuration syntax
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: item_nginx_syntax
+      changed_when: false
+
+    - name: Assert nginx configuration syntax is valid
+      ansible.builtin.assert:
+        that:
+          - item_nginx_syntax.rc == 0
+
+    - name: Check SSH endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 22
+        state: started
+        timeout: 5
+
+    - name: Check HTTP endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 80
+        state: started
+        timeout: 5
+
+    - name: Check HTTPS endpoint when an SSL site is configured
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 443
+        state: started
+        timeout: 5
+      when: >-
+        (nginx_sites | dict2items | selectattr('value.ssl_enabled', 'equalto', true) | list | length) > 0
+
+    - name: Check available site files
+      ansible.builtin.stat:
+        path: "/etc/nginx/sites-available/{{ item_site['value']['id'] }}"
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      register: item_available_site_files
+
+    - name: Assert available site files exist
+      ansible.builtin.assert:
+        that:
+          - item_available_site['stat']['exists']
+          - item_available_site['stat']['isreg']
+      loop: "{{ item_available_site_files['results'] }}"
+      loop_control:
+        loop_var: item_available_site
+
+    - name: Check enabled site symlinks
+      ansible.builtin.stat:
+        path: "/etc/nginx/sites-enabled/{{ item_site['value']['id'] }}"
+        follow: false
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      register: item_enabled_site_links
+
+    - name: Assert enabled site symlinks point to available sites
+      ansible.builtin.assert:
+        that:
+          - item_enabled_site['stat']['exists']
+          - item_enabled_site['stat']['islnk']
+          - item_enabled_site['stat']['lnk_source'] == '/etc/nginx/sites-available/' ~ item_enabled_site['item']['value']['id']
+      loop: "{{ item_enabled_site_links['results'] }}"
+      loop_control:
+        loop_var: item_enabled_site
+
+    - name: Check default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: item_default_site
+
+    - name: Assert default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not item_default_site.stat.exists
+
+    - name: Check document roots
+      ansible.builtin.stat:
+        path: "{{ item_site['value']['document_root'] }}"
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      register: item_document_roots
+
+    - name: Assert document roots have expected ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_document_root['stat']['exists']
+          - item_document_root['stat']['isdir']
+          - item_document_root['stat']['pw_name'] == 'nginx'
+          - item_document_root['stat']['gr_name'] == 'nginx'
+          - item_document_root['stat']['mode'] == '0755'
+      loop: "{{ item_document_roots['results'] }}"
+      loop_control:
+        loop_var: item_document_root
+
+    - name: Check site index files
+      ansible.builtin.stat:
+        path: "{{ item_site['value']['document_root'] }}/index.html"
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      register: item_index_files
+
+    - name: Assert site index files have expected ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_index_file['stat']['exists']
+          - item_index_file['stat']['isreg']
+          - item_index_file['stat']['pw_name'] == 'nginx'
+          - item_index_file['stat']['gr_name'] == 'nginx'
+          - item_index_file['stat']['mode'] == '0644'
+      loop: "{{ item_index_files['results'] }}"
+      loop_control:
+        loop_var: item_index_file
+
+    - name: Check SSL certificates
+      ansible.builtin.stat:
+        path: "/etc/ssl/certs/{{ item_site['value']['id'] }}.crt"
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      when: item_site['value']['ssl_enabled'] | bool
+      register: item_ssl_certificates
+
+    - name: Check SSL private keys
+      ansible.builtin.stat:
+        path: "/etc/ssl/private/{{ item_site['value']['id'] }}.key"
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site
+      when: item_site['value']['ssl_enabled'] | bool
+      register: item_ssl_private_keys
+
+    - name: Assert SSL certificate and key files have expected properties
+      ansible.builtin.assert:
+        that:
+          - item_ssl_file['stat']['exists']
+          - item_ssl_file['stat']['isreg']
+          - item_ssl_file['stat']['pw_name'] == 'root'
+          - item_ssl_file['stat']['gr_name'] == 'ssl-cert'
+          - item_ssl_file['stat']['mode'] == '0640'
+      loop: "{{ item_ssl_private_keys['results'] | default([]) }}"
+      loop_control:
+        loop_var: item_ssl_file
+
+    - name: Validate SSL certificates
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - -in
+          - "/etc/ssl/certs/{{ item_ssl_certificate['item']['value']['id'] }}.crt"
+          - -noout
+          - -subject
+          - -issuer
+          - -dates
+      loop: "{{ item_ssl_certificates['results'] | default([]) }}"
+      loop_control:
+        loop_var: item_ssl_certificate
+      changed_when: false
+      register: item_validated_certificates
+
+    - name: Check site token file
+      ansible.builtin.stat:
+        path: /etc/nginx/secrets/site_token
+      register: item_site_token
+
+    - name: Assert site token file has expected ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_site_token.stat.exists
+          - item_site_token.stat.isreg
+          - item_site_token.stat.pw_name == 'root'
+          - item_site_token.stat.gr_name == 'root'
+          - item_site_token.stat.mode == '0600'

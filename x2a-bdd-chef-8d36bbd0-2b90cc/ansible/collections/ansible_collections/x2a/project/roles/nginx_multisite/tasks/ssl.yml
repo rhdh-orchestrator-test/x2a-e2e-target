@@ -1,0 +1,64 @@
+---
+- name: Install SSL packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create ssl-cert group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Create certificate directory
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_certificate_path }}" # noqa: R114 - path from role default
+    owner: root
+    group: root
+    mode: "0755"
+    state: directory
+
+- name: Create private key directory
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_private_key_path }}" # noqa: R114 - path from role default
+    owner: root
+    group: ssl-cert
+    mode: "0710"
+    state: directory
+
+- name: Generate self-signed certificates
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -nodes
+      - -days
+      - "{{ nginx_multisite_certificate_days }}"
+      - -newkey
+      - rsa:2048
+      - -keyout
+      - "{{ nginx_multisite_ssl_private_key_path }}/{{ item_ssl_site['id'] }}.key"
+      - -out
+      - "{{ nginx_multisite_ssl_certificate_path }}/{{ item_ssl_site['id'] }}.crt"
+      - -subj
+      - /C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN={{ item_ssl_site['id'] }}/emailAddress=admin@example.com
+    creates: "{{ nginx_multisite_ssl_certificate_path }}/{{ item_ssl_site['id'] }}.crt" # noqa: R114 - path from role-defined site inventory
+  when: item_ssl_site['ssl_enabled'] | bool
+  loop: "{{ nginx_multisite_sites }}"
+  loop_control:
+    loop_var: item_ssl_site
+  notify: Reload nginx
+
+- name: Set private key ownership and permissions
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_private_key_path }}/{{ item_ssl_site['id'] }}.key" # noqa: R114 - path from role-defined site inventory
+    owner: root
+    group: ssl-cert
+    mode: "0640"
+    state: file
+  when: item_ssl_site['ssl_enabled'] | bool
+  loop: "{{ nginx_multisite_sites }}"
+  loop_control:
+    loop_var: item_ssl_site
