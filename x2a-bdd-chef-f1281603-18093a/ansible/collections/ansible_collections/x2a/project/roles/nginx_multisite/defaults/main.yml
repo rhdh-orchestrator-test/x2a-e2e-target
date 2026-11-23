@@ -1,0 +1,13 @@
+---
+# Defaults for x2a.project.nginx_multisite.
+nginx_multisite_my_variable: default_value
+nginx_multisite_fail2ban_enabled: true
+nginx_multisite_ufw_enabled: true
+nginx_multisite_ssh_disable_root: true
+nginx_multisite_ssh_password_auth: false
+nginx_multisite_secure_logging: true
+nginx_multisite_certificate_path: /etc/nginx/certs
+nginx_multisite_private_key_path: /etc/nginx/private
+nginx_multisite_web_user: "{{ 'www-data' if ansible_facts.os_family == 'Debian' else 'nginx' }}"
+nginx_multisite_web_group: "{{ 'www-data' if ansible_facts.os_family == 'Debian' else 'nginx' }}"
+nginx_sites: {}

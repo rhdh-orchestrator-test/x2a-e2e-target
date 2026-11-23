@@ -1,0 +1,30 @@
+---
+# Unsupported pre-flight checks: package availability, command diagnostics, firewall,
+# fail2ban jail details, SSH/kernel settings, listening ports, site-specific files,
+# HTTP response details, logs, TLS files, and notification behavior have no stated
+# expected outcome here or require site names that were not supplied.
+
+- name: Verify explicitly expected service state
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather service facts for pre-flight service checks
+      ansible.builtin.service_facts:
+
+    - name: Assert nginx is active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['nginx.service']['state'] == 'running'"
+        fail_msg: "The nginx service is not active."
+
+    - name: Assert fail2ban is active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['fail2ban.service']['state'] == 'running'"
+        fail_msg: "The fail2ban service is not active."
+
+    - name: Assert sshd is active
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts['services']['sshd.service']['state'] == 'running'"
+        fail_msg: "The sshd service is not active."

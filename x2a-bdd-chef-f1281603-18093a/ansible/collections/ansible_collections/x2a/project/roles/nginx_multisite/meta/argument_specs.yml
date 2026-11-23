@@ -1,0 +1,49 @@
+---
+argument_specs:
+  main:
+    short_description: Configure nginx multisite hosting and host security.
+    options:
+      nginx_multisite_my_variable:
+        type: str
+        description: A simple string argument for demonstration.
+        default: default_value
+      nginx_multisite_fail2ban_enabled:
+        type: bool
+        description: Whether to install and enable fail2ban.
+        default: true
+      nginx_multisite_ufw_enabled:
+        type: bool
+        description: Whether to configure and enable UFW.
+        default: true
+      nginx_multisite_ssh_disable_root:
+        type: bool
+        description: Whether to disable SSH root login.
+        default: true
+      nginx_multisite_ssh_password_auth:
+        type: bool
+        description: Whether SSH password authentication is allowed.
+        default: false
+      nginx_multisite_secure_logging:
+        type: bool
+        description: Whether to suppress secret task output.
+        default: true
+      nginx_multisite_certificate_path:
+        type: str
+        description: Directory containing site certificates.
+        default: /etc/nginx/certs
+      nginx_multisite_private_key_path:
+        type: str
+        description: Directory containing site private keys.
+        default: /etc/nginx/private
+      nginx_multisite_web_user:
+        type: str
+        description: User owning nginx document roots.
+        default: "{{ 'www-data' if ansible_facts.os_family == 'Debian' else 'nginx' }}"
+      nginx_multisite_web_group:
+        type: str
+        description: Group owning nginx document roots.
+        default: "{{ 'www-data' if ansible_facts.os_family == 'Debian' else 'nginx' }}"
+      nginx_sites:
+        type: dict
+        description: Mapping of site names to site configuration.
+        default: {}

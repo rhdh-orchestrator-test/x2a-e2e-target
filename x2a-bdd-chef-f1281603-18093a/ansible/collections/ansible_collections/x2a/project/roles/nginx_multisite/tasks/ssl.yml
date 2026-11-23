@@ -1,0 +1,64 @@
+---
+- name: Install SSL packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create ssl-cert group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Create certificate directory # noqa: R114 - certificate path comes from role defaults
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_certificate_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    state: directory
+
+- name: Create private key directory # noqa: R114 - private key path comes from role defaults
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_private_key_path }}"
+    owner: root
+    group: ssl-cert
+    mode: "0710"
+    state: directory
+
+- name: Generate self-signed certificates # noqa: R101 - command uses role-defined certificate paths and site configuration
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -nodes
+      - -days
+      - "365"
+      - -newkey
+      - rsa:2048
+      - -keyout
+      - "{{ nginx_multisite_private_key_path }}/{{ item_site['value']['id'] }}.key"
+      - -out
+      - "{{ nginx_multisite_certificate_path }}/{{ item_site['value']['id'] }}.crt"
+      - -subj
+      - /C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN={{ item_site['value']['id'] }}/emailAddress=admin@example.com
+    creates: "{{ nginx_multisite_certificate_path }}/{{ item_site['value']['id'] }}.crt" # noqa: R114 - certificate path from role-defined site configuration
+  when: item_site['value']['ssl_enabled'] | bool
+  loop: "{{ nginx_sites | dict2items }}"
+  loop_control:
+    loop_var: item_site
+  notify: Reload nginx
+
+- name: Set private key ownership and permissions
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_private_key_path }}/{{ item_site['value']['id'] }}.key" # noqa: R114 - key path from role-defined site configuration
+    owner: root
+    group: ssl-cert
+    mode: "0640"
+    state: file
+  when: item_site['value']['ssl_enabled'] | bool
+  loop: "{{ nginx_sites | dict2items }}"
+  loop_control:
+    loop_var: item_site
