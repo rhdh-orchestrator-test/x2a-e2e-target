@@ -1,0 +1,213 @@
+---
+# Unsupported pre-flight checks: Memcached version response; dependency-defined Memcached ownership;
+# Redis authentication/PING and INFO server (no protected credential variable was supplied); and exact
+# Memcached ULimit verification (the platform-specific representation is not defined).
+- name: Verify cache services and configuration
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather service facts for Memcached and Redis checks
+      ansible.builtin.service_facts:
+
+    - name: Assert that Memcached is active and enabled
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts['services']"
+          - "ansible_facts['services']['memcached.service']['state'] == 'running'"
+          - "ansible_facts['services']['memcached.service']['status'] == 'enabled'"
+
+    - name: Check Memcached TCP port 11211
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 5
+
+    - name: Check Memcached TCP listener binding
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: item_memcached_tcp_listener
+      changed_when: false
+
+    - name: Assert that Memcached listens on TCP port 11211
+      ansible.builtin.assert:
+        that:
+          - item_memcached_tcp_listener.stdout is search(':11211')
+
+    - name: Check Memcached UDP listener binding
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ulnp
+      register: item_memcached_udp_listener
+      changed_when: false
+
+    - name: Assert that Memcached listens on UDP port 11211
+      ansible.builtin.assert:
+        that:
+          - item_memcached_udp_listener.stdout is search(':11211')
+
+    - name: Inspect Memcached service configuration
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - cat
+          - memcached
+      register: item_memcached_unit
+      changed_when: false
+
+    - name: Inspect the running Memcached command line
+      ansible.builtin.command:
+        argv:
+          - ps
+          - -eo
+          - args=
+      register: item_memcached_processes
+      changed_when: false
+
+    - name: Assert Memcached resource settings
+      ansible.builtin.assert:
+        that:
+          - >-
+            (item_memcached_unit.stdout is search('(?i)(-m[ =]+64|MemoryLimit=64M)') or
+            item_memcached_processes.stdout is search('(^|\s)-m\s+64(\s|$)'))
+          - >-
+            (item_memcached_unit.stdout is search('(?i)(-c[ =]+1024|LimitNOFILE=1024)') or
+            item_memcached_processes.stdout is search('(^|\s)-c\s+1024(\s|$)'))
+          - >-
+            (item_memcached_unit.stdout is search('(?i)(-I[ =]+1m)') or
+            item_memcached_processes.stdout is search('(^|\s)-I\s+1m(\s|$)'))
+
+    - name: Inspect Memcached directories
+      ansible.builtin.stat:
+        path: "{{ item_memcached_directory['path'] }}"
+      loop:
+        - path: /var/log/memcached
+        - path: /var/run/memcached
+      loop_control:
+        loop_var: item_memcached_directory
+      register: item_memcached_directories
+
+    - name: Assert Memcached directories exist with mode 0755
+      ansible.builtin.assert:
+        that:
+          - item_memcached_directory_check['stat']['exists']
+          - item_memcached_directory_check['stat']['isdir']
+          - item_memcached_directory_check['stat']['mode'] == '0755'
+      loop: "{{ item_memcached_directories['results'] }}"
+      loop_control:
+        loop_var: item_memcached_directory_check
+
+    - name: Identify Redis service units
+      ansible.builtin.set_fact:
+        item_redis_service_names: >-
+          {{ ansible_facts['services'] | dict2items |
+          selectattr('key', 'match', '^(redis|redis-server)(@.*)?\\.service$') |
+          map(attribute='key') | list }}
+
+    - name: Assert that a Redis service unit was discovered
+      ansible.builtin.assert:
+        that:
+          - item_redis_service_names | length > 0
+
+    - name: Select the discovered Redis service unit
+      ansible.builtin.set_fact:
+        item_redis_service_name: "{{ item_redis_service_names | first }}"
+
+    - name: Assert that Redis is active and enabled
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services'][item_redis_service_name]['state'] == 'running'
+          - ansible_facts['services'][item_redis_service_name]['status'] == 'enabled'
+
+    - name: Check Redis TCP port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Check Redis listener binding
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      register: item_redis_tcp_listener
+      changed_when: false
+
+    - name: Assert that Redis listens on TCP port 6379
+      ansible.builtin.assert:
+        that:
+          - item_redis_tcp_listener.stdout is search(':6379')
+
+    - name: Inspect Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: item_redis_configuration
+
+    - name: Assert Redis port and removed directives
+      ansible.builtin.assert:
+        that:
+          - item_redis_configuration['content'] | b64decode is search('(?m)^port\\s+6379(?:\\s|$)')
+          - item_redis_configuration['content'] | b64decode is not search('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+
+    - name: Inspect Redis log and PID directories
+      ansible.builtin.stat:
+        path: "{{ item_redis_directory['path'] }}"
+      loop:
+        - path: /var/log/redis
+        - path: /run/redis
+      loop_control:
+        loop_var: item_redis_directory
+      register: item_redis_directories
+
+    - name: Assert Redis log and PID directories exist
+      ansible.builtin.assert:
+        that:
+          - item_redis_directory_check['stat']['exists']
+          - item_redis_directory_check['stat']['isdir']
+      loop: "{{ item_redis_directories['results'] }}"
+      loop_control:
+        loop_var: item_redis_directory_check
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - item_redis_log_directory['stat']['pw_name'] == 'redis'
+          - item_redis_log_directory['stat']['gr_name'] == 'redis'
+          - item_redis_log_directory['stat']['mode'] == '0755'
+      loop: "{{ item_redis_directories['results'] | selectattr('item.path', 'equalto', '/var/log/redis') | list }}"
+      loop_control:
+        loop_var: item_redis_log_directory
+
+    - name: Inspect Redis service logs
+      ansible.builtin.command:
+        argv:
+          - journalctl
+          - -u
+          - "{{ item_redis_service_name }}"
+          - --no-pager
+          - -n
+          - '100'
+      register: item_redis_logs
+      changed_when: false
+
+    - name: Inspect Memcached service logs
+      ansible.builtin.command:
+        argv:
+          - journalctl
+          - -u
+          - memcached
+          - --no-pager
+          - -n
+          - '100'
+      register: item_memcached_logs
+      changed_when: false
+
+    - name: Assert service logs contain no reported startup or configuration errors
+      ansible.builtin.assert:
+        that:
+          - item_redis_logs.stdout is not search('(?im)\\b(error|failed|fatal|permission denied|authentication failed)\\b')
+          - item_memcached_logs.stdout is not search('(?im)\\b(error|failed|fatal|permission denied|authentication failed)\\b')
