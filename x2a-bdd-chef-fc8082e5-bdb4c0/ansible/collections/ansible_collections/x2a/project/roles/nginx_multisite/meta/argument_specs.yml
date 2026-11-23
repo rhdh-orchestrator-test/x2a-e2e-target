@@ -1,0 +1,51 @@
+---
+argument_specs:
+  main:
+    short_description: Configure nginx with multiple SSL-enabled subdomains
+    description:
+      - Installs and configures nginx, security controls, TLS certificates, and virtual hosts.
+    options:
+      nginx_multisite_ssl_certificate_path:
+        type: str
+        required: false
+        default: /etc/ssl/certs
+        description: Directory for generated SSL certificates.
+      nginx_multisite_ssl_private_key_path:
+        type: str
+        required: false
+        default: /etc/ssl/private
+        description: Directory for generated SSL private keys.
+      nginx_multisite_fail2ban_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether fail2ban is enabled in role configuration.
+      nginx_multisite_ufw_enabled:
+        type: bool
+        required: false
+        default: true
+        description: Whether UFW is enabled in role configuration.
+      nginx_multisite_ssh_disable_root:
+        type: bool
+        required: false
+        default: true
+        description: Disable root SSH login.
+      nginx_multisite_ssh_password_auth:
+        type: bool
+        required: false
+        default: false
+        description: Allow SSH password authentication.
+      nginx_multisite_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide tasks that handle the AAP-provided site token.
+      nginx_multisite_sites:
+        type: dict
+        required: false
+        default: {}
+        description: Map of site identifiers to site_name, document_root, site_folder, and ssl_enabled settings.
+      site_token:
+        type: str
+        required: true
+        description: Site token injected by an AAP credential type.

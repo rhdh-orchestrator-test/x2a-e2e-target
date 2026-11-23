@@ -1,0 +1,165 @@
+---
+# Unsupported pre-flight checks: sysctl values; secret-file ownership/modes; listener and
+# lsof checks; service and nginx log output; site-specific checks; TLS certificate checks;
+# and curl checks require values or outcomes not supplied by the migration plan.
+- name: Verify nginx multisite pre-flight checks
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify required packages are installed
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Assert required packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts['packages']
+        fail_msg: "A required package is not installed"
+      loop:
+        - nginx
+        - fail2ban
+        - ufw
+        - openssl
+        - ca-certificates
+      loop_control:
+        loop_var: item_package
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert nginx and fail2ban are enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['services']['nginx.service']['status'] == 'enabled'
+          - ansible_facts['services']['nginx.service']['state'] == 'running'
+          - ansible_facts['services']['fail2ban.service']['status'] == 'enabled'
+          - ansible_facts['services']['fail2ban.service']['state'] == 'running'
+        fail_msg: "nginx and fail2ban must both be enabled and running"
+
+    - name: Assert an SSH service is running
+      ansible.builtin.assert:
+        that:
+          - >-
+            ('sshd.service' in ansible_facts['services'] and
+            ansible_facts['services']['sshd.service']['state'] == 'running') or
+            ('ssh.service' in ansible_facts['services'] and
+            ansible_facts['services']['ssh.service']['state'] == 'running')
+        fail_msg: "The sshd or ssh service must be running"
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: item_nginx_test
+      changed_when: false
+      failed_when: item_nginx_test['rc'] != 0
+
+    - name: Check nginx sites-available directory
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-available
+      register: item_sites_available
+
+    - name: Assert nginx sites-available directory exists
+      ansible.builtin.assert:
+        that:
+          - item_sites_available['stat']['exists']
+          - item_sites_available['stat']['isdir']
+        fail_msg: "The nginx sites-available directory must exist"
+
+    - name: Check nginx sites-enabled directory
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled
+      register: item_sites_enabled
+
+    - name: Assert nginx sites-enabled directory exists
+      ansible.builtin.assert:
+        that:
+          - item_sites_enabled['stat']['exists']
+          - item_sites_enabled['stat']['isdir']
+        fail_msg: "The nginx sites-enabled directory must exist"
+
+    - name: Check default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: item_default_site
+
+    - name: Assert default nginx site is absent
+      ansible.builtin.assert:
+        that:
+          - not item_default_site['stat']['exists']
+        fail_msg: "The default nginx site must be absent"
+
+    - name: Check UFW verbose status
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      register: item_ufw_verbose
+      changed_when: false
+      failed_when: item_ufw_verbose['rc'] != 0
+
+    - name: Assert UFW has the required default policy and rules
+      ansible.builtin.assert:
+        that:
+          - "'Default: deny (incoming)' in item_ufw_verbose['stdout']"
+          - "'22/tcp' in item_ufw_verbose['stdout']"
+          - "'80/tcp' in item_ufw_verbose['stdout']"
+          - "'443/tcp' in item_ufw_verbose['stdout']"
+        fail_msg: "UFW must deny incoming traffic and allow TCP ports 22, 80, and 443"
+
+    - name: Check fail2ban daemon
+      ansible.builtin.command:
+        argv:
+          - fail2ban-client
+          - ping
+      register: item_fail2ban_ping
+      changed_when: false
+      failed_when: item_fail2ban_ping['rc'] != 0
+
+    - name: Check fail2ban jail status
+      ansible.builtin.command:
+        argv:
+          - fail2ban-client
+          - status
+      register: item_fail2ban_status
+      changed_when: false
+      failed_when: item_fail2ban_status['rc'] != 0
+
+    - name: Check required fail2ban jails
+      ansible.builtin.command:
+        argv:
+          - fail2ban-client
+          - status
+          - "{{ item_jail }}"
+      register: item_fail2ban_jail
+      changed_when: false
+      failed_when: item_fail2ban_jail['rc'] != 0
+      loop:
+        - sshd
+        - nginx-http-auth
+        - nginx-limit-req
+        - nginx-botsearch
+      loop_control:
+        loop_var: item_jail
+
+    - name: Check SSH configuration syntax
+      ansible.builtin.command:
+        argv:
+          - sshd
+          - -t
+      register: item_sshd_test
+      changed_when: false
+      failed_when: item_sshd_test['rc'] != 0
+
+    - name: Check SSH hardening directives
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - ^PermitRootLogin no$|^PasswordAuthentication no$
+          - /etc/ssh/sshd_config
+      register: item_ssh_hardening
+      changed_when: false
+      failed_when: item_ssh_hardening['rc'] != 0
