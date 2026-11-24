@@ -1,0 +1,69 @@
+---
+- name: Install Nginx
+  ansible.builtin.package:
+    name: nginx
+    state: present
+
+- name: Render Nginx configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+
+- name: Render Nginx security configuration
+  ansible.builtin.template:
+    src: security.conf.j2
+    dest: /etc/nginx/conf.d/security.conf
+    mode: "0644"
+    backup: true
+  notify: Reload nginx
+
+- name: Enable and start Nginx
+  ansible.builtin.service:
+    name: nginx
+    enabled: true
+    state: started
+
+- name: Create Nginx secrets directory
+  ansible.builtin.file:
+    path: /etc/nginx/secrets
+    owner: root
+    group: root
+    mode: "0700"
+    state: directory
+
+- name: Write Nginx site token
+  ansible.builtin.copy:
+    content: "{{ nginx_multisite_site_token }}"
+    dest: /etc/nginx/secrets/site_token
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
+  no_log: "{{ nginx_multisite_secure_logging }}"
+
+- name: Create site document roots
+  ansible.builtin.file:
+    path: "{{ item_nginx_multisite['value']['document_root'] }}"
+    owner: "{{ nginx_multisite_worker_user }}"
+    group: "{{ nginx_multisite_worker_group }}"
+    mode: "0755"
+    recurse: true
+    state: directory
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_multisite
+
+- name: Deploy site index files
+  ansible.builtin.copy:
+    src: "{{ item_nginx_multisite['key'].split('.')[0] }}/index.html"
+    dest: "{{ item_nginx_multisite['value']['document_root'] }}/index.html"
+    owner: "{{ nginx_multisite_worker_user }}"
+    group: "{{ nginx_multisite_worker_group }}"
+    mode: "0644"
+    backup: true
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_multisite
