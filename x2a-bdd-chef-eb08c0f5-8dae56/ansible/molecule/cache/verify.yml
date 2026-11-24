@@ -1,0 +1,162 @@
+# Unsupported: Redis PING and CONFIG checks require the protected REDISCLI_AUTH secret.
+# Unsupported: provider-specific Memcached account, unit, configuration, and runtime paths have no expected values.
+# Unsupported: Redis logfile/dir inspection and journal output have no stated expected outcome.
+---
+- name: Verify cache services and endpoints
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather service facts for cache checks
+      ansible.builtin.service_facts:
+
+    - name: Assert Memcached is enabled and active
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts['services']"
+          - ansible_facts['services']['memcached.service']['status'] == 'enabled'
+          - ansible_facts['services']['memcached.service']['state'] == 'running'
+        fail_msg: Memcached must be enabled and running.
+
+    - name: Wait for Memcached TCP endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 10
+
+    - name: Query Memcached version response
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - "2"
+          - 127.0.0.1
+          - "11211"
+        stdin: "version\r\n"
+      register: memcached_version_result
+      changed_when: false
+
+    - name: Assert Memcached returns a VERSION response
+      ansible.builtin.assert:
+        that:
+          - memcached_version_result['stdout'] is search('(?m)^VERSION\\s+\\S+')
+        fail_msg: Memcached must return a VERSION protocol response.
+
+    - name: Inspect Memcached TCP listeners
+      ansible.builtin.command:
+        argv: [ss, -tlpn]
+      register: memcached_tcp_listeners
+      changed_when: false
+
+    - name: Assert Memcached listens on TCP port 11211
+      ansible.builtin.assert:
+        that:
+          - memcached_tcp_listeners['stdout'] is search('(?m):11211\\b')
+        fail_msg: Memcached must listen on TCP port 11211.
+
+    - name: Inspect Memcached UDP listeners
+      ansible.builtin.command:
+        argv: [ss, -ulpn]
+      register: memcached_udp_listeners
+      changed_when: false
+
+    - name: Assert Memcached listens on UDP port 11211
+      ansible.builtin.assert:
+        that:
+          - memcached_udp_listeners['stdout'] is search('(?m):11211\\b')
+        fail_msg: Memcached must listen on UDP port 11211.
+
+    - name: Inspect Memcached process arguments
+      ansible.builtin.command:
+        argv: [ps, aux]
+      register: memcached_processes
+      changed_when: false
+
+    - name: Assert Memcached process arguments match requested settings
+      ansible.builtin.assert:
+        that:
+          - memcached_processes['stdout'] is search('(?m)[m]emcached')
+          - memcached_processes['stdout'] is search('(?:^|\\s)-l\\s+0\\.0\\.0\\.0(?:\\s|$)')
+          - memcached_processes['stdout'] is search('(?:^|\\s)-p\\s*11211(?:\\s|$)')
+          - memcached_processes['stdout'] is search('(?:^|\\s)-U\\s*11211(?:\\s|$)')
+          - memcached_processes['stdout'] is search('(?:^|\\s)-m\\s*64(?:\\s|$)')
+          - memcached_processes['stdout'] is search('(?:^|\\s)-c\\s*1024(?:\\s|$)')
+          - memcached_processes['stdout'] is search('(?:^|\\s)-I\\s*1m(?:\\s|$)')
+          - memcached_processes['stdout'] is search('(?:^|\\s)-u\\s*1024(?:\\s|$)')
+        fail_msg: Memcached process arguments must include the requested settings.
+
+    - name: Identify Redis service units
+      ansible.builtin.set_fact:
+        redis_services: >-
+          {{ ansible_facts['services'] | dict2items
+             | selectattr('key', 'match', '^redis') | list }}
+
+    - name: Assert a Redis service is enabled and active
+      ansible.builtin.assert:
+        that:
+          - redis_services | length > 0
+          - "(redis_services | selectattr('value', 'equalto', {'status': 'enabled', 'state': 'running'}) | list | length) > 0"
+        fail_msg: A Redis service for port 6379 must be enabled and running.
+
+    - name: Wait for Redis TCP endpoint
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 10
+
+    - name: Inspect Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: redis_config_stat
+
+    - name: Assert Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - redis_config_stat['stat']['exists']
+          - redis_config_stat['stat']['isreg']
+        fail_msg: Redis configuration must exist at /etc/redis/6379.conf.
+
+    - name: Read Redis configuration
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: redis_config
+
+    - name: Assert Redis uses /run/redis for its PID directory
+      ansible.builtin.assert:
+        that:
+          - (redis_config['content'] | b64decode) is search('(?m)^\\s*pidfile\\s+/run/redis(?:/|\\s|$)')
+        fail_msg: Redis must use /run/redis for its PID directory.
+
+    - name: Inspect Redis log directory
+      ansible.builtin.stat:
+        path: /var/log/redis
+      register: redis_log_dir
+
+    - name: Assert Redis log directory ownership and mode
+      ansible.builtin.assert:
+        that:
+          - redis_log_dir['stat']['exists']
+          - redis_log_dir['stat']['isdir']
+          - redis_log_dir['stat']['mode'] == '0755'
+          - redis_log_dir['stat']['pw_name'] == 'redis'
+          - redis_log_dir['stat']['gr_name'] == 'redis'
+        fail_msg: /var/log/redis must be a 0755 directory owned by redis:redis.
+
+    - name: Inspect Redis runtime directory
+      ansible.builtin.stat:
+        path: /run/redis
+      register: redis_runtime_dir
+
+    - name: Assert Redis runtime directory exists
+      ansible.builtin.assert:
+        that:
+          - redis_runtime_dir['stat']['exists']
+          - redis_runtime_dir['stat']['isdir']
+        fail_msg: /run/redis must exist as the Redis PID directory.
+
+    - name: Assert obsolete Redis directives are absent
+      ansible.builtin.assert:
+        that:
+          - (redis_config['content'] | b64decode) is not search('(?m)^\\s*(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)(?:\\s|$)')
+        fail_msg: Obsolete Redis replica directives must be absent.
