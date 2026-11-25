@@ -1,0 +1,12 @@
+---
+- name: Install and configure Memcached package and account
+  ansible.builtin.include_tasks: memcached_package.yml
+
+- name: Create Memcached instance unit
+  ansible.builtin.include_tasks: memcached_instance.yml
+
+- name: Ensure Memcached service is started and enabled
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service_name }}"
+    state: started
+    enabled: true

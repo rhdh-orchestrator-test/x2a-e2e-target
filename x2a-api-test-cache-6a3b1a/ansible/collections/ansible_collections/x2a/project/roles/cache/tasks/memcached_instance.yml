@@ -1,0 +1,34 @@
+---
+- name: Create Memcached instance systemd unit
+  ansible.builtin.copy:
+    dest: "{{ cache_memcached_systemd_unit }}" # noqa: R114 - path is a role-defined systemd unit path
+    content: |
+      [Unit]
+      Description=memcached instance {{ cache_memcached_service_name }}
+      After=network.target
+      [Service]
+      User={{ cache_memcached_user }}
+      LimitNOFILE={{ cache_memcached_ulimit }}
+      ExecStart={{ cache_memcached_binary }} -m {{ cache_memcached_memory }} -p {{ cache_memcached_port }} -U {{ cache_memcached_udp_port }} -l {{ cache_memcached_listen }} -c {{ cache_memcached_maxconn }} -I {{ cache_memcached_max_object_size }} -t {{ cache_memcached_threads }}{{ cache_memcached_extra_cli_options }}
+      Restart=on-failure
+      PrivateTmp=true
+      ProtectSystem=full
+      NoNewPrivileges=true
+      PrivateDevices=true
+      CapabilityBoundingSet=CAP_SETGID CAP_SETUID CAP_SYS_RESOURCE
+      RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+      [Install]
+      WantedBy=multi-user.target
+    mode: "0644"
+    backup: true
+  notify: Restart Memcached
+
+- name: Reload systemd after Memcached unit creation
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable Memcached instance
+  ansible.builtin.service:
+    name: "{{ cache_memcached_service_name }}"
+    enabled: true
+    state: started

@@ -1,0 +1,47 @@
+---
+# Unsupported pre-flight checks: source grep commands have no expected outcome;
+# conditional Memcached package/account/path checks lack confirmed source behavior;
+# UDP listener, Memcached stats, effective-command, Redis discovery/status, Redis
+# authenticated CLI, Redis path metadata, configuration cleanup/password content,
+# log inspection, and filesystem-capacity diagnostics have no stated expected
+# outcome or require unavailable runtime secrets.
+- name: Verify cache service listeners
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather service facts for the Memcached service check
+      ansible.builtin.service_facts:
+
+    - name: Assert that Memcached is running and enabled
+      ansible.builtin.assert:
+        that:
+          - "'memcached.service' in ansible_facts['services']"
+          - "ansible_facts['services']['memcached.service']['state'] == 'running'"
+          - "ansible_facts['services']['memcached.service']['status'] == 'enabled'"
+        fail_msg: Memcached is not running and enabled.
+
+    - name: Verify the Memcached TCP listener
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 5
+
+    - name: Verify the Redis TCP listener
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Check the Redis configuration file
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: item_redis_config_file
+
+    - name: Assert that the Redis configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_redis_config_file['stat']['exists']
+          - item_redis_config_file['stat']['isreg']
+        fail_msg: The Redis configuration file is missing.
