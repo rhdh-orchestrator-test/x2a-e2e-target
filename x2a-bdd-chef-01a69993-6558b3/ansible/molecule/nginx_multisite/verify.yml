@@ -1,0 +1,153 @@
+---
+# Unsupported from the pre-flight checks: site-specific checks require supplied
+# nginx_sites definitions; SSL certificate, HTTPS, document-root, site-link, and
+# per-site endpoint checks are therefore not generated. File-content and log
+# diagnostics without stated expected outcomes are also omitted.
+- name: Verify nginx multisite pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Collect installed package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Verify required packages are installed
+      ansible.builtin.assert:
+        that:
+          - item_package in ansible_facts.packages
+        fail_msg: "A required package is not installed"
+      loop:
+        - fail2ban
+        - ufw
+        - nginx
+        - openssl
+        - ca-certificates
+      loop_control:
+        loop_var: item_package
+
+    - name: Collect service facts
+      ansible.builtin.service_facts:
+
+    - name: Verify fail2ban is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['fail2ban.service']['state'] == 'running'
+          - ansible_facts.services['fail2ban.service']['status'] == 'enabled'
+        fail_msg: "fail2ban is not enabled and active"
+
+    - name: Verify nginx is enabled and active
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['nginx.service']['state'] == 'running'
+          - ansible_facts.services['nginx.service']['status'] == 'enabled'
+        fail_msg: "nginx is not enabled and active"
+
+    - name: Check fail2ban status
+      ansible.builtin.command:
+        argv:
+          - fail2ban-client
+          - status
+      register: item_fail2ban_status
+      changed_when: false
+
+    - name: Verify fail2ban reports status successfully
+      ansible.builtin.assert:
+        that:
+          - item_fail2ban_status.rc == 0
+        fail_msg: "fail2ban status check failed"
+
+    - name: Check UFW verbose status
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      register: item_ufw_verbose
+      changed_when: false
+
+    - name: Check UFW numbered rules
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - numbered
+      register: item_ufw_numbered
+      changed_when: false
+
+    - name: Verify UFW policy, required rules, and active state
+      ansible.builtin.assert:
+        that:
+          - "'Status: active' in item_ufw_verbose.stdout"
+          - "'Default: deny (incoming)' in item_ufw_verbose.stdout"
+          - "'22/tcp' in item_ufw_numbered.stdout or 'SSH' in item_ufw_numbered.stdout"
+          - "'80/tcp' in item_ufw_numbered.stdout or 'HTTP' in item_ufw_numbered.stdout"
+          - "'443/tcp' in item_ufw_numbered.stdout or 'HTTPS' in item_ufw_numbered.stdout"
+        fail_msg: "UFW does not have the required active policy and rules"
+
+    - name: Check SSH hardening directives
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - ^[[:space:]]*(PermitRootLogin|PasswordAuthentication)
+          - /etc/ssh/sshd_config
+      register: item_ssh_directives
+      changed_when: false
+
+    - name: Verify SSH hardening settings
+      ansible.builtin.assert:
+        that:
+          - item_ssh_directives.rc == 0
+          - item_ssh_directives.stdout is search('(?m)^[[:space:]]*PermitRootLogin[[:space:]]+no[[:space:]]*$')
+          - item_ssh_directives.stdout is search('(?m)^[[:space:]]*PasswordAuthentication[[:space:]]+no[[:space:]]*$')
+        fail_msg: "SSH hardening directives do not have the expected values"
+
+    - name: Validate SSH configuration
+      ansible.builtin.command:
+        argv:
+          - sshd
+          - -t
+      register: item_sshd_validation
+      changed_when: false
+
+    - name: Verify SSH configuration is valid
+      ansible.builtin.assert:
+        that:
+          - item_sshd_validation.rc == 0
+        fail_msg: "sshd configuration validation failed"
+
+    - name: Validate sysctl security configuration
+      ansible.builtin.command:
+        argv:
+          - sysctl
+          - -p
+          - /etc/sysctl.d/99-security.conf
+      register: item_sysctl_validation
+      changed_when: false
+
+    - name: Verify sysctl configuration loads successfully
+      ansible.builtin.assert:
+        that:
+          - item_sysctl_validation.rc == 0
+        fail_msg: "sysctl security configuration could not be loaded"
+
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        argv:
+          - nginx
+          - -t
+      register: item_nginx_validation
+      changed_when: false
+
+    - name: Verify nginx configuration is valid
+      ansible.builtin.assert:
+        that:
+          - item_nginx_validation.rc == 0
+        fail_msg: "nginx configuration validation failed"
+
+    - name: Verify HTTP is listening on TCP port 80
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 80
+        state: started
+        timeout: 5
