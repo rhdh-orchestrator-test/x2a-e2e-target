@@ -1,0 +1,110 @@
+---
+# Unsupported pre-flight checks: platform/package version diagnostics, git status/branch/revision,
+# virtualenv package listings and pip check, secret-redacted .env output, service status/log output,
+# process/socket diagnostics, HTTP response-body checks, PostgreSQL queries/authentication/logs,
+# distribution-specific non-RHEL data-directory discovery, and failure/restart diagnostics do not
+# state an expected outcome or require an unsafe verification assertion.
+- name: Verify fastapi-tutorial pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify required fastapi-tutorial paths exist
+      ansible.builtin.stat:
+        path: "{{ item_fastapi_path['path'] }}"
+      register: fastapi_path_stats
+      loop:
+        - name: application directory
+          path: /opt/fastapi-tutorial
+          type: directory
+        - name: requirements file
+          path: /opt/fastapi-tutorial/requirements.txt
+          type: file
+        - name: application entry point
+          path: /opt/fastapi-tutorial/app/main.py
+          type: file
+        - name: Python virtual environment
+          path: /opt/fastapi-tutorial/venv
+          type: directory
+        - name: environment file
+          path: /opt/fastapi-tutorial/.env
+          type: file
+        - name: systemd unit
+          path: /etc/systemd/system/fastapi-tutorial.service
+          type: file
+      loop_control:
+        loop_var: item_fastapi_path
+
+    - name: Assert required fastapi-tutorial paths exist
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_path_result['stat']['exists']
+          - item_fastapi_path_result['stat']['isdir'] == (item_fastapi_path_result['item']['type'] == 'directory')
+          - item_fastapi_path_result['stat']['isreg'] == (item_fastapi_path_result['item']['type'] == 'file')
+        quiet: true
+      loop: "{{ fastapi_path_stats['results'] }}"
+      loop_control:
+        loop_var: item_fastapi_path_result
+
+    - name: Verify required FastAPI executables exist
+      ansible.builtin.stat:
+        path: "{{ item_fastapi_executable['path'] }}"
+      register: fastapi_executable_stats
+      loop:
+        - name: virtualenv Python
+          path: /opt/fastapi-tutorial/venv/bin/python
+        - name: virtualenv pip
+          path: /opt/fastapi-tutorial/venv/bin/pip
+        - name: virtualenv uvicorn
+          path: /opt/fastapi-tutorial/venv/bin/uvicorn
+      loop_control:
+        loop_var: item_fastapi_executable
+
+    - name: Assert required FastAPI executables are executable
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_executable_result['stat']['exists']
+          - item_fastapi_executable_result['stat']['isreg']
+          - item_fastapi_executable_result['stat']['executable']
+        quiet: true
+      loop: "{{ fastapi_executable_stats['results'] }}"
+      loop_control:
+        loop_var: item_fastapi_executable_result
+
+    - name: Read the FastAPI environment file
+      ansible.builtin.slurp:
+        src: /opt/fastapi-tutorial/.env
+      register: fastapi_env_file
+
+    - name: Verify non-secret environment variables are present
+      ansible.builtin.assert:
+        that:
+          - "fastapi_env_file['content'] | b64decode is search('(?m)^PROJECT_NAME=')"
+          - "fastapi_env_file['content'] | b64decode is search('(?m)^API_VERSION=')"
+        quiet: true
+
+    - name: Read the FastAPI systemd unit
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_unit_file
+
+    - name: Verify the expected FastAPI application command
+      ansible.builtin.assert:
+        that:
+          - >-
+            fastapi_unit_file['content'] | b64decode is search(
+            '(?m)^ExecStart=/opt/fastapi-tutorial/venv/bin/uvicorn app\.main:app --host 0\.0\.0\.0 --port 8000$')
+        quiet: true
+
+    - name: Verify PostgreSQL initialization on RHEL or Fedora
+      ansible.builtin.stat:
+        path: /var/lib/pgsql/data/PG_VERSION
+      register: fastapi_postgresql_init
+      when: ansible_facts['os_family'] == 'RedHat'
+
+    - name: Assert PostgreSQL is initialized on RHEL or Fedora
+      ansible.builtin.assert:
+        that:
+          - fastapi_postgresql_init['stat']['exists']
+          - fastapi_postgresql_init['stat']['isreg']
+        quiet: true
+      when: ansible_facts['os_family'] == 'RedHat'
