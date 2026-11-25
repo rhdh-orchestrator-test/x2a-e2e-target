@@ -1,0 +1,73 @@
+---
+argument_specs:
+  main:
+    short_description: Configure Memcached and authenticated Redis caching services
+    description:
+      - Installs and configures the Memcached and Redis services used by the cache role.
+    options:
+      memcached_version:
+        type: str
+        required: false
+        default:
+        description: Optional Memcached package version.
+      memcached_memory:
+        type: int
+        required: false
+        default: 64
+        description: Memcached cache size in megabytes.
+      memcached_port:
+        type: int
+        required: false
+        default: 11211
+        description: Memcached TCP port.
+      memcached_udp_port:
+        type: int
+        required: false
+        default: 11211
+        description: Memcached UDP port.
+      memcached_listen:
+        type: str
+        required: false
+        default: 0.0.0.0
+        description: Memcached listen address.
+      memcached_maxconn:
+        type: int
+        required: false
+        default: 1024
+        description: Maximum Memcached client connections.
+      memcached_max_object_size:
+        type: str
+        required: false
+        default: 1m
+        description: Maximum Memcached object size.
+      memcached_experimental_options:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: Experimental Memcached options.
+      memcached_extra_cli_options:
+        type: list
+        elements: str
+        required: false
+        default: []
+        description: Additional Memcached command-line options.
+      memcached_ulimit:
+        type: int
+        required: false
+        default: 1024
+        description: Memcached file descriptor limit.
+      memcached_logfilepath:
+        type: str
+        required: false
+        default: /var/log/memcached
+        description: Memcached log path.
+      redis_password:
+        type: str
+        required: true
+        description: Redis authentication password injected by an AAP credential type.
+      cache_secure_logging:
+        type: bool
+        required: false
+        default: true
+        description: Hide tasks that handle the Redis password from logs.
