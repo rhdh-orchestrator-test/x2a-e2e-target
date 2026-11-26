@@ -1,0 +1,195 @@
+---
+# Unsupported pre-flight checks: protected-password connectivity, conditional PG_VERSION,
+# .env content, systemctl cat, daemon-reload, current_user output, git status,
+# PostgreSQL/FastAPI logs, and /docs because no unconditional expected outcome is stated.
+- name: Verify fastapi_tutorial deployment
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather service facts for PostgreSQL and FastAPI
+      ansible.builtin.service_facts:
+
+    - name: Verify PostgreSQL is active and enabled
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts.services['postgresql.service']['state'] == 'running'"
+          - "ansible_facts.services['postgresql.service']['status'] == 'enabled'"
+        fail_msg: PostgreSQL must be active and enabled.
+
+    - name: Verify fastapi-tutorial is active and enabled
+      ansible.builtin.assert:
+        that:
+          - "ansible_facts.services['fastapi-tutorial.service']['state'] == 'running'"
+          - "ansible_facts.services['fastapi-tutorial.service']['status'] == 'enabled'"
+        fail_msg: fastapi-tutorial must be active and enabled.
+
+    - name: Inspect the fastapi PostgreSQL role
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -c
+          - "\\du fastapi"
+      become: true
+      become_user: postgres
+      changed_when: false
+      register: item_fastapi_role
+
+    - name: Verify the fastapi PostgreSQL role exists
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_role.rc == 0
+          - item_fastapi_role.stdout is search('fastapi')
+        fail_msg: The fastapi PostgreSQL role must exist.
+
+    - name: Inspect the fastapi_db PostgreSQL database
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -c
+          - "\\l fastapi_db"
+      become: true
+      become_user: postgres
+      changed_when: false
+      register: item_fastapi_database
+
+    - name: Verify fastapi_db exists and is owned by fastapi
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_database.rc == 0
+          - item_fastapi_database.stdout is search('fastapi_db')
+          - item_fastapi_database.stdout is search('fastapi')
+        fail_msg: fastapi_db must exist and be owned by fastapi.
+
+    - name: Query the current PostgreSQL database
+      ansible.builtin.command:
+        argv:
+          - psql
+          - -d
+          - fastapi_db
+          - -tAc
+          - SELECT current_database();
+      become: true
+      become_user: postgres
+      changed_when: false
+      register: item_current_database
+
+    - name: Verify the current database is fastapi_db
+      ansible.builtin.assert:
+        that:
+          - item_current_database.rc == 0
+          - item_current_database.stdout | trim == 'fastapi_db'
+        fail_msg: The PostgreSQL connection must select fastapi_db.
+
+    - name: Check the application directory
+      ansible.builtin.stat:
+        path: /opt/fastapi-tutorial
+      register: item_app_directory
+
+    - name: Check application files and executables
+      ansible.builtin.stat:
+        path: "{{ item_application_path }}"
+      loop:
+        - /opt/fastapi-tutorial/requirements.txt
+        - /opt/fastapi-tutorial/venv
+        - /opt/fastapi-tutorial/venv/bin/python
+        - /opt/fastapi-tutorial/venv/bin/pip
+        - /opt/fastapi-tutorial/venv/bin/uvicorn
+      loop_control:
+        loop_var: item_application_path
+      register: item_application_files
+
+    - name: Verify the application directory exists
+      ansible.builtin.assert:
+        that:
+          - item_app_directory.stat.exists
+          - item_app_directory.stat.isdir
+        fail_msg: The FastAPI application directory must exist.
+
+    - name: Verify application files and virtualenv executables
+      ansible.builtin.assert:
+        that:
+          - item_application_file.stat.exists
+          - >-
+            (not item_application_file.item.endswith('/venv/bin/python') and
+            not item_application_file.item.endswith('/venv/bin/pip') and
+            not item_application_file.item.endswith('/venv/bin/uvicorn')) or
+            item_application_file.stat.executable
+        fail_msg: Required FastAPI application files and executables must exist.
+      loop: "{{ item_application_files.results }}"
+      loop_control:
+        loop_var: item_application_file
+
+    - name: Verify the systemd unit passes systemd-analyze
+      ansible.builtin.command:
+        argv:
+          - systemd-analyze
+          - verify
+          - /etc/systemd/system/fastapi-tutorial.service
+      changed_when: false
+
+    - name: Inspect the FastAPI process
+      ansible.builtin.command:
+        argv:
+          - ps
+          - aux
+      changed_when: false
+      register: item_fastapi_process
+
+    - name: Verify Uvicorn is running the FastAPI application
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_process.rc == 0
+          - item_fastapi_process.stdout is search('[u]vicorn app.main:app')
+        fail_msg: The FastAPI Uvicorn process must be running.
+
+    - name: Inspect listeners on port 8000
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -tlnp
+      changed_when: false
+      register: item_fastapi_listener
+
+    - name: Verify FastAPI listens on port 8000
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_listener.rc == 0
+          - item_fastapi_listener.stdout is search('0.0.0.0:8000')
+        fail_msg: FastAPI must listen on 0.0.0.0:8000.
+
+    - name: Inspect the repository remote
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - /opt/fastapi-tutorial
+          - remote
+          - -v
+      changed_when: false
+      register: item_repository_remote
+
+    - name: Verify the repository remote
+      ansible.builtin.assert:
+        that:
+          - item_repository_remote.rc == 0
+          - item_repository_remote.stdout is search('https://github.com/dibanez/fastapi_tutorial\\.git')
+        fail_msg: The application repository remote must match the expected URL.
+
+    - name: Inspect the repository branch
+      ansible.builtin.command:
+        argv:
+          - git
+          - -C
+          - /opt/fastapi-tutorial
+          - rev-parse
+          - --abbrev-ref
+          - HEAD
+      changed_when: false
+      register: item_repository_revision
+
+    - name: Verify the repository revision
+      ansible.builtin.assert:
+        that:
+          - item_repository_revision.rc == 0
+          - item_repository_revision.stdout | trim == 'main'
+        fail_msg: The application checkout must be on the main revision.
