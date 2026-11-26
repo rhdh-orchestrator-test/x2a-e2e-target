@@ -1,0 +1,45 @@
+---
+- name: Preserve credential-provided Redis settings  # noqa: L039 - Redis credentials come from role inputs or inventory
+  ansible.builtin.set_fact:
+    cache_redis_port: "{{ redis_port }}"
+    cache_redis_password: "{{ redis_password }}"
+  no_log: "{{ cache_secure_logging }}"
+
+- name: Configure Redis cache through Private Hub role  # noqa: L038 - the eloy.redis.redis role is supplied by the declared Private Hub collection dependency
+  ansible.builtin.include_role:
+    name: eloy.redis.redis
+  no_log: "{{ cache_secure_logging }}"
+  vars:
+    redis_port: "{{ cache_redis_port }}"
+    redis_requirepass: "{{ cache_redis_password }}"
+    redis_install_method: package
+    redis_cluster_enabled: false
+    redis_sentinel_enabled: false
+    redis_replication_enabled: false
+    redis_aof_enabled: false
+    redis_rdb_enabled: true
+    redis_base_piddir: /run/redis
+    redis_log_dir: /var/log/redis
+    redis_config_file: /etc/redis/6379.conf
+
+- name: Ensure Redis log directory exists
+  ansible.builtin.file:
+    path: /var/log/redis
+    state: directory
+    owner: redis
+    group: redis
+    mode: "0755"
+
+- name: Check whether Redis configuration exists
+  ansible.builtin.stat:
+    path: /etc/redis/6379.conf
+  register: cache_redis_config
+
+- name: Remove unsupported replication directives from Redis configuration  # noqa: L039 - cache_redis_config is registered by the prior stat task
+  ansible.builtin.replace:
+    path: /etc/redis/6379.conf
+    regexp: ^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority).*$
+    replace: ""
+    backup: true
+  when: cache_redis_config.stat.exists
+  no_log: "{{ cache_secure_logging }}"

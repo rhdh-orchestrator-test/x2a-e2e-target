@@ -1,0 +1,172 @@
+---
+# Unsupported pre-flight checks: Redis authentication/INFO (the Vault password is not
+# available here), journal output, and unqualified configuration/ownership diagnostics
+# without an explicit expected result are not asserted.
+
+- name: Verify cache services and endpoints
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Gather service facts for Memcached and Redis checks
+      ansible.builtin.service_facts:
+
+    - name: Verify Memcached is active and enabled
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services.get('memcached.service', {}).get('state') == 'running'
+          - ansible_facts.services.get('memcached.service', {}).get('status') == 'enabled'
+        fail_msg: Memcached must be running and enabled.
+
+    - name: Verify Memcached TCP listener on all addresses and port 11211
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -ltnp
+      changed_when: false
+      register: cache_memcached_tcp
+
+    - name: Assert Memcached TCP listener characteristics
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_tcp.rc == 0
+          - cache_memcached_tcp.stdout is regex('0\\.0\\.0\\.0:11211')
+        fail_msg: Memcached must listen on 0.0.0.0:11211 over TCP.
+
+    - name: Verify Memcached UDP listener on all addresses and port 11211
+      ansible.builtin.command:
+        argv:
+          - ss
+          - -lunp
+      changed_when: false
+      register: cache_memcached_udp
+
+    - name: Assert Memcached UDP listener characteristics
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_udp.rc == 0
+          - cache_memcached_udp.stdout is regex('0\\.0\\.0\\.0:11211')
+        fail_msg: Memcached must listen on 0.0.0.0:11211 over UDP.
+
+    - name: Verify Memcached TCP connectivity
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 11211
+        state: started
+        timeout: 5
+
+    - name: Query Memcached version
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - '2'
+          - 127.0.0.1
+          - '11211'
+        stdin: "version\r\n"
+      changed_when: false
+      register: cache_memcached_version
+
+    - name: Assert Memcached responds with a version
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_version.rc == 0
+          - cache_memcached_version.stdout is regex('VERSION ')
+        fail_msg: Memcached must respond to the version command.
+
+    - name: Query Memcached statistics
+      ansible.builtin.command:
+        argv:
+          - nc
+          - -w
+          - '2'
+          - 127.0.0.1
+          - '11211'
+        stdin: "stats settings\r\n"
+      changed_when: false
+      register: cache_memcached_stats
+
+    - name: Assert Memcached connection and object-size settings
+      ansible.builtin.assert:
+        that:
+          - cache_memcached_stats.rc == 0
+          - cache_memcached_stats.stdout is regex('STAT maxconns 1024')
+          - cache_memcached_stats.stdout is regex('STAT item_size_max 1048576')
+        fail_msg: Memcached must expose the requested connection and object-size settings.
+
+    - name: Verify Memcached runtime directories exist
+      ansible.builtin.stat:
+        path: "{{ item_cache_path }}"
+      loop:
+        - /var/log/memcached
+        - /var/run/memcached
+      loop_control:
+        loop_var: item_cache_path
+      register: cache_memcached_directories
+
+    - name: Assert Memcached runtime directories are present
+      ansible.builtin.assert:
+        that:
+          - item_cache_directory['stat']['exists']
+        fail_msg: A required Memcached runtime directory is missing.
+      loop: "{{ cache_memcached_directories['results'] }}"
+      loop_control:
+        loop_var: item_cache_directory
+
+    - name: Verify a Redis service is active
+      ansible.builtin.assert:
+        that:
+          - >-
+            ansible_facts.services.get('redis-server.service', {}).get('state') == 'running'
+            or ansible_facts.services.get('redis.service', {}).get('state') == 'running'
+        fail_msg: Either redis-server or redis must be active.
+
+    - name: Verify Redis TCP listener on port 6379
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6379
+        state: started
+        timeout: 5
+
+    - name: Verify Redis configuration file exists
+      ansible.builtin.stat:
+        path: /etc/redis/6379.conf
+      register: cache_redis_config
+
+    - name: Assert Redis configuration file is present
+      ansible.builtin.assert:
+        that:
+          - cache_redis_config['stat']['exists']
+          - cache_redis_config['stat']['isreg']
+        fail_msg: The Redis 6379 configuration file must exist.
+
+    - name: Read Redis configuration without changing it
+      ansible.builtin.slurp:
+        src: /etc/redis/6379.conf
+      register: cache_redis_config_content
+
+    - name: Assert removed Redis replication directives are absent
+      ansible.builtin.assert:
+        that:
+          - >-
+            (cache_redis_config_content['content'] | b64decode) is not
+            regex('(?m)^(replica-serve-stale-data|replica-read-only|repl-ping-replica-period|client-output-buffer-limit|replica-priority)')
+        fail_msg: Removed Redis replication directives must not be present.
+
+    - name: Verify Redis runtime directories exist
+      ansible.builtin.stat:
+        path: "{{ item_redis_path }}"
+      loop:
+        - /run/redis
+        - /var/log/redis
+      loop_control:
+        loop_var: item_redis_path
+      register: cache_redis_directories
+
+    - name: Assert Redis runtime directories are present
+      ansible.builtin.assert:
+        that:
+          - item_redis_directory['stat']['exists']
+        fail_msg: A required Redis runtime directory is missing.
+      loop: "{{ cache_redis_directories['results'] }}"
+      loop_control:
+        loop_var: item_redis_directory

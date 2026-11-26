@@ -1,0 +1,44 @@
+---
+- name: Configure Memcached instance arguments
+  ansible.builtin.set_fact:
+    cache_memcached_command_args: >-
+      {{
+        [
+          '-m', cache_memcached_memory,
+          '-p', cache_memcached_port,
+          '-U', cache_memcached_udp_port,
+          '-l', cache_memcached_listen,
+          '-c', cache_memcached_maxconn,
+          '-u', 'service_user',
+          '-I', cache_memcached_max_object_size,
+          '-R', cache_memcached_ulimit
+        ]
+        + cache_memcached_experimental_options
+        + cache_memcached_extra_cli_options
+      }}
+
+- name: Configure Memcached options on Debian-family systems
+  ansible.builtin.lineinfile:
+    path: /etc/default/memcached
+    regexp: "^OPTIONS="
+    line: "OPTIONS=\"{{ cache_memcached_command_args | map(\"string\") | join(\" \") }}\""
+    create: false
+    mode: "0644"
+  when: ansible_facts.os_family == "Debian"
+  notify: Restart Memcached
+
+- name: Configure Memcached options on RedHat-family systems
+  ansible.builtin.lineinfile:
+    path: /etc/sysconfig/memcached
+    regexp: "^OPTIONS="
+    line: "OPTIONS=\"{{ cache_memcached_command_args | map(\"string\") | join(\" \") }}\""
+    create: false
+    mode: "0644"
+  when: ansible_facts.os_family == "RedHat"
+  notify: Restart Memcached
+
+- name: Configure and start Memcached service
+  ansible.builtin.service:
+    name: memcached
+    enabled: true
+    state: started
