@@ -1,0 +1,38 @@
+---
+# argument spec file for x2a.project.nginx_multisite
+argument_specs:
+  main:
+    short_description: Configure Nginx multisite hosting and host security.
+    options:
+      nginx_multisite_my_variable:
+        type: str
+        description: A simple string argument for demonstration.
+        default: default_value
+      nginx_sites:
+        type: dict
+        description: Mapping of site names to document roots, content folders, and SSL settings.
+        default:
+          ci.cluster.local:
+            document_root: /var/www/ci.cluster.local
+            site_folder: ci
+            ssl_enabled: true
+          status.cluster.local:
+            document_root: /var/www/status.cluster.local
+            site_folder: status
+            ssl_enabled: true
+          test.cluster.local:
+            document_root: /var/www/test.cluster.local
+            site_folder: test
+            ssl_enabled: true
+      nginx_multisite_ssh_disable_root:
+        type: bool
+        description: Whether to disable SSH root login.
+        default: true
+      nginx_multisite_ssh_password_auth:
+        type: bool
+        description: Whether SSH password authentication is allowed.
+        default: false
+      nginx_multisite_secure_logging:
+        type: bool
+        description: Whether to suppress secret task output.
+        default: true

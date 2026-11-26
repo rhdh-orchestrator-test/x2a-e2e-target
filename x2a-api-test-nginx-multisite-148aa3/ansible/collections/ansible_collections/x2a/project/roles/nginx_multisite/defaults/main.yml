@@ -1,0 +1,22 @@
+---
+# defaults file for x2a.project.nginx_multisite
+nginx_multisite_my_variable: default_value
+
+# Site definitions used by the configuration and content tasks.
+nginx_sites:
+  ci.cluster.local:
+    document_root: /var/www/ci.cluster.local
+    site_folder: ci
+    ssl_enabled: true
+  status.cluster.local:
+    document_root: /var/www/status.cluster.local
+    site_folder: status
+    ssl_enabled: true
+  test.cluster.local:
+    document_root: /var/www/test.cluster.local
+    site_folder: test
+    ssl_enabled: true
+
+nginx_multisite_ssh_disable_root: true
+nginx_multisite_ssh_password_auth: false
+nginx_multisite_secure_logging: true

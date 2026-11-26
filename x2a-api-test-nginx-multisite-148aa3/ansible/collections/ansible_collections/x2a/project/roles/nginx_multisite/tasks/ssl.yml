@@ -1,0 +1,51 @@
+---
+- name: Install SSL packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create ssl-cert group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Create certificate directory
+  ansible.builtin.file:
+    path: /etc/ssl/certs
+    owner: root
+    group: root
+    mode: "0755"
+    state: directory
+
+- name: Create private key directory
+  ansible.builtin.file:
+    path: /etc/ssl/private
+    owner: root
+    group: ssl-cert
+    mode: "0710"
+    state: directory
+
+- name: Generate self-signed certificates  # noqa: R101 - command parameters come from fixed role-defined certificate entries
+  ansible.builtin.shell:
+    cmd: |
+      openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        -keyout "{{ item_nginx_ssl['key_file'] }}" \
+        -out "{{ item_nginx_ssl['cert_file'] }}" \
+        -subj "/C=US/ST=Example/L=Example/O=Example Org/OU=IT/CN={{ item_nginx_ssl['server_name'] }}/emailAddress=admin@example.com"
+      chmod 0640 "{{ item_nginx_ssl['key_file'] }}"
+      chown root:ssl-cert "{{ item_nginx_ssl['key_file'] }}"
+    creates: "{{ item_nginx_ssl['cert_file'] }}" # noqa: R114 - certificate path is a fixed role-defined value
+  loop:
+    - server_name: ci.cluster.local
+      cert_file: /etc/ssl/certs/ci.cluster.local.crt
+      key_file: /etc/ssl/private/ci.cluster.local.key
+    - server_name: status.cluster.local
+      cert_file: /etc/ssl/certs/status.cluster.local.crt
+      key_file: /etc/ssl/private/status.cluster.local.key
+    - server_name: test.cluster.local
+      cert_file: /etc/ssl/certs/test.cluster.local.crt
+      key_file: /etc/ssl/private/test.cluster.local.key
+  loop_control:
+    loop_var: item_nginx_ssl
