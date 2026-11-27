@@ -1,0 +1,19 @@
+---
+- name: Install Memcached
+  ansible.builtin.package:
+    name: memcached
+    state: present
+
+- name: Configure Memcached service arguments
+  ansible.builtin.template:
+    src: memcached.service.conf.j2
+    dest: "{{ '/etc/sysconfig/memcached' if ansible_facts['os_family'] == 'RedHat' else '/etc/default/memcached' }}"  # noqa: R114 - destination is a fixed OS-specific system path
+    mode: "0644"
+    backup: true
+  notify: Restart Memcached
+
+- name: Enable and start Memcached
+  ansible.builtin.service:
+    name: memcached
+    state: started
+    enabled: true

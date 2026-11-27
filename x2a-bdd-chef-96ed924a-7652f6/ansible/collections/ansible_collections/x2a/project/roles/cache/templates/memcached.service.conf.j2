@@ -1,0 +1,6 @@
+PORT="{{ cache_memcached_port }}"
+UDPPORT="{{ cache_memcached_udp_port }}"
+USER="{{ 'memcached' if ansible_facts['os_family'] == 'RedHat' else 'memcache' }}"
+MAXCONN="{{ cache_memcached_maxconn }}"
+CACHESIZE="{{ cache_memcached_memory }}"
+OPTIONS="-l {{ cache_memcached_listen }} -I {{ cache_memcached_max_object_size }} -u {{ 'memcached' if ansible_facts['os_family'] == 'RedHat' else 'memcache' }} -R {{ cache_memcached_ulimit }}{% if cache_memcached_threads is not none %} -t {{ cache_memcached_threads }}{% endif %}{% for option in cache_memcached_experimental_options %} {{ option }}{% endfor %}{% for option in cache_memcached_extra_cli_options %} {{ option }}{% endfor %}"
