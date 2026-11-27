@@ -1,0 +1,224 @@
+---
+# Unsupported checks: clean git status, password-authenticated psql, endpoint response,
+# process listings, journal output, package/version listings, and unspecified diagnostics.
+- name: Verify fastapi-tutorial deployment
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check required application paths
+      ansible.builtin.stat:
+        path: "{{ item_fastapi_path['path'] }}"
+      loop:
+        - path: /opt/fastapi-tutorial
+          kind: directory
+        - path: /opt/fastapi-tutorial/venv/bin/python
+          kind: executable
+        - path: /opt/fastapi-tutorial/venv/bin/pip
+          kind: executable
+        - path: /opt/fastapi-tutorial/venv/bin/uvicorn
+          kind: executable
+        - path: /opt/fastapi-tutorial/requirements.txt
+          kind: file
+        - path: /opt/fastapi-tutorial/.env
+          kind: file
+        - path: /etc/systemd/system/fastapi-tutorial.service
+          kind: file
+      loop_control:
+        loop_var: item_fastapi_path
+      register: fastapi_paths
+
+    - name: Assert required application paths
+      ansible.builtin.assert:
+        that:
+          - item_fastapi_path_result.stat.exists
+          - item_fastapi_path_result.stat.isdir if item_fastapi_path_result.item['kind'] == 'directory' else item_fastapi_path_result.stat.isreg
+          - item_fastapi_path_result.stat.executable if item_fastapi_path_result.item['kind'] == 'executable' else true
+        fail_msg: "A required application path is missing or has the wrong type."
+      loop: "{{ fastapi_paths.results }}"
+      loop_control:
+        loop_var: item_fastapi_path_result
+
+    - name: Check repository is a work tree
+      ansible.builtin.command:
+        argv: [git, -C, /opt/fastapi-tutorial, rev-parse, --is-inside-work-tree]
+      register: fastapi_work_tree
+      changed_when: false
+
+    - name: Assert repository is a work tree
+      ansible.builtin.assert:
+        that:
+          - fastapi_work_tree.rc == 0
+          - fastapi_work_tree.stdout | trim == 'true'
+        fail_msg: "The application directory is not a Git work tree."
+
+    - name: Check application branch
+      ansible.builtin.command:
+        argv: [git, -C, /opt/fastapi-tutorial, rev-parse, --abbrev-ref, HEAD]
+      register: fastapi_branch
+      changed_when: false
+
+    - name: Assert application branch is main
+      ansible.builtin.assert:
+        that:
+          - fastapi_branch.rc == 0
+          - fastapi_branch.stdout | trim == 'main'
+        fail_msg: "The application is not on the main branch."
+
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert PostgreSQL service is active
+      ansible.builtin.assert:
+        that:
+          - "'postgresql.service' in ansible_facts.services"
+          - ansible_facts.services['postgresql.service']['state'] == 'running'
+        fail_msg: "The PostgreSQL service is not active."
+
+    - name: Check PostgreSQL service is enabled
+      ansible.builtin.command:
+        argv: [systemctl, is-enabled, postgresql]
+      register: fastapi_postgresql_enabled
+      changed_when: false
+
+    - name: Assert PostgreSQL service is enabled
+      ansible.builtin.assert:
+        that:
+          - fastapi_postgresql_enabled.rc == 0
+          - fastapi_postgresql_enabled.stdout | trim == 'enabled'
+        fail_msg: "The PostgreSQL service is not enabled."
+
+    - name: Check PostgreSQL port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 5432
+        state: started
+        timeout: 5
+
+    - name: Check PostgreSQL user
+      ansible.builtin.command:
+        argv: [sudo, -u, postgres, psql, -tAc, "SELECT usename FROM pg_catalog.pg_user WHERE usename = 'fastapi';"]
+      register: fastapi_user
+      changed_when: false
+
+    - name: Assert PostgreSQL user exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_user.rc == 0
+          - fastapi_user.stdout | trim == 'fastapi'
+        fail_msg: "The FastAPI PostgreSQL user is missing."
+
+    - name: Check application database
+      ansible.builtin.command:
+        argv: [sudo, -u, postgres, psql, -tAc, "SELECT datname FROM pg_database WHERE datname = 'fastapi_db';"]
+      register: fastapi_database
+      changed_when: false
+
+    - name: Assert application database exists
+      ansible.builtin.assert:
+        that:
+          - fastapi_database.rc == 0
+          - fastapi_database.stdout | trim == 'fastapi_db'
+        fail_msg: "The FastAPI database is missing."
+
+    - name: Check application database owner
+      ansible.builtin.command:
+        argv: [sudo, -u, postgres, psql, -tAc, "SELECT datname, pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'fastapi_db';"]
+      register: fastapi_database_owner
+      changed_when: false
+
+    - name: Assert application database owner
+      ansible.builtin.assert:
+        that:
+          - fastapi_database_owner.rc == 0
+          - fastapi_database_owner.stdout | trim == 'fastapi_db|fastapi'
+        fail_msg: "The FastAPI database owner is incorrect."
+
+    - name: Read application environment
+      ansible.builtin.slurp:
+        src: /opt/fastapi-tutorial/.env
+      register: fastapi_env
+
+    - name: Assert application environment keys
+      ansible.builtin.assert:
+        that:
+          - "'PROJECT_NAME=' in (fastapi_env.content | b64decode)"
+          - "'API_VERSION=' in (fastapi_env.content | b64decode)"
+          - "'DATABASE_URL=' in (fastapi_env.content | b64decode)"
+        fail_msg: "Required application environment keys are missing."
+
+    - name: Read systemd unit
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/fastapi-tutorial.service
+      register: fastapi_unit
+
+    - name: Assert systemd unit settings
+      ansible.builtin.assert:
+        that:
+          - "'Description=' in (fastapi_unit.content | b64decode)"
+          - "'After=' in (fastapi_unit.content | b64decode)"
+          - "'Type=' in (fastapi_unit.content | b64decode)"
+          - "'User=' in (fastapi_unit.content | b64decode)"
+          - "'WorkingDirectory=' in (fastapi_unit.content | b64decode)"
+          - "'Environment=' in (fastapi_unit.content | b64decode)"
+          - "'ExecStart=' in (fastapi_unit.content | b64decode)"
+          - "'Restart=' in (fastapi_unit.content | b64decode)"
+          - "'WantedBy=' in (fastapi_unit.content | b64decode)"
+        fail_msg: "The FastAPI systemd unit is missing required settings."
+
+    - name: Validate systemd unit
+      ansible.builtin.command:
+        argv: [systemd-analyze, verify, /etc/systemd/system/fastapi-tutorial.service]
+      changed_when: false
+
+    - name: Assert FastAPI service is active
+      ansible.builtin.assert:
+        that:
+          - "'fastapi-tutorial.service' in ansible_facts.services"
+          - ansible_facts.services['fastapi-tutorial.service']['state'] == 'running'
+        fail_msg: "The FastAPI service is not active."
+
+    - name: Check FastAPI service is enabled
+      ansible.builtin.command:
+        argv: [systemctl, is-enabled, fastapi-tutorial]
+      register: fastapi_enabled
+      changed_when: false
+
+    - name: Assert FastAPI service is enabled
+      ansible.builtin.assert:
+        that:
+          - fastapi_enabled.rc == 0
+          - fastapi_enabled.stdout | trim == 'enabled'
+        fail_msg: "The FastAPI service is not enabled."
+
+    - name: Check FastAPI port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 8000
+        state: started
+        timeout: 5
+
+    - name: Check PostgreSQL port ownership
+      ansible.builtin.command:
+        argv: [lsof, -iTCP:5432, -sTCP:LISTEN]
+      register: fastapi_postgresql_port
+      changed_when: false
+
+    - name: Assert PostgreSQL owns port 5432
+      ansible.builtin.assert:
+        that:
+          - fastapi_postgresql_port.rc == 0
+          - "'postgres' in fastapi_postgresql_port.stdout"
+        fail_msg: "PostgreSQL does not own port 5432."
+
+    - name: Check FastAPI port ownership
+      ansible.builtin.command:
+        argv: [lsof, -iTCP:8000, -sTCP:LISTEN]
+      register: fastapi_application_port
+      changed_when: false
+
+    - name: Assert FastAPI owns port 8000
+      ansible.builtin.assert:
+        that:
+          - fastapi_application_port.rc == 0
+          - "'uvicorn' in fastapi_application_port.stdout"
+        fail_msg: "FastAPI does not own port 8000."
