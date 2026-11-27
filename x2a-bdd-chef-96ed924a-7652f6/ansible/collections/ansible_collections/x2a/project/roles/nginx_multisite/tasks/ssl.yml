@@ -1,0 +1,57 @@
+---
+- name: Install SSL packages
+  ansible.builtin.package:
+    name:
+      - openssl
+      - ca-certificates
+    state: present
+
+- name: Create ssl-cert group
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+- name: Create certificate directory
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_certificate_path }}" # noqa: R114 - path from role default
+    owner: root
+    group: root
+    mode: "0755"
+    state: directory
+
+- name: Create private key directory
+  ansible.builtin.file:
+    path: "{{ nginx_multisite_ssl_private_key_path }}" # noqa: R114 - path from role default
+    owner: root
+    group: ssl-cert
+    mode: "0710"
+    state: directory
+
+- name: Install site TLS certificates # noqa: L039 - nginx_tls_certificate is supplied as a role parameter
+  ansible.builtin.copy:
+    content: "{{ nginx_tls_certificate }}"
+    dest: "{{ nginx_multisite_ssl_certificate_path }}/{{ item_nginx_ssl['key'] }}.crt" # noqa: R114 - filename from role-defined sites mapping
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  when: item_nginx_ssl['value']['ssl_enabled'] | default(false) | bool
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_ssl
+  notify: Reload nginx
+
+- name: Install site TLS private keys # noqa: L039 - nginx_tls_private_key is supplied as a role parameter
+  ansible.builtin.copy:
+    content: "{{ nginx_tls_private_key }}"
+    dest: "{{ nginx_multisite_ssl_private_key_path }}/{{ item_nginx_key['key'] }}.key" # noqa: R114 - filename from role-defined sites mapping
+    owner: root
+    group: ssl-cert
+    mode: "0640"
+    backup: true
+  when: item_nginx_key['value']['ssl_enabled'] | default(false) | bool
+  loop: "{{ nginx_multisite_sites | dict2items }}"
+  loop_control:
+    loop_var: item_nginx_key
+  notify: Reload nginx
+  no_log: "{{ nginx_multisite_secure_logging }}"

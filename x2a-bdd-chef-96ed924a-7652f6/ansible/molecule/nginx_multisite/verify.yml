@@ -1,0 +1,302 @@
+---
+# Unsupported pre-flight checks: /etc/os-release has no stated accepted value; SSH/sysctl/nginx
+# grep output, HTTP responses, certificate properties, and log tails have no stated outcome.
+# Fail2ban jail listings and the runtime inventory cannot be expanded beyond supplied nginx_sites.
+
+- name: Verify nginx multisite pre-flight expectations
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Check required executables are available
+      ansible.builtin.command:
+        argv:
+          - /bin/sh
+          - -c
+          - "command -v {{ item_tool }}"
+      register: required_tools
+      changed_when: false
+      loop:
+        - nginx
+        - openssl
+        - ufw
+        - fail2ban-client
+      loop_control:
+        loop_var: item_tool
+
+    - name: Assert required executables are available
+      ansible.builtin.assert:
+        that:
+          - item_tool_result['rc'] == 0
+      loop: "{{ required_tools['results'] }}"
+      loop_control:
+        loop_var: item_tool_result
+
+    - name: Check required services are active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - "{{ item_service }}"
+      register: active_services
+      changed_when: false
+      loop:
+        - fail2ban
+        - nginx
+        - sshd
+      loop_control:
+        loop_var: item_service
+
+    - name: Assert required services are active
+      ansible.builtin.assert:
+        that:
+          - item_active['rc'] == 0
+          - item_active['stdout'] == 'active'
+      loop: "{{ active_services['results'] }}"
+      loop_control:
+        loop_var: item_active
+
+    - name: Check fail2ban and nginx are enabled
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - "{{ item_enabled_service }}"
+      register: enabled_services
+      changed_when: false
+      loop:
+        - fail2ban
+        - nginx
+      loop_control:
+        loop_var: item_enabled_service
+
+    - name: Assert fail2ban and nginx are enabled
+      ansible.builtin.assert:
+        that:
+          - item_enabled['rc'] == 0
+          - item_enabled['stdout'] == 'enabled'
+      loop: "{{ enabled_services['results'] }}"
+      loop_control:
+        loop_var: item_enabled
+
+    - name: Check UFW status and incoming policy
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+          - verbose
+      register: ufw_status
+      changed_when: false
+
+    - name: Assert UFW is active with default incoming deny
+      ansible.builtin.assert:
+        that:
+          - ufw_status['rc'] == 0
+          - "'Status: active' in ufw_status['stdout']"
+          - "'Default: deny (incoming)' in ufw_status['stdout']"
+
+    - name: Check required UFW rules
+      ansible.builtin.command:
+        argv:
+          - ufw
+          - status
+      register: ufw_rules
+      changed_when: false
+
+    - name: Assert required UFW rules are allowed
+      ansible.builtin.assert:
+        that:
+          - ufw_rules['rc'] == 0
+          - ufw_rules['stdout'] is search('22/tcp\\s+ALLOW')
+          - ufw_rules['stdout'] is search('80/tcp\\s+ALLOW')
+          - ufw_rules['stdout'] is search('443/tcp\\s+ALLOW')
+
+    - name: Check sshd configuration syntax
+      ansible.builtin.command:
+        argv: [sshd, -t]
+      register: sshd_syntax
+      changed_when: false
+
+    - name: Assert sshd configuration is valid
+      ansible.builtin.assert:
+        that: sshd_syntax['rc'] == 0
+
+    - name: Check SSH listens on port 22
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 22
+        state: started
+        timeout: 5
+
+    - name: Check nginx configuration syntax
+      ansible.builtin.command:
+        argv: [nginx, -t]
+      register: nginx_syntax
+      changed_when: false
+
+    - name: Assert nginx configuration is valid
+      ansible.builtin.assert:
+        that: nginx_syntax['rc'] == 0
+
+    - name: Check nginx listens on HTTP
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 80
+        state: started
+        timeout: 5
+
+    - name: Verify the runtime site inventory is supplied
+      ansible.builtin.assert:
+        that:
+          - nginx_sites is defined
+          - nginx_sites is mapping
+          - nginx_sites | length > 0
+
+    - name: Verify required fields exist for every runtime site
+      ansible.builtin.assert:
+        that:
+          - item_site['value']['id'] is defined
+          - item_site['value']['document_root'] is defined
+          - item_site['value']['ssl_enabled'] is defined
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site
+
+    - name: Check the nginx secret file
+      ansible.builtin.stat:
+        path: /etc/nginx/secrets/site_token
+      register: nginx_secret
+
+    - name: Assert the nginx secret file has expected protection
+      ansible.builtin.assert:
+        that:
+          - nginx_secret['stat']['exists']
+          - nginx_secret['stat']['size'] > 0
+          - nginx_secret['stat']['pw_name'] == 'root'
+          - nginx_secret['stat']['gr_name'] == 'root'
+          - nginx_secret['stat']['mode'] == '0600'
+
+    - name: Check SSL directories
+      ansible.builtin.stat:
+        path: "{{ item_ssl_dir['path'] }}"
+      register: ssl_directories
+      loop:
+        - path: /etc/ssl/certs
+          owner: root
+          group: root
+          mode: "0755"
+        - path: /etc/ssl/private
+          owner: root
+          group: ssl-cert
+          mode: "0710"
+      loop_control:
+        loop_var: item_ssl_dir
+
+    - name: Assert SSL directories have expected protection
+      ansible.builtin.assert:
+        that:
+          - item_ssl_result['stat']['exists']
+          - item_ssl_result['stat']['pw_name'] == item_ssl_result['item']['owner']
+          - item_ssl_result['stat']['gr_name'] == item_ssl_result['item']['group']
+          - item_ssl_result['stat']['mode'] == item_ssl_result['item']['mode']
+      loop: "{{ ssl_directories['results'] }}"
+      loop_control:
+        loop_var: item_ssl_result
+
+    - name: Check each site configuration file
+      ansible.builtin.stat:
+        path: "/etc/nginx/sites-available/{{ item_site_file['value']['id'] }}"
+      register: site_config_files
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site_file
+
+    - name: Assert each site configuration file exists
+      ansible.builtin.assert:
+        that:
+          - item_site_config['stat']['exists']
+          - item_site_config['stat']['isreg']
+      loop: "{{ site_config_files['results'] }}"
+      loop_control:
+        loop_var: item_site_config
+
+    - name: Check each enabled site symlink
+      ansible.builtin.stat:
+        path: "/etc/nginx/sites-enabled/{{ item_site_link['value']['id'] }}"
+        follow: false
+      register: site_links
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site_link
+
+    - name: Assert each enabled site symlink is correct
+      ansible.builtin.assert:
+        that:
+          - item_site_link_result['stat']['islnk']
+          - item_site_link_result['stat']['lnk_source'] == '/etc/nginx/sites-available/' ~ item_site_link_result['item']['value']['id']
+      loop: "{{ site_links['results'] }}"
+      loop_control:
+        loop_var: item_site_link_result
+
+    - name: Check each site document root index file
+      ansible.builtin.stat:
+        path: "{{ item_site_root['value']['document_root'] }}/index.html"
+      register: site_index_files
+      loop: "{{ nginx_sites | dict2items }}"
+      loop_control:
+        loop_var: item_site_root
+
+    - name: Assert each site document root index file exists
+      ansible.builtin.assert:
+        that:
+          - item_site_index['stat']['exists']
+          - item_site_index['stat']['isreg']
+      loop: "{{ site_index_files['results'] }}"
+      loop_control:
+        loop_var: item_site_index
+
+    - name: Check the default nginx site is absent
+      ansible.builtin.stat:
+        path: /etc/nginx/sites-enabled/default
+      register: default_site
+
+    - name: Assert the default nginx site is absent
+      ansible.builtin.assert:
+        that: not default_site['stat']['exists']
+
+    - name: Check SSL certificates for SSL-enabled sites
+      ansible.builtin.stat:
+        path: "/etc/ssl/certs/{{ item_ssl_site['value']['id'] }}.crt"
+      register: ssl_certificates
+      loop: "{{ nginx_sites | dict2items }}"
+      when: item_ssl_site['value']['ssl_enabled'] | bool
+      loop_control:
+        loop_var: item_ssl_site
+
+    - name: Assert SSL certificates exist for SSL-enabled sites
+      ansible.builtin.assert:
+        that:
+          - item_ssl_certificate['stat']['exists']
+          - item_ssl_certificate['stat']['isreg']
+      loop: "{{ ssl_certificates['results'] }}"
+      when: not (item_ssl_certificate['skipped'] | default(false))
+      loop_control:
+        loop_var: item_ssl_certificate
+
+    - name: Check SSL private keys for SSL-enabled sites
+      ansible.builtin.stat:
+        path: "/etc/ssl/private/{{ item_ssl_key['value']['id'] }}.key"
+      register: ssl_private_keys
+      loop: "{{ nginx_sites | dict2items }}"
+      when: item_ssl_key['value']['ssl_enabled'] | bool
+      loop_control:
+        loop_var: item_ssl_key
+
+    - name: Assert SSL private keys exist for SSL-enabled sites
+      ansible.builtin.assert:
+        that:
+          - item_ssl_private_key['stat']['exists']
+          - item_ssl_private_key['stat']['isreg']
+      loop: "{{ ssl_private_keys['results'] }}"
+      when: not (item_ssl_private_key['skipped'] | default(false))
+      loop_control:
+        loop_var: item_ssl_private_key
